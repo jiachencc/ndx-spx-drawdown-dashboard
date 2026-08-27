@@ -286,6 +286,15 @@
   /* ===== Index card ===== */
   .idx-name { font-size: 14.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; letter-spacing: .2px; }
   .idx-name .src { font-size: 10px; color: var(--tx3); font-family: var(--mono); letter-spacing: 1px; }
+  /* 数据来源角标：AUTO=每日收盘后自动抓取 MANUAL=人工维护（说明见图例行） */
+  .src-tag { font-size: 9px; font-family: var(--mono); font-weight: 700; letter-spacing: 1px;
+    padding: 1.5px 6px; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+  .src-tag.auto { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent);
+    background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .src-tag.manual { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 45%, transparent);
+    background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+  .asof-legend { font-size: 10.5px; color: var(--tx3); margin-top: 6px; padding: 0 2px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .idx-close { font-family: var(--mono); font-size: 28px; font-weight: 800; margin: 8px 0 3px; letter-spacing: .5px; }
   .idx-change { font-size: 12px; font-family: var(--mono); margin-bottom: 12px; }
   .drawdown-box { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
@@ -518,6 +527,11 @@
 <div class="asof-bar" aria-label="时区换算">
   <div class="asof-main">🕐 美股 <b id="asof-us">--</b> 收盘 · 美东 <b id="asof-et">--</b> <span class="asof-tz" id="asof-tz">--</span></div>
   <div class="asof-cn">🇨🇳 对应北京时间 <b id="asof-cn">--</b>（次日清晨） · 本地更新 <b id="asof-local">--</b> <span id="asof-macro"></span></div>
+  <div class="asof-legend">
+    <span class="src-tag auto">AUTO</span>行情·VIX·美债·恐贪·汇率：每日收盘后自动抓取
+    <span style="opacity:.4">|</span>
+    <span class="src-tag manual">MANUAL</span>估值·Put/Call·日历·月度表：人工维护
+  </div>
 </div>
 
 <!-- ======= Signal banner ======= -->
@@ -542,7 +556,7 @@
   <div class="card" id="card-ndx">
     <div class="idx-name">
       <span>🇺🇸 纳斯达克100 <span style="font-family:var(--mono);color:var(--tx3);font-size:11px">NDX</span></span>
-      <span class="src">QUOTE</span>
+      <span class="src-tag auto">AUTO</span>
     </div>
     <div class="idx-close" id="ndx-close">--</div>
     <div class="idx-change" id="ndx-chg">--</div>
@@ -564,7 +578,7 @@
   <div class="card" id="card-spx">
     <div class="idx-name">
       <span>🇺🇸 标普500 <span style="font-family:var(--mono);color:var(--tx3);font-size:11px">SPX</span></span>
-      <span class="src">QUOTE</span>
+      <span class="src-tag auto">AUTO</span>
     </div>
     <div class="idx-close" id="spx-close">--</div>
     <div class="idx-change" id="spx-chg">--</div>
@@ -584,7 +598,7 @@
 
   <!-- Scale card -->
   <div class="card scale-card scale-wrap">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>回撤深度尺 · 当前位置</div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>回撤深度尺 · 当前位置<span class="src-tag auto">AUTO</span></div>
     <svg class="scale-svg" id="scale-svg" viewBox="0 0 620 94" preserveAspectRatio="xMidYMid meet"></svg>
     <div class="scale-markers" id="scale-markers">
       <span class="mk mk-ndx"><i class="dot" style="background:#fff;"></i><b>NDX</b> 当前回撤 <b id="ndx-mk-val">--</b></span>
@@ -629,7 +643,7 @@
 <!-- ======= Mid grid: trend / valuation / sentiment ======= -->
 <div class="grid g-mid" aria-label="市场分析">
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>📐 趋势结构</div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>📐 趋势结构<span class="src-tag auto">AUTO</span></div>
     <div class="meter">
       <div class="m-head"><span class="m-label">NDX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="ndx-ma50v">--</span></div>
       <div class="m-bar"><div class="m-fill" id="ndx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
@@ -661,7 +675,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>💰 估值锚</div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>💰 估值锚<span class="src-tag manual">MANUAL</span></div>
     <div class="meter">
       <div class="m-head"><span class="m-label">SPX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="pepct">?</button></span><span class="m-val" id="val-pepct">--</span></div>
       <div class="m-bar"><div class="m-fill" id="val-pepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
@@ -695,7 +709,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>🌡️ 情绪温度</div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>🌡️ 情绪温度<span class="src-tag auto">AUTO</span></div>
     <div class="meter">
       <div class="m-head"><span class="m-label">VIX 恐慌指数<button class="hint-i" type="button" aria-label="查看释义" data-h="vix">?</button></span><span class="m-val" id="sent-vix">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-vixb" style="width:0%;background:var(--green);"></div></div>
@@ -715,7 +729,7 @@
       <div class="m-bar"><div class="m-fill" id="sent-tnx2b" style="width:0%;background:var(--green);"></div></div>
     </div>
     <div class="meter">
-      <div class="m-head"><span class="m-label">Put/Call 期权情绪<button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
+      <div class="m-head"><span class="m-label">🧩 Put/Call 期权情绪<span class="src-tag manual">MANUAL</span><button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-pcb" style="width:0%;background:var(--yellow);"></div></div>
       <div class="m-marks"><span>防御 &gt;1.1</span><span>0.7-1.1 中性</span><span>贪婪 &lt;0.7</span></div>
     </div>
@@ -723,7 +737,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span>💱 汇率 & 压力测试<button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span>💱 汇率 & 压力测试<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
     <div class="idx-name" style="margin-bottom:4px;"><span>USD/CNY</span></div>
     <div class="fx-num" id="fx-num" style="color:var(--cyan)">--</div>
     <div class="idx-change" id="fx-chg">人民币升值吃掉 QDII 收益的风险敞口</div>
@@ -766,7 +780,7 @@
 
 <!-- ======= DCA zero indicator ======= -->
 <div class="card card-hi" id="card-dca">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>💸 定投回测指标 · 每日定投收益率<button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>💸 定投回测指标 · 每日定投收益率<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
   <div class="dca-ctrl">
     <div class="dca-ctrl-row"><label>标的</label>
       <div class="dca-toggle" id="dca-toggle">
@@ -788,7 +802,7 @@
 
 <!-- ======= Monthly performance ======= -->
 <div class="card">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>📊 2026 年内月度涨跌幅</div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>📊 2026 年内月度涨跌幅<span class="src-tag manual">MANUAL</span></div>
   <div class="mc-tabs">
     <button class="mc-tab active" data-idx="ndx">纳指100 NDX</button>
     <button class="mc-tab" data-idx="spx">标普500 SPX</button>
@@ -817,7 +831,7 @@
 
 <!-- ======= Future events ======= -->
 <div class="card card-lo">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span>📅 未来事件日历</div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span>📅 未来事件日历<span class="src-tag manual">MANUAL</span></div>
   <div class="season-tip">⚠️ <b>9 月季节性逆风</b>：标普 1970 以来 9 月均值 <b>-0.7%</b>（全年最弱月）。当前 8/21 → 进入 9 月窗口，<b>建议</b>：原计划加仓额度下调 20%、避免 9 月初追涨。</div>
   <div id="calendar"></div>
 </div>
