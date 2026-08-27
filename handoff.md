@@ -9,7 +9,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **v6.5**（截至 2026-08-27） |
+| 版本 | **v6.6**（截至 2026-08-27；v6.5→v6.6 变更：数据层分离至 data.js、meta/favicon、入场动画） |
 | 托管方式 | **GitHub Pages**（静态托管） |
 | 远程仓库 | `https://github.com/jiachencc/ndx-spx-drawdown-dashboard.git` |
 | 在线地址 | **https://jiachencc.github.io/ndx-spx-drawdown-dashboard/** |
@@ -45,8 +45,10 @@ const DEFAULT = {
   spx: { close, ath, days, chg, ma50, ma200, rsi, low52, prevYr },
   vix, fg, tnx, tnx2, putcall, fx, peFwd, peTtm, cape, pePct, epsGrowth,
   asOf: { us, et, cn, tz, local }, // 时区换算显示条（见 3.4）
+  updatedAt,                       // 页脚"最后更新于"文案
   thresholds: { t1:-5, t2:-15, t3:-25, t4:-35 }  // 回撤四档触发线
 };
+// 另有：MONTHLY（月度涨跌幅）+ MC_MAX（图刻度）；DCA_START（定投起始日）；DCA_NDX/DCA_SPX（2517 点）
 ```
 - **纪律**：`-15%` 为 DCA 重手加仓触发线（同时是 HBM/DRAM 主题 DCA 条件）；`-25%` 重仓低吸、`-35%` 历史级机会。
 - `thresholds` 与触发器矩阵（`renderTriggers`）强耦合，改阈值需同步核对文案。
@@ -56,7 +58,8 @@ const DEFAULT = {
 2. 如需刷新宏观，直接替换 `vix/fg/tnx/...` 数值（记得在页脚/asOf 注明快照日期）。
 3. 同步更新 `asOf` 四字段与 `updatedAt`（见下）。
 4. 更新 `CALENDAR` 数组（同样在 `data.js`：去掉已过期事件、补未来 1-2 周新事件，如 FOMC/CPI/非农/财报季）。
-5. 提交并推送（见第 5 节），Pages 自动重新部署。
+5. **每月月初**：补上月值到 `MONTHLY` 数组（含分红 ETF 总回报口径，QQQ 代理 NDX / SPY 代理 SPX），并按需调 `MC_MAX` 满刻度。⚠️ 无自动提醒机制，是已知维护盲区。
+6. 提交并推送（见第 5 节），Pages 自动重新部署。
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
 
@@ -74,11 +77,11 @@ const DEFAULT = {
 
 ## 4. 架构速览（改样式/逻辑时参考）
 
-### 4.1 主题系统（v6.5 新增）
+### 4.1 主题系统
 - 全部配色走 CSS 变量，定义在 `:root`。
 - **浅色主题** = `body.light` 类覆盖同一批变量（白底卡片、深蓝灰文字、降饱和红绿）。
 - 切换按钮：`#theme-toggle`（页头右上角），文案 `🌙 切浅色` / `☀️ 切深色`。
-- 偏好存储：`localStorage` 键 **`wb_ndxspx_theme`**（`"light"` / `"dark"`）。
+- 偏好存储：`localStorage` 键 **`wb_ndxspx_theme`**（`"light"` / `"dark"`）。键名 `wb_` 前缀为 Workbuddy 时代遗留，改键会使老用户主题偏好重置，无实际必要不动它。
 - 初始化：`initTheme()` 读存储并 `applyTheme()`；切换时重绘 `drawScale`（手绘 SVG 按 `body.light` 选色，否则白底白线看不见）。
 - **改色只需动 `:root` 与 `body.light` 两组变量**，别在组件里硬编码（少数 SVG/标题渐变/hint-pop 气泡有专门覆盖规则，搜索 `body.light` 即可定位）。
 - **视觉层级** `.card-hi` / `.card-lo`（v6.5+）：
@@ -101,6 +104,7 @@ const DEFAULT = {
 
 ### 4.3 铁律（继承自查错经验）
 - **零外部依赖**：不引任何外部框架/CDN/字体/图表库，图表手写 SVG，图标手写 SVG path，不用 emoji 当图标。仓库内资源仅允许 `data.js` 一个本地脚本引用。
+  > **为什么保留**：GitHub Pages 已不强制此条，但它仍是本项目的有意设计——① 国内访问第三方 CDN 不稳定，外链易白屏；② 本看板含个人持仓信息，每次外链请求都会向第三方暴露访问时间与 IP；③ 无依赖即无升级与供应链风险。若未来确需引入外部库，先评估这三点。
 - **入场动画**：区块 `riseIn` 渐入 + `.card-hi::after` 金色分割线扫光；`prefers-reduced-motion` 下自动关闭。注意 `.card-hi` 需保持 `position: relative`。
 - 字体走系统字体栈；货币用 `¥`、红跌绿涨（国内习惯）。
 
@@ -118,7 +122,7 @@ python3 -m http.server 8765
 ### 5.2 发布（git push 即部署）
 ```bash
 cd <本地仓库目录>
-git add index.html
+git add index.html data.js   # 日常更新动的是 data.js，别漏
 git commit -m "data: 更新至 YYYY-MM-DD 收盘"
 git push origin main
 ```
@@ -139,15 +143,14 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 
 - [ ] **宏观指标过期**：VIX/恐贪/美债/汇率/估值仍为快照数据，需人工更新。
 - [ ] **NDX 滞后 1 天**：靠 QQQ 推导（误差 <0.02%），非真实 NDX 收盘。
+- [ ] **MONTHLY 无提醒机制**：每月月初需人工补上月涨跌幅（见 §3.3 第 5 步）。
 - [ ] 浅色主题下极个别写死颜色已覆盖（标题渐变、tag-black、SVG 标记点、hint-pop 气泡），如再发现白底白字按第 4.1 节补 `body.light` 覆盖即可。
-- [ ] 设备目标：iQOO15 / iPad 2022 / Mac；移动端单列、按钮 ≥44px 已满足。
-- [ ] 可选优化：降低首屏信息密度、金色分割线入场动画。
+- [ ] 可选优化：降低首屏信息密度。
 
 ---
 
 ## 7. 重新开干 · 检查清单
 1. 读 `handoff.md`（本文件）确认约定与部署命令。
-2. 用 `index.html` 直接编辑（或本地预览核对）。
+2. 改数据 → 只编辑 `data.js`；改结构/样式/逻辑 → 编辑 `index.html`。
 3. 改完按第 5.2 节 `git push` 发布。
 4. 用第 5.3 节 curl 验证关键特性已上线。
-5. 大改前先备份当前 html（复制一份带日期后缀），避免回退困难——git 历史本身也是回退保障。
