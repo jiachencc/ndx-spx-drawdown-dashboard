@@ -44,10 +44,11 @@ ndx_spx_dashboard_handoff/
 ### 3.3 数据更新（2026-08-27 起自动化）
 **AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN，每个交易日收盘后（UTC 21:30）跑 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)，自动重算 MA50/MA200/RSI/52周低/ATH 并提交。失败保留旧值；盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
 
-**人工只需维护 MANUAL 区三件事**：
+**人工只需维护 MANUAL 区两件事**：
 1. `putcall` 与估值五项（`peFwd/peTtm/cape/pePct/epsGrowth`）——无免费 API，按你的信息源数日一更。
 2. `CALENDAR` 日历——去旧补新（FOMC/CPI/非农/财报季），顺手检查 `macroAsOf` 是否被 Actions 正确重置。
-3. **每月月初**：补上月值到 `MONTHLY` 数组（含分红 ETF 总回报口径），并按需调 `MC_MAX`。⚠️ 无提醒机制，已知维护盲区。
+
+~~每月月初补 MONTHLY~~ 已自动化：月度涨跌幅由脚本按日 K 聚合（月末收盘环比，当月为至今），无需手改。
 
 兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连数据源会被反爬拦截，改用查网页人工填数即可。
 
@@ -118,7 +119,7 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 
 - [x] ~~宏观指标过期~~：VIX/美债/汇率/恐贪已由 Actions 每日自动更新（估值五项与 putcall 仍手动）。
 - [x] ~~NDX 滞后 1 天~~：脚本现在直接抓 ^NDX / ^GSPC 官方指数，不再 QQQ 推导。
-- [ ] **MONTHLY 无提醒机制**：每月月初需人工补上月涨跌幅（见 §3.3）。
+- [x] ~~MONTHLY 无提醒机制~~：月度涨跌幅已由脚本按日 K 自动聚合（2026-08-28 起），不再是人工项。
 - [ ] **监控 Actions 健康度**：偶尔瞄一眼仓库 Actions 页 `update-data` 是否绿；连续红叉按 §3.3 兜底流程转人工。
 - [ ] 浅色主题下极个别写死颜色已覆盖（标题渐变、tag-black、SVG 标记点、hint-pop 气泡），如再发现白底白字按第 4.1 节补 `body.light` 覆盖即可。
 - [ ] 可选优化：降低首屏信息密度。

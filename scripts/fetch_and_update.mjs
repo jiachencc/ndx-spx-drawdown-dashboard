@@ -181,6 +181,32 @@ try {
   F.intraday = `  intraday: ${intraday}, // AUTO：${intraday ? "盘中快照" : `美股 ${n.usDate} 收盘`}（${new Date(nowMs).toISOString().slice(0, 16)}Z 抓取）`;
   F.asOf = `  asOf: { us: "${n.usDate}", et: "${intraday ? nowNyHM : "16:00"} ${abbr}", cn: "${intraday ? shanghai(nowMs) : shanghai(closeMs)}", tz: "${abbr === "EDT" ? "夏令时" : "冬令时"}(${abbr}·UTC-${abbr === "EDT" ? 4 : 5})", local: "${shanghai(nowMs)}" },`;
 
+  /* 月度涨跌幅：从日 K 按自然月聚合（月末收盘环比，当月为至今），自动写回 MONTHLY */
+  const monthlyOf = (d, year) => {
+    const lastByM = new Map();
+    let base = null;
+    for (let i = 0; i < d.dates.length; i++) {
+      if (!Number.isFinite(d.close[i])) continue;
+      const y = +d.dates[i].slice(0, 4), m = +d.dates[i].slice(5, 7);
+      if (y === year - 1) base = d.close[i];          // 升序遍历，最后一次出现即去年末收盘
+      if (y === year) lastByM.set(m, d.close[i]);
+    }
+    const out = [];
+    let prev = base;
+    for (let m = 1; m <= 12; m++) {
+      if (!lastByM.has(m) || !prev) break;
+      out.push(Math.round((lastByM.get(m) / prev - 1) * 1000) / 10);
+      prev = lastByM.get(m);
+    }
+    return out;
+  };
+  const yNow = +n.usDate.slice(0, 4);
+  const mN = monthlyOf(ndxD, yNow), mS = monthlyOf(spxD, yNow);
+  if (mN.length >= 2 && mN.length === mS.length) {
+    const rows = mN.map((v, i) => `  { m: "${i + 1}月", ndx: ${v}, spx: ${mS[i]} },`);
+    F.monthly = `/* AUTO：月度涨跌幅(%，ETF 总回报近似=价格口径，月末收盘环比，当月为至今)由脚本从日K自动计算，勿手改 */\nconst MONTHLY = [\n${rows.join("\n")}\n];`;
+  }
+
   /* VIX / TNX：best-effort（失败保留旧值，不影响核心） */
   try { F.vix = `  vix: ${fmt2((await series("^VIX", "^vix", "5d")).close.filter(Number.isFinite).at(-1))},`; okVix = true; }
   catch (e) { console.warn("WARN vix:", e.message); }
@@ -224,6 +250,7 @@ if (okCore) {
   apply(/^  tnx2: [\d.]+,/m, F.tnx2, "tnx2");
   apply(/^  fx: [\d.]+,/m, F.fx, "fx");
   apply(/  asOf: \{[^}]+\},/, F.asOf, "asOf");
+  apply(/\/\* [^\n]*月度涨跌幅[^\n]*\*\/\nconst MONTHLY = \[[\s\S]*?\];/, F.monthly, "monthly");
   /* 宏观（vix/tnx/fx）全部随行情刷新 → 置 null 视为同步；任一失败则不动该行，旧快照日期继续如实展示 */
   if (okVix && okTnx && okFx) {
     apply(/^  macroAsOf: ("[^"]+"|null),[^\n]*$/m,

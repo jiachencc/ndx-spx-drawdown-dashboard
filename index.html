@@ -671,7 +671,8 @@
       <div class="m-bar"><div class="m-fill" id="brd-bar" style="width:0%;background:var(--green);"></div></div>
       <div class="m-marks"><span>纳指跑输</span><span>0</span><span>纳指跑赢</span></div>
     </div>
-    <div class="note">MA50 走弱、MA200 上方 → <b>中期趋势完好，短期动能减弱</b>，典型回调而非转熊。广度看 <b id="brd-note">--</b> → 龙头未散，但若转跑输需警惕结构性风险。</div>
+    <div class="note"><span id="brd-note">--</span></div>
+    <div class="note"><span id="note-trend">--</span></div>
   </div>
 
   <div class="card">
@@ -705,7 +706,7 @@
       <div class="m-bar"><div class="m-fill" id="val-epsb" style="width:0%;background:var(--green);"></div></div>
       <div class="m-marks"><span>-5%</span><span>0</span><span>+10%</span></div>
     </div>
-    <div class="note">Forward PE 分位 ~75%，<b>估值偏贵</b> → 回撤提供的是"打折"而非"便宜"，加仓宜分批忌梭哈。<b style="color:var(--red)">Fwd ERP 仅 +0.05%、TTM 为负</b> → 股债性价比极低，重手 DCA 的安全垫很薄。<b style="color:var(--green)">EPS 仍正增长</b> → 回调不改盈利基本面。</div>
+    <div class="note" id="note-val">--</div>
   </div>
 
   <div class="card">
@@ -733,7 +734,7 @@
       <div class="m-bar"><div class="m-fill" id="sent-pcb" style="width:0%;background:var(--yellow);"></div></div>
       <div class="m-marks"><span>防御 &gt;1.1</span><span>0.7-1.1 中性</span><span>贪婪 &lt;0.7</span></div>
     </div>
-    <div class="note">VIX 15.98 低位 + 恐贪 72 贪婪 → <b>市场情绪仍乐观</b>；曲线正斜率、期权中性 → 无系统性风险信号，逆势加仓的安全边际尚未出现。</div>
+    <div class="note" id="note-sent">--</div>
   </div>
 
   <div class="card">
@@ -965,6 +966,15 @@ function renderAll() {
   $("brd-note").innerHTML = brd >= 0
     ? "NDX 相对 SPX 跑赢 " + brdTxt + " → <b>龙头未散</b>，但若持续收窄需警惕结构性风险"
     : "NDX 相对 SPX 跑输 " + brdTxt + " → <b>广度恶化</b>，反弹可靠性下降，回撤档位应降级处理";
+  /* 趋势注释（数字全部派生，避免文案与数据漂移） */
+  const maTxt = v => v > 0.5 ? "MA50 上方" : (v < -0.5 ? "MA50 下方" : "MA50 纠缠");
+  const bothUp = ndx50 > 0.5 && spx50 > 0.5, bothDn = ndx50 < -0.5 && spx50 < -0.5;
+  $("note-trend").innerHTML =
+    "NDX 现于 " + maTxt(ndx50) + "、MA200 " + (ndx200 > 0 ? "上方" : "下方") +
+    "；SPX 现于 " + maTxt(spx50) + "、MA200 " + (spx200 > 0 ? "上方" : "下方") +
+    " → <b>" + (ndx200 > 0 && spx200 > 0 ? "中期趋势完好" : "中期趋势承压") + "</b>，" +
+    (bothDn ? "短期动能减弱，典型回调而非转熊" : (bothUp ? "短期动能仍强" : "短期结构分化")) +
+    "。广度结论见上方仪表盘。";
 
   /* valuation */
   $("val-pepct").textContent = D.pePct + "%";
@@ -990,6 +1000,12 @@ function renderAll() {
   $("val-eps").style.color = bandColor(eps, RULES.eps);
   $("val-epsb").style.width = Math.min(100, Math.max(4, (eps + 5) / 15 * 100)) + "%";
   $("val-epsb").style.background = eps < 0 ? "var(--red)" : "var(--green)";
+  /* 估值注释（派生） */
+  $("note-val").innerHTML =
+    "Forward PE 分位 <b>" + D.pePct + "%</b>（" + (D.pePct > 80 ? "偏贵" : D.pePct > 60 ? "中性" : "便宜") +
+    "）→ 回撤提供的是「打折」而非「便宜」，加仓宜分批忌梭哈。Fwd ERP <b style=\"color:" + (erpF < 1 ? "var(--red)" : "var(--green)") + "\">" + pct(erpF) + "</b>、TTM ERP " + pct(erpT) +
+    " → " + (erpF < 1 ? "股债性价比极低，重手 DCA 的安全垫很薄" : "股债性价比尚可") +
+    "。EPS 增速 <b style=\"color:" + (eps > 0 ? "var(--green)" : "var(--red)") + "\">" + pct(eps) + "</b> → " + (eps > 0 ? "回调不改盈利基本面" : "盈利收缩期，慎用加仓档位") + "。";
 
   /* sentiment */
   $("sent-vix").textContent = D.vix.toFixed(2);
@@ -1012,6 +1028,14 @@ function renderAll() {
   $("sent-pc").style.color = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--tx)");
   $("sent-pcb").style.width = Math.min(100, pc/1.5*100) + "%";
   $("sent-pcb").style.background = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--yellow)");
+  /* 情绪注释（派生） */
+  const vixState = D.vix > 30 ? "恐慌区" : (D.vix > 20 ? "警惕区" : (D.vix > 15 ? "正常区" : "低位"));
+  const fgState = D.fg >= 75 ? "极度贪婪" : (D.fg >= 55 ? "贪婪" : (D.fg >= 45 ? "中性" : (D.fg >= 25 ? "恐惧" : "极度恐惧")));
+  $("note-sent").innerHTML =
+    "VIX " + D.vix.toFixed(2) + " " + vixState + " + 恐贪 " + D.fg + " " + fgState +
+    " → <b>市场情绪" + (D.fg >= 55 ? "仍偏乐观" : (D.fg >= 45 ? "中性观望" : "转防御")) + "</b>；收益率曲线" +
+    (D.tnx2 >= D.tnx ? "倒挂 🔴" : "正斜率") + "、Put/Call " + pc.toFixed(2) + " " + (pc > 1.1 ? "防御" : (pc < 0.7 ? "贪婪" : "中性")) +
+    " → " + (D.tnx2 < D.tnx && pc >= 0.7 && D.vix < 30 ? "无系统性风险信号" : "存在风险信号，注意控制加仓节奏") + "。";
 
   /* stress test — 与 thresholds 耦合，改阈值时文案自动同步 */
   const stressDefs = [
