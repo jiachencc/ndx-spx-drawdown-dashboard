@@ -7,20 +7,20 @@
 
 /* ================= 数据模型 ================= */
 const DEFAULT = {
-  date: "2026-08-26",
-  intraday: false, // 美股 2026-08-26 收盘（NDX 08/26 经 QQQ 推导；SPX 取 SPY ETF）
-  ndx:   { close: 29235.94, ath: 30660.60, days: 59, chg: 0.09, ma50: 29282, ma200: 26883, rsi: 49.3, low52: 22953, prevYr: 23426 },
-  spx:   { close: 7660.80,  ath: 7778.80,  days: 9,  chg: 0.02, ma50: 7530,  ma200: 7089, rsi: 54.3, low52: 6320, prevYr: 6425 },
-  vix: 15.82,
+  date: "2026-08-27",
+  intraday: true, // AUTO：盘中快照（2026-08-27T13:55Z 抓取）
+  ndx:   { close: 29456.58, ath: 30762.2, days: 59, chg: 0.79, ma50: 29271, ma200: 26905, rsi: 44.6, low52: 22953, prevYr: 25250 },
+  spx:   { close: 7706.96, ath: 7816.7, days: 10, chg: 0.41, ma50: 7557, ma200: 7114, rsi: 43.7, low52: 6344, prevYr: 6846 },
+  vix: 15.02,
   fg: 56,
-  tnx: 4.698,
+  tnx: 4.66,
   tnx2: 4.229,
   putcall: 0.85,
-  fx: 6.7841,
+  fx: 6.72,
   peFwd: 20.9, peTtm: 27.2, cape: 39.5, pePct: 75,
   epsGrowth: 8.0,
-  asOf: { us: "2026-08-26", et: "16:00 EDT", cn: "2026-08-27 04:00", tz: "夏令时(EDT·UTC-4)", local: "2026-08-27 10:20" },
-  macroAsOf: "08-24", // 宏观快照实际日期；若宏观已随当日收盘同步，填 null 显示主日期
+  asOf: { us: "2026-08-27", et: "09:30 EDT", cn: "2026-08-27 21:30", tz: "夏令时(EDT·UTC-4)", local: "2026-08-27 21:55:27" },
+  macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
 
