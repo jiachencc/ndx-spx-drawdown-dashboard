@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Fetch & rewrite data.js
         run: node scripts/fetch_and_update.mjs

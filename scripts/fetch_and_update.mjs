@@ -164,18 +164,22 @@ try {
   F.date = `  date: "${n.usDate}"`;
   okCore = true;
 
-  /* 时区与盘中判定（显式 DST 规则：3月第二个周日 ~ 11月第一个周日为 EDT） */
-  const lastMs = n.lastTs;
-  const Y = new Date(lastMs).getUTCFullYear();
-  const nthSun = (m, k) => { const d = new Date(Date.UTC(Y, m, 1)); while (d.getUTCDay() !== 0) d.setUTCDate(d.getUTCDate() + 1); d.setUTCDate(d.getUTCDate() + 7 * (k - 1)); return d.getTime(); };
-  const isDST = lastMs >= nthSun(2, 2) && lastMs < nthSun(10, 1);
-  const abbr = isDST ? "EDT" : "EST";
-  const nyHM = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(lastMs);
-  const closed = nyHM >= "16:00";
-  F.intraday = `  intraday: ${!closed}, // AUTO：${closed ? `美股 ${n.usDate} 收盘` : "盘中快照"}（${new Date().toISOString().slice(0, 16)}Z 抓取）`;
-  const cn = new Date(lastMs + 8 * 3600e3).toISOString().replace("T", " ").slice(0, 16);
-  const local = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" });
-  F.asOf = `  asOf: { us: "${n.usDate}", et: "${closed ? "16:00" : nyHM} ${abbr}", cn: "${cn}", tz: "${isDST ? "夏令时" : "冬令时"}(${abbr}·UTC-${isDST ? 4 : 5})", local: "${local}" },`;
+  /* 时区与盘中判定：Yahoo 日线 bar 的 timestamp 是开盘时刻(09:30 ET)而非收盘，
+     故以「bar 日期==运行日 且 运行时刻<16:00 ET」判定盘中；收盘时刻按 DST 推算 */
+  const dstOf = ms => {
+    const Y = new Date(ms).getUTCFullYear();
+    const nthSun = (m, k) => { const d = new Date(Date.UTC(Y, m, 1)); while (d.getUTCDay() !== 0) d.setUTCDate(d.getUTCDate() + 1); d.setUTCDate(d.getUTCDate() + 7 * (k - 1)); return d.getTime(); };
+    return ms >= nthSun(2, 2) && ms < nthSun(10, 1);
+  };
+  const nowMs = Date.now();
+  const nowNyHM = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(nowMs);
+  const todayNy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(nowMs);
+  const intraday = n.usDate === todayNy && nowNyHM < "16:00";
+  const abbr = dstOf(nowMs) ? "EDT" : "EST";
+  const shanghai = ms => new Date(ms).toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" });
+  const closeMs = Date.parse(n.usDate + "T" + (dstOf(Date.parse(n.usDate + "T12:00:00Z")) ? "20:00" : "21:00") + ":00Z");
+  F.intraday = `  intraday: ${intraday}, // AUTO：${intraday ? "盘中快照" : `美股 ${n.usDate} 收盘`}（${new Date(nowMs).toISOString().slice(0, 16)}Z 抓取）`;
+  F.asOf = `  asOf: { us: "${n.usDate}", et: "${intraday ? nowNyHM : "16:00"} ${abbr}", cn: "${intraday ? shanghai(nowMs) : shanghai(closeMs)}", tz: "${abbr === "EDT" ? "夏令时" : "冬令时"}(${abbr}·UTC-${abbr === "EDT" ? 4 : 5})", local: "${shanghai(nowMs)}" },`;
 
   /* VIX / TNX：best-effort（失败保留旧值，不影响核心） */
   try { F.vix = `  vix: ${fmt2((await series("^VIX", "^vix", "5d")).close.filter(Number.isFinite).at(-1))},`; okVix = true; }
