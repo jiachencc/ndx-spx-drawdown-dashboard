@@ -20,7 +20,7 @@ const DEFAULT = {
   peFwd: 20.9, peTtm: 27.2, cape: 39.5, pePct: 75,
   epsGrowth: 8.0,
   asOf: { us: "2026-08-26", et: "16:00 EDT", cn: "2026-08-27 04:00", tz: "夏令时(EDT·UTC-4)", local: "2026-08-27 10:20" },
-  updatedAt: "2026-08-27 10:20 本地更新 · 数据=美东 2026-08-26 16:00 收盘",
+  macroAsOf: "08-24", // 宏观快照实际日期；若宏观已随当日收盘同步，填 null 显示主日期
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
 

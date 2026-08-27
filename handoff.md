@@ -41,13 +41,15 @@ ndx_spx_dashboard_handoff/
 - **纪律**：`-15%` 为 DCA 重手加仓触发线（同时是 HBM/DRAM 主题 DCA 条件）；`-25%` 重仓低吸、`-35%` 历史级机会。
 - `thresholds` 与触发器矩阵（`renderTriggers`）强耦合，改阈值需同步核对文案。
 
-### 3.3 更新行情的标准动作
-1. 改 **`data.js`** 中 `DEFAULT.ndx` / `DEFAULT.spx` 的 `close/ath/days/chg/ma50/ma200/rsi/low52/prevYr`。
-2. 如需刷新宏观，直接替换 `vix/fg/tnx/...` 数值（记得在页脚/asOf 注明快照日期）。
-3. 同步更新 `asOf` 四字段与 `updatedAt`（见下）。
-4. 更新 `CALENDAR` 数组（同样在 `data.js`：去掉已过期事件、补未来 1-2 周新事件，如 FOMC/CPI/非农/财报季）。
-5. **每月月初**：补上月值到 `MONTHLY` 数组（含分红 ETF 总回报口径，QQQ 代理 NDX / SPY 代理 SPX），并按需调 `MC_MAX` 满刻度。⚠️ 无自动提醒机制，是已知维护盲区。
-6. 提交并推送（见第 5 节），Pages 自动重新部署。
+### 3.3 数据更新（2026-08-27 起自动化）
+**AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN，每个交易日收盘后（UTC 21:30）跑 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)，自动重算 MA50/MA200/RSI/52周低/ATH 并提交。失败保留旧值；盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
+
+**人工只需维护 MANUAL 区三件事**：
+1. `putcall` 与估值五项（`peFwd/peTtm/cape/pePct/epsGrowth`）——无免费 API，按你的信息源数日一更。
+2. `CALENDAR` 日历——去旧补新（FOMC/CPI/非农/财报季），顺手检查 `macroAsOf` 是否被 Actions 正确重置。
+3. **每月月初**：补上月值到 `MONTHLY` 数组（含分红 ETF 总回报口径），并按需调 `MC_MAX`。⚠️ 无提醒机制，已知维护盲区。
+
+兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连数据源会被反爬拦截，改用查网页人工填数即可。
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
 
@@ -114,9 +116,10 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 
 ## 6. 已知限制 & 待办
 
-- [ ] **宏观指标过期**：VIX/恐贪/美债/汇率/估值仍为快照数据，需人工更新。
-- [ ] **NDX 滞后 1 天**：靠 QQQ 推导（误差 <0.02%），非真实 NDX 收盘。
-- [ ] **MONTHLY 无提醒机制**：每月月初需人工补上月涨跌幅（见 §3.3 第 5 步）。
+- [x] ~~宏观指标过期~~：VIX/美债/汇率/恐贪已由 Actions 每日自动更新（估值五项与 putcall 仍手动）。
+- [x] ~~NDX 滞后 1 天~~：脚本现在直接抓 ^NDX / ^GSPC 官方指数，不再 QQQ 推导。
+- [ ] **MONTHLY 无提醒机制**：每月月初需人工补上月涨跌幅（见 §3.3）。
+- [ ] **监控 Actions 健康度**：偶尔瞄一眼仓库 Actions 页 `update-data` 是否绿；连续红叉按 §3.3 兜底流程转人工。
 - [ ] 浅色主题下极个别写死颜色已覆盖（标题渐变、tag-black、SVG 标记点、hint-pop 气泡），如再发现白底白字按第 4.1 节补 `body.light` 覆盖即可。
 - [ ] 可选优化：降低首屏信息密度。
 

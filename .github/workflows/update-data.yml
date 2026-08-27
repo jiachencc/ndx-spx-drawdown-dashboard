@@ -1,0 +1,41 @@
+# 每日收盘后自动抓取行情并更新 data.js
+# 时程：UTC 21:30 = 美东夏令时 17:30 / 冬令时 16:30（收盘后约 1.5 小时，日线数据已稳定）
+# 手动触发：Actions 页 → update-data → Run workflow（上线首验用它）
+name: update-data
+
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"   # 周一至周五；美国假日会拿到旧数据导致 no-change 退出，无害
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch & rewrite data.js
+        run: node scripts/fetch_and_update.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet data.js; then
+            echo "no change, skip commit"
+            exit 0
+          fi
+          git add data.js
+          git commit -m "data(auto): $(TZ=America/New_York date +%F) 收盘更新"
+          git push

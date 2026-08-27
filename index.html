@@ -517,7 +517,7 @@
 <!-- ======= Data time (美股时区换算) ======= -->
 <div class="asof-bar" aria-label="时区换算">
   <div class="asof-main">🕐 美股 <b id="asof-us">--</b> 收盘 · 美东 <b id="asof-et">--</b> <span class="asof-tz" id="asof-tz">--</span></div>
-  <div class="asof-cn">🇨🇳 对应北京时间 <b id="asof-cn">--</b>（次日清晨） · 本地更新 <b id="asof-local">--</b> · 宏观 VIX/恐贪/美债 沿用 08-24 快照</div>
+  <div class="asof-cn">🇨🇳 对应北京时间 <b id="asof-cn">--</b>（次日清晨） · 本地更新 <b id="asof-local">--</b> <span id="asof-macro"></span></div>
 </div>
 
 <!-- ======= Signal banner ======= -->
@@ -1508,6 +1508,7 @@ function renderAsOf() {
   $("asof-tz").textContent = "· " + a.tz;
   $("asof-cn").textContent = a.cn;
   $("asof-local").textContent = a.local;
+  $("asof-macro").textContent = "· 宏观 VIX/恐贪/美债 沿用 " + (D.macroAsOf || a.us.slice(5)) + " 快照";
 }
 
 /* ================= init ================= */
