@@ -19,7 +19,7 @@ const DEFAULT = {
   fx: 6.72,
   peFwd: 20.9, peTtm: 27.2, cape: 39.5, pePct: 75,
   epsGrowth: 8.0,
-  asOf: { us: "2026-08-27", et: "09:30 EDT", cn: "2026-08-27 21:30", tz: "夏令时(EDT·UTC-4)", local: "2026-08-27 21:55:27" },
+  asOf: { us: "2026-08-27", et: "09:30 EDT", cn: "2026-08-27 21:30", tz: "夏令时 UTC-4", local: "2026-08-27 21:55:27" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };

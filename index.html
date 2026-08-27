@@ -245,7 +245,7 @@
     .scale-stats { flex-wrap: wrap; gap: 10px; }
     .scale-stats .ss { min-width: 90px; }
     .cal-pri { font-size: 9.5px; padding: 2px 6px; }
-    .kpi .k-val { font-size: 12.5px; }
+    .kpi .k-val { font-size: 14px; }
     .card { padding: 16px; }
     .idx-close { font-size: 24px; }
     .drawdown-num { font-size: 38px; }
@@ -303,11 +303,11 @@
   .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
   .kpi {
     background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px;
-    padding: 8px 11px; line-height: 1.4; transition: border-color .2s;
+    padding: 9px 12px; line-height: 1.4; transition: border-color .2s;
   }
-  .kpi .k-label { font-size: 10px; color: var(--tx3); letter-spacing: .3px; }
-  .kpi .k-val { font-size: 14px; font-family: var(--mono); font-weight: 800; margin-top: 2px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .kpi .k-val.small { font-size: 12px; }
+  .kpi .k-label { font-size: 11px; color: var(--tx3); letter-spacing: .3px; }
+  .kpi .k-val { font-size: 15.5px; font-family: var(--mono); font-weight: 800; margin-top: 3px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .kpi .k-val.small { font-size: 13.5px; }
   .up { color: var(--green); } .down { color: var(--red); } .flat { color: var(--tx2); }
   /* ===== Scale / gauge ===== */
   .scale-card { padding: 18px 20px; }
@@ -320,6 +320,13 @@
   .scale-markers .mk-ndx { border-color: rgba(255,255,255,.28); }
   .scale-markers .mk-spx { border-color: rgba(91,163,255,.45); }
   .scale-markers .mk b { color: var(--tx); font-family: var(--mono); font-weight: 800; }
+  /* marker dot colors must match drawScale() per theme */
+  .scale-markers .dot-ndx { background: #ffffff; }
+  .scale-markers .dot-spx { background: #4a9eff; }
+  body.light .scale-markers .dot-ndx { background: #2563eb; }
+  body.light .scale-markers .dot-spx { background: #7c3aed; }
+  body.light .scale-markers .mk-ndx { border-color: rgba(15,23,42,.22); }
+  body.light .scale-markers .mk-spx { border-color: rgba(37,99,235,.35); }
   .scale-stats { display: flex; justify-content: space-around; margin-top: 14px; text-align: center; gap: 8px; flex-wrap: wrap; flex: 1; min-height: 0; }
   .scale-stats .ss b { display: block; font-family: var(--mono); font-size: 19px; letter-spacing: .3px; }
   .scale-stats .ss span { font-size: 11px; color: var(--tx3); }
@@ -349,7 +356,7 @@
   .meter .m-val { font-family: var(--mono); font-weight: 800; font-size: 14px; letter-spacing: .2px; }
   .meter .m-bar { height: 8px; border-radius: 4px; background: var(--card2); position: relative; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
   .meter .m-fill { height: 100%; border-radius: 4px; }
-  .meter .m-marks { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--tx3); margin-top: 3px; font-family: var(--mono); }
+  .meter .m-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--tx3); margin-top: 3px; font-family: var(--mono); }
   .ma-state { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
   .ma-chip {
     font-size: 10px; font-family: var(--mono); letter-spacing: .3px;
@@ -371,7 +378,7 @@
   .cal-item:last-child { border-bottom: none; }
   .cal-date { flex-shrink: 0; width: 46px; text-align: center; }
   .cal-date .d { font-family: var(--mono); font-size: 18px; font-weight: 800; line-height: 1; }
-  .cal-date .m { font-size: 10px; color: var(--tx3); margin-top: 2px; }
+  .cal-date .m { font-size: 10.5px; color: var(--tx3); margin-top: 2px; }
   .cal-info { flex: 1; }
   .cal-info .e-name { font-size: 12.5px; font-weight: 600; }
   .cal-info .e-desc { font-size: 11px; color: var(--tx2); }
@@ -456,7 +463,7 @@
   .hist-med { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
   .hist-med .med-bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--card2); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
   .hist-med .med-bar i { position: absolute; top: -2px; height: 12px; width: 2.5px; background: var(--yellow); border-radius: 1px; }
-  .hist-med .med-bar .med-txt { position: absolute; top: -18px; transform: translateX(-50%); font-size: 9.5px; color: var(--yellow); font-family: var(--mono); }
+  .hist-med .med-bar .med-txt { position: absolute; top: -18px; transform: translateX(-50%); font-size: 10px; color: var(--yellow); font-family: var(--mono); }
   .hist-cagr {
     display: flex; align-items: center; gap: 16px; margin-top: 12px;
     padding: 10px 14px; border-radius: 10px; flex-wrap: wrap;
@@ -477,7 +484,7 @@
   .mc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(74,158,255,.32); }
   .mc-tab:active { transform: scale(.98); }
   .mchart-wrap { display: flex; gap: 10px; margin-top: 8px; }
-  .mchart-axis { width: 36px; flex-shrink: 0; height: 230px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; color: var(--tx3); text-align: right; }
+  .mchart-axis { width: 36px; flex-shrink: 0; height: 230px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--tx3); text-align: right; }
   .mchart-axis span:nth-child(2) { color: var(--tx2); }
   .mchart { flex: 1; display: flex; gap: 8px; min-width: 0; }
   .mc-group { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -487,9 +494,9 @@
   .mc-bar { position: absolute; left: 27%; width: 46%; max-width: 30px; border-radius: 4px; transition: height .35s ease; }
   .mc-bar.pos { bottom: 50%; border-radius: 4px 4px 0 0; }
   .mc-bar.neg { top: 50%; border-radius: 0 0 4px 4px; }
-  .mc-val { position: absolute; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; white-space: nowrap; }
-  .mc-bar.pos .mc-val { top: -13px; }
-  .mc-bar.neg .mc-val { bottom: -13px; }
+  .mc-val { position: absolute; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; }
+  .mc-bar.pos .mc-val { top: -15px; }
+  .mc-bar.neg .mc-val { bottom: -15px; }
   .mc-label { text-align: center; font-size: 11px; color: var(--tx2); margin-top: 6px; font-family: var(--mono); }
   .mchart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 11.5px; color: var(--tx2); }
   .mchart-legend .li { display: inline-flex; align-items: center; gap: 6px; }
@@ -525,8 +532,8 @@
 
 <!-- ======= Data time (美股时区换算) ======= -->
 <div class="asof-bar" aria-label="时区换算">
-  <div class="asof-main">🕐 美股 <b id="asof-us">--</b> 收盘 · 美东 <b id="asof-et">--</b> <span class="asof-tz" id="asof-tz">--</span></div>
-  <div class="asof-cn">🇨🇳 对应北京时间 <b id="asof-cn">--</b>（次日清晨） · 本地更新 <b id="asof-local">--</b> <span id="asof-macro"></span></div>
+  <div class="asof-main">🕐 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span> · 美东 <b id="asof-et">--</b> <span class="asof-tz" id="asof-tz">--</span></div>
+  <div class="asof-cn">🇨🇳 北京时间 <b id="asof-cn">--</b> · 本地更新 <b id="asof-local">--</b> <span id="asof-macro"></span></div>
   <div class="asof-legend">
     <span class="src-tag auto">AUTO</span>行情·VIX·美债·恐贪·汇率：每日收盘后自动抓取
     <span style="opacity:.4">|</span>
@@ -598,11 +605,11 @@
 
   <!-- Scale card -->
   <div class="card scale-card scale-wrap">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>回撤深度尺 · 当前位置<span class="src-tag auto">AUTO</span></div>
-    <svg class="scale-svg" id="scale-svg" viewBox="0 0 620 94" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>回撤深度尺 · 当前位置<button class="hint-i" type="button" aria-label="查看释义" data-h="scale">?</button><span class="src-tag auto">AUTO</span></div>
+    <svg class="scale-svg" id="scale-svg" viewBox="0 0 620 110" preserveAspectRatio="xMidYMid meet" role="img" aria-label="回撤深度尺"></svg>
     <div class="scale-markers" id="scale-markers">
-      <span class="mk mk-ndx"><i class="dot" style="background:#fff;"></i><b>NDX</b> 当前回撤 <b id="ndx-mk-val">--</b></span>
-      <span class="mk mk-spx"><i class="dot" style="background:#4a9eff;"></i><b>SPX</b> 当前回撤 <b id="spx-mk-val">--</b></span>
+      <span class="mk mk-ndx"><i class="dot dot-ndx"></i><b>NDX</b> 当前回撤 <b id="ndx-mk-val">--</b></span>
+      <span class="mk mk-spx"><i class="dot dot-spx"></i><b>SPX</b> 当前回撤 <b id="spx-mk-val">--</b></span>
     </div>
     <div class="legend">
       <span class="li"><span class="dot" style="background:var(--green)"></span>-5% 关注线</span>
@@ -803,13 +810,13 @@
 
 <!-- ======= Monthly performance ======= -->
 <div class="card">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>📊 2026 年内月度涨跌幅<span class="src-tag manual">MANUAL</span></div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>📊 2026 年内月度涨跌幅<span class="src-tag auto">AUTO</span></div>
   <div class="mc-tabs">
     <button class="mc-tab active" data-idx="ndx">纳指100 NDX</button>
     <button class="mc-tab" data-idx="spx">标普500 SPX</button>
   </div>
   <div class="mchart-wrap">
-    <div class="mchart-axis"><span>+16%</span><span>0</span><span>-16%</span></div>
+    <div class="mchart-axis"><span id="mc-axpos">+16%</span><span>0</span><span id="mc-axneg">-16%</span></div>
     <div class="mchart" id="mchart"></div>
   </div>
   <div class="mchart-legend">
@@ -818,7 +825,7 @@
   </div>
   <div class="mchart-summary" id="mchart-summary"></div>
   <div class="mchart-cross" id="mchart-cross"></div>
-  <div class="note">纵轴满刻度 ±16%，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b>2026-08-26 收盘</b>，采用 <b>ETF 总回报口径（含分红，QQQ/SPY 代理）</b>，与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
+  <div class="note">纵轴满刻度 <b>±<span id="mc-max">16</span>%</b>，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b id="mc-asof">--</b>，采用 <b>ETF 总回报口径（含分红，QQQ/SPY 代理）</b>，与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
 </div>
 
 <!-- ======= Indicator lexicon ======= -->
@@ -846,8 +853,8 @@
 
 <div class="footer">
   <a class="online-link" href="https://jiachencc.github.io/ndx-spx-drawdown-dashboard/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>打开在线最新版（GitHub Pages）</a><br>
-  📡 美股指数回撤决策看板 <b>v6.5</b> · 行情：Nasdaq NDX日线 + SPY ETF代理SPX(2026-08-26收盘) · 宏观：CNBC美债 / CNN恐慌 / 人民币中间价(沿用8-24快照) · 定投回测 Nasdaq日线(2016–2026) · 新增「美股时区换算」数据时间条<br>
-  本看板仅作个人决策辅助，不构成投资建议 · 数据每日收盘后手动更新 · 最后更新于 <span id="footer-updated">--</span>
+  📡 美股指数回撤决策看板 <b>v6.5</b> · 行情：Nasdaq NDX日线 + SPY ETF代理SPX · 宏观：CNBC美债 / CNN恐慌 / 人民币中间价 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
+  本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
 <script src="data.js"></script>
@@ -1108,7 +1115,8 @@ function renderHist(ndxDD) {
 /* ================= Scale SVG ================= */
 function drawScale(ndxDD, spxDD) {
   const svg = $("scale-svg");
-  const W = 620, H = 94, L = 40, R = W - 40, Y = 40;
+  const th = D.thresholds;
+  const W = 620, H = 110, L = 40, R = W - 40, Y = 44;
   const lo = -40, hi = 0;
   const x = dd => L + (dd - lo) / (hi - lo) * (R - L);
   const dark = !document.body.classList.contains("light");
@@ -1117,8 +1125,7 @@ function drawScale(ndxDD, spxDD) {
   const cNdx = dark ? "#ffffff" : "#2563eb";
   const cSpx = dark ? "#4a9eff" : "#7c3aed";
   const cStroke = dark ? "#0b0e14" : "#cbd5e1";
-  const cCore = dark ? "#0b0e14" : "#ffffff";
-  const cSep = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.12)";
+  const cLeader = dark ? "rgba(255,255,255,.30)" : "rgba(15,23,42,.30)";
   let s = `<rect width="${W}" height="${H}" fill="none"/>`;
   /* gradient track */
   const gid = "trackGrad";
@@ -1133,28 +1140,28 @@ function drawScale(ndxDD, spxDD) {
   ticks.forEach(t => {
     const tx = x(t);
     s += `<line x1="${tx}" y1="${Y-8}" x2="${tx}" y2="${Y+8}" stroke="${cTick}" stroke-width="1"/>`;
-    s += `<text x="${tx}" y="${Y+22}" fill="${cTickTx}" font-size="10.5" text-anchor="middle" font-family="monospace">${t}%</text>`;
+    s += `<text x="${tx}" y="${Y+30}" fill="${cTickTx}" font-size="11" text-anchor="middle" font-family="monospace">${t}%</text>`;
   });
-  /* threshold zones shading */
+  /* threshold zones shading (derived from D.thresholds) */
   const zone = (from, to, color) => {
     const x1 = x(from), x2 = x(to);
     s += `<rect x="${x1}" y="${Y-9}" width="${x2-x1}" height="18" fill="${color}" opacity="0.08"/>`;
   };
-  zone(-15, -5, "#f5b93d"); zone(-25, -15, "#ff9843"); zone(-40, -25, "#f0616d");
-  /* markers: NDX (top), SPX (bottom) — values shown separately to avoid overlap */
-  const m = (dd, color, yoff, dy) => {
-    const mx = x(Math.max(-40, Math.min(0, dd)));
-    s += `<circle cx="${mx}" cy="${Y + yoff}" r="7" fill="${color}" stroke="${cStroke}" stroke-width="2.5"/>`;
-    /* inner highlight dot */
-    s += `<circle cx="${mx}" cy="${Y + yoff}" r="2.2" fill="${cCore}"/>`;
+  zone(th.t2, th.t1, "#f5b93d"); zone(th.t3, th.t2, "#ff9843"); zone(lo, th.t3, "#f0616d");
+  /* markers: NDX above the track, SPX below — never overlap */
+  const m = (dd, color, letter, letterFill, yoff) => {
+    const mx = x(Math.max(lo, Math.min(hi, dd)));
+    const my = Y + yoff;
+    /* leader line to the track */
+    const ly1 = yoff < 0 ? my + 7 : Y + 3;
+    const ly2 = yoff < 0 ? Y - 3 : my - 7;
+    s += `<line x1="${mx}" y1="${ly1}" x2="${mx}" y2="${ly2}" stroke="${cLeader}" stroke-width="1"/>`;
+    s += `<circle cx="${mx}" cy="${my}" r="7" fill="${color}" stroke="${cStroke}" stroke-width="2.5"/>`;
+    s += `<text x="${mx}" y="${my + 2.6}" fill="${letterFill}" font-size="8" font-weight="800" text-anchor="middle" font-family="monospace">${letter}</text>`;
   };
-  m(ndxDD, cNdx, 0);
-  m(spxDD, cSpx, 0);
-  /* vertical separator between the two markers when they sit close */
-  const dx = Math.abs(x(ndxDD) - x(spxDD));
-  if (dx < 30) {
-    s += `<line x1="${x(ndxDD)}" y1="${Y-9}" x2="${x(spxDD)}" y2="${Y-9}" stroke="${cSep}" stroke-width="0.5"/>`;
-  }
+  m(ndxDD, cNdx, "N", dark ? "#0b0e14" : "#ffffff", -16);
+  m(spxDD, cSpx, "S", "#ffffff", 16);
+  svg.setAttribute("aria-label", `回撤深度尺：NDX 当前回撤 ${pct(ndxDD)}，SPX 当前回撤 ${pct(spxDD)}`);
   svg.innerHTML = s;
 }
 
@@ -1359,13 +1366,18 @@ function renderMonthly() {
   const otherName = mcSel === "ndx" ? "标普500 (SPX)" : "纳指100 (NDX)";
   const half = 115;            // 230px 绘图区的一半
   const pxPer = half / MC_MAX; // 每 1% 对应像素
+  /* 轴标签与说明随 MC_MAX 数据驱动，避免双源漂移 */
+  $("mc-axpos").textContent = "+" + MC_MAX + "%";
+  $("mc-axneg").textContent = "-" + MC_MAX + "%";
+  $("mc-max").textContent = MC_MAX;
+  $("mc-asof").textContent = D.asOf.us + (D.intraday ? " 盘中" : " 收盘");
   let html = "";
   MONTHLY.forEach(d => {
     const v = d[idxKey];
     const h = Math.max(2, Math.abs(v) * pxPer);
     const dir = v >= 0 ? "pos" : "neg";
     const col = v >= 0 ? "var(--green)" : "var(--red)";
-    const sign = v >= 0 ? "+" : "";
+    const sign = v > 0 ? "+" : "";
     html += `<div class="mc-group">
       <div class="mc-plot">
         <div class="mc-line" style="top:0"></div>
@@ -1386,7 +1398,7 @@ function renderMonthly() {
   const worst = MONTHLY.reduce((b, d) => (d[idxKey] < b[idxKey] ? d : b), MONTHLY[0]);
   const upMonths = MONTHLY.filter(d => d[idxKey] >= 0).length;
   $("mchart-summary").innerHTML =
-    `年内累计(总回报) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/8</b>` +
+    `年内累计(总回报) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/${MONTHLY.length}</b>` +
     ` · 最强 <b>${best.m} ${pct(best[idxKey])}</b> · 最弱 <b>${worst.m} ${pct(worst[idxKey])}</b>`;
   $("mchart-cross").innerHTML =
     `对比 ${otherName} 年内累计 <b class="up">${pct(otherCum*100)}</b>`;
@@ -1397,7 +1409,7 @@ function renderCalendar() {
   const box = $("calendar");
   box.innerHTML = CALENDAR.map(c => `
     <div class="cal-item">
-      <div class="cal-date"><div class="d">${c.d}</div><div class="m">${c.m} · ${c.day}</div></div>
+      <div class="cal-date"><div class="d">${c.d}</div><div class="m">${c.m}<br>${c.day}</div></div>
       <div class="cal-info">
         <div class="e-name">${c.name}</div>
         <div class="e-desc">${c.desc || ""}</div>
@@ -1411,6 +1423,7 @@ function renderCalendar() {
 const HINTS = {
   dd:       { name: "回撤",    plain: "从历史最高点往下数，<b>跌了多少</b>。跌 5% = 离山顶还差 5%。", pro: "当前价 ÷ 历史最高价 − 1，再 ×100%。" },
   rsi:      { name: "RSI(14)", plain: "市场的<b>体温计</b>：＞70 太热（超买，易回调），＜30 太冷（超卖，易反弹），50 上下 = 没方向。", pro: "14 日平均涨幅 ÷ 平均跌幅，归一化到 0–100 的动能指标。" },
+  scale:    { name: "回撤深度尺", plain: "把当前回撤画在 0 ~ -40% 的尺子上，<b>越靠左 = 跌得越深</b>。圆点压进哪个色带，就对应哪个加仓档位。", pro: "N 点（轨道上方）= NDX，S 点（轨道下方）= SPX；色带边界取自 thresholds（-5/-15/-25/-35），下方三个价格 = NDX 跌至对应档位时的点位参考。" },
   pos52w:   { name: "52周位置", plain: "现价在过去一年价格区间里排第几。<b>77% = 比过去一年 77% 的时间都贵</b>。", pro: "(现价 − 52周最低) ÷ (52周最高 − 52周最低) ×100。" },
   ma50:     { name: "MA50",    plain: "最近 50 个交易日的<b>平均价线</b>，看短期趋势：价格在线上面 = 短期多头占优，下面 = 空头占优。", pro: "50 日均线 SMA(50)；显示的是现价相对它的偏离度。" },
   ma200:    { name: "MA200",   plain: "最近 200 个交易日（约一年）的平均价线，<b>牛熊分界线</b>：站上 = 长期趋势完好，跌破 = 趋势转弱要警惕。", pro: "200 日均线 SMA(200)，机构常用的牛熊参考线。" },
@@ -1491,8 +1504,8 @@ function fmtDate8(yyyymmdd) {
   const s = "" + yyyymmdd;
   return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8);
 }
-function pctSign(n) { return (n >= 0 ? "+" : "") + n.toFixed(1) + "%"; }
-function ppp(n) { return (n >= 0 ? "+" : "") + n.toFixed(1) + "pp"; }
+function pctSign(n) { return (n >= 0 ? "+" : "") + (Math.abs(n) < 0.1 ? n.toFixed(2) : n.toFixed(1)) + "%"; }
+function ppp(n) { return (n >= 0 ? "+" : "") + (Math.abs(n) < 0.1 ? n.toFixed(2) : n.toFixed(1)) + "pp"; }
 function clsN(n) { return n >= 0 ? "pos" : "neg"; }
 
 function renderDCA() {
@@ -1542,11 +1555,14 @@ function renderDCA() {
 function renderAsOf() {
   const a = D.asOf;
   $("asof-us").textContent = a.us;
+  $("asof-phase").textContent = D.intraday ? "盘中快照" : "收盘数据";
   $("asof-et").textContent = a.et;
   $("asof-tz").textContent = "· " + a.tz;
   $("asof-cn").textContent = a.cn;
-  $("asof-local").textContent = a.local;
-  $("asof-macro").textContent = "· 宏观 VIX/恐贪/美债 沿用 " + (D.macroAsOf || a.us.slice(5)) + " 快照";
+  $("asof-local").textContent = a.local.slice(11, 16);
+  $("asof-macro").textContent = D.macroAsOf
+    ? "· 宏观 VIX/恐贪/美债 为 " + D.macroAsOf + " 快照"
+    : "· 宏观 VIX/恐贪/美债 与行情同日更新";
 }
 
 /* ================= init ================= */
