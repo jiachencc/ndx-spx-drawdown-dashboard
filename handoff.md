@@ -13,7 +13,7 @@
 | 托管方式 | **GitHub Pages**（静态托管） |
 | 远程仓库 | `https://github.com/jiachencc/ndx-spx-drawdown-dashboard.git` |
 | 在线地址 | **https://jiachencc.github.io/ndx-spx-drawdown-dashboard/** |
-| 本地文件 | `ndx_spx_dashboard_handoff/index.html`（约120KB，全内联零外链） |
+| 本地文件 | `ndx_spx_dashboard_handoff/index.html`（~95KB）+ `data.js`（数据层，~35KB），除 data.js 外全内联零外链 |
 
 ---
 
@@ -22,7 +22,8 @@
 ```
 ndx_spx_dashboard_handoff/
 ├── handoff.md      ← 本文件（交接 + 部署指南）
-└── index.html      ← 看板本体（仓库根目录同名文件，GitHub Pages 入口）
+├── index.html      ← 看板本体：结构 + CSS + 渲染逻辑（GitHub Pages 入口）
+└── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR，每日更新只改此文件
 ```
 
 ---
@@ -51,13 +52,13 @@ const DEFAULT = {
 - `thresholds` 与触发器矩阵（`renderTriggers`）强耦合，改阈值需同步核对文案。
 
 ### 3.3 更新行情的标准动作
-1. 改 `DEFAULT.ndx` / `DEFAULT.spx` 的 `close/ath/days/chg/ma50/ma200/rsi/low52/prevYr`。
+1. 改 **`data.js`** 中 `DEFAULT.ndx` / `DEFAULT.spx` 的 `close/ath/days/chg/ma50/ma200/rsi/low52/prevYr`。
 2. 如需刷新宏观，直接替换 `vix/fg/tnx/...` 数值（记得在页脚/asOf 注明快照日期）。
-3. 同步更新 `asOf` 四字段（见下）。
-4. 更新 `CALENDAR` 数组（去掉已过期事件、补未来 1-2 周新事件，如 FOMC/CPI/非农/财报季）。位于 `renderCalendar` 函数定义之前，搜索 `const CALENDAR =` 定位。
+3. 同步更新 `asOf` 四字段与 `updatedAt`（见下）。
+4. 更新 `CALENDAR` 数组（同样在 `data.js`：去掉已过期事件、补未来 1-2 周新事件，如 FOMC/CPI/非农/财报季）。
 5. 提交并推送（见第 5 节），Pages 自动重新部署。
 
-> **HTML 卡片静态值**：v6.5+ 起，所有"会被 JS 覆盖"的卡片初值已改为 `--` 占位符，无需手动同步 HTML 中的具体数值——只改 `DEFAULT` 即可，`renderAll()` 会自动填充。若新增字段，初值也用 `--`，避免"双数据源不一致"。
+> **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
 
 ### 3.4 `asOf` 时区显示条（用户重点特性）
 页头下方「美股时区换算」条，让用户一眼看出数据对应美股什么时间：
@@ -99,7 +100,8 @@ const DEFAULT = {
 | `applyTheme(mode)` / `initTheme()` | 主题切换与初始化 |
 
 ### 4.3 铁律（继承自查错经验）
-- **全内联零外链**：不引任何外部框架/CDN/字体/图表库，图表手写 SVG，图标手写 SVG path，不用 emoji 当图标。
+- **零外部依赖**：不引任何外部框架/CDN/字体/图表库，图表手写 SVG，图标手写 SVG path，不用 emoji 当图标。仓库内资源仅允许 `data.js` 一个本地脚本引用。
+- **入场动画**：区块 `riseIn` 渐入 + `.card-hi::after` 金色分割线扫光；`prefers-reduced-motion` 下自动关闭。注意 `.card-hi` 需保持 `position: relative`。
 - 字体走系统字体栈；货币用 `¥`、红跌绿涨（国内习惯）。
 
 ---
