@@ -65,29 +65,21 @@ ndx_spx_dashboard_handoff/
 - 偏好存储：`localStorage` 键 **`wb_ndxspx_theme`**（`"light"` / `"dark"`）。键名 `wb_` 前缀为 Workbuddy 时代遗留，改键会使老用户主题偏好重置，无实际必要不动它。
 - 初始化：`initTheme()` 读存储并 `applyTheme()`；切换时重绘 `drawScale`（手绘 SVG 按 `body.light` 选色，否则白底白线看不见）。
 - **改色只需动 `:root` 与 `body.light` 两组变量**，别在组件里硬编码（少数 SVG/标题渐变/hint-pop 气泡有专门覆盖规则，搜索 `body.light` 即可定位）。
-- **视觉层级** `.card-hi` / `.card-lo`（v6.5+）：
-  - `.card-hi`：决策级卡片（触发矩阵、决策依据、止盈、DCA 回测），边框/阴影更强、背景微亮，引导用户优先看。
-  - `.card-lo`：背景级卡片（未来事件日历），降饱和、缩小字号，作为参考而非决策焦点。
-  - 加在 `<div class="card">` 上即可，无 JS 依赖。
+
+### 4.2 视觉层级与布局规则
+- **视觉层级** `.card-hi` / `.card-lo`：决策级卡（触发矩阵、决策依据、止盈、DCA 回测）用 `.card-hi` 强化边框阴影引导优先阅读；背景级卡（事件日历）用 `.card-lo` 降饱和缩小。加在 `<div class="card">` 上即可，无 JS 依赖。
 - **布局对齐铁律**：`.grid > .card + .card { margin-top: 0 }` —— grid 内卡片间距一律由 `gap: 18px` 控制，不要给 grid 直接子卡片加 margin（会破坏同行 stretch 等高对齐）；纵向堆叠区块间分隔仍走 `.card + .card` 的 margin-top。
+- **数字排版**：body 已启用 `font-feature-settings: "tnum"` 等宽数字，KPI 表格与收益列自动对齐。新组件无需额外设置。
 
-### 4.2 关键函数（JS）
-| 函数 | 作用 |
-|---|---|
-| `renderIndexCard(p, idx, th)` | 渲染 NDX/SPX 指数卡（消除重复代码） |
-| `drawScale(ndxDD, spxDD)` | 手绘回撤刻度 SVG（唯一内联 SVG，主题感知） |
-| `ddOf / ytdOf / toAthOf / maDev` | 派生指标计算 |
-| `ddColor(dd, th)` / `bandColor(v, r)` | 回撤三档 / 指标三档配色 |
-| `renderTriggers / renderConds / renderTakeProfit` | 触发器 / 条件 / 止盈矩阵 |
-| `renderDCA()` | 定投回测指标（含 toggle 交互） |
-| `renderAsOf()` | 时区换算显示条 |
-| `applyTheme(mode)` / `initTheme()` | 主题切换与初始化 |
+### 4.3 关键 JS 入口
+渲染总入口为 `renderAll()`（index.html），各区块渲染函数统一按 `renderXxx()` 命名，工具函数集中在文件顶部。`drawScale` 是唯一由 JS 动态生成的 SVG（主题切换时需重绘）。新增区块请沿用此命名约定，勿在文档中罗列函数清单——以代码为准以免漂移。
 
-### 4.3 铁律（继承自查错经验）
+### 4.4 铁律（继承自查错经验）
 - **零外部依赖**：不引任何外部框架/CDN/字体/图表库，图表手写 SVG，图标手写 SVG path，不用 emoji 当图标。仓库内资源仅允许 `data.js` 一个本地脚本引用。
   > **为什么保留**：GitHub Pages 已不强制此条，但它仍是本项目的有意设计——① 国内访问第三方 CDN 不稳定，外链易白屏；② 本看板含个人持仓信息，每次外链请求都会向第三方暴露访问时间与 IP；③ 无依赖即无升级与供应链风险。若未来确需引入外部库，先评估这三点。
 - **入场动画**：区块 `riseIn` 渐入 + `.card-hi::after` 金色分割线扫光；`prefers-reduced-motion` 下自动关闭。注意 `.card-hi` 需保持 `position: relative`。
 - 字体走系统字体栈；货币用 `¥`、红跌绿涨（国内习惯）。
+- 已知例外：主题切换按钮暂用 🌙/☀️ 文本符号（非 SVG 图标），属可接受妥协，其余功能性图标一律手写 SVG path。
 
 ---
 
