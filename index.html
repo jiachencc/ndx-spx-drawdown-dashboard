@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美股指数回撤决策看板 · NDX / SPX</title>
+<style>
+  :root {
+    --bg: #0a0d13;
+    --bg-grad-1: #0e1526;
+    --card: #121826;
+    --card2: #1a2234;
+    --line: #232e44;
+    --line-soft: #1c2538;
+    --tx: #e2e9f5;
+    --tx2: #8fa0ba;
+    --tx3: #6f7f9a;
+    --green: #2dd4a7;
+    --red: #f26d7d;
+    --yellow: #f7c14e;
+    --blue: #5ba3ff;
+    --purple: #b195fb;
+    --cyan: #46c9f0;
+    --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    --radius: 14px;
+  }
+  /* ===== 浅色主题（点击右上角按钮切换） ===== */
+  body.light {
+    --bg: #eef2f8;
+    --bg-grad-1: #e6ecf6;
+    --card: #ffffff;
+    --card2: #f3f6fb;
+    --line: #dde4ef;
+    --line-soft: #eaf0f7;
+    --tx: #16243b;
+    --tx2: #52627e;
+    --tx3: #64748b;
+    --green: #0ea372;
+    --red: #e23b53;
+    --yellow: #c8901a;
+    --blue: #2f7be0;
+    --purple: #7c5cf0;
+    --cyan: #0a9fc4;
+  }
+  body.light .header h1 {
+    background: linear-gradient(100deg, #16243b 10%, #2f7be0 95%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  body.light .tag-black { background: #2a3142; color: #fff; border-color: #2a3142; }
+  body.light .hint-pop { background: #fff; border-color: #cbd5e1;
+    box-shadow: 0 14px 44px -8px rgba(15,23,42,.18), 0 0 0 1px rgba(91,163,255,.22); }
+  .theme-btn {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 5px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--tx2);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: border-color .2s, color .2s;
+  }
+  .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+  :focus:not(:focus-visible) { outline: none; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(91,163,255,.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(177,149,251,.05), transparent 55%),
+      var(--bg);
+    color: var(--tx);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    font-feature-settings: "tnum" 1, "cv01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    padding: 22px 18px 64px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  b, strong { font-weight: 700; }
+  .mono { font-family: var(--mono); font-feature-settings: "tnum" 1; }
+  /* ===== Header ===== */
+  .header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    flex-wrap: wrap; gap: 14px; margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .header h1 {
+    font-size: 24px; font-weight: 800; letter-spacing: 1px; line-height: 1.25;
+    background: linear-gradient(100deg, #fff 20%, #9db8ff 90%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header .sub { color: var(--tx2); font-size: 12.5px; margin-top: 4px; letter-spacing: .3px; }
+  .header .meta {
+    display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--tx2);
+    flex-wrap: wrap;
+  }
+  .chip {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--tx2);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    transition: border-color .2s;
+  }
+  .chip b { color: var(--cyan); font-weight: 700; }
+  /* ===== Signal banner ===== */
+  .signal-banner {
+    border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    border: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(91,163,255,.07), rgba(177,149,251,.05)), var(--card);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset, 0 8px 32px -12px rgba(0,0,0,.5);
+  }
+  .signal-banner .sig-icon {
+    width: 52px; height: 52px; font-size: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card2); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    flex-shrink: 0;
+  }
+  .signal-banner .sig-main { flex: 1; min-width: 220px; }
+  .signal-banner .sig-title { font-size: 20px; font-weight: 800; letter-spacing: .4px; line-height: 1.3; }
+  .signal-banner .sig-desc { font-size: 12.5px; color: var(--tx2); margin-top: 4px; line-height: 1.6; }
+  .sig-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .sig-kpis .sk {
+    display: inline-flex; align-items: baseline; gap: 7px;
+    background: var(--card2); border: 1px solid var(--line-soft); border-radius: 9px;
+    padding: 5px 11px; font-size: 11px;
+  }
+  .sig-kpis .sk-l { color: var(--tx3); }
+  .sig-kpis .sk b { font-family: var(--mono); font-size: 13.5px; font-weight: 800; letter-spacing: .2px; }
+  .signal-banner .sig-tag {
+    font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 700;
+    font-family: var(--mono);
+  }
+  .chip-stale { border-color: rgba(240,97,109,.55); color: var(--red); background: rgba(240,97,109,.1); }
+  .chip-stale b { color: var(--red); }
+  /* ===== 数据时间条（美股时区换算） ===== */
+  .asof-bar {
+    border: 1px solid rgba(0,210,255,.32); border-radius: var(--radius);
+    background: linear-gradient(90deg, rgba(0,210,255,.09), rgba(0,210,255,.02));
+    padding: 10px 15px; margin-bottom: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .asof-main { font-size: 13.5px; color: var(--tx); line-height: 1.5; }
+  .asof-main b { color: var(--cyan); font-family: var(--mono); font-weight: 700; }
+  .asof-tz { color: var(--cyan); opacity: .85; font-size: 11.5px; }
+  .asof-cn { font-size: 11.5px; color: var(--tx3); margin-top: 3px; line-height: 1.5; }
+  .asof-cn b { color: var(--tx2); font-family: var(--mono); font-weight: 600; }
+  /* 卡片视觉层级：决策级强调 / 背景级降权 */
+  .card-hi {
+    border-color: rgba(91,163,255,.32);
+    box-shadow: 0 4px 30px -12px rgba(91,163,255,.2), 0 4px 24px -12px rgba(0,0,0,.45);
+  }
+  .card-hi .card-title { color: var(--tx); }
+  .card-lo { opacity: .82; }
+  .card-lo:hover { opacity: 1; }
+  .tag-green { background: rgba(38,201,158,.14); color: var(--green); border: 1px solid rgba(38,201,158,.4); }
+  .tag-yellow { background: rgba(245,185,61,.13); color: var(--yellow); border: 1px solid rgba(245,185,61,.4); }
+  .tag-orange { background: rgba(255,152,67,.13); color: #ff9843; border: 1px solid rgba(255,152,67,.4); }
+  .tag-red { background: rgba(240,97,109,.14); color: var(--red); border: 1px solid rgba(240,97,109,.4); }
+  .tag-purple { background: rgba(167,139,250,.14); color: var(--purple); border: 1px solid rgba(167,139,250,.4); }
+  .tag-black { background: rgba(255,255,255,.08); color: #fff; border: 1px solid #555; }
+  /* ===== 定投回测指标 ===== */
+  .dca-ctrl { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 4px 0 14px; }
+  .dca-ctrl-row { display: flex; align-items: center; gap: 7px; }
+  .dca-ctrl-row > label { font-size: 11px; color: var(--tx3); }
+  .dca-toggle { display: inline-flex; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; }
+  .dca-toggle button { background: transparent; color: var(--tx3); border: 0; padding: 5px 12px; font-size: 11.5px; cursor: pointer; font-family: var(--mono); }
+  .dca-toggle button.active { background: rgba(91,163,255,.18); color: var(--blue); font-weight: 700; }
+  .dca-inp { width: 64px; background: var(--card2); color: var(--tx); border: 1px solid var(--line-soft); border-radius: 8px; padding: 5px 8px; font-size: 12px; font-family: var(--mono); text-align: right; }
+  .dca-inp:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(91,163,255,.25); }
+  .dca-unit { font-size: 11px; color: var(--tx3); }
+  .dca-sum { font-size: 12px; color: var(--tx3); line-height: 1.75; margin-bottom: 12px; background: var(--card2); border: 1px solid var(--line-soft); border-radius: 9px; padding: 9px 11px; }
+  .dca-sum b { color: var(--tx); font-family: var(--mono); }
+  .dca-sum .pos { color: var(--green); font-weight: 700; }
+  .dca-sum .neg { color: var(--red); font-weight: 700; }
+  .dca-tbl { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-family: var(--mono); }
+  .dca-tbl th { font-size: 10.5px; color: var(--tx3); text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .dca-tbl th:first-child { text-align: left; }
+  .dca-tbl td { font-size: 12px; text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line-soft); }
+  .dca-tbl td:first-child { text-align: left; color: var(--tx2); }
+  .dca-tbl tr:last-child td { border-bottom: 0; font-weight: 700; }
+  .dca-tbl .pos { color: var(--green); }
+  .dca-tbl .neg { color: var(--red); }
+  /* ===== Grid ===== */
+  .grid { display: grid; gap: 18px; }
+  .grid + .grid, .grid + .card, .card + .grid, .card + .card { margin-top: 18px; }
+  /* grid 内部卡片间距由 gap 控制，margin 会破坏同行拉伸对齐 */
+  .grid > .card + .card { margin-top: 0; }
+  .grid-two { grid-template-columns: 1fr 1fr; }
+  .g-top { grid-template-columns: 1fr 1fr 1.4fr; align-items: stretch; }
+  .g-mid { grid-template-columns: repeat(4, 1fr); }
+
+  /* ===== Device-optimized layout ===== */
+  /* Mac / large desktop: default 3-col top + 4-col mid */
+
+  /* iPad landscape / large tablet (1024-1279) */
+  @media (max-width: 1279px) {
+    .g-top { grid-template-columns: 1fr 1fr 1.4fr; align-items: stretch; }
+    .g-mid { grid-template-columns: repeat(4, 1fr); }
+  }
+  /* iPad portrait / small tablet (768-1023) */
+  @media (max-width: 1023px) {
+    .g-top { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
+    .scale-wrap { grid-column: 1 / -1; }
+    .g-mid { grid-template-columns: 1fr 1fr; }
+  }
+  /* iQOO15 / phones (≤767) */
+  @media (max-width: 767px) {
+    body { padding: 16px 14px 48px; }
+    .header { flex-direction: column; align-items: flex-start; }
+    .header h1 { font-size: 20px; }
+    .header .meta { flex-wrap: wrap; gap: 8px; }
+    .chip { font-size: 10.5px; padding: 4px 10px; }
+    .g-top, .g-mid, .grid-two { grid-template-columns: 1fr; }
+    .trig-row { flex-wrap: wrap; }
+    .trig-band { width: 46px; }
+    .trig-right { min-width: 86px; }
+    .signal-banner { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+    .signal-banner .sig-tag { align-self: flex-start; }
+    .scale-stats { flex-wrap: wrap; gap: 10px; }
+    .scale-stats .ss { min-width: 90px; }
+    .cal-pri { font-size: 9.5px; padding: 2px 6px; }
+    .kpi .k-val { font-size: 12.5px; }
+    .card { padding: 16px; }
+    .idx-close { font-size: 24px; }
+    .drawdown-num { font-size: 38px; }
+    .hint-i { width: 22px; height: 22px; font-size: 12px; }
+  }
+  /* Very small phones (≤380) */
+  @media (max-width: 380px) {
+    .header h1 { font-size: 18px; }
+    .idx-close { font-size: 20px; }
+    .drawdown-num { font-size: 34px; }
+    .kpis { grid-template-columns: 1fr; }
+    .dca-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .dca-tbl-wrap table { min-width: 280px; }
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; display: flex; flex-direction: column; align-self: stretch;
+    min-height: 0;
+    box-shadow: 0 4px 24px -12px rgba(0,0,0,.45);
+    transition: border-color .2s, box-shadow .2s, transform .2s;
+  }
+  @media (hover: hover) {
+    .card:hover { border-color: #2c3a58; box-shadow: 0 8px 32px -14px rgba(0,0,0,.55); }
+    #card-ndx:hover, #card-spx:hover { transform: translateY(-1px); }
+  }
+  /* 核心回撤尺轻微强调 */
+  .scale-card {
+    background: linear-gradient(180deg, rgba(91,163,255,.05), transparent 60%), var(--card);
+    border-color: rgba(91,163,255,.25);
+    box-shadow: 0 4px 28px -12px rgba(91,163,255,.15);
+  }
+  .card-title {
+    font-size: 12px; font-weight: 800; color: var(--tx2); letter-spacing: 1.5px;
+    text-transform: uppercase; display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+  }
+  .card-title .bar { width: 3.5px; height: 14px; border-radius: 2px; display: inline-block; }
+  /* ===== Index card ===== */
+  .idx-name { font-size: 14.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; letter-spacing: .2px; }
+  .idx-name .src { font-size: 10px; color: var(--tx3); font-family: var(--mono); letter-spacing: 1px; }
+  .idx-close { font-family: var(--mono); font-size: 28px; font-weight: 800; margin: 8px 0 3px; letter-spacing: .5px; }
+  .idx-change { font-size: 12px; font-family: var(--mono); margin-bottom: 12px; }
+  .drawdown-box { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .drawdown-num { font-family: var(--mono); font-size: 44px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+  .drawdown-label { font-size: 12px; color: var(--tx2); border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
+  .kpi {
+    background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px;
+    padding: 8px 11px; line-height: 1.4; transition: border-color .2s;
+  }
+  .kpi .k-label { font-size: 10px; color: var(--tx3); letter-spacing: .3px; }
+  .kpi .k-val { font-size: 14px; font-family: var(--mono); font-weight: 800; margin-top: 2px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .kpi .k-val.small { font-size: 12px; }
+  .up { color: var(--green); } .down { color: var(--red); } .flat { color: var(--tx2); }
+  /* ===== Scale / gauge ===== */
+  .scale-card { padding: 18px 20px; }
+  .scale-svg { width: 100%; display: block; }
+  .legend { display: flex; justify-content: center; gap: 22px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
+  .legend .li { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .scale-markers { display: flex; justify-content: center; gap: 24px; margin-top: 14px; flex-wrap: wrap; }
+  .scale-markers .mk { font-size: 12.5px; color: var(--tx2); display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); font-weight: 600; }
+  .scale-markers .mk-ndx { border-color: rgba(255,255,255,.28); }
+  .scale-markers .mk-spx { border-color: rgba(91,163,255,.45); }
+  .scale-markers .mk b { color: var(--tx); font-family: var(--mono); font-weight: 800; }
+  .scale-stats { display: flex; justify-content: space-around; margin-top: 14px; text-align: center; gap: 8px; flex-wrap: wrap; flex: 1; min-height: 0; }
+  .scale-stats .ss b { display: block; font-family: var(--mono); font-size: 19px; letter-spacing: .3px; }
+  .scale-stats .ss span { font-size: 11px; color: var(--tx3); }
+  /* ===== Trigger matrix ===== */
+  .trig-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 0;
+    border-bottom: 1px dashed var(--line-soft);
+  }
+  .trig-row:last-child { border-bottom: none; }
+  .trig-band { width: 52px; text-align: center; font-family: var(--mono); font-weight: 800; font-size: 14px; flex-shrink: 0; }
+  .trig-info { flex: 1; }
+  .trig-info .t-title { font-size: 13px; font-weight: 700; white-space: nowrap; letter-spacing: .2px; }
+  .trig-info .t-desc { font-size: 11.5px; color: var(--tx2); }
+  .trig-state { font-size: 11px; padding: 3px 11px; border-radius: 14px; flex-shrink: 0; font-weight: 700; letter-spacing: .3px; }
+  .trig-dist { font-family: var(--mono); font-size: 11px; color: var(--tx3); margin-top: 4px; text-align: center; }
+  .trig-right { display: flex; flex-direction: column; align-items: center; gap: 0; flex-shrink: 0; min-width: 88px; }
+  .st-on { background: rgba(242,109,125,.16); color: var(--red); border: 1px solid rgba(242,109,125,.4); }
+  .st-near { background: rgba(247,193,78,.13); color: var(--yellow); border: 1px solid rgba(247,193,78,.4); }
+  .st-off { background: rgba(143,160,186,.1); color: var(--tx2); border: 1px solid var(--line); }
+  .tp-on { background: rgba(45,212,167,.16); color: var(--green); border: 1px solid rgba(45,212,167,.4); }
+  .tp-near { background: rgba(124,92,240,.13); color: var(--purple); border: 1px solid rgba(124,92,240,.4); }
+  /* ===== Meter rows (trend/valuation/sentiment) ===== */
+  .meter { margin-bottom: 15px; }
+  .meter:last-child { margin-bottom: 0; }
+  .meter .m-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .meter .m-label { font-size: 12px; color: var(--tx2); }
+  .meter .m-val { font-family: var(--mono); font-weight: 800; font-size: 14px; letter-spacing: .2px; }
+  .meter .m-bar { height: 8px; border-radius: 4px; background: var(--card2); position: relative; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+  .meter .m-fill { height: 100%; border-radius: 4px; }
+  .meter .m-marks { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--tx3); margin-top: 3px; font-family: var(--mono); }
+  .ma-state { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+  .ma-chip {
+    font-size: 10px; font-family: var(--mono); letter-spacing: .3px;
+    padding: 2.5px 8px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card2); color: var(--tx2); opacity: .75;
+  }
+  .ma-chip.on-up { border-color: rgba(38,201,158,.45); color: var(--green); background: rgba(38,201,158,.1); opacity: 1; }
+  .ma-chip.on-down { border-color: rgba(240,97,109,.45); color: var(--red); background: rgba(240,97,109,.1); opacity: 1; }
+  .zones { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
+  .zones div { height: 100%; }
+  .z-ok { background: rgba(45,212,167,.2); } .z-mid { background: rgba(247,193,78,.2); } .z-hot { background: rgba(242,109,125,.22); }
+  .cursor-dot { position: relative; }
+  .cursor-dot::after {
+    content: ""; position: absolute; left: var(--pos, 50%); top: -3px; width: 2.5px; height: 14px;
+    background: var(--cursor, #fff); border-radius: 2px; transform: translateX(-50%);
+  }
+  /* ===== Calendar ===== */
+  .cal-item { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line-soft); }
+  .cal-item:last-child { border-bottom: none; }
+  .cal-date { flex-shrink: 0; width: 46px; text-align: center; }
+  .cal-date .d { font-family: var(--mono); font-size: 18px; font-weight: 800; line-height: 1; }
+  .cal-date .m { font-size: 10px; color: var(--tx3); margin-top: 2px; }
+  .cal-info { flex: 1; }
+  .cal-info .e-name { font-size: 12.5px; font-weight: 600; }
+  .cal-info .e-desc { font-size: 11px; color: var(--tx2); }
+  .cal-pri { flex-shrink: 0; font-size: 10.5px; padding: 2px 9px; border-radius: 10px; height: fit-content; font-weight: 700; }
+  .pri-high { background: rgba(242,109,125,.14); color: var(--red); }
+  .pri-mid { background: rgba(247,193,78,.13); color: var(--yellow); }
+  .pri-low { background: rgba(143,160,186,.12); color: var(--tx2); }
+  /* ===== FX / misc ===== */
+  .fx-num { font-family: var(--mono); font-size: 36px; font-weight: 900; letter-spacing: .5px; }
+  .note { font-size: 11.5px; color: var(--tx2); margin-top: 12px; line-height: 1.75; }
+  .note b { color: var(--cyan); }
+  /* ===== Indicator hints & lexicon ===== */
+  .hint-i {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; margin-left: 5px; border-radius: 50%;
+    border: 1px solid var(--tx3); background: transparent; color: var(--tx3);
+    font-family: inherit; font-size: 9px; font-style: normal; line-height: 1; cursor: pointer;
+    padding: 0; vertical-align: 1px; user-select: none; flex-shrink: 0; transition: all .15s;
+  }
+  .hint-i:hover { border-color: var(--blue); color: var(--blue); }
+  .hint-i:active { transform: scale(.88); }
+  .hint-pop {
+    position: fixed; z-index: 99999; max-width: 320px;
+    background: #1a2436; border: 1px solid #33415e; border-radius: 12px;
+    padding: 10px 13px; box-shadow: 0 14px 44px -8px rgba(0,0,0,.75), 0 0 0 1px rgba(91,163,255,.18);
+    font-size: 11.5px; line-height: 1.65; animation: hpIn .15s ease;
+    backdrop-filter: blur(6px);
+  }
+  .hint-pop .hp-plain { color: var(--tx); }
+  .hint-pop .hp-plain b { color: var(--cyan); }
+  .hint-pop .hp-pro { color: var(--tx3); font-size: 10.5px; margin-top: 4px; border-top: 1px dashed var(--line); padding-top: 4px; }
+  @keyframes hpIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .lex-toggle {
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    font-size: 11.5px; color: var(--blue); font-weight: 700; user-select: none;
+    white-space: nowrap;
+  }
+  .lex-toggle .arr { transition: transform .2s; display: inline-block; }
+  .lex-toggle.open .arr { transform: rotate(90deg); }
+  .lex-body { margin-top: 12px; }
+  .lex-body.hidden { display: none; }
+  .lex-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .lex-table th {
+    text-align: left; font-size: 10px; color: var(--tx3); letter-spacing: .5px;
+    padding: 5px 8px; border-bottom: 1px solid var(--line-soft);
+  }
+  .lex-table td { padding: 7px 8px; border-bottom: 1px dashed var(--line-soft); vertical-align: top; }
+  .lex-table tr:last-child td { border-bottom: none; }
+  .lex-table .lx-name { font-family: var(--mono); font-weight: 700; color: var(--cyan); white-space: nowrap; width: 78px; }
+  .lex-table .lx-plain { color: var(--tx); width: 42%; }
+  .lex-table .lx-pro { color: var(--tx3); font-size: 10.5px; }
+  @media (max-width: 767px) {
+    .lex-table td { padding: 6px 6px; font-size: 11px; }
+    .lex-table .lx-plain { width: 40%; }
+  }
+  .golden-line {
+    margin-top: 22px; padding: 14px 20px; border-radius: var(--radius); font-size: 13.5px;
+    background: linear-gradient(90deg, rgba(91,163,255,.12), rgba(177,149,251,.1));
+    border: 1px solid rgba(91,163,255,.4); color: var(--tx);
+    box-shadow: 0 4px 24px -12px rgba(91,163,255,.25);
+  }
+  .golden-line b { color: var(--blue); }
+  /* ===== Footer ===== */
+  .footer { margin-top: 24px; font-size: 11px; color: var(--tx3); text-align: center; line-height: 1.8; }
+  .footer a { color: var(--tx3); text-decoration: none; }
+  .footer .online-link { display: inline-block; margin: 4px 0 2px; padding: 5px 14px; font-size: 12px; color: #fff; background: linear-gradient(135deg,var(--cyan),var(--blue)); border-radius: 999px; text-decoration: none; cursor: pointer; }
+  .footer .online-link:hover { filter: brightness(1.12); }
+  .footer .online-link svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
+  /* ===== Editable ===== */
+  .tgl-btn { font-size: 11px; color: var(--blue); cursor: pointer; font-weight: 700; }
+  .hidden { display: none; }
+  .stress { margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  .stress-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 7px; flex-wrap: wrap; }
+  .stress-row b { font-family: var(--mono); color: var(--cyan); font-weight: 700; }
+  .stress-row .s-desc { color: var(--tx2); font-size: 11px; }
+  /* ===== History comparison ===== */
+  .hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .hist-table th { font-size: 10.5px; color: var(--tx3); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); letter-spacing: .5px; }
+  .hist-table td { padding: 7px 10px; border-bottom: 1px dashed var(--line-soft); font-family: var(--mono); }
+  .hist-table tr:last-child td { border-bottom: none; }
+  .hist-table .h-desc { font-family: var(--sans); color: var(--tx2); font-size: 11.5px; }
+  .hist-med { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
+  .hist-med .med-bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--card2); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+  .hist-med .med-bar i { position: absolute; top: -2px; height: 12px; width: 2.5px; background: var(--yellow); border-radius: 1px; }
+  .hist-med .med-bar .med-txt { position: absolute; top: -18px; transform: translateX(-50%); font-size: 9.5px; color: var(--yellow); font-family: var(--mono); }
+  .hist-cagr {
+    display: flex; align-items: center; gap: 16px; margin-top: 12px;
+    padding: 10px 14px; border-radius: 10px; flex-wrap: wrap;
+    background: rgba(45,212,167,.06); border: 1px solid rgba(45,212,167,.22);
+  }
+  .hist-cagr .hc-label { font-size: 11.5px; color: var(--tx2); font-weight: 700; }
+  .hist-cagr .hc-val { font-family: var(--mono); font-size: 13px; color: var(--tx2); }
+  .hist-cagr .hc-val b { color: var(--green); font-size: 15px; }
+  /* ===== Seasonality tip ===== */
+  .season-tip {
+    margin-bottom: 12px; padding: 9px 13px; border-radius: 10px; font-size: 12px; line-height: 1.7;
+    background: rgba(247,193,78,.07); border: 1px solid rgba(247,193,78,.28); color: var(--yellow);
+  }
+  .season-tip b { font-family: var(--mono); font-weight: 800; }
+  /* ===== Monthly performance chart (tabbed) ===== */
+  .mc-tabs { display: flex; gap: 8px; margin: 6px 0 2px; }
+  .mc-tab { flex: 1; padding: 10px 0; border: 1px solid var(--line); background: var(--bg2); color: var(--tx2); border-radius: 10px; font-size: 13px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: all .18s ease; -webkit-tap-highlight-color: transparent; }
+  .mc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(74,158,255,.32); }
+  .mc-tab:active { transform: scale(.98); }
+  .mchart-wrap { display: flex; gap: 10px; margin-top: 8px; }
+  .mchart-axis { width: 36px; flex-shrink: 0; height: 230px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; color: var(--tx3); text-align: right; }
+  .mchart-axis span:nth-child(2) { color: var(--tx2); }
+  .mchart { flex: 1; display: flex; gap: 8px; min-width: 0; }
+  .mc-group { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .mc-plot { position: relative; height: 230px; }
+  .mc-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(91,163,255,.12); pointer-events: none; }
+  .mc-line.zero { border-top: 1px solid var(--line); }
+  .mc-bar { position: absolute; left: 27%; width: 46%; max-width: 30px; border-radius: 4px; transition: height .35s ease; }
+  .mc-bar.pos { bottom: 50%; border-radius: 4px 4px 0 0; }
+  .mc-bar.neg { top: 50%; border-radius: 0 0 4px 4px; }
+  .mc-val { position: absolute; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; white-space: nowrap; }
+  .mc-bar.pos .mc-val { top: -13px; }
+  .mc-bar.neg .mc-val { bottom: -13px; }
+  .mc-label { text-align: center; font-size: 11px; color: var(--tx2); margin-top: 6px; font-family: var(--mono); }
+  .mchart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 11.5px; color: var(--tx2); }
+  .mchart-legend .li { display: inline-flex; align-items: center; gap: 6px; }
+  .mchart-legend .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .sw-up { background: var(--green); }
+  .sw-down { background: var(--red); }
+  .mchart-summary { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--tx2); }
+  .mchart-summary b { font-family: var(--mono); }
+  .mchart-cross { margin-top: 8px; font-size: 12px; color: var(--tx3); }
+  .mchart-cross b { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div id="loading" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;z-index:999999;background:var(--bg);color:var(--tx3);font-size:16px;flex-direction:column;gap:12px;transition:opacity .3s;">
+  <span style="font-size:32px;">📡</span>
+  <span>加载中…</span>
+</div>
+
+<!-- ======= Header ======= -->
+<main>
+<div class="header">
+  <div>
+    <h1><span aria-hidden="true">📡</span> 美股指数回撤决策看板</h1>
+    <div class="sub">NDX · SPX · 回撤监控 → 加减仓决策</div>
+  </div>
+  <div class="meta">
+    <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题">🌙 深色</button>
+    <span class="chip">💵 USD/CNY <b id="meta-fx">--</b></span>
+    <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)">🔶 美股盘中快照 · 正式收盘数据待更新</span>
+    <span class="chip chip-stale" id="stale-chip" style="display:none">⚠️ 数据过期 <b id="stale-days">0</b> 天</span>
+  </div>
+</div>
+
+<!-- ======= Data time (美股时区换算) ======= -->
+<div class="asof-bar" aria-label="时区换算">
+  <div class="asof-main">🕐 美股 <b id="asof-us">--</b> 收盘 · 美东 <b id="asof-et">--</b> <span class="asof-tz" id="asof-tz">--</span></div>
+  <div class="asof-cn">🇨🇳 对应北京时间 <b id="asof-cn">--</b>（次日清晨） · 本地更新 <b id="asof-local">--</b> · 宏观 VIX/恐贪/美债 沿用 08-24 快照</div>
+</div>
+
+<!-- ======= Signal banner ======= -->
+<div class="signal-banner" id="banner" role="alert" aria-live="polite">
+  <div class="sig-icon" id="sig-icon">--</div>
+  <div class="sig-main">
+    <div class="sig-title" id="sig-title">--</div>
+    <div class="sig-desc" id="sig-desc">--</div>
+    <div class="sig-kpis" id="sig-kpis">
+      <span class="sk"><span class="sk-l">NDX 回撤</span><b id="sk-dd">--</b></span>
+      <span class="sk"><span class="sk-l">Fwd ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><b id="sk-erp">--</b></span>
+      <span class="sk"><span class="sk-l">恐贪</span><b id="sk-fg">--</b></span>
+      <span class="sk"><span class="sk-l">止盈档位</span><b id="sk-tp">--</b></span>
+    </div>
+  </div>
+  <div class="sig-tag" id="sig-tag">--</div>
+</div>
+
+<!-- ======= Top grid ======= -->
+<div class="grid g-top" aria-label="核心指数">
+  <!-- NDX card -->
+  <div class="card" id="card-ndx">
+    <div class="idx-name">
+      <span>🇺🇸 纳斯达克100 <span style="font-family:var(--mono);color:var(--tx3);font-size:11px">NDX</span></span>
+      <span class="src">QUOTE</span>
+    </div>
+    <div class="idx-close" id="ndx-close">--</div>
+    <div class="idx-change" id="ndx-chg">--</div>
+    <div class="drawdown-box">
+      <div class="drawdown-num" id="ndx-dd">--</div>
+      <div class="drawdown-label">距历史高点回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="dd">?</button></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-label">📈 历史高点 ATH</div><div class="k-val" id="ndx-ath">--</div></div>
+      <div class="kpi"><div class="k-label">🚀 涨回新高需</div><div class="k-val down" id="ndx-toath">--</div></div>
+      <div class="kpi"><div class="k-label">⏳ 回撤已持续</div><div class="k-val" id="ndx-days">--</div></div>
+      <div class="kpi"><div class="k-label">📉 距 -15% 档</div><div class="k-val small" id="ndx-to15">--</div></div>
+      <div class="kpi"><div class="k-label">🔋 RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="ndx-rsi">--</div></div>
+      <div class="kpi"><div class="k-label">📍 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="ndx-52w">--</div></div>
+    </div>
+  </div>
+
+  <!-- SPX card -->
+  <div class="card" id="card-spx">
+    <div class="idx-name">
+      <span>🇺🇸 标普500 <span style="font-family:var(--mono);color:var(--tx3);font-size:11px">SPX</span></span>
+      <span class="src">QUOTE</span>
+    </div>
+    <div class="idx-close" id="spx-close">--</div>
+    <div class="idx-change" id="spx-chg">--</div>
+    <div class="drawdown-box">
+      <div class="drawdown-num" id="spx-dd">--</div>
+      <div class="drawdown-label">距历史高点回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="dd">?</button></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-label">📈 历史高点 ATH</div><div class="k-val" id="spx-ath">--</div></div>
+      <div class="kpi"><div class="k-label">🚀 涨回新高需</div><div class="k-val down" id="spx-toath">--</div></div>
+      <div class="kpi"><div class="k-label">⏳ 回撤已持续</div><div class="k-val" id="spx-days">--</div></div>
+      <div class="kpi"><div class="k-label">📉 距 -15% 档</div><div class="k-val small" id="spx-to15">--</div></div>
+      <div class="kpi"><div class="k-label">🔋 RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="spx-rsi">--</div></div>
+      <div class="kpi"><div class="k-label">📍 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="spx-52w">--</div></div>
+    </div>
+  </div>
+
+  <!-- Scale card -->
+  <div class="card scale-card scale-wrap">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>回撤深度尺 · 当前位置</div>
+    <svg class="scale-svg" id="scale-svg" viewBox="0 0 620 94" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="scale-markers" id="scale-markers">
+      <span class="mk mk-ndx"><i class="dot" style="background:#fff;"></i><b>NDX</b> 当前回撤 <b id="ndx-mk-val">--</b></span>
+      <span class="mk mk-spx"><i class="dot" style="background:#4a9eff;"></i><b>SPX</b> 当前回撤 <b id="spx-mk-val">--</b></span>
+    </div>
+    <div class="legend">
+      <span class="li"><span class="dot" style="background:var(--green)"></span>-5% 关注线</span>
+      <span class="li"><span class="dot" style="background:var(--yellow)"></span>-15% DCA 加仓</span>
+      <span class="li"><span class="dot" style="background:#ff9843"></span>-25% 重仓低吸</span>
+      <span class="li"><span class="dot" style="background:var(--red)"></span>-35% 历史级</span>
+    </div>
+    <div class="scale-stats">
+      <div class="ss"><b id="sstat-buy">--</b><span>NDX @ -15%（DCA 档）</span></div>
+      <div class="ss"><b id="sstat-buy2">--</b><span>NDX @ -25%（重仓档）</span></div>
+      <div class="ss"><b id="sstat-low">--</b><span>NDX @ -35%（历史级）</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Trigger matrix ======= -->
+<div class="grid grid-two" aria-label="决策矩阵">
+  <div class="card card-hi">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--yellow)"></span>🎯 回撤触发矩阵 · 加减仓分级<button class="hint-i" type="button" aria-label="查看释义" data-h="trig">?</button></div>
+    <div id="trig-matrix"></div>
+  </div>
+  <div class="card card-hi">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span>🔍 决策依据 · 双条件交叉验证<button class="hint-i" type="button" aria-label="查看释义" data-h="cond">?</button></div>
+    <div id="cond-check"></div>
+    <div class="note">
+      单一回撤不足为凭，<b>回撤 × 估值/情绪</b>双条件共振才触发重手。当前 NDX 刚触及 -5% 关注线，但 VIX 与估值分位均未配合 → <b>只观察、不出重手</b>。
+    </div>
+  </div>
+</div>
+
+<!-- ======= Take-profit matrix ======= -->
+<div class="card card-hi">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>🛑 止盈触发矩阵 · 兑现分级<button class="hint-i" type="button" aria-label="查看释义" data-h="tp">?</button></div>
+  <div id="tp-matrix"></div>
+  <div class="note">与回撤矩阵对称的<b>卖出纪律</b>：涨的时候分批兑现，避免"坐电梯"。命中 ≥2 项条件才升级档位；兑现后再等回撤矩阵的档位重新接回。</div>
+</div>
+
+<!-- ======= Mid grid: trend / valuation / sentiment ======= -->
+<div class="grid g-mid" aria-label="市场分析">
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>📐 趋势结构</div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">NDX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="ndx-ma50v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="ndx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">NDX vs MA200<button class="hint-i" type="button" aria-label="查看释义" data-h="ma200">?</button></span><span class="m-val" id="ndx-ma200v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="ndx-ma200b" style="width:0%;background:var(--green);"></div></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="spx-ma50v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="spx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX vs MA200<button class="hint-i" type="button" aria-label="查看释义" data-h="ma200">?</button></span><span class="m-val" id="spx-ma200v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="spx-ma200b" style="width:0%;background:var(--green);"></div></div>
+    </div>
+    <div class="ma-state" id="ma-state">
+      <span class="ma-chip" data-k="ndx-ma50">--</span>
+      <span class="ma-chip" data-k="ndx-ma200">--</span>
+      <span class="ma-chip" data-k="spx-ma50">--</span>
+      <span class="ma-chip" data-k="spx-ma200">--</span>
+    </div>
+    <div class="meter" style="margin-top:4px;">
+      <div class="m-head"><span class="m-label">🧩 市场广度 · NDX 相对 SPX (YTD)<button class="hint-i" type="button" aria-label="查看释义" data-h="breadth">?</button></span><span class="m-val" id="brd-val">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="brd-bar" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>纳指跑输</span><span>0</span><span>纳指跑赢</span></div>
+    </div>
+    <div class="note">MA50 走弱、MA200 上方 → <b>中期趋势完好，短期动能减弱</b>，典型回调而非转熊。广度看 <b id="brd-note">--</b> → 龙头未散，但若转跑输需警惕结构性风险。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>💰 估值锚</div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="pepct">?</button></span><span class="m-val" id="val-pepct">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-pepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
+      <div class="m-marks"><span>0%</span><span>50%</span><span>100%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX 远期PE<button class="hint-i" type="button" aria-label="查看释义" data-h="pefwd">?</button></span><span class="m-val" id="val-pe">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">TTM PE<button class="hint-i" type="button" aria-label="查看释义" data-h="petm">?</button></span><span class="m-val" id="val-pe-ttm">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">席勒 CAPE<button class="hint-i" type="button" aria-label="查看释义" data-h="cape">?</button></span><span class="m-val" id="val-cape">--</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">估值状态<button class="hint-i" type="button" aria-label="查看释义" data-h="valstate">?</button></span><span class="m-val" id="val-state">--</span></div>
+      <div class="zones cursor-dot" id="val-zones" style="--pos:0%;--cursor:var(--red)">
+        <div class="z-ok" style="flex:30"></div>
+        <div class="z-mid" style="flex:30"></div>
+        <div class="z-hot" style="flex:40"></div>
+      </div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">🛡️ Fwd ERP 股权风险溢价<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><span class="m-val" id="val-erp">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">TTM ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erpttm">?</button></span><span class="m-val" id="val-erp-ttm">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-erpb" style="width:0%;background:var(--red);"></div></div>
+      <div class="m-marks"><span>极低 &lt;0</span><span>均值 2.5%</span><span>高 &gt;4%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">前瞻 EPS 增速 (26E)<button class="hint-i" type="button" aria-label="查看释义" data-h="eps">?</button></span><span class="m-val" id="val-eps">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-epsb" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>-5%</span><span>0</span><span>+10%</span></div>
+    </div>
+    <div class="note">Forward PE 分位 ~75%，<b>估值偏贵</b> → 回撤提供的是"打折"而非"便宜"，加仓宜分批忌梭哈。<b style="color:var(--red)">Fwd ERP 仅 +0.05%、TTM 为负</b> → 股债性价比极低，重手 DCA 的安全垫很薄。<b style="color:var(--green)">EPS 仍正增长</b> → 回调不改盈利基本面。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>🌡️ 情绪温度</div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">VIX 恐慌指数<button class="hint-i" type="button" aria-label="查看释义" data-h="vix">?</button></span><span class="m-val" id="sent-vix">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-vixb" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>恐慌 &lt;30</span><span>正常 15-30</span><span>贪婪 &lt;15</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">恐惧贪婪指数 (CNN)<button class="hint-i" type="button" aria-label="查看释义" data-h="fg">?</button></span><span class="m-val" id="sent-fg">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-fgb" style="width:0%;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));"></div></div>
+      <div class="m-marks"><span>0 恐惧</span><span>50</span><span>100 贪婪</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">10Y 美债 (TNX)<button class="hint-i" type="button" aria-label="查看释义" data-h="tnx">?</button></span><span class="m-val" id="sent-tnx">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-tnxb" style="width:0%;background:var(--yellow);"></div></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">2Y 美债 + 曲线<button class="hint-i" type="button" aria-label="查看释义" data-h="curve">?</button></span><span class="m-val" id="sent-tnx2">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-tnx2b" style="width:0%;background:var(--green);"></div></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">Put/Call 期权情绪<button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-pcb" style="width:0%;background:var(--yellow);"></div></div>
+      <div class="m-marks"><span>防御 &gt;1.1</span><span>0.7-1.1 中性</span><span>贪婪 &lt;0.7</span></div>
+    </div>
+    <div class="note">VIX 15.98 低位 + 恐贪 72 贪婪 → <b>市场情绪仍乐观</b>；曲线正斜率、期权中性 → 无系统性风险信号，逆势加仓的安全边际尚未出现。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span>💱 汇率 & 压力测试<button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
+    <div class="idx-name" style="margin-bottom:4px;"><span>USD/CNY</span></div>
+    <div class="fx-num" id="fx-num" style="color:var(--cyan)">--</div>
+    <div class="idx-change" id="fx-chg">人民币升值吃掉 QDII 收益的风险敞口</div>
+    <div class="stress">
+      <div class="stress-row"><b>NDX -10%</b> <span class="s-desc">--</span></div>
+      <div class="stress-row"><b>NDX -15%</b> <span class="s-desc">--</span></div>
+      <div class="stress-row"><b>NDX -25%</b> <span class="s-desc">--</span></div>
+      <div class="stress-row"><b>NDX -35%</b> <span class="s-desc">--</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= History comparison ======= -->
+<div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>📉 历史回撤对照 · 这次算什么水平</div>
+    <table class="hist-table">
+      <tr><th>事件</th><th>回撤</th><th>耗时</th></tr>
+      <tr><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">-49.1%</td><td>~950 天</td></tr>
+      <tr><td class="h-desc">2008 金融危机</td><td style="color:var(--red)">-52.6%</td><td>~520 天</td></tr>
+      <tr><td class="h-desc">2020 疫情</td><td style="color:var(--red)">-30.1%</td><td>~33 天</td></tr>
+      <tr><td class="h-desc">2022 加息熊市</td><td style="color:var(--red)">-35.7%</td><td>~253 天</td></tr>
+      <tr><td class="h-desc">2025 技术性回调</td><td style="color:var(--yellow)">-13.7%</td><td>~70 天</td></tr>
+      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (2026-08)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
+    </table>
+    <div class="hist-med">
+      <span>近10年中位数回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
+      <div class="med-bar">
+        <i id="med-dot" style="left:0%;"></i>
+        <span class="med-txt" id="med-val" style="left:0%;">--</span>
+      </div>
+      <span style="color:var(--yellow);font-family:var(--mono);" id="hist-rank">--</span>
+    </div>
+    <div class="hist-cagr">
+      <span class="hc-label">📈 长期年化基准（近18年 CAGR）</span>
+      <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
+      <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
+    </div>
+    <div class="note">当前回撤 <b id="hist-rank-txt">--</b>：在近 10 年属于 <b>普通技术性回调</b>，纳指历史上有 30%+ 交易日处于 -5% 以下。真正的加仓窗口（-15% 以下）出现频率约 12%，需耐心等。<b style="color:var(--green)">长期看，NDX 年化 +16% 是"回撤早晚会修复"的底气</b>。</div>
+  </div>
+
+<!-- ======= DCA zero indicator ======= -->
+<div class="card card-hi" id="card-dca">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>💸 定投回测指标 · 每日定投收益率<button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
+  <div class="dca-ctrl">
+    <div class="dca-ctrl-row"><label>标的</label>
+      <div class="dca-toggle" id="dca-toggle">
+        <button class="dca-t active" data-idx="ndx">纳指100</button>
+        <button class="dca-t" data-idx="spx">标普500</button>
+      </div>
+    </div>
+    <div class="dca-ctrl-row"><label>每日</label>
+      <input id="dca-amt" class="dca-inp" type="number" value="1" min="1" step="1"><span class="dca-unit">元</span>
+    </div>
+  </div>
+  <div class="dca-sum" id="dca-sum">--</div>
+  <div class="dca-tbl-wrap"><table class="dca-tbl">
+    <thead><tr><th>窗口</th><th>定投收益</th><th>一次性买</th><th>定投−一次性</th></tr></thead>
+    <tbody id="dca-rows"></tbody>
+  </table></div>
+  <div class="note" id="dca-note">加载中…</div>
+</div>
+
+<!-- ======= Monthly performance ======= -->
+<div class="card">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>📊 2026 年内月度涨跌幅</div>
+  <div class="mc-tabs">
+    <button class="mc-tab active" data-idx="ndx">纳指100 NDX</button>
+    <button class="mc-tab" data-idx="spx">标普500 SPX</button>
+  </div>
+  <div class="mchart-wrap">
+    <div class="mchart-axis"><span>+16%</span><span>0</span><span>-16%</span></div>
+    <div class="mchart" id="mchart"></div>
+  </div>
+  <div class="mchart-legend">
+    <span class="li"><i class="sw sw-up"></i>涨 (正收益)</span>
+    <span class="li"><i class="sw sw-down"></i>跌 (负收益)</span>
+  </div>
+  <div class="mchart-summary" id="mchart-summary"></div>
+  <div class="mchart-cross" id="mchart-cross"></div>
+  <div class="note">纵轴满刻度 ±16%，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b>2026-08-26 收盘</b>，采用 <b>ETF 总回报口径（含分红，QQQ/SPY 代理）</b>，与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
+</div>
+
+<!-- ======= Indicator lexicon ======= -->
+<div class="card">
+  <div class="card-title" style="justify-content:space-between;margin-bottom:0;">
+    <span style="display:flex;align-items:center;gap:8px;"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span>📖 指标小词典 · 看不懂随时查</span>
+    <span class="lex-toggle open" id="lex-toggle">收起 <span class="arr">▶</span></span>
+  </div>
+  <div class="lex-body" id="lex-body"></div>
+</div>
+
+<!-- ======= Future events ======= -->
+<div class="card card-lo">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span>📅 未来事件日历</div>
+  <div class="season-tip">⚠️ <b>9 月季节性逆风</b>：标普 1970 以来 9 月均值 <b>-0.7%</b>（全年最弱月）。当前 8/21 → 进入 9 月窗口，<b>建议</b>：原计划加仓额度下调 20%、避免 9 月初追涨。</div>
+  <div id="calendar"></div>
+</div>
+
+<!-- ======= Golden line ======= -->
+<div class="golden-line" id="golden-line">
+  🎙️ <b>一句话总结</b>：<span id="golden-text">--</span>
+</div>
+
+</main>
+
+<div class="footer">
+  <a class="online-link" href="https://jiachencc.github.io/ndx-spx-drawdown-dashboard/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>打开在线最新版（GitHub Pages）</a><br>
+  📡 美股指数回撤决策看板 <b>v6.5</b> · 行情：Nasdaq NDX日线 + SPY ETF代理SPX(2026-08-26收盘) · 宏观：CNBC美债 / CNN恐慌 / 人民币中间价(沿用8-24快照) · 定投回测 Nasdaq日线(2016–2026) · 新增「美股时区换算」数据时间条<br>
+  本看板仅作个人决策辅助，不构成投资建议 · 数据每日收盘后手动更新 · 最后更新于 <span id="footer-updated">--</span>
+</div>
+
+<script>
+"use strict";
+/* ================= 数据模型 ================= */
+const DEFAULT = {
+  date: "2026-08-26",
+  intraday: false, // 美股 2026-08-26 收盘（NDX 08/26 经 QQQ 推导；SPX 取 SPY ETF）
+  ndx:   { close: 29235.94, ath: 30660.60, days: 59, chg: 0.09, ma50: 29282, ma200: 26883, rsi: 49.3, low52: 22953, prevYr: 23426 },
+  spx:   { close: 7660.80,  ath: 7778.80,  days: 9,  chg: 0.02, ma50: 7530,  ma200: 7089, rsi: 54.3, low52: 6320, prevYr: 6425 },
+  vix: 15.82,
+  fg: 56,
+  tnx: 4.698,
+  tnx2: 4.229,
+  putcall: 0.85,
+  fx: 6.7841,
+  peFwd: 20.9, peTtm: 27.2, cape: 39.5, pePct: 75,
+  epsGrowth: 8.0,
+  asOf: { us: "2026-08-26", et: "16:00 EDT", cn: "2026-08-27 04:00", tz: "夏令时(EDT·UTC-4)", local: "2026-08-27 10:20" },
+  updatedAt: "2026-08-27 10:20 本地更新 · 数据=美东 2026-08-26 16:00 收盘",
+  thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
+};
+
+/* 2026 年内月度涨跌幅 (%，ETF 总回报口径，含分红；QQQ 代理 NDX / SPY 代理 SPX) */
+const MONTHLY = [
+  { m: "1月", ndx: 1.2,  spx: 1.5 },
+  { m: "2月", ndx: -2.3, spx: -0.9 },
+  { m: "3月", ndx: -4.9, spx: -5.2 },
+  { m: "4月", ndx: 15.6, spx: 10.5 },
+  { m: "5月", ndx: 10.5, spx: 5.3 },
+  { m: "6月", ndx: -0.2, spx: -1.3 },
+  { m: "7月", ndx: -6.6, spx: 0.0 },
+  { m: "8月", ndx: 3.4,  spx: 2.6 },
+];
+const MC_MAX = 16; // 纵轴满刻度 ±%
+
+// 定投回测指标数据源 Nasdaq日线 2016-08-22~2026-08-26 (NDX 08/26 经 QQQ 推导；QQQ/SPY 代理，各自缩放至 NDX/SPX 指数等价整数)
+const DCA_START = 20160822;  // 定投回测起始日（原 DCA_DATE 整数组仅用其首元素，冗余 ~24.6KB，已删除）
+const DCA_NDX=[4821, 4829, 4798, 4790, 4797, 4804, 4788, 4783, 4796, 4811, 4841, 4844, 4816, 4695, 4779, 4736, 4759, 4833, 4818, 4797, 4806, 4854, 4892, 4861, 4820, 4868, 4876, 4841, 4877, 4870, 4863, 4880, 4878, 4867, 4898, 4828, 4824, 4806, 4812, 4799, 4842, 4841, 4836, 4854, 4912, 4896, 4863, 4841, 4811, 4806, 4770, 4732, 4685, 4669, 4780, 4811, 4833, 4755, 4757, 4709, 4774, 4803, 4838, 4820, 4870, 4885, 4865, 4880, 4869, 4886, 4827, 4744, 4753, 4790, 4802, 4862, 4871, 4909, 4887, 4949, 4938, 4946, 4913, 4933, 4952, 4949, 4935, 4938, 4963, 4925, 4918, 4867, 4911, 4938, 4965, 5009, 5025, 5037, 5050, 5042, 5060, 5044, 5055, 5052, 5063, 5067, 5101, 5153, 5158, 5168, 5128, 5117, 5153, 5148, 5163, 5169, 5188, 5197, 5216, 5233, 5262, 5280, 5311, 5310, 5333, 5359, 5361, 5341, 5351, 5358, 5341, 5400, 5373, 5382, 5371, 5361, 5371, 5375, 5398, 5407, 5394, 5427, 5423, 5410, 5415, 5333, 5369, 5355, 5366, 5375, 5408, 5433, 5442, 5438, 5435, 5444, 5421, 5424, 5421, 5424, 5400, 5378, 5357, 5401, 5393, 5402, 5447, 5446, 5511, 5551, 5543, 5577, 5587, 5636, 5646, 5628, 5630, 5650, 5663, 5682, 5686, 5681, 5694, 5712, 5736, 5590, 5639, 5663, 5710, 5716, 5742, 5791, 5801, 5806, 5804, 5827, 5893, 5892, 5869, 5892, 5898, 5751, 5720, 5766, 5741, 5716, 5675, 5770, 5725, 5782, 5780, 5802, 5775, 5670, 5752, 5652, 5654, 5595, 5650, 5599, 5659, 5696, 5712, 5780, 5793, 5838, 5841, 5880, 5915, 5923, 5920, 5947, 5932, 5951, 5914, 5909, 5884, 5898, 5914, 5891, 5901, 5939, 5928, 5921, 5794, 5838, 5913, 5917, 5927, 5806, 5802, 5794, 5883, 5862, 5845, 5832, 5850, 5873, 5942, 6006, 5998, 5944, 5962, 5976, 5924, 5992, 6007, 6015, 5980, 6000, 5979, 5990, 5971, 5935, 5929, 5866, 5882, 5935, 5933, 5975, 5981, 5993, 5999, 6058, 6066, 6059, 6064, 6082, 6071, 6094, 6115, 6123, 6115, 6093, 6109, 6069, 6080, 6057, 6037, 6213, 6227, 6250, 6248, 6237, 6296, 6318, 6322, 6347, 6314, 6313, 6321, 6298, 6269, 6349, 6324, 6319, 6388, 6396, 6419, 6416, 6433, 6321, 6374, 6347, 6273, 6278, 6306, 6327, 6355, 6405, 6396, 6408, 6404, 6476, 6517, 6478, 6471, 6472, 6465, 6430, 6431, 6439, 6399, 6511, 6574, 6586, 6652, 6678, 6678, 6663, 6708, 6757, 6738, 6811, 6812, 6833, 6907, 6964, 6918, 6916, 7022, 6988, 6930, 6959, 6900, 6762, 6496, 6668, 6582, 6304, 6413, 6527, 6560, 6683, 6807, 6777, 6790, 6771, 6770, 6909, 7000, 6914, 6869, 6757, 6819, 6895, 6924, 6940, 6978, 7114, 7151, 7054, 7053, 7047, 7026, 6865, 6887, 6857, 6688, 6512, 6754, 6535, 6460, 6578, 6389, 6460, 6562, 6600, 6435, 6480, 6623, 6584, 6664, 6629, 6680, 6824, 6838, 6775, 6667, 6651, 6510, 6518, 6655, 6659, 6612, 6687, 6648, 6647, 6773, 6829, 6822, 6897, 6968, 6962, 6974, 6896, 6942, 6915, 6879, 6918, 6909, 6967, 6965, 6972, 6941, 6991, 6987, 7096, 7160, 7183, 7225, 7166, 7166, 7185, 7223, 7223, 7296, 7271, 7251, 7230, 7282, 7218, 7202, 7040, 7069, 6973, 7033, 7052, 7099, 7017, 7104, 7214, 7279, 7284, 7248, 7372, 7379, 7361, 7406, 7392, 7355, 7353, 7377, 7407, 7510, 7397, 7297, 7194, 7249, 7276, 7375, 7398, 7441, 7469, 7478, 7473, 7416, 7408, 7454, 7363, 7387, 7389, 7382, 7409, 7438, 7427, 7496, 7573, 7584, 7671, 7658, 7668, 7635, 7536, 7469, 7440, 7465, 7523, 7501, 7581, 7559, 7450, 7511, 7506, 7588, 7547, 7554, 7565, 7570, 7634, 7632, 7648, 7631, 7639, 7492, 7401, 7356, 7379, 7055, 6967, 7161, 7075, 7280, 7283, 7114, 7108, 7144, 7118, 6792, 7027, 6847, 6706, 6816, 6976, 7068, 6958, 6941, 6994, 7213, 7167, 7046, 6833, 6839, 6787, 6905, 6881, 6658, 6538, 6588, 6541, 6692, 6714, 6930, 6908, 6958, 7079, 6808, 6856, 6630, 6699, 6721, 6780, 6782, 6617, 6467, 6508, 6348, 6256, 6062, 5895, 6263, 6287, 6284, 6337, 6363, 6155, 6418, 6495, 6553, 6607, 6626, 6601, 6543, 6671, 6670, 6722, 6789, 6653, 6661, 6704, 6785, 6701, 6637, 6806, 6908, 6879, 6964, 7026, 7005, 6911, 6925, 6918, 7020, 7025, 7034, 7063, 7077, 7076, 7050, 7103, 7128, 7136, 7131, 7115, 7164, 7165, 7171, 7130, 7043, 7032, 7178, 7218, 7272, 7259, 7327, 7331, 7356, 7385, 7500, 7335, 7321, 7356, 7308, 7325, 7381, 7478, 7507, 7550, 7547, 7586, 7605, 7579, 7619, 7601, 7634, 7635, 7662, 7688, 7698, 7720, 7818, 7793, 7825, 7832, 7847, 7787, 7761, 7728, 7851, 7803, 7651, 7632, 7591, 7600, 7336, 7417, 7522, 7597, 7519, 7393, 7470, 7436, 7323, 7319, 7291, 7231, 7262, 7146, 6989, 7185, 7239, 7296, 7437, 7524, 7534, 7491, 7535, 7503, 7548, 7658, 7687, 7758, 7747, 7730, 7597, 7632, 7662, 7671, 7775, 7806, 7865, 7849, 7793, 7833, 7911, 7905, 7950, 7976, 7935, 7896, 7905, 7847, 7909, 7961, 8017, 7941, 8023, 7995, 7961, 7851, 7812, 7697, 7425, 7529, 7569, 7734, 7661, 7573, 7739, 7508, 7499, 7620, 7741, 7681, 7749, 7724, 7480, 7593, 7577, 7604, 7720, 7701, 7627, 7737, 7879, 7871, 7854, 7832, 7905, 7938, 7910, 7874, 7912, 7909, 7922, 7838, 7826, 7722, 7809, 7780, 7683, 7757, 7693, 7561, 7644, 7757, 7733, 7617, 7692, 7751, 7851, 7850, 7950, 7930, 7951, 7875, 7945, 7881, 7897, 7973, 8037, 8116, 8054, 8093, 8096, 8170, 8220, 8225, 8206, 8234, 8267, 8256, 8279, 8282, 8275, 8336, 8342, 8355, 8305, 8286, 8291, 8390, 8406, 8464, 8426, 8339, 8274, 8316, 8332, 8422, 8383, 8376, 8421, 8484, 8512, 8597, 8602, 8609, 8662, 8697, 8701, 8706, 8783, 8775, 8718, 8734, 8880, 8799, 8855, 8854, 8921, 8996, 8973, 9077, 9041, 9045, 9131, 9177, 9173, 9197, 9226, 9149, 8960, 9097, 9112, 9145, 9000, 9136, 9345, 9376, 9456, 9416, 9530, 9531, 9624, 9612, 9639, 9643, 9735, 9645, 9460, 9095, 8848, 8893, 8448, 8454, 8891, 8606, 8965, 8692, 8546, 7952, 8385, 8020, 7284, 7902, 6955, 7483, 7255, 7298, 7013, 7003, 7545, 7489, 7883, 7612, 7889, 7822, 7489, 7641, 7533, 8072, 8068, 8240, 8252, 8341, 8703, 8604, 8761, 8844, 8740, 8417, 8667, 8648, 8785, 8855, 8689, 8997, 8993, 8740, 8841, 8942, 8997, 9113, 9237, 9320, 9125, 9011, 9113, 9172, 9343, 9320, 9506, 9402, 9435, 9409, 9461, 9448, 9587, 9615, 9680, 9723, 9655, 9847, 9923, 9995, 10115, 9614, 9690, 9808, 9977, 10008, 10035, 10034, 10136, 10223, 10012, 10107, 9868, 9976, 10172, 10290, 10360, 10615, 10542, 10681, 10771, 10844, 10621, 10696, 10718, 10645, 10657, 10960, 10845, 10884, 10599, 10499, 10686, 10550, 10672, 10727, 10919, 11066, 11107, 11135, 11282, 11152, 11105, 10894, 11168, 11194, 11181, 11310, 11419, 11342, 11500, 11580, 11652, 11743, 11994, 11957, 12017, 12114, 12321, 12438, 11807, 11650, 11090, 11416, 11188, 11110, 11304, 11464, 11281, 11105, 10963, 10990, 11194, 10852, 10902, 11156, 11388, 11336, 11414, 11595, 11269, 11509, 11304, 11499, 11561, 11737, 12100, 12099, 11998, 11918, 11852, 11659, 11684, 11675, 11674, 11697, 11522, 11612, 11159, 11354, 11066, 11091, 11283, 11787, 12094, 12103, 11856, 11643, 11904, 11848, 11952, 12045, 12007, 11918, 12011, 11929, 11930, 12097, 12171, 12284, 12309, 12466, 12482, 12500, 12551, 12622, 12665, 12378, 12428, 12400, 12490, 12624, 12693, 12776, 12738, 12691, 12725, 12661, 12717, 12845, 12857, 12857, 12889, 12707, 12812, 12634, 12940, 13106, 12917, 12896, 12983, 12914, 12812, 12998, 13301, 13407, 13369, 13479, 13499, 13123, 13200, 12922, 13245, 13461, 13408, 13567, 13613, 13704, 13701, 13670, 13745, 13822, 13784, 13718, 13658, 13599, 13246, 13207, 13316, 12851, 12905, 13293, 13080, 12701, 12493, 12681, 12322, 12808, 12771, 13065, 12959, 13098, 13170, 13224, 12819, 12864, 13089, 13032, 12812, 12790, 12982, 12978, 12913, 13110, 13334, 13600, 13590, 13623, 13765, 13849, 13831, 13992, 13824, 14034, 14050, 13922, 13820, 13938, 13770, 13944, 14035, 13974, 13926, 13977, 13885, 13811, 13562, 13517, 13619, 13729, 13383, 13364, 13018, 13119, 13408, 13327, 13237, 13252, 13509, 13434, 13660, 13679, 13726, 13675, 13718, 13673, 13699, 13557, 13787, 13828, 13834, 13838, 13982, 14018, 14153, 14060, 14009, 14187, 14076, 14147, 14279, 14286, 14374, 14356, 14531, 14583, 14560, 14566, 14733, 14797, 14828, 14739, 14831, 14889, 14889, 14915, 14811, 14691, 14570, 14739, 14853, 14951, 15126, 15138, 14971, 15029, 15055, 14977, 14978, 15069, 15091, 15186, 15120, 15148, 15070, 15044, 15099, 15152, 15158, 15025, 14880, 14952, 15107, 15333, 15380, 15397, 15299, 15448, 15621, 15609, 15635, 15627, 15675, 15697, 15643, 15589, 15471, 15460, 15416, 15531, 15541, 15357, 15023, 15042, 15182, 15322, 15337, 15214, 14784, 14760, 14705, 14797, 14486, 14682, 14776, 14911, 14837, 14723, 14672, 14789, 15062, 15156, 15309, 15425, 15405, 15499, 15368, 15526, 15575, 15611, 15784, 15862, 15916, 15983, 16152, 16359, 16375, 16353, 16240, 16001, 16046, 16215, 16211, 16326, 16335, 16504, 16596, 16404, 16329, 16381, 16071, 16420, 16179, 15903, 16018, 15739, 15865, 16343, 16416, 16175, 16351, 16114, 15948, 16311, 15892, 15813, 15639, 15989, 16184, 16306, 16575, 16499, 16496, 16447, 16344, 16501, 16287, 15787, 15776, 15605, 15615, 15850, 15913, 15515, 15611, 15223, 15055, 14860, 14448, 14514, 14177, 14155, 14013, 14452, 14914, 15016, 15138, 14524, 14707, 14589, 14753, 15066, 14725, 14258, 14275, 14630, 14626, 14191, 14030, 13889, 13533, 13988, 14205, 14247, 14029, 14264, 14060, 13857, 13346, 13284, 13762, 13609, 13327, 13071, 13481, 13981, 14150, 14440, 14382, 14664, 14454, 14775, 14762, 14991, 15249, 15080, 14894, 14865, 15171, 14834, 14512, 14547, 14343, 14004, 13945, 14228, 13903, 13914, 14225, 14017, 13727, 13368, 13539, 13028, 13013, 13475, 12869, 13083, 13097, 13540, 12858, 12704, 12207, 12356, 11989, 11961, 12404, 12260, 12578, 11960, 11896, 11859, 12056, 11800, 11965, 12297, 12698, 12664, 12571, 12915, 12579, 12621, 12730, 12638, 12300, 11866, 11314, 11335, 11618, 11149, 11285, 11547, 11530, 11702, 12103, 12014, 11648, 11659, 11514, 11590, 11789, 11864, 12118, 12133, 11874, 11759, 11735, 11777, 11990, 11889, 12254, 12449, 12627, 12406, 12335, 12093, 12604, 12727, 12959, 12952, 12913, 13265, 13327, 13218, 13175, 13026, 13390, 13314, 13573, 13682, 13650, 13495, 13527, 13263, 12914, 12904, 12941, 13170, 12630, 12505, 12366, 12294, 12300, 12126, 12039, 12282, 12346, 12616, 12766, 12066, 12161, 11959, 11886, 11957, 11861, 11649, 11506, 11318, 11271, 11276, 11500, 11169, 10979, 11237, 11590, 11584, 11493, 11055, 10944, 10794, 10790, 11043, 10711, 11065, 11153, 11112, 11055, 11315, 11439, 11676, 11418, 11210, 11553, 11418, 11302, 10914, 10701, 10873, 10993, 11073, 10817, 11616, 11830, 11726, 11888, 11726, 11700, 11701, 11580, 11747, 11865, 11787, 11614, 11526, 12052, 12066, 12018, 11817, 11572, 11524, 11661, 11586, 11732, 11858, 11770, 11375, 11266, 11082, 11073, 11234, 10959, 10983, 10828, 10685, 10946, 10939, 10865, 10917, 10746, 11043, 11114, 11208, 11402, 11464, 11543, 11566, 11416, 11303, 11613, 11871, 11847, 11820, 12051, 12171, 11925, 12103, 12362, 12806, 12578, 12472, 12730, 12504, 12393, 12312, 12509, 12602, 12698, 12460, 12372, 12079, 12088, 12194, 11990, 12075, 12060, 11963, 12062, 12311, 12325, 12174, 12235, 12023, 11854, 11942, 12216, 12280, 12604, 12545, 12570, 12749, 12576, 12725, 12772, 12684, 12617, 12847, 12968, 13184, 13152, 13108, 12978, 13066, 13058, 12975, 12860, 13112, 13087, 13098, 13099, 13093, 12993, 13007, 12980, 12735, 12812, 13160, 13251, 13236, 13120, 13035, 12989, 13265, 13298, 13213, 13357, 13401, 13353, 13425, 13440, 13603, 13855, 13824, 13871, 13695, 13625, 13956, 14313, 14378, 14296, 14461, 14569, 14580, 14577, 14330, 14508, 14563, 14809, 14923, 15032, 15211, 15115, 15073, 14867, 15043, 14894, 14694, 14947, 14976, 14946, 15176, 15212, 15211, 15096, 15046, 15050, 15125, 15316, 15576, 15573, 15718, 15847, 15843, 15478, 15431, 15456, 15561, 15509, 15472, 15754, 15762, 15725, 15380, 15356, 15284, 15413, 15282, 15114, 15142, 15046, 15214, 15053, 14894, 14731, 14712, 14949, 14928, 15163, 14839, 14954, 15067, 15396, 15482, 15528, 15512, 15532, 15395, 15285, 15306, 15486, 15315, 15373, 15499, 15233, 15227, 15195, 14976, 14701, 14703, 14773, 14551, 14585, 14707, 14718, 14841, 14580, 14779, 14735, 14982, 15059, 15142, 15250, 15197, 15006, 15176, 15126, 14928, 14788, 14567, 14611, 14753, 14392, 14118, 14186, 14346, 14414, 14664, 14930, 15106, 15168, 15311, 15321, 15203, 15545, 15496, 15830, 15842, 15855, 15859, 16052, 15959, 16024, 16001, 15988, 16029, 16014, 15974, 16019, 15870, 15910, 15818, 16039, 16111, 16248, 16378, 16586, 16572, 16652, 16723, 16809, 16559, 16752, 16777, 16879, 16905, 16897, 16824, 16539, 16364, 16280, 16299, 16636, 16669, 16782, 16817, 16825, 16824, 16729, 16966, 17303, 17325, 17397, 17494, 17515, 17411, 17589, 17472, 17130, 17331, 17624, 17601, 17566, 17747, 17779, 17954, 17884, 17605, 17797, 17850, 17688, 17555, 17485, 17996, 17943, 17934, 17977, 17881, 18035, 18306, 18241, 17913, 18026, 18300, 18035, 17968, 18226, 18086, 18040, 17826, 17972, 18017, 18231, 18317, 18338, 18271, 18212, 18274, 18240, 18279, 18121, 18162, 17884, 18095, 18100, 18167, 18009, 18296, 18005, 17708, 17710, 17494, 17394, 17034, 17206, 17462, 17521, 17437, 17706, 17778, 17443, 17316, 17537, 17890, 18086, 18089, 18078, 18118, 18160, 18202, 18319, 18606, 18568, 18559, 18688, 18725, 18721, 18637, 18813, 18884, 18751, 18550, 18516, 18615, 18666, 19042, 19036, 19019, 19096, 19227, 19479, 19584, 19686, 19927, 19933, 19779, 19726, 19471, 19693, 19734, 19785, 19682, 19798, 20006, 20172, 20383, 20431, 20449, 20662, 20209, 20328, 20382, 20390, 19792, 19698, 19523, 19814, 19744, 19036, 18826, 19019, 19057, 18796, 19352, 18883, 18435, 17885, 18056, 17861, 18407, 18503, 18543, 19003, 19009, 19490, 19515, 19771, 19730, 19822, 19507, 19719, 19527, 19586, 19364, 19335, 19566, 18972, 18922, 18940, 18433, 18670, 18842, 19251, 19440, 19527, 19441, 19451, 19367, 19857, 19819, 19844, 19940, 19958, 20108, 19996, 20050, 19771, 19799, 19784, 20020, 19805, 20101, 20259, 20236, 20268, 20438, 20165, 20167, 20181, 20313, 20352, 20375, 20062, 20225, 20348, 20352, 20547, 20392, 19877, 20024, 19966, 20221, 20770, 21097, 21121, 21109, 21071, 21044, 20898, 20400, 20541, 20683, 20671, 20745, 20778, 20811, 20923, 20758, 20941, 21169, 21234, 21496, 21436, 21628, 21460, 21387, 21770, 21629, 21795, 22109, 22011, 21217, 21123, 21307, 21480, 21771, 21757, 21467, 21182, 21002, 20961, 21304, 21549, 21164, 21168, 20836, 20769, 20749, 21227, 21078, 21434, 21559, 21835, 21881, 21758, 21124, 21436, 21396, 21487, 21456, 21284, 21546, 21644, 21757, 21482, 21742, 21690, 21703, 22015, 22108, 22158, 22164, 22070, 21612, 21357, 21088, 21139, 20552, 20876, 20419, 20358, 20623, 20056, 20203, 19420, 19374, 19592, 19240, 19705, 19833, 19495, 19755, 19689, 19753, 20157, 20272, 19899, 19785, 19265, 19264, 19419, 19561, 18514, 17364, 17406, 17092, 19144, 18330, 18667, 18794, 18815, 18247, 18244, 17793, 18260, 18674, 19199, 19413, 19407, 19535, 19533, 19788, 20082, 19963, 19777, 19854, 20059, 20046, 20863, 21181, 21308, 21331, 21424, 21445, 21373, 21076, 21116, 20920, 21412, 21317, 21359, 21326, 21494, 21662, 21722, 21559, 21770, 21802, 21946, 21872, 21923, 21648, 21949, 21735, 21731, 21643, 21841, 22175, 22231, 22439, 22516, 22662, 22471, 22627, 22850, 22678, 22691, 22851, 22818, 22767, 22850, 22871, 22894, 23079, 23057, 23177, 23057, 23162, 23211, 23267, 23340, 23304, 23335, 23211, 22754, 23174, 23016, 23306, 23385, 23603, 23533, 23829, 23841, 23822, 23718, 23708, 23387, 23248, 23140, 23497, 23429, 23523, 23560, 23707, 23433, 23236, 23419, 23631, 23665, 23781, 23848, 23856, 23995, 24101, 24307, 24286, 24238, 24456, 24622, 24739, 24575, 24488, 24383, 24483, 24596, 24664, 24782, 24884, 24779, 24965, 24834, 25119, 25088, 24217, 24731, 24566, 24740, 24648, 24810, 25123, 25116, 24874, 25083, 25351, 25803, 26001, 26118, 25719, 25843, 25967, 25439, 25605, 25128, 25049, 25603, 25535, 25515, 24994, 25013, 24799, 24497, 24643, 24060, 24241, 24861, 25014, 25235, 25439, 25354, 25552, 25615, 25591, 25695, 25646, 25678, 25783, 25699, 25208, 25082, 25131, 24665, 25023, 25349, 25438, 25557, 25632, 25630, 25506, 25447, 25236, 25188, 25388, 25611, 25635, 25490, 25743, 25765, 25727, 25452, 25543, 25522, 24980, 25317, 25501, 25582, 25695, 25927, 26013, 25858, 25547, 25722, 25327, 24885, 24527, 25045, 25237, 25120, 25187, 24675, 24728, 24702, 24886, 24791, 25011, 24707, 24972, 25334, 25028, 24948, 24981, 24714, 25090, 25015, 24638, 24967, 24968, 24965, 24536, 24391, 24664, 24785, 24439, 24362, 23912, 24156, 23991, 24148, 23572, 23111, 22935, 23711, 24004, 24032, 24176, 24180, 24899, 25067, 25103, 25363, 25824, 26185, 26311, 26655, 26571, 26470, 26913, 26761, 27273, 27287, 27013, 27178, 27431, 27695, 27643, 28001, 28583, 28549, 29218, 29303, 29054, 29361, 29570, 29124, 28998, 28820, 29297, 29353, 29477, 30001, 29967, 30219, 30331, 30513, 30653, 30573, 30425, 28965, 29417, 29078, 28498, 29460, 29633, 30564, 29983, 29681, 30425, 30316, 29317, 29193, 29430, 29025, 29746, 30252, 29791, 29274, 29694, 29144, 29227, 29713, 29805, 29239, 29566, 29486, 29001, 28565, 28595, 29125, 28977, 28426, 28109, 28022, 27750, 27185, 28081, 28263, 28760, 29737, 29467, 29359, 29703, 29614, 29515, 29730, 30074, 30033, 29984, 29476, 29417, 29206, 29309, 29023, 29209, 29236];
+const DCA_SPX=[2191, 2195, 2184, 2182, 2178, 2189, 2185, 2179, 2179, 2189, 2196, 2196, 2191, 2138, 2169, 2138, 2137, 2158, 2139, 2139, 2140, 2164, 2177, 2165, 2148, 2161, 2172, 2152, 2168, 2163, 2152, 2162, 2163, 2156, 2167, 2140, 2142, 2135, 2136, 2129, 2142, 2148, 2144, 2145, 2154, 2147, 2143, 2137, 2131, 2131, 2115, 2103, 2093, 2091, 2137, 2146, 2169, 2175, 2170, 2171, 2188, 2184, 2195, 2190, 2207, 2211, 2212, 2221, 2210, 2215, 2209, 2201, 2202, 2215, 2223, 2252, 2257, 2271, 2268, 2283, 2264, 2274, 2256, 2261, 2270, 2263, 2259, 2263, 2268, 2250, 2249, 2241, 2258, 2271, 2270, 2278, 2270, 2270, 2277, 2271, 2276, 2268, 2273, 2265, 2273, 2267, 2282, 2301, 2299, 2295, 2281, 2281, 2282, 2283, 2299, 2295, 2295, 2298, 2312, 2321, 2333, 2343, 2355, 2353, 2357, 2371, 2369, 2370, 2373, 2377, 2371, 2404, 2389, 2390, 2383, 2376, 2371, 2374, 2383, 2384, 2375, 2395, 2391, 2376, 2374, 2343, 2349, 2346, 2344, 2342, 2359, 2361, 2369, 2363, 2359, 2361, 2354, 2360, 2358, 2359, 2356, 2346, 2331, 2352, 2345, 2340, 2359, 2352, 2378, 2391, 2390, 2392, 2387, 2393, 2394, 2391, 2394, 2403, 2403, 2400, 2405, 2400, 2396, 2409, 2407, 2364, 2374, 2389, 2401, 2406, 2412, 2424, 2423, 2421, 2420, 2440, 2448, 2446, 2438, 2443, 2444, 2440, 2440, 2452, 2448, 2444, 2432, 2453, 2436, 2436, 2434, 2437, 2439, 2419, 2441, 2419, 2424, 2428, 2434, 2411, 2427, 2430, 2428, 2446, 2450, 2462, 2461, 2463, 2476, 2477, 2475, 2474, 2480, 2480, 2478, 2475, 2474, 2479, 2481, 2476, 2480, 2485, 2479, 2479, 2444, 2447, 2472, 2471, 2476, 2437, 2433, 2435, 2460, 2452, 2446, 2452, 2452, 2455, 2466, 2481, 2485, 2467, 2475, 2475, 2472, 2498, 2507, 2508, 2507, 2498, 2503, 2506, 2507, 2500, 2501, 2495, 2497, 2507, 2510, 2519, 2529, 2535, 2538, 2553, 2550, 2546, 2553, 2557, 2553, 2556, 2559, 2561, 2564, 2564, 2577, 2567, 2572, 2559, 2563, 2584, 2574, 2578, 2581, 2582, 2591, 2595, 2593, 2598, 2588, 2587, 2590, 2584, 2571, 2593, 2585, 2589, 2606, 2604, 2610, 2609, 2635, 2634, 2657, 2651, 2648, 2638, 2639, 2647, 2662, 2670, 2674, 2674, 2663, 2672, 2689, 2678, 2677, 2682, 2682, 2679, 2680, 2685, 2675, 2694, 2711, 2723, 2741, 2746, 2752, 2748, 2768, 2786, 2777, 2803, 2798, 2811, 2834, 2840, 2839, 2840, 2873, 2854, 2825, 2826, 2823, 2761, 2646, 2698, 2683, 2583, 2621, 2660, 2667, 2703, 2737, 2738, 2721, 2707, 2711, 2754, 2786, 2751, 2723, 2684, 2697, 2729, 2736, 2735, 2748, 2796, 2792, 2774, 2760, 2757, 2749, 2712, 2716, 2711, 2643, 2587, 2658, 2612, 2605, 2638, 2581, 2614, 2642, 2663, 2604, 2616, 2658, 2644, 2666, 2658, 2680, 2709, 2711, 2696, 2673, 2672, 2636, 2643, 2670, 2672, 2652, 2656, 2639, 2633, 2667, 2676, 2676, 2702, 2727, 2735, 2737, 2718, 2729, 2727, 2720, 2740, 2733, 2740, 2735, 2728, 2697, 2733, 2716, 2743, 2756, 2758, 2781, 2781, 2789, 2793, 2796, 2787, 2794, 2778, 2772, 2762, 2767, 2749, 2754, 2717, 2723, 2700, 2716, 2720, 2725, 2716, 2738, 2761, 2786, 2796, 2775, 2801, 2803, 2800, 2812, 2818, 2807, 2804, 2809, 2823, 2847, 2840, 2821, 2806, 2820, 2816, 2831, 2843, 2853, 2863, 2862, 2858, 2839, 2828, 2846, 2825, 2848, 2858, 2864, 2871, 2869, 2865, 2882, 2905, 2906, 2922, 2910, 2910, 2905, 2897, 2889, 2883, 2888, 2898, 2898, 2916, 2916, 2901, 2916, 2919, 2943, 2927, 2917, 2915, 2906, 2914, 2914, 2925, 2923, 2924, 2902, 2885, 2885, 2881, 2790, 2728, 2766, 2751, 2811, 2811, 2771, 2769, 2757, 2743, 2660, 2708, 2660, 2645, 2684, 2713, 2742, 2726, 2741, 2758, 2817, 2812, 2785, 2732, 2727, 2709, 2737, 2744, 2698, 2648, 2657, 2639, 2682, 2691, 2753, 2747, 2763, 2800, 2709, 2705, 2642, 2647, 2648, 2661, 2660, 2611, 2560, 2557, 2519, 2478, 2413, 2349, 2468, 2487, 2484, 2505, 2508, 2448, 2530, 2550, 2574, 2586, 2595, 2596, 2580, 2610, 2616, 2636, 2671, 2635, 2641, 2642, 2664, 2644, 2641, 2682, 2706, 2707, 2726, 2738, 2734, 2708, 2711, 2713, 2748, 2757, 2751, 2781, 2785, 2791, 2781, 2798, 2802, 2800, 2799, 2794, 2811, 2801, 2797, 2780, 2757, 2751, 2791, 2802, 2820, 2819, 2820, 2830, 2831, 2822, 2854, 2799, 2797, 2818, 2803, 2814, 2832, 2865, 2867, 2871, 2879, 2893, 2895, 2880, 2890, 2889, 2909, 2907, 2909, 2902, 2907, 2910, 2936, 2930, 2928, 2941, 2946, 2948, 2925, 2919, 2948, 2935, 2886, 2882, 2874, 2888, 2816, 2841, 2858, 2884, 2866, 2847, 2872, 2863, 2828, 2835, 2808, 2790, 2797, 2760, 2753, 2812, 2837, 2855, 2884, 2897, 2896, 2891, 2903, 2900, 2901, 2931, 2938, 2966, 2947, 2944, 2915, 2912, 2922, 2937, 2964, 2972, 2995, 2992, 2976, 2979, 2994, 3001, 3014, 3015, 3005, 2985, 2996, 2979, 2986, 3008, 3022, 3007, 3028, 3022, 3015, 2982, 2956, 2933, 2845, 2885, 2887, 2943, 2923, 2888, 2933, 2846, 2854, 2896, 2931, 2908, 2932, 2931, 2856, 2887, 2876, 2896, 2933, 2932, 2915, 2948, 2986, 2988, 2989, 2989, 3010, 3020, 3018, 3009, 3017, 3018, 3018, 2990, 2990, 2966, 2984, 2977, 2961, 2975, 2940, 2888, 2911, 2951, 2938, 2892, 2920, 2940, 2970, 2967, 2996, 2991, 3000, 2987, 3007, 2998, 3006, 3011, 3023, 3041, 3040, 3049, 3041, 3069, 3081, 3078, 3079, 3089, 3097, 3091, 3098, 3099, 3103, 3126, 3128, 3127, 3115, 3110, 3117, 3141, 3149, 3163, 3151, 3124, 3103, 3122, 3128, 3157, 3147, 3143, 3152, 3179, 3181, 3203, 3204, 3204, 3217, 3215, 3220, 3220, 3237, 3237, 3219, 3227, 3257, 3232, 3244, 3235, 3253, 3275, 3265, 3288, 3283, 3290, 3317, 3328, 3321, 3322, 3325, 3296, 3243, 3277, 3274, 3285, 3225, 3249, 3299, 3337, 3348, 3330, 3355, 3361, 3383, 3379, 3384, 3376, 3392, 3378, 3343, 3232, 3134, 3123, 2982, 2970, 3099, 3010, 3136, 3032, 2982, 2749, 2891, 2750, 2487, 2700, 2404, 2534, 2406, 2411, 2294, 2235, 2438, 2474, 2618, 2540, 2623, 2584, 2468, 2525, 2488, 2655, 2658, 2747, 2789, 2763, 2845, 2785, 2798, 2874, 2823, 2737, 2798, 2798, 2837, 2878, 2864, 2939, 2912, 2835, 2843, 2869, 2850, 2884, 2932, 2932, 2874, 2823, 2857, 2870, 2957, 2927, 2977, 2956, 2962, 2998, 3043, 3037, 3051, 3063, 3088, 3130, 3121, 3201, 3240, 3216, 3198, 3014, 3050, 3078, 3137, 3124, 3126, 3094, 3114, 3128, 3048, 3081, 3008, 3052, 3091, 3113, 3130, 3178, 3146, 3170, 3152, 3184, 3156, 3197, 3226, 3216, 3225, 3251, 3258, 3277, 3238, 3217, 3240, 3220, 3259, 3248, 3273, 3296, 3309, 3329, 3352, 3354, 3364, 3336, 3383, 3377, 3377, 3387, 3395, 3381, 3391, 3403, 3438, 3450, 3484, 3492, 3515, 3502, 3535, 3586, 3462, 3434, 3340, 3406, 3347, 3349, 3393, 3410, 3397, 3367, 3315, 3278, 3311, 3234, 3243, 3295, 3350, 3332, 3357, 3379, 3347, 3406, 3358, 3416, 3446, 3477, 3533, 3510, 3488, 3484, 3482, 3429, 3442, 3436, 3455, 3466, 3402, 3391, 3275, 3308, 3274, 3310, 3369, 3444, 3511, 3510, 3554, 3549, 3576, 3541, 3590, 3635, 3615, 3572, 3587, 3562, 3583, 3641, 3636, 3646, 3630, 3669, 3677, 3676, 3708, 3700, 3711, 3678, 3676, 3672, 3656, 3705, 3711, 3732, 3701, 3688, 3682, 3685, 3699, 3731, 3724, 3729, 3748, 3697, 3723, 3745, 3800, 3822, 3796, 3797, 3807, 3794, 3766, 3796, 3848, 3852, 3838, 3853, 3847, 3753, 3786, 3710, 3772, 3825, 3828, 3871, 3887, 3915, 3912, 3910, 3917, 3936, 3933, 3934, 3917, 3910, 3880, 3885, 3927, 3833, 3813, 3905, 3875, 3824, 3776, 3846, 3827, 3881, 3905, 3945, 3950, 3974, 3969, 3982, 3925, 3904, 3936, 3905, 3885, 3907, 3970, 3968, 3957, 3973, 4016, 4074, 4071, 4076, 4095, 4125, 4127, 4139, 4125, 4169, 4183, 4162, 4132, 4171, 4133, 4178, 4186, 4186, 4184, 4211, 4183, 4192, 4167, 4168, 4201, 4232, 4190, 4152, 4064, 4113, 4176, 4166, 4130, 4119, 4163, 4160, 4202, 4193, 4201, 4203, 4211, 4207, 4214, 4198, 4237, 4232, 4233, 4227, 4247, 4254, 4263, 4255, 4232, 4230, 4160, 4219, 4242, 4237, 4262, 4277, 4285, 4288, 4291, 4315, 4348, 4340, 4355, 4320, 4366, 4382, 4367, 4373, 4358, 4324, 4260, 4321, 4356, 4365, 4410, 4421, 4401, 4399, 4417, 4396, 4387, 4422, 4401, 4429, 4436, 4432, 4438, 4449, 4462, 4470, 4481, 4451, 4403, 4410, 4445, 4484, 4491, 4500, 4474, 4514, 4534, 4527, 4529, 4543, 4542, 4526, 4520, 4501, 4465, 4477, 4453, 4490, 4483, 4425, 4351, 4347, 4389, 4443, 4450, 4437, 4348, 4355, 4302, 4353, 4297, 4342, 4360, 4398, 4389, 4358, 4347, 4363, 4436, 4470, 4483, 4518, 4535, 4547, 4542, 4567, 4571, 4551, 4595, 4604, 4612, 4630, 4659, 4681, 4697, 4701, 4685, 4648, 4649, 4684, 4686, 4704, 4693, 4709, 4701, 4687, 4694, 4706, 4601, 4658, 4567, 4516, 4585, 4545, 4599, 4694, 4707, 4675, 4719, 4677, 4645, 4718, 4676, 4610, 4561, 4642, 4689, 4718, 4784, 4781, 4787, 4773, 4761, 4789, 4787, 4695, 4691, 4672, 4667, 4709, 4722, 4657, 4659, 4576, 4529, 4479, 4391, 4409, 4355, 4345, 4323, 4430, 4510, 4541, 4585, 4477, 4498, 4484, 4521, 4587, 4504, 4416, 4401, 4472, 4477, 4381, 4353, 4306, 4230, 4294, 4388, 4377, 4310, 4390, 4368, 4332, 4205, 4173, 4285, 4265, 4211, 4180, 4272, 4367, 4422, 4456, 4455, 4507, 4449, 4516, 4538, 4570, 4627, 4598, 4528, 4540, 4579, 4522, 4476, 4499, 4487, 4410, 4394, 4444, 4389, 4391, 4461, 4458, 4391, 4271, 4296, 4171, 4183, 4289, 4130, 4155, 4174, 4301, 4148, 4124, 3992, 4001, 3937, 3933, 4027, 4011, 4093, 3928, 3904, 3906, 3979, 3949, 3984, 4063, 4163, 4140, 4106, 4184, 4116, 4128, 4168, 4122, 4024, 3908, 3759, 3748, 3801, 3676, 3668, 3760, 3753, 3790, 3910, 3896, 3816, 3813, 3782, 3822, 3829, 3842, 3900, 3896, 3852, 3818, 3798, 3788, 3861, 3829, 3932, 3958, 3998, 3961, 3966, 3919, 4020, 4071, 4130, 4118, 4091, 4155, 4152, 4145, 4140, 4124, 4210, 4210, 4282, 4299, 4308, 4277, 4290, 4232, 4144, 4134, 4147, 4206, 4063, 4036, 3992, 3962, 3974, 3932, 3917, 3988, 4014, 4076, 4120, 3941, 3956, 3911, 3865, 3895, 3850, 3783, 3752, 3689, 3652, 3643, 3715, 3637, 3581, 3675, 3789, 3780, 3741, 3637, 3609, 3586, 3574, 3669, 3585, 3677, 3721, 3694, 3663, 3752, 3798, 3859, 3830, 3809, 3900, 3872, 3855, 3758, 3719, 3773, 3809, 3829, 3751, 3957, 3995, 3961, 3995, 3964, 3952, 3970, 3956, 4009, 4034, 4033, 3969, 3962, 4087, 4084, 4079, 4006, 3948, 3941, 3972, 3943, 3999, 4030, 4004, 3906, 3842, 3810, 3815, 3872, 3817, 3839, 3823, 3776, 3844, 3834, 3818, 3847, 3803, 3890, 3888, 3916, 3965, 3979, 3995, 3988, 3925, 3896, 3969, 4016, 4012, 4013, 4058, 4067, 4016, 4075, 4118, 4178, 4134, 4108, 4162, 4117, 4081, 4091, 4139, 4137, 4150, 4093, 4083, 4001, 3995, 4017, 3974, 3987, 3972, 3957, 3988, 4052, 4055, 3993, 3999, 3925, 3869, 3863, 3927, 3902, 3971, 3910, 3947, 3999, 3931, 3941, 3967, 3975, 3966, 4023, 4047, 4104, 4120, 4097, 4086, 4102, 4106, 4107, 4091, 4145, 4135, 4150, 4152, 4152, 4129, 4132, 4137, 4071, 4054, 4134, 4170, 4165, 4119, 4090, 4061, 4137, 4138, 4120, 4139, 4132, 4126, 4140, 4113, 4163, 4203, 4197, 4198, 4151, 4121, 4157, 4211, 4212, 4189, 4229, 4290, 4282, 4291, 4276, 4302, 4310, 4349, 4377, 4383, 4437, 4406, 4383, 4360, 4376, 4343, 4325, 4373, 4375, 4392, 4444, 4449, 4442, 4408, 4396, 4408, 4436, 4471, 4507, 4504, 4520, 4553, 4563, 4533, 4533, 4553, 4566, 4566, 4536, 4581, 4589, 4576, 4512, 4500, 4479, 4518, 4499, 4469, 4470, 4468, 4492, 4440, 4407, 4374, 4376, 4404, 4392, 4441, 4380, 4411, 4439, 4503, 4521, 4515, 4523, 4504, 4473, 4460, 4466, 4496, 4471, 4476, 4515, 4445, 4447, 4438, 4397, 4325, 4315, 4333, 4269, 4271, 4296, 4285, 4284, 4226, 4257, 4256, 4306, 4334, 4356, 4374, 4347, 4326, 4371, 4371, 4313, 4275, 4222, 4215, 4247, 4186, 4136, 4117, 4166, 4192, 4237, 4318, 4358, 4368, 4380, 4383, 4349, 4417, 4413, 4498, 4508, 4513, 4519, 4554, 4544, 4562, 4564, 4556, 4561, 4557, 4575, 4602, 4578, 4577, 4559, 4594, 4613, 4631, 4653, 4717, 4732, 4705, 4731, 4760, 4694, 4739, 4748, 4768, 4777, 4779, 4765, 4738, 4700, 4684, 4691, 4758, 4751, 4777, 4775, 4779, 4761, 4735, 4777, 4836, 4847, 4861, 4866, 4892, 4886, 4925, 4921, 4841, 4904, 4956, 4938, 4952, 4993, 4996, 5024, 5022, 4953, 4998, 5033, 5008, 4980, 4984, 5088, 5091, 5072, 5082, 5075, 5093, 5141, 5136, 5084, 5110, 5161, 5130, 5126, 5181, 5173, 5162, 5111, 5141, 5170, 5218, 5235, 5225, 5211, 5201, 5245, 5244, 5235, 5201, 5207, 5143, 5197, 5200, 5206, 5154, 5193, 5121, 5057, 5048, 5018, 5008, 4964, 5010, 5069, 5067, 5047, 5095, 5113, 5032, 5016, 5063, 5126, 5179, 5184, 5185, 5215, 5221, 5222, 5246, 5311, 5300, 5308, 5314, 5327, 5311, 5273, 5308, 5311, 5274, 5239, 5287, 5291, 5297, 5360, 5360, 5353, 5370, 5383, 5427, 5438, 5441, 5485, 5499, 5484, 5459, 5441, 5462, 5469, 5477, 5456, 5467, 5504, 5528, 5560, 5567, 5572, 5627, 5579, 5614, 5629, 5663, 5583, 5540, 5504, 5560, 5552, 5426, 5397, 5458, 5461, 5433, 5522, 5444, 5342, 5187, 5234, 5199, 5320, 5343, 5346, 5434, 5451, 5544, 5557, 5610, 5601, 5620, 5576, 5635, 5622, 5630, 5597, 5597, 5651, 5535, 5523, 5510, 5417, 5478, 5502, 5558, 5605, 5634, 5642, 5645, 5628, 5724, 5697, 5711, 5727, 5715, 5737, 5729, 5752, 5700, 5703, 5692, 5744, 5692, 5746, 5786, 5776, 5810, 5858, 5812, 5837, 5838, 5860, 5851, 5848, 5794, 5807, 5805, 5823, 5832, 5815, 5701, 5725, 5712, 5781, 5925, 5971, 5997, 6002, 5984, 5987, 5948, 5872, 5896, 5918, 5920, 5951, 5970, 5990, 6021, 6003, 6040, 6051, 6054, 6092, 6082, 6093, 6062, 6043, 6090, 6058, 6057, 6083, 6058, 5877, 5876, 5926, 5962, 6028, 6028, 5965, 5897, 5875, 5861, 5934, 5968, 5901, 5910, 5819, 5828, 5836, 5943, 5931, 5991, 6045, 6079, 6113, 6095, 6009, 6060, 6033, 6065, 6033, 5993, 6033, 6057, 6078, 6023, 6064, 6068, 6049, 6112, 6112, 6130, 6145, 6119, 6014, 5987, 5957, 5960, 5865, 5957, 5852, 5783, 5845, 5741, 5774, 5620, 5573, 5603, 5528, 5642, 5686, 5624, 5685, 5669, 5654, 5755, 5769, 5700, 5685, 5570, 5608, 5624, 5659, 5380, 5065, 5056, 4977, 5500, 5259, 5353, 5405, 5389, 5270, 5277, 5152, 5286, 5368, 5480, 5520, 5522, 5557, 5559, 5599, 5682, 5649, 5602, 5625, 5665, 5657, 5844, 5883, 5891, 5919, 5957, 5963, 5943, 5843, 5845, 5805, 5926, 5892, 5915, 5909, 5942, 5976, 5974, 5945, 6006, 6012, 6046, 6029, 6053, 5985, 6042, 5990, 5989, 5958, 6016, 6083, 6086, 6134, 6164, 6194, 6192, 6220, 6269, 6222, 6219, 6256, 6274, 6252, 6264, 6237, 6258, 6296, 6291, 6303, 6304, 6358, 6360, 6387, 6385, 6368, 6360, 6337, 6233, 6327, 6295, 6344, 6338, 6388, 6375, 6443, 6465, 6466, 6450, 6449, 6414, 6397, 6371, 6469, 6441, 6468, 6482, 6505, 6467, 6419, 6453, 6507, 6488, 6504, 6519, 6538, 6593, 6590, 6626, 6616, 6608, 6639, 6653, 6685, 6649, 6627, 6597, 6635, 6653, 6678, 6701, 6709, 6709, 6733, 6708, 6748, 6728, 6546, 6647, 6639, 6668, 6623, 6660, 6730, 6730, 6695, 6734, 6789, 6869, 6888, 6891, 6815, 6838, 6850, 6769, 6793, 6720, 6726, 6831, 6847, 6851, 6737, 6736, 6673, 6617, 6643, 6542, 6607, 6704, 6767, 6814, 6851, 6820, 6832, 6856, 6861, 6874, 6853, 6847, 6893, 6909, 6835, 6824, 6806, 6731, 6782, 6823, 6865, 6897, 6921, 6920, 6896, 6887, 6836, 6849, 6894, 6935, 6913, 6912, 6958, 6969, 6955, 6921, 6940, 6934, 6793, 6871, 6907, 6909, 6945, 6972, 6971, 6958, 6937, 6971, 6912, 6879, 6793, 6923, 6957, 6938, 6937, 6830, 6834, 6845, 6880, 6862, 6911, 6841, 6891, 6949, 6910, 6877, 6881, 6820, 6868, 6830, 6741, 6800, 6789, 6780, 6677, 6639, 6707, 6725, 6631, 6614, 6502, 6570, 6548, 6585, 6467, 6357, 6335, 6520, 6569, 6575, 6606, 6609, 6777, 6816, 6811, 6878, 6962, 7017, 7034, 7119, 7119, 7058, 7130, 7102, 7157, 7169, 7135, 7133, 7204, 7224, 7198, 7256, 7357, 7334, 7395, 7411, 7400, 7442, 7500, 7410, 7405, 7356, 7431, 7446, 7475, 7525, 7523, 7565, 7584, 7604, 7615, 7561, 7590, 7394, 7411, 7389, 7272, 7396, 7436, 7567, 7522, 7428, 7486, 7462, 7354, 7351, 7361, 7308, 7428, 7486, 7476, 7466, 7531, 7496, 7473, 7536, 7568, 7510, 7537, 7567, 7526, 7451, 7439, 7501, 7493, 7400, 7408, 7409, 7427, 7313, 7435, 7489, 7596, 7732, 7717, 7705, 7752, 7750, 7725, 7744, 7798, 7783, 7746, 7694, 7710, 7645, 7676, 7635, 7659, 7661];
+
+const D = DEFAULT;  // DEFAULT 全程只读，无需深拷贝
+
+/* ================= 计算 ================= */
+const fmt = (n, d=2) => n.toLocaleString("en-US", {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmt0 = n => Math.round(n).toLocaleString("en-US");
+const pct = n => (n>=0?"+":"") + n.toFixed(2) + "%";
+const ddOf = idx => (idx.close / idx.ath - 1) * 100;
+const toAthOf = idx => (idx.ath / idx.close - 1) * 100;
+const ytdOf = idx => (idx.close / idx.prevYr - 1) * 100;
+const maDev = (idx, key) => (idx.close / idx[key] - 1) * 100;
+const priceAt = (idx, dd) => idx.ath * (1 + dd/100);
+
+/* 阈值/配色集中配置（原散落各渲染函数中的魔法数） */
+const RULES = {
+  pePct: { hi: 80, mid: 60, dir: "hi", op: ">" },
+  vix:   { hi: 30, mid: 20, dir: "hi", op: ">" },
+  fg:    { hi: 55, mid: 45, dir: "hi", op: ">=" },
+  erp:   { hi: 0,  mid: 2,  dir: "lo", op: "<" },
+  eps:   { hi: 0,  mid: 3,  dir: "lo", op: "<" }
+};
+/* 回撤配色：≤t2 红 / ≤0 黄 / >0 绿（仅无回撤时用绿） */
+function ddColor(dd, th) {
+  return dd <= th.t2 ? "var(--red)" : (dd <= 0 ? "var(--yellow)" : "var(--green)");
+}
+/* 三档指标配色：dir=hi 数值越高越差；dir=lo 数值越低越差（op 仅 hi 侧生效） */
+function bandColor(v, r) {
+  if (r.dir === "lo") return v < r.hi ? "var(--red)" : (v < r.mid ? "var(--yellow)" : "var(--green)");
+  const ge = r.op === ">=" ? (a, b) => a >= b : (a, b) => a > b;
+  return ge(v, r.hi) ? "var(--red)" : (ge(v, r.mid) ? "var(--yellow)" : "var(--green)");
+}
+/* 指数卡渲染（NDX/SPX 复用，消除 ~35 行重复） */
+function renderIndexCard(p, idx, th) {
+  $(p + "-close").textContent = fmt0(idx.close);
+  const ytd = ytdOf(idx);
+  $(p + "-chg").innerHTML = '今日 <b class="' + (idx.chg < 0 ? "down" : "up") + '">' + pct(idx.chg) + '</b> · 今年 <b class="' + (ytd < 0 ? "down" : "up") + '">' + pct(ytd) + '</b>';
+  const dd = ddOf(idx);
+  $(p + "-dd").textContent = pct(dd);
+  $(p + "-dd").style.color = ddColor(dd, th);
+  $(p + "-ath").textContent = fmt0(idx.ath);
+  $(p + "-toath").textContent = pct(toAthOf(idx));
+  $(p + "-days").textContent = idx.days + " 天";
+  const to15 = dd - th.t2;
+  $(p + "-to15").textContent = "还差 " + to15.toFixed(2) + "pp";
+  $(p + "-to15").className = "k-val small " + (to15 > -3 ? "down" : "flat");
+  $(p + "-rsi").textContent = idx.rsi.toFixed(1);
+  $(p + "-rsi").style.color = idx.rsi >= 70 ? "var(--red)" : (idx.rsi <= 30 ? "var(--green)" : "var(--tx)");
+  const w52 = Math.min(100, Math.max(0, (idx.close - idx.low52) / (idx.ath - idx.low52) * 100));
+  $(p + "-52w").textContent = Math.round(w52) + "%";
+  $(p + "-52w").style.color = w52 <= 30 ? "var(--green)" : (w52 >= 80 ? "var(--red)" : "var(--tx)");
+}
+
+/* ================= 渲染 ================= */
+const $ = id => document.getElementById(id);
+
+function renderAll() {
+  try {
+    const ndx = D.ndx, spx = D.spx, th = D.thresholds;
+    const ndxDD = ddOf(ndx), spxDD = ddOf(spx);
+
+  /* meta */
+  $("footer-updated").textContent = D.asOf.local + " · 数据=美东 " + D.asOf.us + " 16:00 收盘";
+  $("meta-fx").textContent = D.fx.toFixed(2);
+  renderAsOf();
+  $("fx-num").textContent = D.fx.toFixed(2);
+
+  /* NDX / SPX 指数卡（复用 renderIndexCard，消除 ~35 行重复） */
+  renderIndexCard("ndx", ndx, th);
+  renderIndexCard("spx", spx, th);
+
+  /* scale SVG */
+  drawScale(ndxDD, spxDD);
+  $("ndx-mk-val").textContent = pct(ndxDD);
+  $("ndx-mk-val").style.color = ddColor(ndxDD, th);
+  $("spx-mk-val").textContent = pct(spxDD);
+  $("spx-mk-val").style.color = ddColor(spxDD, th);
+
+  /* trigger matrix */
+  renderTriggers(ndxDD);
+
+  /* condition check */
+  renderConds();
+
+  /* take-profit matrix */
+  renderTakeProfit();
+
+  /* trend meters */
+  const ndx50 = maDev(ndx,"ma50"), ndx200 = maDev(ndx,"ma200"), spx50 = maDev(spx,"ma50"), spx200 = maDev(spx,"ma200");
+  setMeter("ndx-ma50", ndx50, -3, 3);
+  setMeter("ndx-ma200", ndx200, -5, 8);
+  setMeter("spx-ma50", spx50, -3, 3);
+  setMeter("spx-ma200", spx200, -5, 8);
+  /* MA state chips（±0.5% 内视为纠缠） */
+  const maMap = { "ndx-ma50": ndx50, "ndx-ma200": ndx200, "spx-ma50": spx50, "spx-ma200": spx200 };
+  document.querySelectorAll(".ma-chip").forEach(ch => {
+    const dev = maMap[ch.dataset.k];
+    const k = ch.dataset.k.toUpperCase().replace("-", " ");
+    const state = dev > 0.5 ? "站上" : (dev < -0.5 ? "跌破" : "纠缠");
+    ch.textContent = k + " " + state;
+    ch.className = "ma-chip " + (dev > 0.5 ? "on-up" : (dev < -0.5 ? "on-down" : ""));
+  });
+  /* breadth: NDX 相对 SPX 的 YTD 强弱 */
+  const brd = ytdOf(ndx) - ytdOf(spx);
+  const brdTxt = (brd >= 0 ? "+" : "") + brd.toFixed(2) + "pp";
+  $("brd-val").textContent = brdTxt;
+  $("brd-val").style.color = brd >= 0 ? "var(--green)" : "var(--red)";
+  $("brd-bar").style.width = Math.min(100, Math.max(6, 50 + brd * 5)) + "%";
+  $("brd-bar").style.background = brd >= 0 ? "var(--green)" : "var(--red)";
+  $("brd-note").innerHTML = brd >= 0
+    ? "NDX 相对 SPX 跑赢 " + brdTxt + " → <b>龙头未散</b>，但若持续收窄需警惕结构性风险"
+    : "NDX 相对 SPX 跑输 " + brdTxt + " → <b>广度恶化</b>，反弹可靠性下降，回撤档位应降级处理";
+
+  /* valuation */
+  $("val-pepct").textContent = D.pePct + "%";
+  $("val-pepct").style.color = bandColor(D.pePct, RULES.pePct);
+  $("val-pepctb").style.width = D.pePct + "%";
+  $("val-pe").textContent = D.peFwd.toFixed(1) + "x";
+  $("val-pe-ttm").textContent = D.peTtm.toFixed(1) + "x";
+  $("val-cape").textContent = D.cape.toFixed(1) + "x";
+  $("val-state").textContent = D.pePct > 80 ? "偏贵 🔴" : (D.pePct > 60 ? "中性 🟡" : "便宜 🟢");
+  $("val-state").style.color = bandColor(D.pePct, RULES.pePct);
+  $("val-zones").style.setProperty("--pos", Math.min(100, Math.max(0, D.pePct)) + "%");
+  /* ERP = 盈利收益率 − 10Y 美债 */
+  const erpF = 100 / D.peFwd - D.tnx;
+  const erpT = 100 / D.peTtm - D.tnx;
+  $("val-erp").textContent = pct(erpF);
+  $("val-erp").style.color = bandColor(erpF, RULES.erp);
+  $("val-erp-ttm").textContent = pct(erpT);
+  $("val-erp-ttm").style.color = bandColor(erpT, RULES.erp);
+  $("val-erpb").style.width = Math.min(100, Math.max(6, erpF / 4 * 100)) + "%";
+  $("val-erpb").style.background = erpF < 1 ? "var(--red)" : (erpF < 2.5 ? "var(--yellow)" : "var(--green)");
+  const eps = D.epsGrowth;
+  $("val-eps").textContent = pct(eps);
+  $("val-eps").style.color = bandColor(eps, RULES.eps);
+  $("val-epsb").style.width = Math.min(100, Math.max(4, (eps + 5) / 15 * 100)) + "%";
+  $("val-epsb").style.background = eps < 0 ? "var(--red)" : "var(--green)";
+
+  /* sentiment */
+  $("sent-vix").textContent = D.vix.toFixed(2);
+  $("sent-vix").style.color = bandColor(D.vix, RULES.vix);
+  $("sent-vixb").style.width = Math.min(100, D.vix/40*100) + "%";
+  $("sent-vixb").style.background = D.vix > 30 ? "var(--red)" : "var(--green)";
+  $("sent-fg").textContent = D.fg + " " + (D.fg>=75?"极度贪婪":(D.fg>=55?"贪婪":(D.fg>=45?"中性":(D.fg>=25?"恐惧":"极度恐惧"))));
+  $("sent-fg").style.color = bandColor(D.fg, RULES.fg);
+  $("sent-fgb").style.width = D.fg + "%";
+  $("sent-tnx").textContent = D.tnx.toFixed(2) + "%";
+  $("sent-tnxb").style.width = Math.min(100, D.tnx/5.5*100) + "%";
+  /* 2Y + curve */
+  $("sent-tnx2").textContent = D.tnx2.toFixed(2) + "% · " + (D.tnx2 >= D.tnx ? "倒挂 🔴" : "正常 🟢");
+  $("sent-tnx2").style.color = D.tnx2 >= D.tnx ? "var(--red)" : "var(--green)";
+  $("sent-tnx2b").style.width = Math.min(100, D.tnx2/5.5*100) + "%";
+  $("sent-tnx2b").style.background = D.tnx2 >= D.tnx ? "var(--red)" : "var(--green)";
+  /* put/call */
+  const pc = D.putcall;
+  $("sent-pc").textContent = pc.toFixed(2) + " " + (pc > 1.1 ? "防御" : (pc < 0.7 ? "贪婪" : "中性"));
+  $("sent-pc").style.color = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--tx)");
+  $("sent-pcb").style.width = Math.min(100, pc/1.5*100) + "%";
+  $("sent-pcb").style.background = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--yellow)");
+
+  /* stress test — 与 thresholds 耦合，改阈值时文案自动同步 */
+  const stressDefs = [
+    [-10, "-10.0%"],
+    [th.t2, "DCA 档"],
+    [th.t3, "重仓档"],
+    [th.t4, "历史级"]
+  ];
+  const sRows = document.querySelectorAll(".stress-row b");
+  const sDescs = document.querySelectorAll(".stress-row .s-desc");
+  stressDefs.forEach((d, i) => {
+    sRows[i].textContent = "NDX " + d[0] + "%";
+    sDescs[i].textContent = "→ " + fmt0(priceAt(ndx, d[0])) + " 点（" + d[1] + "）";
+  });
+
+  /* scale stats */
+  $("sstat-buy").textContent = fmt0(priceAt(ndx, th.t2));
+  $("sstat-buy2").textContent = fmt0(priceAt(ndx, th.t3));
+  $("sstat-low").textContent = fmt0(priceAt(ndx, th.t4));
+
+  /* history */
+  renderHist(ndxDD);
+
+  /* banner */
+  renderBanner(ndxDD);
+
+  /* golden line */
+  renderGolden(ndxDD, spxDD);
+
+  /* data staleness */
+  renderStale();
+
+  /* hide loading overlay */
+  const ld = $("loading");
+  if (ld) { ld.style.opacity = "0"; setTimeout(() => ld.style.display = "none", 350); }
+  } catch (e) {
+    console.error("renderAll 异常:", e);
+    const banner = $("banner");
+    if (banner) banner.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--red)"><div style="font-size:36px;margin-bottom:12px;">⚠️</div><div style="font-size:15px;font-weight:700;margin-bottom:6px;">数据加载异常</div><div style="font-size:12px;color:var(--tx2);font-family:var(--mono)">' + (e.message || "未知错误") + '</div><div style="margin-top:16px;font-size:12px;color:var(--tx3)">请刷新页面重试，或联系维护者</div></div>';
+    const ld2 = $("loading");
+    if (ld2) { ld2.style.opacity = "0"; setTimeout(() => ld2.style.display = "none", 350); }
+  }
+}
+
+function setMeter(prefix, val, min, max) {
+  const v = $(prefix+"v"), b = $(prefix+"b");
+  v.textContent = pct(val);
+  v.style.color = val < 0 ? "var(--red)" : "var(--green)";
+  const w = ((val - min) / (max - min)) * 100;
+  b.style.width = Math.max(3, Math.min(100, w)) + "%";
+  b.style.background = val < 0 ? "linear-gradient(90deg,var(--red),var(--yellow))" : "var(--green)";
+}
+
+/* ================= History comparison ================= */
+function renderHist(ndxDD) {
+  $("hist-cur").textContent = pct(ndxDD);
+  $("hist-cur-days").textContent = D.ndx.days + " 天";
+  const median = -7.5;
+  const deeper = ndxDD < median;
+  $("hist-rank").textContent = deeper ? "当前 低于中位" : "当前 高于中位";
+  $("hist-rank").style.color = deeper ? "var(--red)" : "var(--yellow)";
+  /* dot position on 0 ~ -40 scale */
+  const pos = Math.min(100, Math.max(2, (ndxDD - (-40)) / 40 * 100));
+  $("med-dot").style.left = pos + "%";
+  $("med-val").style.left = pos + "%";
+  $("med-val").textContent = pct(ndxDD);
+  $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
+}
+
+/* ================= Scale SVG ================= */
+function drawScale(ndxDD, spxDD) {
+  const svg = $("scale-svg");
+  const W = 620, H = 94, L = 40, R = W - 40, Y = 40;
+  const lo = -40, hi = 0;
+  const x = dd => L + (dd - lo) / (hi - lo) * (R - L);
+  const dark = !document.body.classList.contains("light");
+  const cTick = dark ? "#5a6a85" : "#94a3b8";
+  const cTickTx = dark ? "#8fa0ba" : "#64748b";
+  const cNdx = dark ? "#ffffff" : "#2563eb";
+  const cSpx = dark ? "#4a9eff" : "#7c3aed";
+  const cStroke = dark ? "#0b0e14" : "#cbd5e1";
+  const cCore = dark ? "#0b0e14" : "#ffffff";
+  const cSep = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.12)";
+  let s = `<rect width="${W}" height="${H}" fill="none"/>`;
+  /* gradient track */
+  const gid = "trackGrad";
+  s += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#f0616d"/><stop offset="0.3" stop-color="#f5b93d"/>
+    <stop offset="0.6" stop-color="#26c99e"/><stop offset="1" stop-color="#3dd6c3"/>
+  </linearGradient></defs>`;
+  /* track */
+  s += `<rect x="${L}" y="${Y-3}" width="${R-L}" height="6" rx="3" fill="url(#${gid})" opacity="0.5"/>`;
+  /* tick marks */
+  const ticks = [0, -5, -10, -15, -20, -25, -30, -35, -40];
+  ticks.forEach(t => {
+    const tx = x(t);
+    s += `<line x1="${tx}" y1="${Y-8}" x2="${tx}" y2="${Y+8}" stroke="${cTick}" stroke-width="1"/>`;
+    s += `<text x="${tx}" y="${Y+22}" fill="${cTickTx}" font-size="10.5" text-anchor="middle" font-family="monospace">${t}%</text>`;
+  });
+  /* threshold zones shading */
+  const zone = (from, to, color) => {
+    const x1 = x(from), x2 = x(to);
+    s += `<rect x="${x1}" y="${Y-9}" width="${x2-x1}" height="18" fill="${color}" opacity="0.08"/>`;
+  };
+  zone(-15, -5, "#f5b93d"); zone(-25, -15, "#ff9843"); zone(-40, -25, "#f0616d");
+  /* markers: NDX (top), SPX (bottom) — values shown separately to avoid overlap */
+  const m = (dd, color, yoff, dy) => {
+    const mx = x(Math.max(-40, Math.min(0, dd)));
+    s += `<circle cx="${mx}" cy="${Y + yoff}" r="7" fill="${color}" stroke="${cStroke}" stroke-width="2.5"/>`;
+    /* inner highlight dot */
+    s += `<circle cx="${mx}" cy="${Y + yoff}" r="2.2" fill="${cCore}"/>`;
+  };
+  m(ndxDD, cNdx, 0);
+  m(spxDD, cSpx, 0);
+  /* vertical separator between the two markers when they sit close */
+  const dx = Math.abs(x(ndxDD) - x(spxDD));
+  if (dx < 30) {
+    s += `<line x1="${x(ndxDD)}" y1="${Y-9}" x2="${x(spxDD)}" y2="${Y-9}" stroke="${cSep}" stroke-width="0.5"/>`;
+  }
+  svg.innerHTML = s;
+}
+
+/* ================= Trigger matrix ================= */
+function renderTriggers(ndxDD) {
+  const box = $("trig-matrix");
+  const th = D.thresholds;
+  const bands = [th.t1, th.t2, th.t3, th.t4];
+  const TRIG_DEF = [
+    { band: "-5%",  title: "🟢 关注线 · 正常定投",  desc: "触及即进入监控区，估值<40分位则小额分批", weight: 0 },
+    { band: "-15%", title: "🟡 DCA 加仓档",         desc: "MA200 未破 → DCA×2；HBM/DRAM 主题同步触发", weight: 1 },
+    { band: "-25%", title: "🟠 重仓低吸档",         desc: "VIX>30 或恐慌扩散 → 提高单笔额度、拉大间隔", weight: 2 },
+    { band: "-35%", title: "🔴 历史级机会档",        desc: "5 年一遇，ERP>5% → 剩余弹药分 3 批打满", weight: 3 },
+  ];
+  let html = "";
+  TRIG_DEF.forEach((t, i) => {
+    const dd = bands[i];
+    const passed = ndxDD <= dd;
+    const dist = ndxDD - dd;
+    let stateHtml, distTxt, rowBg = false, bandColor = "var(--tx3)";
+    if (passed) {
+      stateHtml = `<span class="trig-state st-on">✓ 已触发</span>`;
+      distTxt = "当前已穿越";
+      rowBg = true;
+      bandColor = "var(--red)";
+    } else if (dist <= 4) {
+      stateHtml = `<span class="trig-state st-near">◔ 接近</span>`;
+      distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
+      rowBg = true; bandColor = "var(--yellow)";
+    } else if (dist <= 12) {
+      stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
+      distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
+    } else {
+      stateHtml = `<span class="trig-state st-off" style="opacity:.6;">○ 远离</span>`;
+      distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
+    }
+    html += `
+      <div class="trig-row" ${rowBg ? 'style="background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;"' : ''}>
+        <div class="trig-band" style="color:${bandColor}">${t.band}</div>
+        <div class="trig-info">
+          <div class="t-title">${t.title}</div>
+          <div class="t-desc">${t.desc}</div>
+        </div>
+        <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
+      </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ================= Condition check ================= */
+function renderConds() {
+  const box = $("cond-check");
+  const dd = ddOf(D.ndx);
+  const conds = [
+    { name: "回撤 -5%",       hit: dd <= D.thresholds.t1, note: "NDX " + dd.toFixed(2) + "%", w: 0 },
+    { name: "估值分位 < 60%",  hit: D.pePct < 60,          note: "Forward PE " + D.pePct + " 分位", w: 0 },
+    { name: "VIX > 20 恐慌升温", hit: D.vix > 20,           note: "VIX " + D.vix.toFixed(2), w: 0 },
+    { name: "MA200 未破 (趋势完好)", hit: D.ndx.close > D.ndx.ma200, note: "NDX " + fmt0(D.ndx.close) + " vs MA200 " + fmt0(D.ndx.ma200), w: 0 },
+    { name: "RSI < 35 超卖(动能)", hit: D.ndx.rsi < 35,     note: "NDX RSI " + D.ndx.rsi.toFixed(1), w: 0 },
+  ];
+  const hitCount = conds.filter(c => c.hit).length;
+  let html = "";
+  conds.forEach(c => {
+    html += `
+      <div class="trig-row">
+        <div style="font-size:16px;width:24px;flex-shrink:0;">${c.hit?"✅":"⬜"}</div>
+        <div class="trig-info">
+          <div class="t-title" style="font-size:12.5px;">${c.name}</div>
+          <div class="t-desc">${c.note}</div>
+        </div>
+        <span class="trig-state ${c.hit?"st-on":"st-off"}">${c.hit?"满足":"未满足"}</span>
+      </div>`;
+  });
+  html += `<div class="note" style="margin-top:10px;">条件命中 <b style="color:var(--blue)">${hitCount}/5</b>。当前 ${hitCount>=4?"✅ 双条件共振，可执行对应档位操作":hitCount>=3?"🟡 部分共振，按较小仓位试探":hitCount>=2?"🔵 弱共振，等待确认":"🔴 共振不足，按兵不动"}。</div>`;
+  box.innerHTML = html;
+}
+
+/* ================= Take-profit matrix ================= */
+function renderTakeProfit() {
+  const box = $("tp-matrix");
+  const ndx = D.ndx;
+  const ytd = ytdOf(ndx);
+  const distAth = -ddOf(ndx);                 // 距 ATH 的百分比（正值）
+  const erpF = 100 / D.peFwd - D.tnx;          // Fwd 口径股权风险溢价
+  const gap = (cur, tgt) => Math.max(0, tgt - cur);
+  const TP_DEF = [
+    { band: "+15%", title: "🟢 T+1 · 停止大额定投", desc: "YTD ≥ +15% 或 距ATH < 8% → 大额定投转小额",
+      hit: () => ytd >= 15 || distAth < 8, dist: () => Math.min(gap(ytd, 15), gap(distAth, 8)) },
+    { band: "+25%", title: "🟡 T+2 · 兑现浮盈 15-20%", desc: "YTD ≥ +25% 或 恐贪 ≥ 85 → 分批兑现",
+      hit: () => ytd >= 25 || D.fg >= 85, dist: () => Math.min(gap(ytd, 25), gap(D.fg, 85)) },
+    { band: "90分位", title: "🟠 T+3 · 兑现至仓位下限", desc: "PE分位 ≥ 90% 且 RSI ≥ 75 → 兑现至目标下限",
+      hit: () => D.pePct >= 90 && ndx.rsi >= 75, dist: () => Math.min(gap(D.pePct, 90), gap(ndx.rsi, 75)) },
+    { band: "ERP<0", title: "🔴 T+4 · 降杠杆转防御", desc: "Fwd ERP < 0 → 系统性降杠杆，转防御",
+      hit: () => erpF < 0, dist: () => Math.max(0, erpF) },
+  ];
+  let html = "";
+  TP_DEF.forEach(t => {
+    const hit = t.hit();
+    const d = t.dist();
+    let stateHtml, distTxt, rowBg = false, bandColor = "var(--tx3)";
+    if (hit) {
+      stateHtml = `<span class="trig-state tp-on">✓ 已触发</span>`;
+      distTxt = "已达兑现条件";
+      rowBg = true; bandColor = "var(--green)";
+    } else if (d <= 4) {
+      stateHtml = `<span class="trig-state tp-near">◔ 接近</span>`;
+      distTxt = "还差 " + d.toFixed(2) + "pp";
+      rowBg = true; bandColor = "var(--purple)";
+    } else if (d <= 12) {
+      stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
+      distTxt = "还差 " + d.toFixed(2) + "pp";
+    } else {
+      stateHtml = `<span class="trig-state st-off" style="opacity:.6;">○ 远离</span>`;
+      distTxt = "还差 " + d.toFixed(2) + "pp";
+    }
+    html += `
+      <div class="trig-row" ${rowBg ? 'style="background:rgba(45,212,167,.04);border-radius:8px;padding:9px 8px;"' : ''}>
+        <div class="trig-band" style="color:${bandColor}">${t.band}</div>
+        <div class="trig-info">
+          <div class="t-title">${t.title}</div>
+          <div class="t-desc">${t.desc}</div>
+        </div>
+        <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
+      </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ================= Banner ================= */
+function renderBanner(ndxDD) {
+  const th = D.thresholds;
+  let icon, title, desc, tagCls, tagTxt;
+  const rsiNote = D.ndx.rsi < 35 ? "（RSI 已超卖 ✅）" : "（RSI 中性，动能未确认 ⚠️）";
+  if (ndxDD <= th.t4) {
+    icon = "⚫"; title = "历史级机会：已触发 -35% 档"; tagCls = "tag-black"; tagTxt = "⚫ 战略加仓";
+    desc = "5 年一遇回撤深度" + rsiNote + "。检查 ERP 是否>5%，剩余弹药分 3 批打满，但保留 20% 现金应对尾部风险。";
+  } else if (ndxDD <= th.t3) {
+    icon = "🔴"; title = "重仓低吸：已触发 -25% 档"; tagCls = "tag-red"; tagTxt = "🔴 重仓区";
+    desc = "若 VIX>30 或恐慌蔓延，可提高单笔 DCA 额度（×2~×3）、拉大加仓间隔至 2-3 周一次" + rsiNote + "。";
+  } else if (ndxDD <= th.t2) {
+    icon = "🟠"; title = "DCA 加仓：已触发 -15% 档"; tagCls = "tag-orange"; tagTxt = "🟠 加仓区";
+    desc = "MA200 未破则按计划 DCA×2" + rsiNote + "；HBM/DRAM 存储超级周期主题同步触发加仓条件。";
+  } else if (ndxDD <= th.t1) {
+    icon = "🟡"; title = "关注区：回撤 " + pct(ndxDD); tagCls = "tag-yellow"; tagTxt = "🟡 关注 · 等待";
+    desc = "观察为主" + rsiNote + "。若估值分位<60% 或 VIX 快速抬升，可小额分批试探性加仓，否则按兵不动。";
+  } else {
+    icon = "🟢"; title = "待机区：回撤 < 5%"; tagCls = "tag-green"; tagTxt = "🟢 正常定投";
+    desc = "趋势健康，维持原定投计划即可，不追高不加码，等待回撤给出安全边际。";
+  }
+  $("sig-icon").textContent = icon;
+  $("sig-title").textContent = title;
+  $("sig-desc").textContent = desc;
+  $("sig-tag").textContent = tagTxt;
+  $("sig-tag").className = "sig-tag " + tagCls;
+  /* 结论锚定：关键数字 */
+  $("sk-dd").textContent = pct(ndxDD);
+  $("sk-dd").style.color = ddColor(ndxDD, th);
+  const erpF = 100 / D.peFwd - D.tnx;
+  $("sk-erp").textContent = pct(erpF);
+  $("sk-erp").style.color = bandColor(erpF, RULES.erp);
+  $("sk-fg").textContent = D.fg;
+  $("sk-fg").style.color = D.fg >= 85 ? "var(--red)" : (D.fg >= 55 ? "var(--yellow)" : "var(--green)");
+  const ytd = ytdOf(D.ndx);
+  const distAth = -ndxDD;
+  const tpTxt = (ytd >= 15 || distAth < 8) ? "T+1 ✓" : (ytd >= 25 || D.fg >= 85) ? "T+2 观察" : "未触发";
+  $("sk-tp").textContent = tpTxt;
+  $("sk-tp").style.color = (ytd >= 15 || distAth < 8) ? "var(--yellow)" : "var(--tx3)";
+
+  renderDCA();
+}
+
+/* ================= Data staleness ================= */
+function renderStale() {
+  const sc = $("stale-chip");
+  if (!sc) return;
+  const lc = $("live-chip");
+  if (lc) lc.style.display = D.intraday ? "" : "none";
+  const d = new Date(D.date + "T12:00:00");
+  const days = Math.floor((new Date() - d) / 86400000);
+  if (!isFinite(days) || days <= 3) { sc.style.display = "none"; return; }
+  sc.style.display = "";
+  $("stale-days").textContent = days;
+}
+
+/* ================= Golden line ================= */
+function renderGolden(ndxDD, spxDD) {
+  const th = D.thresholds;
+  let text;
+  if (ndxDD <= th.t4) text = "回撤到 -35% 不是恐慌，是别人把筹码递到你手里——分 3 批接，留 2 成子弹。";
+  else if (ndxDD <= th.t3) text = "-25% 的回撤是市场给勇敢者的折扣券，但记得：打折的是价格，不是逻辑。";
+  else if (ndxDD <= th.t2) text = "-15% 触发的不是加仓按钮，而是纪律按钮——按计划走，别让情绪接管方向盘。";
+  else if (ndxDD <= th.t1) text = "回撤是导航仪不是倒车镜——-5% 只点亮了「关注灯」，估值情绪未配合，管住手等 -15% 的 DCA 线。";
+  else text = "市场在上涨，你更需要纪律——回撤不到 -5%，一切照旧，赚钱靠的是不在高位加码。";
+  $("golden-text").textContent = text;
+}
+
+/* ================= Monthly performance ================= */
+let mcSel = "ndx";  // 当前选中的指数 tab：ndx / spx
+function renderMonthly() {
+  const idxKey = mcSel;
+  const otherKey = mcSel === "ndx" ? "spx" : "ndx";
+  const otherName = mcSel === "ndx" ? "标普500 (SPX)" : "纳指100 (NDX)";
+  const half = 115;            // 230px 绘图区的一半
+  const pxPer = half / MC_MAX; // 每 1% 对应像素
+  let html = "";
+  MONTHLY.forEach(d => {
+    const v = d[idxKey];
+    const h = Math.max(2, Math.abs(v) * pxPer);
+    const dir = v >= 0 ? "pos" : "neg";
+    const col = v >= 0 ? "var(--green)" : "var(--red)";
+    const sign = v >= 0 ? "+" : "";
+    html += `<div class="mc-group">
+      <div class="mc-plot">
+        <div class="mc-line" style="top:0"></div>
+        <div class="mc-line zero" style="top:50%"></div>
+        <div class="mc-line" style="bottom:0"></div>
+        <div class="mc-bar ${dir}" style="height:${h.toFixed(1)}px;background:${col}"><span class="mc-val" style="color:${col}">${sign}${v.toFixed(1)}</span></div>
+      </div>
+      <div class="mc-label">${d.m}</div>
+    </div>`;
+  });
+  $("mchart").innerHTML = html;
+
+  /* 汇总 */
+  const chain = arr => arr.reduce((a, x) => a * (1 + x / 100), 1) - 1;
+  const cum = chain(MONTHLY.map(d => d[idxKey]));
+  const otherCum = chain(MONTHLY.map(d => d[otherKey]));
+  const best = MONTHLY.reduce((b, d) => (d[idxKey] > b[idxKey] ? d : b), MONTHLY[0]);
+  const worst = MONTHLY.reduce((b, d) => (d[idxKey] < b[idxKey] ? d : b), MONTHLY[0]);
+  const upMonths = MONTHLY.filter(d => d[idxKey] >= 0).length;
+  $("mchart-summary").innerHTML =
+    `年内累计(总回报) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/8</b>` +
+    ` · 最强 <b>${best.m} ${pct(best[idxKey])}</b> · 最弱 <b>${worst.m} ${pct(worst[idxKey])}</b>`;
+  $("mchart-cross").innerHTML =
+    `对比 ${otherName} 年内累计 <b class="up">${pct(otherCum*100)}</b>`;
+}
+
+/* ================= Calendar ================= */
+const CALENDAR = [
+  { d: 24, m: "8月", day: "周一", name: "📊 芝加哥联储全国活动指数", pri: "低" },
+  { d: 25, m: "8月", day: "周二", name: "🏠 美国消费者信心指数（CB）", desc: "预期与现状分项，消费动能关键信号", pri: "高" },
+  { d: 25, m: "8月", day: "周二", name: "🏗️ 新屋销售 + Case-Shiller 房价", desc: "地产链验证高利率压制是否缓解", pri: "中" },
+  { d: 26, m: "8月", day: "周三", name: "🔥 核心 PCE 通胀（7月）", desc: "美联储最关注通胀指标，决定 9 月降息节奏", pri: "高" },
+  { d: 26, m: "8月", day: "周三", name: "📦 耐用品订单 + 个人收入", desc: "制造业景气与居民购买力", pri: "中" },
+  { d: 27, m: "8月", day: "周四", name: "🛡️ 初请失业金人数", desc: "就业市场降温信号，高于 25 万需警惕", pri: "中" },
+];
+function renderCalendar() {
+  const box = $("calendar");
+  box.innerHTML = CALENDAR.map(c => `
+    <div class="cal-item">
+      <div class="cal-date"><div class="d">${c.d}</div><div class="m">${c.m} · ${c.day}</div></div>
+      <div class="cal-info">
+        <div class="e-name">${c.name}</div>
+        <div class="e-desc">${c.desc || ""}</div>
+      </div>
+      <span class="cal-pri pri-${c.pri==="高"?"high":(c.pri==="中"?"mid":"low")}">${c.pri}</span>
+    </div>`).join("");
+}
+
+
+/* ================= Indicator hints & lexicon ================= */
+const HINTS = {
+  dd:       { name: "回撤",    plain: "从历史最高点往下数，<b>跌了多少</b>。跌 5% = 离山顶还差 5%。", pro: "当前价 ÷ 历史最高价 − 1，再 ×100%。" },
+  rsi:      { name: "RSI(14)", plain: "市场的<b>体温计</b>：＞70 太热（超买，易回调），＜30 太冷（超卖，易反弹），50 上下 = 没方向。", pro: "14 日平均涨幅 ÷ 平均跌幅，归一化到 0–100 的动能指标。" },
+  pos52w:   { name: "52周位置", plain: "现价在过去一年价格区间里排第几。<b>77% = 比过去一年 77% 的时间都贵</b>。", pro: "(现价 − 52周最低) ÷ (52周最高 − 52周最低) ×100。" },
+  ma50:     { name: "MA50",    plain: "最近 50 个交易日的<b>平均价线</b>，看短期趋势：价格在线上面 = 短期多头占优，下面 = 空头占优。", pro: "50 日均线 SMA(50)；显示的是现价相对它的偏离度。" },
+  ma200:    { name: "MA200",   plain: "最近 200 个交易日（约一年）的平均价线，<b>牛熊分界线</b>：站上 = 长期趋势完好，跌破 = 趋势转弱要警惕。", pro: "200 日均线 SMA(200)，机构常用的牛熊参考线。" },
+  breadth:  { name: "市场广度", plain: "<b>科技龙头（纳指）vs 整个市场（标普）</b>今年谁跑得快。龙头领跑 = 行情健康；龙头掉队 = 警惕抱团瓦解。", pro: "NDX 的 YTD 涨幅 − SPX 的 YTD 涨幅（pp = 百分点差）。" },
+  ytd:      { name: "YTD",     plain: "<b>今年 1 月 1 日到现在</b>涨跌了多少。", pro: "Year-To-Date，年初至今回报。" },
+  pepct:    { name: "远期PE分位", plain: "现在贵不贵，看它在<b>历史里的排名</b>。75% = 比过去 75% 的时间都贵，属偏贵区。", pro: "当前 Forward PE 在历史分布中的百分位（0–100%）。" },
+  pefwd:    { name: "远期PE",  plain: "拿<b>未来一年的预测盈利</b>给市场标价。20.9 倍 ≈ 按预测盈利 20.9 年回本，越高越贵。", pro: "股价 ÷ 未来 12 个月预期每股盈利（EPS）。" },
+  petm:     { name: "TTM PE",  plain: "拿<b>过去一年已赚到的钱</b>算贵不贵，比远期更实在。27.2 倍 ≈ 27.2 年回本。", pro: "股价 ÷ 滚动 12 个月实际 EPS。" },
+  cape:     { name: "席勒CAPE", plain: "把<b>过去 10 年</b>的盈利平均后再算 PE，防止某一年盈利异常骗人。39.5 在历史上属极贵。", pro: "十年通胀调整后平均盈利的市盈率（Shiller CAPE）。" },
+  valstate: { name: "估值状态", plain: "综合几个 PE 得出的<b>贵/中性/便宜</b>结论。偏贵时，回撤只是“打折”而不是“捡便宜”。", pro: "由 PE 分位映射出的红黄绿三档状态。" },
+  erp:      { name: "Fwd ERP", plain: "买股票比买国债<b>多赚的那点“风险补偿”</b>。+0.09% ≈ 白扛风险，说明股票吸引力极低。", pro: "(1 ÷ Forward PE − 10Y 美债收益率) ×100；＞2.5% 才算有吸引力。" },
+  erpttm:   { name: "TTM ERP", plain: "用<b>真实盈利</b>算的风险补偿。现在是负数，意味着“股不如债”。", pro: "(1 ÷ TTM PE − 10Y 美债收益率) ×100。" },
+  eps:      { name: "EPS增速", plain: "公司赚钱能力的<b>增速预期</b>。+8% = 市场预计盈利还能涨 8%，基本面还在向上。", pro: "每股盈利（EPS）预测同比增速；26E = 2026 财年预期。" },
+  vix:      { name: "VIX",     plain: "市场的<b>恐慌指数</b>：15 = 风平浪静，30+ = 人心惶惶，40+ = 踩踏风险。越恐慌反而常接近底部。", pro: "标普 500 期权隐含波动率，衡量未来 30 天预期波幅。" },
+  fg:       { name: "恐贪指数", plain: "市场情绪表：<b>＞75 贪婪</b>（警惕过热）、<b>＜25 恐惧</b>（常是机会区）。72 = 偏贪婪，追高要小心。", pro: "CNN Fear & Greed，0–100，综合波动率、涨跌广度等 7 项指标。" },
+  tnx:      { name: "10Y美债", plain: "<b>“无风险利率”</b>，是股票的竞争对手收益率。它越高，股票显得越贵，资金越容易被吸去债市。", pro: "10 年期美国国债收益率（TNX），常作估值贴现率基准。" },
+  curve:    { name: "收益率曲线", plain: "短期（2年）与长期（10年）利率之差。<b>倒挂（2Y＞10Y）</b>= 市场押注衰退，历史预警信号。", pro: "2Y − 10Y 利差；持续倒挂通常领先经济衰退 12–18 个月。" },
+  putcall:  { name: "Put/Call", plain: "看跌的人 vs 看涨的人谁更活跃。<b>＞1.1</b> 大众防御（逆向看机会）、<b>＜0.7</b> 大众贪婪（逆向要谨慎）。", pro: "看跌期权成交量 ÷ 看涨期权成交量。" },
+  trig:     { name: "回撤触发矩阵", plain: "跌到不同深度做不同动作：<b>-5% 只观察、-15% 开始加仓、-25% 重仓、-35% 历史级机会</b>。", pro: "四级回撤阈值 T1–T4，配合估值/情绪双条件确认后执行。" },
+  cond:     { name: "双条件交叉验证", plain: "别只看跌了多少，还要看<b>贵不贵 + 恐不恐慌</b>。跌得深 + 情绪冷 同时满足，才是好买点。", pro: "回撤档位 ×（估值分位 / VIX / RSI / MA200）共振确认。" },
+  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。T+1 先停加码 → T+2 兑现部分 → T+3/T+4 降杠杆转防御。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
+  stress:   { name: "压力测试", plain: "提前算好<b>预案</b>：NDX 再跌 10%/15%/25%/35% 点位到哪、该做什么。跌到哪早有数，不慌。", pro: "由 ATH 按不同回撤幅度反推的目标点位。" },
+  median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。-7.5% 是“普通回撤”的典型深度，-15% 以下才算少见。", pro: "近 10 年历次回撤深度的中位数。" },
+  dca:      { name: "定投回测指标", plain: "你每天投 1 元，<b>分批买入</b>至今总共赚/亏多少。它对比「定投」和「一次性全仓买入」两种玩法：上涨市里定投<b>跑输</b>一次性（越买越贵），下跌市里定投<b>跑赢</b>。它不是买卖信号，只是让你看清定投的真实体感。", pro: "定投收益率 = (P_end·Σ(1/P_t) − N)/N；与每日金额无关。对比同区间一次性买入的区间涨跌幅。" },
+};
+
+let hintPop = null;
+function closeHint() { if (hintPop) { hintPop.remove(); hintPop = null; } }
+document.addEventListener("click", e => {
+  if (e.target.closest(".hint-pop")) return;               // 点气泡内部不关闭
+  const t = e.target.closest(".hint-i");
+  if (!t) { closeHint(); return; }                          // 点别处关闭
+  const key = t.dataset.h;
+  const h = HINTS[key];
+  if (!h) { closeHint(); return; }
+  if (hintPop && hintPop.dataset.k === key) { closeHint(); return; } // 再点一次收起
+  closeHint();
+  hintPop = document.createElement("div");
+  hintPop.className = "hint-pop";
+  hintPop.dataset.k = key;
+  hintPop.innerHTML = '<div class="hp-plain">💬 ' + h.plain + '</div><div class="hp-pro">📐 ' + h.pro + '</div>';
+  document.body.appendChild(hintPop);
+  const r = t.getBoundingClientRect();
+  const w = Math.min(300, window.innerWidth - 24);
+  hintPop.style.width = w + "px";
+  const estH = hintPop.offsetHeight;
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(12, Math.min(window.innerWidth - w - 12, left));
+  let top = r.bottom + 8;
+  if (top + estH + 8 > window.innerHeight) top = Math.max(8, r.top - estH - 8);
+  hintPop.style.left = left + "px";
+  hintPop.style.top = top + "px";
+});
+window.addEventListener("resize", closeHint);
+
+function renderLexicon() {
+  const rows = Object.keys(HINTS).map(k => {
+    const h = HINTS[k];
+    return '<tr><td class="lx-name">' + h.name + '</td><td class="lx-plain">' + h.plain + '</td><td class="lx-pro">' + h.pro + '</td></tr>';
+  }).join("");
+  $("lex-body").innerHTML =
+    '<table class="lex-table"><tr><th>指标</th><th>💬 人话</th><th>📐 专业口径</th></tr>' + rows + '</table>';
+}
+
+/* ================= 定投回测指标 ================= */
+let dcaIdx = "ndx", dcaAmt = 1;
+
+// 定投收益率（每日1元，金额无关）：(P_end·Σ(1/P_t) − N)/N
+function dcaRet(sub) {
+  let s = 0;
+  for (let i = 0; i < sub.length; i++) s += 1 / sub[i];
+  return (sub[sub.length - 1] * s) / sub.length - 1;
+}
+// 一次性买入收益率：区间涨跌幅
+function lumpRet(sub) { return sub[sub.length - 1] / sub[0] - 1; }
+
+function fmtDate8(yyyymmdd) {
+  const s = "" + yyyymmdd;
+  return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8);
+}
+function pctSign(n) { return (n >= 0 ? "+" : "") + n.toFixed(1) + "%"; }
+function ppp(n) { return (n >= 0 ? "+" : "") + n.toFixed(1) + "pp"; }
+function clsN(n) { return n >= 0 ? "pos" : "neg"; }
+
+function renderDCA() {
+  const series = dcaIdx === "ndx" ? DCA_NDX : DCA_SPX;
+  const n = series.length;
+  const cur = series[n - 1];
+  const win = [
+    { label: "近1年", off: 252 },
+    { label: "近3年", off: 756 },
+    { label: "近5年", off: 1260 },
+    { label: "全周期", off: n }
+  ];
+
+  // 全周期（与金额相关，需 amt）：累计投入 / 当前市值 / 总收益率
+  let shares = 0;
+  for (let i = 0; i < n; i++) shares += dcaAmt / series[i];
+  const inv = dcaAmt * n;
+  const mkt = shares * cur;
+  const fullRet = (mkt - inv) / inv;
+  $("dca-sum").innerHTML =
+    "自 <b>" + fmtDate8(DCA_START) + "</b> 起，每日定投 <b>" + dcaAmt + "</b> 元，共 <b>" + n + "</b> 天 —<br>" +
+    "累计投入 <b>" + fmt0(inv) + "</b> 元 · 当前市值 <b>" + fmt0(mkt) + "</b> 元 · 总收益率 <span class=\"" + clsN(fullRet) + "\">" + pctSign(fullRet * 100) + "</span>";
+
+  // 窗口表（收益率与金额无关）
+  let rows = "";
+  win.forEach(w => {
+    const s = Math.max(0, n - w.off);
+    const sub = series.slice(s);
+    const dr = dcaRet(sub) * 100;
+    const lr = lumpRet(sub) * 100;
+    const diff = dr - lr;
+    rows += "<tr><td>" + w.label + "</td>" +
+      "<td class=\"" + clsN(dr) + "\">" + pctSign(dr) + "</td>" +
+      "<td class=\"" + clsN(lr) + "\">" + pctSign(lr) + "</td>" +
+      "<td class=\"" + clsN(diff) + "\">" + ppp(diff) + "</td></tr>";
+  });
+  $("dca-rows").innerHTML = rows;
+
+  $("dca-note").innerHTML =
+    "📌 <b>怎么读</b>：本表按「每日定投 1 元」回测（收益率与金额无关，1 元或 100 元结果相同）。<b>定投收益</b>=分批买入至今的总回报；<b>一次性买</b>=区间起点全仓持有至今的涨跌幅。" +
+    "<br>👉 <b>关键结论</b>：所列窗口均为上涨周期，<b>定投系统性跑输一次性买入</b>（差额 −9pp ~ −57pp）——越买越贵，定投在牛市是「劣势策略」。" +
+    "<br>⚠️ <b>反向也成立</b>：若起点落在下跌市，定投会跑赢一次性买。定投的真正价值在<b>平滑波动、强制储蓄</b>，而非「收益最大化」；真要抢反弹，一次性 + 回撤触发（-15% 加仓）更优。";
+}
+
+/* ================= 数据时间条（美股时区换算） ================= */
+function renderAsOf() {
+  const a = D.asOf;
+  $("asof-us").textContent = a.us;
+  $("asof-et").textContent = a.et;
+  $("asof-tz").textContent = "· " + a.tz;
+  $("asof-cn").textContent = a.cn;
+  $("asof-local").textContent = a.local;
+}
+
+/* ================= init ================= */
+document.querySelectorAll(".mc-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".mc-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    mcSel = btn.dataset.idx;
+    renderMonthly();
+  });
+});
+renderCalendar();
+renderMonthly();
+renderLexicon();
+/* 定投回测指标 交互 */
+document.querySelectorAll("#dca-toggle .dca-t").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#dca-toggle .dca-t").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    dcaIdx = b.dataset.idx;
+    renderDCA();
+  });
+});
+$("dca-amt").addEventListener("input", e => { const v = parseFloat(e.target.value); dcaAmt = (isFinite(v) && v > 0) ? v : 1; renderDCA(); });
+renderDCA();
+/* 词典折叠 */
+$("lex-toggle").addEventListener("click", () => {
+  const hide = $("lex-body").classList.toggle("hidden");
+  const t = $("lex-toggle");
+  t.classList.toggle("open", !hide);
+  t.innerHTML = (hide ? "展开" : "收起") + ' <span class="arr">▶</span>';
+});
+/* ===== 浅色/深色主题切换 ===== */
+const THEME_KEY = "wb_ndxspx_theme";
+const themeBtn = $("theme-toggle");
+function applyTheme(mode) {
+  const light = mode === "light";
+  document.body.classList.toggle("light", light);
+  themeBtn.innerHTML = light ? "☀️ 切深色" : "🌙 切浅色";
+  // 重新绘制依赖主题色的 SVG（drawScale 读取 body.light 选色）
+  if (typeof D !== "undefined") drawScale(ddOf(D.ndx), ddOf(D.spx));
+}
+(function initTheme() {
+  let saved = "dark";
+  try { const s = localStorage.getItem(THEME_KEY); if (s === "light" || s === "dark") saved = s; } catch (e) {}
+  applyTheme(saved);
+})();
+themeBtn.addEventListener("click", () => {
+  const next = document.body.classList.contains("light") ? "dark" : "light";
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+});
+renderAll();
+</script>
+</body>
+</html>
