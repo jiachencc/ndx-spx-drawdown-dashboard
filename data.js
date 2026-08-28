@@ -8,7 +8,7 @@
 /* ================= 数据模型 ================= */
 const DEFAULT = {
   date: "2026-08-27",
-  intraday: false, // AUTO：美股 2026-08-27 收盘（2026-08-28T02:55Z 抓取）
+  intraday: false, // AUTO：美股 2026-08-27 收盘（2026-08-28T05:33Z 抓取）
   ndx:   { close: 29641.56, ath: 30762.2, days: 59, chg: 1.43, ma50: 29275, ma200: 26906, rsi: 48.5, low52: 22953, prevYr: 25250 },
   spx:   { close: 7730.99, ath: 7816.7, days: 10, chg: 0.72, ma50: 7558, ma200: 7114, rsi: 46.9, low52: 6344, prevYr: 6846 },
   vix: 14.51,
@@ -19,7 +19,7 @@ const DEFAULT = {
   fx: 6.72,
   peFwd: 20.9, peTtm: 27.2, cape: 39.5, pePct: 75,
   epsGrowth: 8.0,
-  asOf: { us: "2026-08-27", et: "16:00 EDT", cn: "2026-08-28 04:00:00", tz: "夏令时 UTC-4", local: "2026-08-28 10:55:19" },
+  asOf: { us: "2026-08-27", et: "16:00 EDT", cn: "2026-08-28 04:00:00", tz: "夏令时 UTC-4", local: "2026-08-28 13:33:57" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
