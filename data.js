@@ -60,6 +60,7 @@ const CALENDAR = [
  * 每次买卖后：更新 hold 的 qty/cost/idxAtCost，并在 log 顶部加一条流水。 */
 const POSITIONS = {
   updated: "2026-08-28",
+  strategy: { dip: -2, rally: 3 }, // MANUAL：日内波动操作线（%）：当日跌 ≥|dip| 提示加仓、涨 ≥rally 提示减仓
   hold: [
     { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 65100, cost: 1.570, idxAtCost: 28018 },
     { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 34000, cost: 1.920, idxAtCost: 7258 },

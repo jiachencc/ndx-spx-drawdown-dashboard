@@ -106,8 +106,25 @@
   .bar-title b { color: var(--tx2); }
   .bar-track { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(242,109,125,.35), var(--line), rgba(45,212,167,.4)); }
   .bar-marker { position: absolute; top: -6px; width: 2px; height: 20px; border-radius: 1px; }
-  .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 8px rgba(70,201,240,.6); }
-  .bar-marker.now { background: var(--tx); box-shadow: 0 0 8px rgba(226,233,245,.5); }
+  .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 8px rgba(70,201,240,.6); border: none; padding: 0; cursor: pointer; }
+  .bar-marker.now { background: var(--tx); box-shadow: 0 0 8px rgba(226,233,245,.5); border: none; padding: 0; cursor: pointer; }
+  .bar-marker.now::after, .bar-marker.cost::after { content: ""; position: absolute; left: -12px; top: -11px; width: 26px; height: 42px; }  /* 扩大点击热区 */
+  .idx-pop {
+    position: absolute; bottom: 18px; z-index: 50; width: max-content; max-width: 250px;
+    background: #1a2436; border: 1px solid #33415e; border-radius: 12px;
+    padding: 9px 12px; box-shadow: 0 14px 44px -8px rgba(0,0,0,.75), 0 0 0 1px rgba(91,163,255,.18);
+    font-size: 11.5px; line-height: 1.7; animation: ipIn .15s ease;
+  }
+  body.light .idx-pop { background: #fff; border-color: #cbd5e1; box-shadow: 0 14px 44px -8px rgba(15,23,42,.18), 0 0 0 1px rgba(47,123,224,.18); }
+  .idx-pop .ip-title { font-weight: 700; margin-bottom: 3px; }
+  .idx-pop .ip-row { display: flex; justify-content: space-between; gap: 14px; color: var(--tx2); }
+  .idx-pop .ip-row b { font-family: var(--mono); font-weight: 700; color: var(--tx); font-feature-settings: "tnum"; }
+  .idx-pop .ip-row .ip-sub { color: var(--tx3); font-weight: 400; font-family: var(--sans); }
+  .idx-pop .ip-strat { margin-top: 5px; border-top: 1px dashed var(--line); padding-top: 5px; }
+  .idx-pop .ip-tip { margin-top: 5px; font-size: 10.5px; color: var(--tx2); line-height: 1.65; border-top: 1px dashed var(--line); padding-top: 5px; }
+  .idx-pop .ip-note { margin-top: 4px; font-size: 10px; color: var(--tx3); }
+  @keyframes ipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .strat-row { margin-top: 8px; font-size: 11.5px; color: var(--tx3); line-height: 1.6; overflow-wrap: break-word; }
   .bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--tx3); margin-top: 8px; font-feature-settings: "tnum"; }
   .bar-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 10.5px; color: var(--tx3); flex-wrap: wrap; }
   .bar-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
@@ -213,13 +230,18 @@ const fmtIdx = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const cls = (v) => v >= 0 ? "up" : "down";
 
 /* ---- 渲染 ---- */
+let posInfos = [];   // 现价弹窗数据（每次 render 重建，下标对应 data-k）
+let costInfos = [];  // 成本位弹窗数据（同上）
+
 function render() {
+  closeIdxPop();
   if (typeof POSITIONS === "undefined" || !POSITIONS.hold || !POSITIONS.hold.length) {
     $("pos-list").innerHTML = '<div class="card" style="color:var(--tx3);font-size:12.5px;">暂无持仓记录：请在 data.js 的 POSITIONS 中维护。</div>';
     return;
   }
   $("pos-updated").textContent = POSITIONS.updated || "--";
   $("pos-asof").textContent = (DEFAULT.asOf && DEFAULT.asOf.us) || DEFAULT.date || "--";
+  posInfos = []; costInfos = [];
 
   let totalCost = 0, totalVal = 0;
 
@@ -242,7 +264,7 @@ function render() {
     '<div class="sum-cell"><div class="s-label">📈 组合浮盈</div><div class="s-val ' + cls(totalR) + '">' + fmtPct(totalR) + '</div></div>';
 
   /* 持仓卡 */
-  $("pos-list").innerHTML = rows.map(({ p, m, r, nav, costAmt, valAmt }) => {
+  $("pos-list").innerHTML = rows.map(({ p, m, r, nav, costAmt, valAmt }, i) => {
     const pl = valAmt - costAmt;   // 浮盈额（估），显示模糊到万
     const lo = m.low52 || Math.min(p.idxAtCost, m.close || p.idxAtCost);
     const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
@@ -252,6 +274,31 @@ function render() {
     const backToCost = 1 - m.close / p.idxAtCost;   // 指数再跌 x% 回到成本（正=需涨回本）
     const w = costAmt / totalCost;
     const idxName = p.idx === "ndx" ? "纳指100" : "标普500";
+    /* 日内波动操作线（MANUAL 策略，data.js POSITIONS.strategy） */
+    const st = POSITIONS.strategy || { dip: -2, rally: 3 };
+    const chg = m.chg || 0;
+    let strat;
+    if (chg <= st.dip) {
+      strat = '<span class="up">🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>';
+    } else if (chg >= st.rally) {
+      strat = '<span class="warn">🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>';
+    } else {
+      strat = '🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（跌 ' + Math.abs(st.dip) + '% 加仓 / 涨 ' + st.rally + '% 减仓）';
+    }
+    posInfos[i] = { close: m.close, chg, lo, hi, days: m.days, stratHtml: strat };
+    /* 成本位弹窗数据：建仓回放 + 当前总结 + 规则化操作提示 */
+    const openEntry = (POSITIONS.log || []).filter((e) => e.sym === p.sym).slice(-1)[0];   // 该 ETF 最早一条流水
+    const tierWord = tier[1].slice(2);   // 去掉 emoji，取「区间偏低/中位/偏高」
+    const advice = pct < 35
+      ? "🟢 建仓位置较低，安全垫厚，适合按纪律耐心持有；若深度回调，可按计划分批加仓。"
+      : pct <= 65
+        ? "🟡 位置中性，按既定纪律执行：日内跌 ≥" + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
+        : "🔵 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。";
+    const sumTxt = "现价较建仓 " + fmtPct(r) + "，成本位于区间" + tierWord + "（分位 " + pct + "%）";
+    const cushionTxt = r >= 0
+      ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
+      : "当前浮亏，需涨 " + fmtPct(backToCost) + " 回本";
+    costInfos[i] = { idxAtCost: p.idxAtCost, openDate: openEntry && openEntry.d, gapAth: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
     return '<div class="card">' +
       '<div class="pos-head"><div class="pos-name">' + p.sym +
         '<span class="code">' + p.code + '</span>' +
@@ -266,8 +313,8 @@ function render() {
       '<div class="bar-wrap">' +
         '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span><span>建仓时距高点 <b class="' + (p.idxAtCost >= hi ? "up" : "warn") + '">' + fmtPct(p.idxAtCost / hi - 1) + '</b></span></div>' +
         '<div class="bar-track">' +
-          '<span class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%"></span>' +
-          '<span class="bar-marker now" style="left:' + pctOf(m.close) + '%"></span>' +
+          '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
+          '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
         '</div>' +
         '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
         '<div class="bar-legend"><span>坐标：52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span></div>' +
@@ -278,6 +325,7 @@ function render() {
         '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div></div>' +
         '<div class="kpi"><div class="k-label">成本占比</div><div class="k-val">' + (w * 100).toFixed(0) + '%</div></div>' +
       '</div>' +
+      '<div class="strat-row">' + strat + '</div>' +
     '</div>';
   }).join("");
 
@@ -294,6 +342,59 @@ function render() {
     '</div>';
   }).join("") || '<div class="log-note" style="padding:12px 2px;text-align:center">暂无日志</div>';
 }
+/* ---- 位置解读弹窗（点击 bar 上的现价 / 成本位标记） ---- */
+let idxPop = null;
+function closeIdxPop() {
+  if (idxPop) {
+    const sel = '.bar-marker.' + (idxPop.dataset.t === "c" ? "cost" : "now") + '[data-k="' + idxPop.dataset.k + '"]';
+    const prev = document.querySelector(sel);
+    if (prev) prev.setAttribute("aria-expanded", "false");
+    idxPop.remove(); idxPop = null;
+  }
+}
+function nowPopHtml(info) {
+  return '<div class="ip-title">📍 现价 ' + fmtIdx(info.close) + ' · 今日 ' + fmtPct(info.chg / 100, 2) + '</div>' +
+    '<div class="ip-row"><span>距 52 周低（下跌缓冲）</span><b>' + fmtPct(info.close / info.lo - 1) + '</b></div>' +
+    '<div class="ip-row"><span>距历史高点</span><b class="warn">' + fmtPct(info.close / info.hi - 1) + (info.days ? '<span class="ip-sub">（' + info.days + ' 天前）</span>' : '') + '</b></div>' +
+    '<div class="ip-strat">' + info.stratHtml + '</div>';
+}
+function costPopHtml(info) {
+  return '<div class="ip-title">🏷️ 成本位 ' + fmtIdx(info.idxAtCost) + (info.openDate ? ' · ' + info.openDate + ' 建仓' : '') + '</div>' +
+    '<div class="ip-row"><span>建仓时距高点</span><b class="warn">' + fmtPct(info.gapAth) + '</b></div>' +
+    '<div class="ip-row"><span>成本价 / 份数</span><b>' + info.cost.toFixed(3) + ' 元 · ' + fmtN(info.qty) + ' 份</b></div>' +
+    '<div class="ip-row"><span>当前浮盈（估）</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
+    '<div class="ip-tip">📊 ' + info.sumTxt + '；' + info.cushionTxt + '<br>' + info.advice + '</div>' +
+    '<div class="ip-note">⚠️ 机械规则提示，非投资建议</div>';
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest(".idx-pop")) return;                             // 点弹窗内部不关闭
+  const btn = e.target.closest(".bar-marker");
+  if (!btn) { closeIdxPop(); return; }                                  // 点别处关闭
+  const isCost = btn.classList.contains("cost");
+  const key = btn.dataset.k, t = isCost ? "c" : "n";
+  if (idxPop && idxPop.dataset.k === key && idxPop.dataset.t === t) { closeIdxPop(); return; }  // 再点同一个收起
+  const info = (isCost ? costInfos : posInfos)[key];
+  if (!info) return;
+  closeIdxPop();
+  idxPop = document.createElement("div");
+  idxPop.className = "idx-pop";
+  idxPop.dataset.k = key; idxPop.dataset.t = t;
+  idxPop.innerHTML = isCost ? costPopHtml(info) : nowPopHtml(info);
+  btn.parentElement.appendChild(idxPop);   // .bar-track 已是 position:relative
+  btn.setAttribute("aria-expanded", "true");
+  /* 水平方向钳制，避免超出屏幕；空间不足时翻转到轨道下方 */
+  const tw = btn.parentElement.offsetWidth, pw = idxPop.offsetWidth;
+  const cx = parseFloat(btn.style.left) / 100 * tw;
+  const half = pw / 2 + 4;
+  const center = Math.max(half, Math.min(tw - half, cx));
+  idxPop.style.left = (center - pw / 2) + "px";
+  if (idxPop.getBoundingClientRect().top < 8) {
+    idxPop.style.bottom = "auto";
+    idxPop.style.top = "26px";
+  }
+});
+window.addEventListener("resize", closeIdxPop);   // 视口变化时收起，防错位
+
 render();
 </script>
 </body>
