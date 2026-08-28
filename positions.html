@@ -298,7 +298,7 @@ function render() {
     const cushionTxt = r >= 0
       ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
       : "当前浮亏，需涨 " + fmtPct(backToCost) + " 回本";
-    costInfos[i] = { idxAtCost: p.idxAtCost, openDate: openEntry && openEntry.d, gapAth: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
+    costInfos[i] = { idxAtCost: p.idxAtCost, openDate: openEntry && openEntry.d, gapNow: m.close / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
     return '<div class="card">' +
       '<div class="pos-head"><div class="pos-name">' + p.sym +
         '<span class="code">' + p.code + '</span>' +
@@ -311,7 +311,7 @@ function render() {
         '<div class="row"><span style="color:var(--tx2)">现指数 (' + (DEFAULT.asOf && DEFAULT.asOf.us ? DEFAULT.asOf.us.slice(5).replace("-", ".") : "") + ')</span><b>' + fmtIdx(m.close) + '</b></div>' +
       '</div>' +
       '<div class="bar-wrap">' +
-        '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span><span>建仓时距高点 <b class="' + (p.idxAtCost >= hi ? "up" : "warn") + '">' + fmtPct(p.idxAtCost / hi - 1) + '</b></span></div>' +
+        '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span><span>现价距高点 <b class="' + (m.close >= hi ? "up" : "warn") + '">' + fmtPct(m.close / hi - 1) + '</b></span></div>' +
         '<div class="bar-track">' +
           '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
           '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
@@ -360,7 +360,7 @@ function nowPopHtml(info) {
 }
 function costPopHtml(info) {
   return '<div class="ip-title">🏷️ 成本位 ' + fmtIdx(info.idxAtCost) + (info.openDate ? ' · ' + info.openDate + ' 建仓' : '') + '</div>' +
-    '<div class="ip-row"><span>建仓时距高点</span><b class="warn">' + fmtPct(info.gapAth) + '</b></div>' +
+    '<div class="ip-row"><span>现价距高点</span><b class="warn">' + fmtPct(info.gapNow) + '</b></div>' +
     '<div class="ip-row"><span>成本价 / 份数</span><b>' + info.cost.toFixed(3) + ' 元 · ' + fmtN(info.qty) + ' 份</b></div>' +
     '<div class="ip-row"><span>当前浮盈（估）</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
     '<div class="ip-tip">📊 ' + info.sumTxt + '；' + info.cushionTxt + '<br>' + info.advice + '</div>' +
