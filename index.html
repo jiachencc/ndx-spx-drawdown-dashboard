@@ -33,7 +33,6 @@
     --cyan: #46c9f0;
     --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-    --num: "DIN Alternate", "Bahnschrift", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
     --radius: 14px;
   }
   /* ===== 浅色主题（点击右上角按钮切换） ===== */
@@ -215,6 +214,7 @@
   .dca-tbl .neg { color: var(--red); }
   /* ===== Grid ===== */
   .grid { display: grid; gap: 18px; }
+  .grid > .card { min-width: 0; }  /* 防 grid item 的 auto 最小尺寸在窄屏被内容 min-content 撑破（iQOO 等小屏横向溢出的元凶） */
   .grid + .grid, .grid + .card, .card + .grid, .card + .card { margin-top: 18px; }
   /* grid 内部卡片间距由 gap 控制，margin 会破坏同行拉伸对齐 */
   .grid > .card + .card { margin-top: 0; }
@@ -302,10 +302,10 @@
     background: color-mix(in srgb, var(--yellow) 10%, transparent); }
   .asof-legend { font-size: 10.5px; color: var(--tx3); margin-top: 6px; padding: 0 2px;
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .idx-close { font-family: var(--num); font-size: 30px; font-weight: 700; margin: 8px 0 3px; }
+  .idx-close { font-family: var(--mono); font-size: 30px; font-weight: 700; margin: 8px 0 3px; }
   .idx-change { font-size: 12px; font-family: var(--mono); margin-bottom: 12px; }
   .drawdown-box { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
-  .drawdown-num { font-family: var(--num); font-size: 46px; font-weight: 700; line-height: 1; letter-spacing: 0; }
+  .drawdown-num { font-family: var(--mono); font-size: 46px; font-weight: 700; line-height: 1; }
   .drawdown-label { font-size: 12px; color: var(--tx2); border-top: 1px solid var(--line-soft); padding-top: 12px; }
   .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
   .kpi {
@@ -345,7 +345,7 @@
   .trig-row:last-child { border-bottom: none; }
   .trig-band { width: 52px; text-align: center; font-family: var(--mono); font-weight: 800; font-size: 14px; flex-shrink: 0; }
   .trig-info { flex: 1; }
-  .trig-info .t-title { font-size: 13px; font-weight: 700; white-space: nowrap; letter-spacing: .2px; }
+  .trig-info .t-title { font-size: 13px; font-weight: 700; letter-spacing: .2px; }
   .trig-info .t-desc { font-size: 11.5px; color: var(--tx2); }
   .trig-state { font-size: 11px; padding: 3px 11px; border-radius: 14px; flex-shrink: 0; font-weight: 700; letter-spacing: .3px; }
   .trig-dist { font-family: var(--mono); font-size: 11px; color: var(--tx3); margin-top: 4px; text-align: center; }
@@ -394,7 +394,7 @@
   .pri-mid { background: rgba(247,193,78,.13); color: var(--yellow); }
   .pri-low { background: rgba(143,160,186,.12); color: var(--tx2); }
   /* ===== FX / misc ===== */
-  .fx-num { font-family: var(--num); font-size: 38px; font-weight: 700; letter-spacing: .3px; }
+  .fx-num { font-family: var(--mono); font-size: 38px; font-weight: 700; letter-spacing: .3px; }
   .note { font-size: 11.5px; color: var(--tx2); margin-top: 12px; line-height: 1.75; }
   .note b { color: var(--cyan); }
   /* ===== Indicator hints & lexicon ===== */
@@ -427,12 +427,12 @@
   .lex-toggle.open .arr { transform: rotate(90deg); }
   .lex-body { margin-top: 12px; }
   .lex-body.hidden { display: none; }
-  .lex-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .lex-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11.5px; }
   .lex-table th {
     text-align: left; font-size: 10px; color: var(--tx3); letter-spacing: .5px;
     padding: 5px 8px; border-bottom: 1px solid var(--line-soft);
   }
-  .lex-table td { padding: 7px 8px; border-bottom: 1px dashed var(--line-soft); vertical-align: top; }
+  .lex-table td { padding: 7px 8px; border-bottom: 1px dashed var(--line-soft); vertical-align: top; overflow-wrap: break-word; }
   .lex-table tr:last-child td { border-bottom: none; }
   .lex-table .lx-name { font-family: var(--mono); font-weight: 700; color: var(--cyan); white-space: nowrap; width: 78px; }
   .lex-table .lx-plain { color: var(--tx); width: 42%; }
@@ -639,11 +639,8 @@
     <div id="trig-matrix"></div>
   </div>
   <div class="card card-hi">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span>🔍 决策依据 · 双条件交叉验证<button class="hint-i" type="button" aria-label="查看释义" data-h="cond">?</button></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span>🔍 决策依据 · 档位资格 × 确认条件<button class="hint-i" type="button" aria-label="查看释义" data-h="cond">?</button></div>
     <div id="cond-check"></div>
-    <div class="note">
-      单一回撤不足为凭，<b>回撤 × 估值/情绪</b>双条件共振才触发重手。当前 NDX 刚触及 -5% 关注线，但 VIX 与估值分位均未配合 → <b>只观察、不出重手</b>。
-    </div>
   </div>
 </div>
 
@@ -906,7 +903,8 @@ function renderIndexCard(p, idx, th) {
   const ytd = ytdOf(idx);
   const ddY = idx.ddYtd ?? 0;
   const ddYTxt = ddY < 0 ? pct(ddY) : "0.00%";
-  $(p + "-chg").innerHTML = '今日 <b class="' + (idx.chg < 0 ? "down" : "up") + '">' + pct(idx.chg) + '</b> · 今年 <b class="' + (ytd < 0 ? "down" : "up") + '">' + pct(ytd) + '</b> · 年内最大回撤 <b style="color:' + ddColor(ddY, th) + '">' + ddYTxt + '</b>';
+  const md = (() => { const p = D.asOf.us.split("-"); return (+p[1]) + "." + (+p[2]); })();  // 数据日 M.D，如 8.27
+  $(p + "-chg").innerHTML = '今日(' + md + ') <b class="' + (idx.chg < 0 ? "down" : "up") + '">' + pct(idx.chg) + '</b> · 今年 <b class="' + (ytd < 0 ? "down" : "up") + '">' + pct(ytd) + '</b> · 年内最大回撤 <b style="color:' + ddColor(ddY, th) + '">' + ddYTxt + '</b>';
   const dd = ddOf(idx);
   $(p + "-dd").textContent = pct(dd);
   $(p + "-dd").style.color = ddColor(dd, th);
@@ -1180,10 +1178,10 @@ function renderTriggers(ndxDD) {
   const th = D.thresholds;
   const bands = [th.t1, th.t2, th.t3, th.t4];
   const TRIG_DEF = [
-    { band: "-5%",  title: "🟢 关注线 · 正常定投",  desc: "触及即进入监控区，估值<40分位则小额分批", weight: 0 },
-    { band: "-15%", title: "🟡 DCA 加仓档",         desc: "MA200 未破 → DCA×2；HBM/DRAM 主题同步触发", weight: 1 },
-    { band: "-25%", title: "🟠 重仓低吸档",         desc: "VIX>30 或恐慌扩散 → 提高单笔额度、拉大间隔", weight: 2 },
-    { band: "-35%", title: "🔴 历史级机会档",        desc: "5 年一遇，ERP>5% → 剩余弹药分 3 批打满", weight: 3 },
+    { band: "-5%",  title: "🟢 关注线 · 正常定投",  desc: "触及即进入监控区 · 10年约5次/年，触发后60日胜率82%", weight: 0 },
+    { band: "-15%", title: "🟡 DCA 加仓档",         desc: "MA200（200日均线）未破 → DCA（定投）×2 · 10年仅4段(0.4次/年)，60日均值+13.4%", weight: 1 },
+    { band: "-25%", title: "🟠 重仓低吸档",         desc: "VIX（恐慌指数）>30 → 单笔额度×2~3 · 10年仅2段，触发后60日全胜(均值+22.7%)", weight: 2 },
+    { band: "-35%", title: "🔴 历史级机会档",        desc: "ERP（股票 vs 国债的收益差）>5% → 弹药分 3 批打满 · 10年1次(2020疫情)，极端罕见", weight: 3 },
   ];
   let html = "";
   TRIG_DEF.forEach((t, i) => {
@@ -1217,34 +1215,51 @@ function renderTriggers(ndxDD) {
         <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
       </div>`;
   });
-  box.innerHTML = html;
+  box.innerHTML = html + '<div class="note" style="margin-top:10px;">历史统计口径：NDX 2016-2026，独立下跌段，触发后 60 个交易日窗口</div>';
 }
 
 /* ================= Condition check ================= */
 function renderConds() {
   const box = $("cond-check");
   const dd = ddOf(D.ndx);
+  const th = D.thresholds;
+  /* 资格条件：回撤档位（与触发矩阵联动） */
+  const ddBand = dd <= th.t4 ? "⚫ -35% 历史级" : dd <= th.t3 ? "🔴 -25% 重仓" : dd <= th.t2 ? "🟠 -15% 加仓" : dd <= th.t1 ? "🟡 -5% 关注" : "🟢 待机区";
+  const qualified = dd <= th.t1;
+  /* 确认条件：趋势/动能/情绪/估值 */
   const conds = [
-    { name: "回撤 -5%",       hit: dd <= D.thresholds.t1, note: "NDX " + dd.toFixed(2) + "%", w: 0 },
-    { name: "估值分位 < 60%",  hit: D.pePct < 60,          note: "Forward PE " + D.pePct + " 分位", w: 0 },
-    { name: "VIX > 20 恐慌升温", hit: D.vix > 20,           note: "VIX " + D.vix.toFixed(2), w: 0 },
-    { name: "MA200 未破 (趋势完好)", hit: D.ndx.close > D.ndx.ma200, note: "NDX " + fmt0(D.ndx.close) + " vs MA200 " + fmt0(D.ndx.ma200), w: 0 },
-    { name: "RSI < 35 超卖(动能)", hit: D.ndx.rsi < 35,     note: "NDX RSI " + D.ndx.rsi.toFixed(1), w: 0 },
+    { name: "MA200（200日均线）之上，趋势完好", hit: D.ndx.close > D.ndx.ma200, note: "NDX " + fmt0(D.ndx.close) + " vs MA200 " + fmt0(D.ndx.ma200) },
+    { name: "RSI（涨跌动能指标）< 35，超卖", hit: D.ndx.rsi < 35,     note: "NDX RSI " + D.ndx.rsi.toFixed(1) },
+    { name: "VIX（恐慌指数）> 25，恐慌升温", hit: D.vix > 25,           note: "VIX " + D.vix.toFixed(2) },
+    { name: "Forward PE 估值分位 < 60，便宜", hit: D.pePct < 60,          note: "当前分位 " + D.pePct + "（贵过历史上 " + D.pePct + "% 的时间）" },
   ];
-  const hitCount = conds.filter(c => c.hit).length;
-  let html = "";
+  const confirmHit = conds.filter(c => c.hit).length;
+  let html = `
+    <div class="trig-row" style="${qualified ? 'background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;' : ''}">
+      <div style="font-size:16px;width:24px;flex-shrink:0;">${qualified ? "✅" : "⬜"}</div>
+      <div class="trig-info">
+        <div class="t-title" style="font-size:12.5px;">资格条件 · 回撤档位已触发</div>
+        <div class="t-desc">当前 ${ddBand}（距高点 ${dd.toFixed(2)}%）</div>
+      </div>
+      <span class="trig-state ${qualified ? "st-on" : "st-off"}">${qualified ? "已触发" : "未触发"}</span>
+    </div>`;
   conds.forEach(c => {
     html += `
       <div class="trig-row">
-        <div style="font-size:16px;width:24px;flex-shrink:0;">${c.hit?"✅":"⬜"}</div>
+        <div style="font-size:16px;width:24px;flex-shrink:0;">${c.hit ? "✅" : "⬜"}</div>
         <div class="trig-info">
           <div class="t-title" style="font-size:12.5px;">${c.name}</div>
           <div class="t-desc">${c.note}</div>
         </div>
-        <span class="trig-state ${c.hit?"st-on":"st-off"}">${c.hit?"满足":"未满足"}</span>
+        <span class="trig-state ${c.hit ? "st-on" : "st-off"}">${c.hit ? "满足" : "未满足"}</span>
       </div>`;
   });
-  html += `<div class="note" style="margin-top:10px;">条件命中 <b style="color:var(--blue)">${hitCount}/5</b>。当前 ${hitCount>=4?"✅ 双条件共振，可执行对应档位操作":hitCount>=3?"🟡 部分共振，按较小仓位试探":hitCount>=2?"🔵 弱共振，等待确认":"🔴 共振不足，按兵不动"}。</div>`;
+  const verdict = !qualified
+    ? '<b style="color:var(--green)">🟢 未到加仓档位，维持正常定投，等待回撤给安全边际</b>'
+    : confirmHit >= 2
+      ? `<b style="color:var(--blue)">✅ ${ddBand}已触发且确认 ${confirmHit}/4，可执行对应档位操作</b>`
+      : `<b style="color:var(--yellow)">🟡 ${ddBand}已触发但确认不足（${confirmHit}/4），半仓试探或等 1-2 天确认</b>`;
+  html += `<div class="note" style="margin-top:10px;">确认条件命中 <b style="color:var(--blue)">${confirmHit}/4</b>。${verdict}</div>`;
   box.innerHTML = html;
 }
 
@@ -1257,13 +1272,13 @@ function renderTakeProfit() {
   const erpF = 100 / D.peFwd - D.tnx;          // Fwd 口径股权风险溢价
   const gap = (cur, tgt) => Math.max(0, tgt - cur);
   const TP_DEF = [
-    { band: "+15%", title: "🟢 T+1 · 停止大额定投", desc: "YTD ≥ +15% 或 距ATH < 8% → 大额定投转小额",
-      hit: () => ytd >= 15 || distAth < 8, dist: () => Math.min(gap(ytd, 15), gap(distAth, 8)) },
-    { band: "+25%", title: "🟡 T+2 · 兑现浮盈 15-20%", desc: "YTD ≥ +25% 或 恐贪 ≥ 85 → 分批兑现",
-      hit: () => ytd >= 25 || D.fg >= 85, dist: () => Math.min(gap(ytd, 25), gap(D.fg, 85)) },
-    { band: "90分位", title: "🟠 T+3 · 兑现至仓位下限", desc: "PE分位 ≥ 90% 且 RSI ≥ 75 → 兑现至目标下限",
+    { band: "+18%", title: "🟢 T+1 · 停止大额定投", desc: "YTD（年初至今涨幅）≥ +18% 或 距 ATH（历史最高点）< 8% → 大额定投转小额 · 每季重估，距高点>10% 自动恢复大额（历史：YTD+15~20%后短期继续涨居多，只停加码不卖出）",
+      hit: () => ytd >= 18 || distAth < 8, dist: () => Math.min(gap(ytd, 18), gap(distAth, 8)) },
+    { band: "+22%", title: "🟡 T+2 · 兑现浮盈 15-20%", desc: "YTD ≥ +22% 或 恐贪 ≥ 85 → 分批兑现（历史：YTD 首破 +20% 后 20 日胜率仅 38%，疲软窗口起点）",
+      hit: () => ytd >= 22 || D.fg >= 85, dist: () => Math.min(gap(ytd, 22), gap(D.fg, 85)) },
+    { band: "90分位", title: "🟠 T+3 · 兑现至仓位下限", desc: "PE分位（估值贵过历史上多少%的时间）≥ 90% 且 RSI（涨跌动能指标）≥ 75 → 兑现至目标下限",
       hit: () => D.pePct >= 90 && ndx.rsi >= 75, dist: () => Math.min(gap(D.pePct, 90), gap(ndx.rsi, 75)) },
-    { band: "ERP<0", title: "🔴 T+4 · 降杠杆转防御", desc: "Fwd ERP < 0 → 系统性降杠杆，转防御",
+    { band: "ERP<0", title: "🔴 T+4 · 降杠杆转防御", desc: "ERP（股票盈利收益率 − 国债利率，越低越贵）< 0 → 系统性降杠杆，转防御",
       hit: () => erpF < 0, dist: () => Math.max(0, erpF) },
   ];
   let html = "";
@@ -1451,9 +1466,9 @@ const HINTS = {
   tnx:      { name: "10Y美债", plain: "<b>“无风险利率”</b>，是股票的竞争对手收益率。它越高，股票显得越贵，资金越容易被吸去债市。", pro: "10 年期美国国债收益率（TNX），常作估值贴现率基准。" },
   curve:    { name: "收益率曲线", plain: "短期（2年）与长期（10年）利率之差。<b>倒挂（2Y＞10Y）</b>= 市场押注衰退，历史预警信号。", pro: "2Y − 10Y 利差；持续倒挂通常领先经济衰退 12–18 个月。" },
   putcall:  { name: "Put/Call", plain: "看跌的人 vs 看涨的人谁更活跃。<b>＞1.1</b> 大众防御（逆向看机会）、<b>＜0.7</b> 大众贪婪（逆向要谨慎）。", pro: "看跌期权成交量 ÷ 看涨期权成交量。" },
-  trig:     { name: "回撤触发矩阵", plain: "跌到不同深度做不同动作：<b>-5% 只观察、-15% 开始加仓、-25% 重仓、-35% 历史级机会</b>。", pro: "四级回撤阈值 T1–T4，配合估值/情绪双条件确认后执行。" },
-  cond:     { name: "双条件交叉验证", plain: "别只看跌了多少，还要看<b>贵不贵 + 恐不恐慌</b>。跌得深 + 情绪冷 同时满足，才是好买点。", pro: "回撤档位 ×（估值分位 / VIX / RSI / MA200）共振确认。" },
-  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。T+1 先停加码 → T+2 兑现部分 → T+3/T+4 降杠杆转防御。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
+  trig:     { name: "回撤触发矩阵", plain: "跌到不同深度做不同动作：<b>-5% 只观察、-15% 开始加仓、-25% 重仓、-35% 历史级机会</b>。缩写：DCA=定投、MA200=200日均线（长期趋势线）、VIX=恐慌指数、ERP=股票相对国债的收益差。每档的历史频率/胜率来自 10 年日K回测（口径见卡片底部）。", pro: "四级回撤阈值 T1–T4，配合确认条件（趋势/动能/情绪/估值）后执行。" },
+  cond:     { name: "档位资格 × 确认条件", plain: "先看<b>资格条件</b>：回撤是否到达加仓档位；再看<b>确认条件</b>（4 条）：MA200=200日均线（趋势）、RSI=涨跌动能、VIX=恐慌指数、Forward PE 分位=估值贵便宜。资格触发 + 确认≥2 才出手，资格到了但确认不足就半仓试探。", pro: "回撤档位为资格条件，MA200/RSI/VIX/估值分位为确认条件，避免单信号误判。" },
+  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。缩写：YTD=年初至今涨幅、ATH=历史最高点、PE分位=估值百分位、RSI=涨跌动能、ERP=股票相对国债的收益差。档位动作：T+1 先停加码（YTD +18%）→ T+2 兑现部分（YTD +22%）→ T+3/T+4 降杠杆转防御。T+1 触发后市场若崩盘（距高点>10%）会自动恢复大额定投。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
   stress:   { name: "压力测试", plain: "提前算好<b>预案</b>：NDX 再跌 10%/15%/25%/35% 点位到哪、该做什么。跌到哪早有数，不慌。", pro: "由 ATH 按不同回撤幅度反推的目标点位。" },
   median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。-7.5% 是“普通回撤”的典型深度，-15% 以下才算少见。", pro: "近 10 年历次回撤深度的中位数。" },
   dca:      { name: "定投回测指标", plain: "你每天投 1 元，<b>分批买入</b>至今总共赚/亏多少。它对比「定投」和「一次性全仓买入」两种玩法：上涨市里定投<b>跑输</b>一次性（越买越贵），下跌市里定投<b>跑赢</b>。它不是买卖信号，只是让你看清定投的真实体感。", pro: "定投收益率 = (P_end·Σ(1/P_t) − N)/N；与每日金额无关。对比同区间一次性买入的区间涨跌幅。" },
