@@ -137,6 +137,14 @@ function metrics(d) {
   let prevYr;
   for (let i = d.dates.length - 1; i >= 0; i--)
     if (+d.dates[i].slice(0, 4) === year - 1) { prevYr = d.close[i]; break; }
+  /* 年内最大回撤：年初首个收盘起算运行高点，收盘口径（与 prevYr/月度涨跌幅一致） */
+  const yearStr = String(year);
+  let yMax = -Infinity, ddYtd = 0;
+  for (let i = 0; i < d.close.length; i++) {
+    if (d.dates[i].slice(0, 4) !== yearStr || !Number.isFinite(d.close[i])) continue;
+    yMax = Math.max(yMax, d.close[i]);
+    ddYtd = Math.min(ddYtd, (d.close[i] / yMax - 1) * 100);
+  }
   /* stooq 无时间戳：以该日 20:00Z（≈16:00 EDT 收盘）近似 */
   const lastTs = d.ts ? d.ts[d.ts.length - 1] * 1000 : Date.parse(d.dates[d.dates.length - 1] + "T20:00:00Z");
   return {
@@ -147,7 +155,7 @@ function metrics(d) {
     rsi: Math.round(rsi(c) * 10) / 10,
     low52: Math.round(Math.min(...c.slice(-252))),
     ath: h[hiI], days: c.length - 1 - hiI,
-    prevYr: Math.round(prevYr),
+    prevYr: Math.round(prevYr), ddYtd: Math.round(ddYtd * 10) / 10,
     usDate: d.dates[d.dates.length - 1],
     lastTs,
   };
@@ -159,8 +167,8 @@ let okCore = false, okVix = false, okTnx = false, okFg = false, okFx = false;
 try {
   const [ndxD, spxD] = await Promise.all([series("^NDX", "^ndx"), series("^GSPC", "^spx")]);
   const n = metrics(ndxD), sp = metrics(spxD);
-  F.ndx = `  ndx:   { close: ${fmt2(n.last)}, ath: ${fmt2(n.ath)}, days: ${n.days}, chg: ${n.chg}, ma50: ${n.ma50}, ma200: ${n.ma200}, rsi: ${n.rsi}, low52: ${n.low52}, prevYr: ${n.prevYr} }`;
-  F.spx = `  spx:   { close: ${fmt2(sp.last)}, ath: ${fmt2(sp.ath)}, days: ${sp.days}, chg: ${sp.chg}, ma50: ${sp.ma50}, ma200: ${sp.ma200}, rsi: ${sp.rsi}, low52: ${sp.low52}, prevYr: ${sp.prevYr} }`;
+  F.ndx = `  ndx:   { close: ${fmt2(n.last)}, ath: ${fmt2(n.ath)}, days: ${n.days}, chg: ${n.chg}, ma50: ${n.ma50}, ma200: ${n.ma200}, rsi: ${n.rsi}, low52: ${n.low52}, prevYr: ${n.prevYr}, ddYtd: ${n.ddYtd} }`;
+  F.spx = `  spx:   { close: ${fmt2(sp.last)}, ath: ${fmt2(sp.ath)}, days: ${sp.days}, chg: ${sp.chg}, ma50: ${sp.ma50}, ma200: ${sp.ma200}, rsi: ${sp.rsi}, low52: ${sp.low52}, prevYr: ${sp.prevYr}, ddYtd: ${sp.ddYtd} }`;
   F.date = `  date: "${n.usDate}"`;
   okCore = true;
 

@@ -33,6 +33,7 @@ ndx_spx_dashboard_handoff/
 ### 3.1 数据源与口径
 - **NDX（纳斯达克100）**：Nasdaq 日线 API 有 **1 天滞后**——`DEFAULT.ndx` 当日值用 **QQQ ETF 涨跌幅推导**（误差 < 0.02%），非官方收盘价。
 - **SPX（标普500）**：用 **SPY ETF 真实收盘 ×10** 作代理（点位比 ≈ 10:1）。
+- **年内最大回撤 `ddYtd`**：脚本从 Yahoo/stooq 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
 - **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值四项（peFwd/peTtm/cape/pePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
 - **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
 - **定投回测**：`DCA_NDX` / `DCA_SPX` 各 **2517 点**（2016–2026 每日定投 1 元），仅展示累计收益率与一次性买入对比，不产生买卖信号。区间表含近1月/3月/半年/1年/全周期五档（窗口按交易日 21/63/126/252 近似切片）。

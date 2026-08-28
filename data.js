@@ -9,8 +9,8 @@
 const DEFAULT = {
   date: "2026-08-27",
   intraday: false, // AUTO：美股 2026-08-27 收盘（2026-08-28T05:33Z 抓取）
-  ndx:   { close: 29641.56, ath: 30762.2, days: 59, chg: 1.43, ma50: 29275, ma200: 26906, rsi: 48.5, low52: 22953, prevYr: 25250 },
-  spx:   { close: 7730.99, ath: 7816.7, days: 10, chg: 0.72, ma50: 7558, ma200: 7114, rsi: 46.9, low52: 6344, prevYr: 6846 },
+  ndx:   { close: 29641.56, ath: 30762.2, days: 59, chg: 1.43, ma50: 29275, ma200: 26906, rsi: 48.5, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
+  spx:   { close: 7730.99, ath: 7816.7, days: 10, chg: 0.72, ma50: 7558, ma200: 7114, rsi: 46.9, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
   vix: 14.51,
   fg: 56,
   tnx: 4.67,
