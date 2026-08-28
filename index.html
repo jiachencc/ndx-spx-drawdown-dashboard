@@ -147,9 +147,7 @@
   }
   .asof-main { font-size: 13.5px; color: var(--tx); line-height: 1.5; }
   .asof-main b { color: var(--cyan); font-family: var(--mono); font-weight: 700; }
-  .asof-tz { color: var(--cyan); opacity: .85; font-size: 11.5px; }
   .asof-cn { font-size: 11.5px; color: var(--tx3); margin-top: 3px; line-height: 1.5; }
-  .asof-cn b { color: var(--tx2); font-family: var(--mono); font-weight: 600; }
   /* 卡片视觉层级：决策级强调 / 背景级降权 */
   .card-hi {
     border-color: rgba(91,163,255,.32);
@@ -531,9 +529,9 @@
 </div>
 
 <!-- ======= Data time (美股时区换算) ======= -->
-<div class="asof-bar" aria-label="时区换算">
-  <div class="asof-main">🕐 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span> · 美东 <b id="asof-et">--</b> <span class="asof-tz" id="asof-tz">--</span></div>
-  <div class="asof-cn">🇨🇳 北京时间 <b id="asof-cn">--</b> · 本地更新 <b id="asof-local">--</b> <span id="asof-macro"></span></div>
+<div class="asof-bar" aria-label="数据更新时间">
+  <div class="asof-main">🕐 更新于 <b id="asof-local">--</b> · 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span></div>
+  <div class="asof-cn" id="asof-macro" style="display:none">--</div>
   <div class="asof-legend">
     <span class="src-tag auto">AUTO</span>行情·VIX·美债·恐贪·汇率：每日收盘后自动抓取
     <span style="opacity:.4">|</span>
@@ -1554,15 +1552,12 @@ function renderDCA() {
 /* ================= 数据时间条（美股时区换算） ================= */
 function renderAsOf() {
   const a = D.asOf;
-  $("asof-us").textContent = a.us;
-  $("asof-phase").textContent = D.intraday ? "盘中快照" : "收盘数据";
-  $("asof-et").textContent = a.et;
-  $("asof-tz").textContent = "· " + a.tz;
-  $("asof-cn").textContent = a.cn;
-  $("asof-local").textContent = a.local.slice(11, 16);
-  $("asof-macro").textContent = D.macroAsOf
-    ? "· 宏观 VIX/恐贪/美债 为 " + D.macroAsOf + " 快照"
-    : "· 宏观 VIX/恐贪/美债 与行情同日更新";
+  $("asof-local").textContent = a.local.slice(5, 16);
+  $("asof-us").textContent = a.us.slice(5);
+  $("asof-phase").textContent = D.intraday ? "盘中（截至 " + a.et + "）" : "收盘";
+  const m = $("asof-macro");
+  m.textContent = D.macroAsOf ? "宏观 VIX/恐贪/美债 沿用 " + D.macroAsOf + " 快照" : "";
+  m.style.display = D.macroAsOf ? "" : "none";
 }
 
 /* ================= init ================= */

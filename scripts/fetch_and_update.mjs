@@ -177,9 +177,8 @@ try {
   const intraday = n.usDate === todayNy && nowNyHM < "16:00";
   const abbr = dstOf(nowMs) ? "EDT" : "EST";
   const shanghai = ms => new Date(ms).toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" });
-  const closeMs = Date.parse(n.usDate + "T" + (dstOf(Date.parse(n.usDate + "T12:00:00Z")) ? "20:00" : "21:00") + ":00Z");
   F.intraday = `  intraday: ${intraday}, // AUTO：${intraday ? "盘中快照" : `美股 ${n.usDate} 收盘`}（${new Date(nowMs).toISOString().slice(0, 16)}Z 抓取）`;
-  F.asOf = `  asOf: { us: "${n.usDate}", et: "${intraday ? nowNyHM : "16:00"} ${abbr}", cn: "${intraday ? shanghai(nowMs) : shanghai(closeMs)}", tz: "${abbr === "EDT" ? "夏令时 UTC-4" : "冬令时 UTC-5"}", local: "${shanghai(nowMs)}" },`;
+  F.asOf = `  asOf: { us: "${n.usDate}", et: "${intraday ? nowNyHM : "16:00"} ${abbr}", local: "${shanghai(nowMs)}" },`;
 
   /* 月度涨跌幅：从日 K 按自然月聚合（月末收盘环比，当月为至今），自动写回 MONTHLY */
   const monthlyOf = (d, year) => {
