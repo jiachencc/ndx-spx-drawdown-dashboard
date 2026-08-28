@@ -533,9 +533,9 @@
   <div class="asof-main">🕐 更新于 <b id="asof-local">--</b> · 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span></div>
   <div class="asof-cn" id="asof-macro" style="display:none">--</div>
   <div class="asof-legend">
-    <span class="src-tag auto">AUTO</span>行情·VIX·美债·恐贪·汇率·月度涨跌幅：每日自动更新
+    <span class="src-tag auto">AUTO</span>行情·宏观·估值·Put/Call·月度涨跌幅：每日自动更新
     <span style="opacity:.4">|</span>
-    <span class="src-tag manual">MANUAL</span>估值·Put/Call·日历：人工维护
+    <span class="src-tag manual">MANUAL</span>盈利预期·日历：人工维护
   </div>
 </div>
 
@@ -681,7 +681,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>💰 估值锚<span class="src-tag manual">MANUAL</span></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>💰 估值锚<span class="src-tag auto">AUTO</span></div>
     <div class="meter">
       <div class="m-head"><span class="m-label">SPX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="pepct">?</button></span><span class="m-val" id="val-pepct">--</span></div>
       <div class="m-bar"><div class="m-fill" id="val-pepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
@@ -735,7 +735,7 @@
       <div class="m-bar"><div class="m-fill" id="sent-tnx2b" style="width:0%;background:var(--green);"></div></div>
     </div>
     <div class="meter">
-      <div class="m-head"><span class="m-label">🧩 Put/Call 期权情绪<span class="src-tag manual">MANUAL</span><button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
+      <div class="m-head"><span class="m-label">🧩 Put/Call 期权情绪<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-pcb" style="width:0%;background:var(--yellow);"></div></div>
       <div class="m-marks"><span>防御 &gt;1.1</span><span>0.7-1.1 中性</span><span>贪婪 &lt;0.7</span></div>
     </div>
@@ -852,7 +852,7 @@
 <div class="footer">
   <a class="online-link" href="https://jiachencc.github.io/ndx-spx-drawdown-dashboard/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>打开在线最新版（GitHub Pages）</a><br>
   📡 美股指数回撤决策看板 <b>v6.5</b> · 行情：Nasdaq NDX日线 + SPY ETF代理SPX · 宏观：CNBC美债 / CNN恐慌 / 人民币中间价 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
-  本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 最后更新于 <span id="footer-updated">--</span>
+  本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值/期权数据：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · <a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market</a> (CC BY 4.0) · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
 <script src="data.js"></script>

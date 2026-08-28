@@ -15,10 +15,10 @@ const DEFAULT = {
   fg: 56,
   tnx: 4.67,
   tnx2: 4.229,
-  putcall: 0.73, // MANUAL：CBOE 全品类总 Put/Call，2026-08-27
+  putcall: 0.73, // AUTO：CBOE 全品类总 Put/Call
   fx: 6.72,
-  peFwd: 20.1, peTtm: 27.6, cape: 40.7, pePct: 75,
-  epsGrowth: 8.0,
+  peFwd: 20.1, peTtm: 27.6, cape: 40.7, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
+  epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护
   asOf: { us: "2026-08-27", et: "16:00 EDT", local: "2026-08-28 13:33:57" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }

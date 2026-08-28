@@ -33,7 +33,8 @@ ndx_spx_dashboard_handoff/
 ### 3.1 数据源与口径
 - **NDX（纳斯达克100）**：Nasdaq 日线 API 有 **1 天滞后**——`DEFAULT.ndx` 当日值用 **QQQ ETF 涨跌幅推导**（误差 < 0.02%），非官方收盘价。
 - **SPX（标普500）**：用 **SPY ETF 真实收盘 ×10** 作代理（点位比 ≈ 10:1）。
-- **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / Put/Call Ratio / 人民币 FX 由 Actions 每日自动更新；**估值五项（PE·CAPE·EPS 增速等）仍为人工快照**，无免费实时源，更新需手动替换数值。
+- **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值四项（peFwd/peTtm/cape/pePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
+- **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
 - **定投回测**：`DCA_NDX` / `DCA_SPX` 各 **2517 点**（2016–2026 每日定投 1 元），仅展示累计收益率与一次性买入对比，不产生买卖信号。区间表含近1月/3月/半年/1年/全周期五档（窗口按交易日 21/63/126/252 近似切片）。
 
 ### 3.2 数据模型
@@ -42,11 +43,11 @@ ndx_spx_dashboard_handoff/
 - `thresholds` 与触发器矩阵（`renderTriggers`）强耦合，改阈值需同步核对文案。
 
 ### 3.3 数据更新（2026-08-27 起自动化）
-**AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN，每个交易日收盘后（UTC 21:30）跑 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)，自动重算 MA50/MA200/RSI/52周低/ATH 并提交。失败保留旧值；盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
+**AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN/CBOE/historyofmarket，每个交易日收盘后（UTC 21:47）跑 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)，自动重算 MA50/MA200/RSI/52周低/ATH 并提交。GitHub 定时任务可能延迟数小时，脚本有 `intraday` 判断兜底，晚跑数据仍正确。失败保留旧值；盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
 
 **人工只需维护 MANUAL 区两件事**：
-1. `putcall` 与估值五项（`peFwd/peTtm/cape/pePct/epsGrowth`）——无免费 API，按你的信息源数日一更。
-2. `CALENDAR` 日历——去旧补新（FOMC/CPI/非农/财报季），顺手检查 `macroAsOf` 是否被 Actions 正确重置。
+1. `epsGrowth`（盈利增速预期）——无免费 API，按你的信息源数日一更。
+2. `CALENDAR`（事件日历）——删除已过期事件、补充未来 1-2 周关键事件（名称可标"预计"，写一句决策向解读）。
 
 ~~每月月初补 MONTHLY~~ 已自动化：月度涨跌幅由脚本按日 K 聚合（月末收盘环比，当月为至今），无需手改。
 

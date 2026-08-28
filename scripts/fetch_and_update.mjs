@@ -230,6 +230,31 @@ if (okCore) {
   } catch (e) { console.warn("WARN fx:", e.message); }
 }
 
+/* ---------- 估值 + Put/Call（best-effort，失败保留旧值） ----------
+   来源：historyofmarket.com 开放 JSON（CC BY 4.0）/ CBOE 公开每日统计页 */
+let peFwdV, peTtmV, pePctV, capeV, pcV;
+try {
+  const fp = await getJSON("https://historyofmarket.com/api/sp500/forward-pe.json");
+  const c = fp.current;
+  if (Number.isFinite(c?.trailing) && Number.isFinite(c?.forward)) {
+    peFwdV = c.forward; peTtmV = c.trailing;
+    const hist = (fp.forward || []).map(x => x?.value).filter(Number.isFinite);
+    if (hist.length) pePctV = Math.round(100 * hist.filter(v => v <= peFwdV).length / hist.length);
+  }
+} catch (e) { console.warn("WARN pe:", e.message); }
+try {
+  const cp = await getJSON("https://historyofmarket.com/api/sp500/pe.json");
+  const last = (cp.pe || []).at(-1);
+  if (Number.isFinite(last?.value)) capeV = last.value; /* 周频，日更时数值常不变属正常 */
+} catch (e) { console.warn("WARN cape:", e.message); }
+try {
+  const res = await get("https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone");
+  const s = (await res.text()).replaceAll('\\"', '"');
+  const m = s.match(/"name":"TOTAL PUT\/CALL RATIO","value":"([\d.]+)"/)
+         || s.match(/TOTAL PUT\/CALL RATIO[^0-9]{0,60}([\d]\.\d+)/);
+  if (m) pcV = parseFloat(m[1]);
+} catch (e) { console.warn("WARN putcall:", e.message); }
+
 /* ---------- 改写 data.js ---------- */
 let src = readFileSync(DATA_FILE, "utf8");
 const missing = [];
@@ -249,6 +274,15 @@ if (okCore) {
   apply(/^  tnx2: [\d.]+,/m, F.tnx2, "tnx2");
   apply(/^  fx: [\d.]+,/m, F.fx, "fx");
   apply(/  asOf: \{[^}]+\},/, F.asOf, "asOf");
+  if (peFwdV) {
+    const capeOld = parseFloat(src.match(/cape: ([\d.]+)/)?.[1]);
+    const pctOld = parseInt(src.match(/pePct: (\d+)/)?.[1], 10);
+    const cape = Number.isFinite(capeV) ? capeV : capeOld;
+    const pct = Number.isFinite(pePctV) ? pePctV : pctOld;
+    F.peLine = `  peFwd: ${peFwdV.toFixed(1)}, peTtm: ${peTtmV.toFixed(1)}, cape: ${cape.toFixed(1)}, pePct: ${pct}, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）`;
+    apply(/^  peFwd: [^\n]*$/m, F.peLine, "pe");
+  }
+  if (pcV) apply(/^  putcall: [\d.]+,[^\n]*$/m, `  putcall: ${pcV}, // AUTO：CBOE 全品类总 Put/Call`, "putcall");
   apply(/\/\* [^\n]*月度涨跌幅[^\n]*\*\/\nconst MONTHLY = \[[\s\S]*?\];/, F.monthly, "monthly");
   /* 宏观（vix/tnx/fx）全部随行情刷新 → 置 null 视为同步；任一失败则不动该行，旧快照日期继续如实展示 */
   if (okVix && okTnx && okFx) {
@@ -266,8 +300,8 @@ writeFileSync(DATA_FILE, src);
 /* ---------- 摘要 ---------- */
 const sum = [];
 for (const line of src.split("\n"))
-  if (/^  (date|intraday|ndx|spx|vix|fg|tnx|tnx2|fx|asOf|macroAsOf)/.test(line)) sum.push(line.trim());
+  if (/^  (date|intraday|ndx|spx|vix|fg|tnx|tnx2|fx|asOf|macroAsOf|putcall|peFwd|epsGrowth)/.test(line)) sum.push(line.trim());
 console.log("--- data.js AUTO fields ---\n" + sum.join("\n"));
-console.log(`status: core=${okCore} vix=${okVix} tnx=${okTnx} fx=${okFx} fg=${okFg}`);
+console.log(`status: core=${okCore} vix=${okVix} tnx=${okTnx} fx=${okFx} fg=${okFg} pe=${peFwdV ? "ok" : "keep"} cape=${Number.isFinite(capeV) ? "ok" : "keep"} pc=${pcV ?? "keep"}`);
 if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### 数据更新摘要\n```\n" + sum.join("\n") + "\n```\n");
