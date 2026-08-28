@@ -15,9 +15,9 @@ const DEFAULT = {
   fg: 56,
   tnx: 4.67,
   tnx2: 4.229,
-  putcall: 0.85,
+  putcall: 0.73, // MANUAL：CBOE 全品类总 Put/Call，2026-08-27
   fx: 6.72,
-  peFwd: 20.9, peTtm: 27.2, cape: 39.5, pePct: 75,
+  peFwd: 20.1, peTtm: 27.6, cape: 40.7, pePct: 75,
   epsGrowth: 8.0,
   asOf: { us: "2026-08-27", et: "16:00 EDT", local: "2026-08-28 13:33:57" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
@@ -50,5 +50,6 @@ const CALENDAR = [
   { d: 3,  m: "9月", day: "周四", name: "🛡️ 初请失业金 + ISM 服务业 PMI", desc: "就业降温信号与服务业景气双验", pri: "高" },
   { d: 4,  m: "9月", day: "周五", name: "💼 8 月非农就业报告", desc: "9 月 FOMC 前最重磅数据，决定降息押注", pri: "高" },
   { d: 7,  m: "9月", day: "周一", name: "🎉 劳动节 · 美股休市", desc: "9 月季节性逆风窗口开启（历史最弱月）", pri: "低" },
+  { d: 11, m: "9月", day: "周五", name: "📈 8月 CPI（预计）", desc: "9 月 FOMC 前最后一份重磅通胀读数", pri: "高" },
   { d: 16, m: "9月", day: "周三", name: "🏦 FOMC 利率决议（预计）", desc: "9 月降息幅度博弈，会前两周进入静默期", pri: "高" },
 ];
