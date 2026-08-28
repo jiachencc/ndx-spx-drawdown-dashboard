@@ -124,14 +124,15 @@
   .kpi .k-sub.up { color: var(--green); } .kpi .k-sub.down { color: var(--red); }
   .up { color: var(--green); } .down { color: var(--red); } .warn { color: var(--yellow); } .info { color: var(--cyan); }
 
-  /* ===== 操作日志 ===== */
+  /* ===== 操作日志（流式条目，窄屏不溢出） ===== */
   .sec-title { font-size: 13px; font-weight: 700; margin: 18px 2px 8px; display: flex; align-items: center; gap: 8px; }
-  .log-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-  .log-table th { font-size: 10.5px; color: var(--tx3); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line-soft); font-weight: 600; }
-  .log-table td { padding: 7px 8px; border-bottom: 1px dashed var(--line-soft); vertical-align: top; overflow-wrap: break-word; }
-  .log-table tr:last-child td { border-bottom: none; }
-  .log-table td { font-family: var(--mono); font-feature-settings: "tnum"; }
-  .log-table .lg-note { font-family: var(--sans); color: var(--tx3); font-size: 11px; }
+  .log-item { padding: 10px 2px; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
+  .log-item:last-child { border-bottom: none; }
+  .log-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; min-width: 0; }
+  .log-date { font-family: var(--mono); font-size: 11px; color: var(--tx3); font-feature-settings: "tnum"; }
+  .log-sym { font-weight: 600; }
+  .log-nums { font-family: var(--mono); font-size: 11.5px; color: var(--tx2); margin-top: 4px; font-feature-settings: "tnum"; }
+  .log-note { font-family: var(--sans); color: var(--tx3); font-size: 11px; margin-top: 4px; line-height: 1.5; overflow-wrap: break-word; }
   .act-badge { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 6px; font-family: var(--sans); }
   .act-open { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
   .act-close { background: rgba(242,109,125,.12); color: var(--red); border: 1px solid rgba(242,109,125,.3); }
@@ -175,12 +176,7 @@
   <div id="pos-list"></div>
 
   <div class="sec-title">🧾 操作日志 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（新在上）</span></div>
-  <div class="card" style="padding:6px 10px;">
-    <table class="log-table">
-      <thead><tr><th style="width:76px">日期</th><th style="width:52px">操作</th><th>标的</th><th style="width:70px">份数</th><th style="width:62px">成本价</th><th style="width:38%">备注</th></tr></thead>
-      <tbody id="log-body"></tbody>
-    </table>
-  </div>
+  <div class="card" id="log-list" style="padding:4px 12px;"></div>
 
   <div class="footer">
     估算净值 = 成本价 × 现指数 ÷ 建仓指数（忽略 QDII 溢价变化，含误差）<br>
@@ -286,18 +282,17 @@ function render() {
   }).join("");
 
   /* 操作日志（数组顺序即新在上） */
-  $("log-body").innerHTML = (POSITIONS.log || []).map((e) => {
+  $("log-list").innerHTML = (POSITIONS.log || []).map((e) => {
     const a = String(e.act || "");
     const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
-    return '<tr>' +
-      '<td>' + (e.d || "--") + '</td>' +
-      '<td><span class="act-badge ' + c + '">' + e.act + '</span></td>' +
-      '<td style="font-family:var(--sans)">' + e.sym + '</td>' +
-      '<td>' + fmtN(e.qty) + '</td>' +
-      '<td>' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + '</td>' +
-      '<td class="lg-note">' + (e.note || "") + '</td>' +
-    '</tr>';
-  }).join("") || '<tr><td colspan="6" class="lg-note" style="text-align:center;padding:14px">暂无日志</td></tr>';
+    return '<div class="log-item">' +
+      '<div class="log-top"><span class="log-date">' + (e.d || "--") + '</span>' +
+        '<span class="act-badge ' + c + '">' + e.act + '</span>' +
+        '<span class="log-sym">' + e.sym + '</span></div>' +
+      '<div class="log-nums">' + fmtN(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + ' 元</div>' +
+      (e.note ? '<div class="log-note">' + e.note + '</div>' : '') +
+    '</div>';
+  }).join("") || '<div class="log-note" style="padding:12px 2px;text-align:center">暂无日志</div>';
 }
 render();
 </script>
