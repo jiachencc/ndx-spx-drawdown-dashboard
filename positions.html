@@ -100,6 +100,22 @@
   .stat-grid .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
   .stat-grid .row b { font-family: var(--mono); font-feature-settings: "tnum"; font-weight: 700; white-space: nowrap; }
 
+  /* ===== 三点水位梯：高点/现价/成本 ===== */
+  .ladder { position: relative; margin: 2px 0 12px; }
+  .ladder::before { content: ""; position: absolute; left: 4px; top: 14px; bottom: 14px; width: 2px; border-radius: 1px; background: var(--line); }  /* 主轨 */
+  .lad-fill { position: absolute; left: 4px; width: 2px; border-radius: 1px; background: linear-gradient(180deg, rgba(45,212,167,.12), rgba(45,212,167,.6)); }  /* 成本↔现价 填充（浮盈） */
+  .lad-fill.down { background: linear-gradient(180deg, rgba(242,109,125,.6), rgba(242,109,125,.12)); }  /* 浮亏反向 */
+  .lad-row { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 7px 0 7px 22px; min-width: 0; flex-wrap: wrap; }
+  .lad-dot { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--card); }
+  .lad-dot.now { box-shadow: 0 0 0 3px var(--card), 0 0 8px rgba(226,233,245,.5); }
+  .lad-name { font-size: 11px; color: var(--tx3); flex: none; }
+  .lad-val { font-family: var(--mono); font-size: 14px; font-weight: 700; font-feature-settings: "tnum"; }
+  .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  .lad-chip { font-family: var(--mono); font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 6px; border: 1px solid; white-space: nowrap; font-feature-settings: "tnum"; }
+  .lad-chip.up { color: var(--green); border-color: rgba(45,212,167,.3); background: rgba(45,212,167,.08); }
+  .lad-chip.warn { color: var(--yellow); border-color: rgba(247,193,78,.3); background: rgba(247,193,78,.08); }
+  .lad-chip.down { color: var(--red); border-color: rgba(242,109,125,.3); background: rgba(242,109,125,.08); }
+
   /* ===== 成本位置条 ===== */
   .bar-wrap { margin: 4px 0 14px; }
   .bar-title { font-size: 11px; color: var(--tx3); margin-bottom: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -107,6 +123,7 @@
   .bar-track { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(242,109,125,.35), var(--line), rgba(45,212,167,.4)); }
   .bar-marker { position: absolute; top: -6px; width: 2px; height: 20px; border-radius: 1px; }
   .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 8px rgba(70,201,240,.6); border: none; padding: 0; cursor: pointer; }
+  .bar-end { position: absolute; right: -1px; top: -6px; width: 2px; height: 20px; border-radius: 1px; background: var(--yellow); box-shadow: 0 0 8px rgba(247,193,78,.7); }  /* 高点端点：与成本/现价统一为竖杠 */
   .bar-marker.now { background: var(--tx); box-shadow: 0 0 8px rgba(226,233,245,.5); border: none; padding: 0; cursor: pointer; }
   .bar-marker.now::after, .bar-marker.cost::after { content: ""; position: absolute; left: -12px; top: -11px; width: 26px; height: 42px; }  /* 扩大点击热区 */
   .idx-pop {
@@ -196,7 +213,7 @@
   <div class="card" id="log-list" style="padding:4px 12px;"></div>
 
   <div class="footer">
-    估算净值 = 成本价 × 现指数 ÷ 建仓指数（忽略 QDII 溢价变化，含误差）<br>
+    估算净值 = 成本价 × 现指数 ÷ 成本位指数（忽略 QDII 溢价变化，含误差）<br>
     本页为个人记录工具，不构成投资建议 · 数据与<a href="index.html" style="color:var(--blue)">主看板</a>共用 data.js
   </div>
 </div>
@@ -248,7 +265,7 @@ function render() {
   /* 先算总成本 / 估值，得出占比 */
   const rows = POSITIONS.hold.map((p) => {
     const m = DEFAULT[p.idx] || {};
-    const r = m.close && p.idxAtCost ? m.close / p.idxAtCost - 1 : 0;   // 指数自建仓涨跌 ≈ 浮盈
+    const r = m.close && p.idxAtCost ? m.close / p.idxAtCost - 1 : 0;   // 现价较成本位涨跌 ≈ 浮盈
     const nav = p.cost * (1 + r);                                        // 估算净值
     const costAmt = p.qty * p.cost;
     const valAmt = p.qty * nav;
@@ -277,28 +294,45 @@ function render() {
     /* 日内波动操作线（MANUAL 策略，data.js POSITIONS.strategy） */
     const st = POSITIONS.strategy || { dip: -2, rally: 3 };
     const chg = m.chg || 0;
-    let strat;
+    const ruleTxt = "跌 " + Math.abs(st.dip) + "% 加仓 / 涨 " + st.rally + "% 减仓";
+    let strat, stratPop;
     if (chg <= st.dip) {
       strat = '<span class="up">🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>';
+      stratPop = '<span class="up">🎯 触发加仓观察（' + ruleTxt + '）</span>';
     } else if (chg >= st.rally) {
       strat = '<span class="warn">🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>';
+      stratPop = '<span class="warn">🎯 触发减仓观察（' + ruleTxt + '）</span>';
     } else {
-      strat = '🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（跌 ' + Math.abs(st.dip) + '% 加仓 / 涨 ' + st.rally + '% 减仓）';
+      strat = '🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（' + ruleTxt + '）';
+      stratPop = '🎯 未触发（' + ruleTxt + '）';
     }
-    posInfos[i] = { close: m.close, chg, lo, hi, days: m.days, stratHtml: strat };
-    /* 成本位弹窗数据：建仓回放 + 当前总结 + 规则化操作提示 */
-    const openEntry = (POSITIONS.log || []).filter((e) => e.sym === p.sym).slice(-1)[0];   // 该 ETF 最早一条流水
+    posInfos[i] = { close: m.close, chg, lo, hi, days: m.days, stratHtml: stratPop };
+    /* 成本位弹窗数据：三点关系 + 当前总结 + 规则化操作提示 */
     const tierWord = tier[1].slice(2);   // 去掉 emoji，取「区间偏低/中位/偏高」
     const advice = pct < 35
-      ? "🟢 建仓位置较低，安全垫厚，适合按纪律耐心持有；若深度回调，可按计划分批加仓。"
+      ? "🟢 成本位置较低，安全垫厚，适合按纪律耐心持有；若深度回调，可按计划分批加仓。"
       : pct <= 65
         ? "🟡 位置中性，按既定纪律执行：日内跌 ≥" + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
         : "🔵 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。";
-    const sumTxt = "现价较建仓 " + fmtPct(r) + "，成本位于区间" + tierWord + "（分位 " + pct + "%）";
+    const sumTxt = "成本位于" + tierWord + "（分位 " + pct + "%）";
     const cushionTxt = r >= 0
       ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
       : "当前浮亏，需涨 " + fmtPct(backToCost) + " 回本";
-    costInfos[i] = { idxAtCost: p.idxAtCost, openDate: openEntry && openEntry.d, gapNow: m.close / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
+    /* YTD 水位：成本在「去年末收盘 → 现价」涨幅中的位置，仅 YTD>0 且落在 0~100% 时显示 */
+    const ytdR = m.prevYr && m.close ? m.close / m.prevYr - 1 : null;
+    const ytdPos = ytdR > 0 ? Math.round((p.idxAtCost - m.prevYr) / (m.close - m.prevYr) * 100) : null;
+    const ytdTxt = (ytdR > 0 && ytdPos >= 0 && ytdPos <= 100) ? "📈 今年 " + fmtPct(ytdR) + "，成本位于今年涨幅 " + ytdPos + "% 水位" : "";
+    costInfos[i] = { idxAtCost: p.idxAtCost, gapCost: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, ytdTxt, advice };
+    /* 三点水位梯：高点/现价/成本 按数值降序排列，现价行挂箭头 chips */
+    const dateStr = DEFAULT.asOf && DEFAULT.asOf.us ? " (" + DEFAULT.asOf.us.slice(5).replace("-", ".") + ")" : "";
+    const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
+    const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
+    const chipHigh = '<span class="lad-chip ' + (m.close >= hi ? "up" : "warn") + '">' + (m.close >= hi ? "▲" : "▼") + fmtPct(m.close / hi - 1) + ' 距高点</span>';
+    const ladRows = [
+      { k: "hi", name: "高点" + athStr, v: hi, dot: "var(--yellow)", chips: "" },
+      { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
+      { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: "" },
+    ].sort((a, b) => b.v - a.v);
     return '<div class="card">' +
       '<div class="pos-head"><div class="pos-name">' + p.sym +
         '<span class="code">' + p.code + '</span>' +
@@ -307,17 +341,26 @@ function render() {
       '<div class="stat-grid">' +
         '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
         '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
-        '<div class="row"><span style="color:var(--tx2)">建仓时指数</span><b>' + fmtIdx(p.idxAtCost) + '</b></div>' +
-        '<div class="row"><span style="color:var(--tx2)">现指数 (' + (DEFAULT.asOf && DEFAULT.asOf.us ? DEFAULT.asOf.us.slice(5).replace("-", ".") : "") + ')</span><b>' + fmtIdx(m.close) + '</b></div>' +
+      '</div>' +
+      '<div class="ladder">' +
+        ladRows.map((row) =>
+          '<div class="lad-row">' +
+            '<span class="lad-dot ' + row.k + '" style="background:' + row.dot + '"></span>' +
+            '<span class="lad-name">' + row.name + '</span>' +
+            '<b class="lad-val">' + fmtIdx(row.v) + '</b>' +
+            (row.chips ? '<span class="lad-chips">' + row.chips + '</span>' : '') +
+          '</div>').join("") +
+        '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
       '</div>' +
       '<div class="bar-wrap">' +
-        '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span><span>现价距高点 <b class="' + (m.close >= hi ? "up" : "warn") + '">' + fmtPct(m.close / hi - 1) + '</b></span></div>' +
+        '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span></div>' +
         '<div class="bar-track">' +
+          '<span class="bar-end"></span>' +
           '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
           '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
         '</div>' +
         '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
-        '<div class="bar-legend"><span>坐标：52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span></div>' +
+        '<div class="bar-legend"><span>坐标：52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span></div>' +
       '</div>' +
       '<div class="kpi-row">' +
         '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
@@ -328,6 +371,17 @@ function render() {
       '<div class="strat-row">' + strat + '</div>' +
     '</div>';
   }).join("");
+
+  /* 水位梯：定位 成本↔现价 之间的填充段（两圆点中心之间） */
+  document.querySelectorAll("#pos-list .ladder").forEach((lad) => {
+    const fill = lad.querySelector(".lad-fill");
+    const dNow = lad.querySelector(".lad-dot.now"), dCost = lad.querySelector(".lad-dot.cost");
+    if (!fill || !dNow || !dCost) return;
+    const base = lad.getBoundingClientRect().top;
+    const a = dNow.getBoundingClientRect(), b = dCost.getBoundingClientRect();
+    fill.style.top = (Math.min(a.top, b.top) - base + a.height / 2) + "px";
+    fill.style.height = Math.abs(a.top - b.top) + "px";
+  });
 
   /* 操作日志（数组顺序即新在上） */
   $("log-list").innerHTML = (POSITIONS.log || []).map((e) => {
@@ -359,11 +413,11 @@ function nowPopHtml(info) {
     '<div class="ip-strat">' + info.stratHtml + '</div>';
 }
 function costPopHtml(info) {
-  return '<div class="ip-title">🏷️ 成本位 ' + fmtIdx(info.idxAtCost) + (info.openDate ? ' · ' + info.openDate + ' 建仓' : '') + '</div>' +
-    '<div class="ip-row"><span>现价距高点</span><b class="warn">' + fmtPct(info.gapNow) + '</b></div>' +
+  return '<div class="ip-title">🏷️ 成本位 ' + fmtIdx(info.idxAtCost) + '</div>' +
+    '<div class="ip-row"><span>现价较成本</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
+    '<div class="ip-row"><span>成本距高点</span><b>' + fmtPct(info.gapCost) + '</b></div>' +
     '<div class="ip-row"><span>成本价 / 份数</span><b>' + info.cost.toFixed(3) + ' 元 · ' + fmtN(info.qty) + ' 份</b></div>' +
-    '<div class="ip-row"><span>当前浮盈（估）</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
-    '<div class="ip-tip">📊 ' + info.sumTxt + '；' + info.cushionTxt + '<br>' + info.advice + '</div>' +
+    '<div class="ip-tip">📊 ' + info.sumTxt + '；' + info.cushionTxt + (info.ytdTxt ? '<br>' + info.ytdTxt : '') + '<br>' + info.advice + '</div>' +
     '<div class="ip-note">⚠️ 机械规则提示，非投资建议</div>';
 }
 document.addEventListener("click", (e) => {

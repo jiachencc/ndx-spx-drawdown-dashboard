@@ -128,11 +128,10 @@ function rsi(closes) {
 }
 function metrics(d) {
   const c = d.close.filter(Number.isFinite);
-  const h = d.high.filter(Number.isFinite);
   if (c.length < 260) throw new Error(`insufficient bars: ${c.length}`);
   const last = c[c.length - 1], prevClose = c[c.length - 2];
-  let hiI = 0;
-  h.forEach((v, i) => { if (v > h[hiI]) hiI = i; });
+  let hiI = -1;   // 历史最高 bar 下标（原始数组，与 dates 对齐）
+  d.high.forEach((v, i) => { if (Number.isFinite(v) && (hiI < 0 || v > d.high[hiI])) hiI = i; });
   const year = Math.max(...d.dates.map(x => +x.slice(0, 4)));
   let prevYr;
   for (let i = d.dates.length - 1; i >= 0; i--)
@@ -154,7 +153,7 @@ function metrics(d) {
     ma200: Math.round(sma(c, 200)),
     rsi: Math.round(rsi(c) * 10) / 10,
     low52: Math.round(Math.min(...c.slice(-252))),
-    ath: h[hiI], days: c.length - 1 - hiI,
+    ath: d.high[hiI], days: c.length - 1 - hiI, athDate: d.dates[hiI],
     prevYr: Math.round(prevYr), ddYtd: Math.round(ddYtd * 10) / 10,
     usDate: d.dates[d.dates.length - 1],
     lastTs,
@@ -167,8 +166,8 @@ let okCore = false, okVix = false, okTnx = false, okFg = false, okFx = false;
 try {
   const [ndxD, spxD] = await Promise.all([series("^NDX", "^ndx"), series("^GSPC", "^spx")]);
   const n = metrics(ndxD), sp = metrics(spxD);
-  F.ndx = `  ndx:   { close: ${fmt2(n.last)}, ath: ${fmt2(n.ath)}, days: ${n.days}, chg: ${n.chg}, ma50: ${n.ma50}, ma200: ${n.ma200}, rsi: ${n.rsi}, low52: ${n.low52}, prevYr: ${n.prevYr}, ddYtd: ${n.ddYtd} }`;
-  F.spx = `  spx:   { close: ${fmt2(sp.last)}, ath: ${fmt2(sp.ath)}, days: ${sp.days}, chg: ${sp.chg}, ma50: ${sp.ma50}, ma200: ${sp.ma200}, rsi: ${sp.rsi}, low52: ${sp.low52}, prevYr: ${sp.prevYr}, ddYtd: ${sp.ddYtd} }`;
+  F.ndx = `  ndx:   { close: ${fmt2(n.last)}, ath: ${fmt2(n.ath)}, athDate: "${n.athDate}", days: ${n.days}, chg: ${n.chg}, ma50: ${n.ma50}, ma200: ${n.ma200}, rsi: ${n.rsi}, low52: ${n.low52}, prevYr: ${n.prevYr}, ddYtd: ${n.ddYtd} }`;
+  F.spx = `  spx:   { close: ${fmt2(sp.last)}, ath: ${fmt2(sp.ath)}, athDate: "${sp.athDate}", days: ${sp.days}, chg: ${sp.chg}, ma50: ${sp.ma50}, ma200: ${sp.ma200}, rsi: ${sp.rsi}, low52: ${sp.low52}, prevYr: ${sp.prevYr}, ddYtd: ${sp.ddYtd} }`;
   F.date = `  date: "${n.usDate}"`;
   okCore = true;
 
