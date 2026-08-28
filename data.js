@@ -53,3 +53,19 @@ const CALENDAR = [
   { d: 11, m: "9月", day: "周五", name: "📈 8月 CPI（预计）", desc: "9 月 FOMC 前最后一份重磅通胀读数", pri: "高" },
   { d: 16, m: "9月", day: "周三", name: "🏦 FOMC 利率决议（预计）", desc: "9 月降息幅度博弈，会前两周进入静默期", pri: "高" },
 ];
+
+/* ================= 我的持仓（MANUAL：模糊化隐私——只记份数与成本，不记金额/账户资产） =================
+ * 仅在买卖后手动维护；市值/浮盈/成本档位由 positions.html 用行情自动计算，勿在此记录金额。
+ * idxAtCost = 建仓时点的指数点位（用 ETF 成本价 × 指数现价 ÷ ETF 现价 反推，含 QDII 溢价误差）。
+ * 每次买卖后：更新 hold 的 qty/cost/idxAtCost，并在 log 顶部加一条流水。 */
+const POSITIONS = {
+  updated: "2026-08-28",
+  hold: [
+    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 65100, cost: 1.570, idxAtCost: 28018 },
+    { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 34000, cost: 1.920, idxAtCost: 7258 },
+  ],
+  log: [
+    { d: "2026-08-28", act: "建仓", sym: "纳指ETF广发", qty: 65100, cost: 1.570, note: "历史买入合并为初始记录" },
+    { d: "2026-08-28", act: "建仓", sym: "标普500ETF南方", qty: 34000, cost: 1.920, note: "历史买入合并为初始记录" },
+  ]
+};

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>持仓水位 · 美股指数看板</title>
+<meta name="description" content="个人持仓水位记录：成本位置视角、份数与成本模糊化隐私、当前状态与操作日志。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="font.css">
+<style>
+  :root {
+    --bg: #0a0d13;
+    --bg-grad-1: #0e1526;
+    --card: #121826;
+    --card2: #1a2234;
+    --line: #232e44;
+    --line-soft: #1c2538;
+    --tx: #e2e9f5;
+    --tx2: #8fa0ba;
+    --tx3: #6f7f9a;
+    --green: #2dd4a7;
+    --red: #f26d7d;
+    --yellow: #f7c14e;
+    --blue: #5ba3ff;
+    --cyan: #46c9f0;
+    --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    --radius: 14px;
+  }
+  body.light {
+    --bg: #eef2f8;
+    --bg-grad-1: #e6ecf6;
+    --card: #ffffff;
+    --card2: #f3f6fb;
+    --line: #dde4ef;
+    --line-soft: #eaf0f7;
+    --tx: #16243b;
+    --tx2: #52627e;
+    --tx3: #64748b;
+    --green: #0ea372;
+    --red: #e23b53;
+    --yellow: #c8901a;
+    --blue: #2f7be0;
+    --cyan: #0a9fc4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: radial-gradient(1200px 600px at 85% -10%, rgba(91,163,255,.06), transparent 60%), var(--bg);
+    color: var(--tx);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 18px 14px 40px;
+    font-feature-settings: "tnum";
+    transition: background .3s, color .3s;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .header h1 { font-size: 20px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; gap: 8px; }
+  .header .sub { font-size: 11.5px; color: var(--tx3); margin-top: 4px; }
+  .meta { display: flex; gap: 8px; align-items: center; }
+  .theme-btn {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 5px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--tx2);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: border-color .2s, color .2s;
+  }
+  .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
+  a.theme-btn { text-decoration: none; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 12px; min-width: 0;
+  }
+  .privacy {
+    border-color: rgba(247,193,78,.35); background: rgba(247,193,78,.06);
+    color: var(--tx2); font-size: 11.5px; line-height: 1.6; display: flex; gap: 8px; align-items: flex-start;
+  }
+  .privacy b { color: var(--yellow); }
+  .src-line { font-size: 11px; color: var(--tx3); margin: 10px 2px; line-height: 1.7; }
+  .src-tag { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: var(--mono); font-size: 9.5px; font-weight: 700; vertical-align: 1px; }
+  .src-tag.auto { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
+  .src-tag.manual { background: rgba(247,193,78,.1); color: var(--yellow); border: 1px solid rgba(247,193,78,.3); }
+
+  /* ===== 汇总 ===== */
+  .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .sum-cell { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 8px; text-align: center; min-width: 0; }
+  .sum-cell .s-label { font-size: 10.5px; color: var(--tx3); margin-bottom: 4px; }
+  .sum-cell .s-val { font-family: var(--mono); font-size: 17px; font-weight: 700; font-feature-settings: "tnum"; }
+
+  /* ===== 持仓卡 ===== */
+  .pos-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pos-name { font-size: 14.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .code { font-family: var(--mono); font-size: 10.5px; color: var(--tx3); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+  .idx-badge { font-family: var(--mono); font-size: 9.5px; font-weight: 700; border-radius: 6px; padding: 2px 7px; }
+  .idx-badge.ndx { background: rgba(70,201,240,.12); color: var(--cyan); border: 1px solid rgba(70,201,240,.3); }
+  .idx-badge.spx { background: rgba(91,163,255,.12); color: var(--blue); border: 1px solid rgba(91,163,255,.3); }
+  .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; font-size: 12.5px; margin-bottom: 12px; }
+  .stat-grid .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
+  .stat-grid .row b { font-family: var(--mono); font-feature-settings: "tnum"; font-weight: 700; white-space: nowrap; }
+
+  /* ===== 成本位置条 ===== */
+  .bar-wrap { margin: 4px 0 14px; }
+  .bar-title { font-size: 11px; color: var(--tx3); margin-bottom: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .bar-title b { color: var(--tx2); }
+  .bar-track { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(242,109,125,.35), var(--line), rgba(45,212,167,.4)); }
+  .bar-marker { position: absolute; top: -6px; width: 2px; height: 20px; border-radius: 1px; }
+  .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 8px rgba(70,201,240,.6); }
+  .bar-marker.now { background: var(--tx); box-shadow: 0 0 8px rgba(226,233,245,.5); }
+  .bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--tx3); margin-top: 8px; font-feature-settings: "tnum"; }
+  .bar-legend { display: flex; gap: 14px; margin-top: 8px; font-size: 10.5px; color: var(--tx3); flex-wrap: wrap; }
+  .bar-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+  .pos-tier { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin-left: 6px; font-family: var(--sans); white-space: nowrap; }
+  .pos-tier.t-low { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
+  .pos-tier.t-mid { background: rgba(247,193,78,.1); color: var(--yellow); border: 1px solid rgba(247,193,78,.3); }
+  .pos-tier.t-high { background: rgba(91,163,255,.12); color: var(--blue); border: 1px solid rgba(91,163,255,.3); }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .kpi { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 4px; text-align: center; min-width: 0; }
+  .kpi .k-label { font-size: 10px; color: var(--tx3); margin-bottom: 3px; }
+  .kpi .k-val { font-family: var(--mono); font-size: 13.5px; font-weight: 700; font-feature-settings: "tnum"; }
+  .kpi .k-sub { font-family: var(--mono); font-size: 10px; margin-top: 2px; font-feature-settings: "tnum"; }
+  .kpi .k-sub.up { color: var(--green); } .kpi .k-sub.down { color: var(--red); }
+  .up { color: var(--green); } .down { color: var(--red); } .warn { color: var(--yellow); } .info { color: var(--cyan); }
+
+  /* ===== 操作日志 ===== */
+  .sec-title { font-size: 13px; font-weight: 700; margin: 18px 2px 8px; display: flex; align-items: center; gap: 8px; }
+  .log-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+  .log-table th { font-size: 10.5px; color: var(--tx3); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line-soft); font-weight: 600; }
+  .log-table td { padding: 7px 8px; border-bottom: 1px dashed var(--line-soft); vertical-align: top; overflow-wrap: break-word; }
+  .log-table tr:last-child td { border-bottom: none; }
+  .log-table td { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .log-table .lg-note { font-family: var(--sans); color: var(--tx3); font-size: 11px; }
+  .act-badge { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 6px; font-family: var(--sans); }
+  .act-open { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
+  .act-close { background: rgba(242,109,125,.12); color: var(--red); border: 1px solid rgba(242,109,125,.3); }
+  .act-other { background: var(--card2); color: var(--tx2); border: 1px solid var(--line); }
+  .footer { text-align: center; font-size: 10.5px; color: var(--tx3); margin-top: 20px; line-height: 1.8; }
+
+  @media (max-width: 480px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .sum-cell .s-val { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div>
+      <h1>💼 持仓水位</h1>
+      <div class="sub">成本位置视角 · 当前状态 · 操作日志</div>
+    </div>
+    <div class="meta">
+      <a class="theme-btn" href="index.html">← 看板</a>
+      <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题">🌙 深色</button>
+    </div>
+  </div>
+
+  <div class="card privacy">
+    <span>🔒</span>
+    <div><b>隐私口径</b>：本页只记录<b>份数与成本价</b>，不记录账户、金额与券商信息；市值 / 浮盈均由公开行情实时推算，仅供参考。</div>
+  </div>
+
+  <div class="src-line">
+    <span class="src-tag manual">MANUAL</span> 持仓与日志：<b id="pos-updated">--</b> 人工维护（买卖后更新）
+    &nbsp;<span style="opacity:.4">|</span>&nbsp;
+    <span class="src-tag auto">AUTO</span> 行情基準：<b id="pos-asof">--</b>（随看板 data.js 自动更新）
+  </div>
+
+  <div class="card">
+    <div class="sum-grid" id="sum-grid"></div>
+  </div>
+
+  <div id="pos-list"></div>
+
+  <div class="sec-title">🧾 操作日志 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（新在上）</span></div>
+  <div class="card" style="padding:6px 10px;">
+    <table class="log-table">
+      <thead><tr><th style="width:76px">日期</th><th style="width:52px">操作</th><th>标的</th><th style="width:70px">份数</th><th style="width:62px">成本价</th><th style="width:38%">备注</th></tr></thead>
+      <tbody id="log-body"></tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    估算净值 = 成本价 × 现指数 ÷ 建仓指数（忽略 QDII 溢价变化，含误差）<br>
+    本页为个人记录工具，不构成投资建议 · 数据与<a href="index.html" style="color:var(--blue)">主看板</a>共用 data.js
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+
+/* ---- 主题（与主看板共用同一 localStorage 键） ---- */
+const THEME_KEY = "wb_ndxspx_theme";
+const themeBtn = $("theme-toggle");
+function applyTheme(light) {
+  document.body.classList.toggle("light", light);
+  themeBtn.innerHTML = light ? "☀️ 切深色" : "🌙 切浅色";
+}
+let savedTheme = null;
+try { const s = localStorage.getItem(THEME_KEY); if (s === "light" || s === "dark") savedTheme = s; } catch (e) {}
+applyTheme(savedTheme === "light");
+themeBtn.addEventListener("click", () => {
+  const next = !document.body.classList.contains("light");
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next ? "light" : "dark"); } catch (e) {}
+});
+
+/* ---- 格式化 ---- */
+const fmtPct = (v, dp) => (v >= 0 ? "+" : "") + (v * 100).toFixed(dp === undefined ? 1 : dp) + "%";
+const fmtWan = (v) => (v / 10000).toFixed(1) + "万";
+const fmtN = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const fmtIdx = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const cls = (v) => v >= 0 ? "up" : "down";
+
+/* ---- 渲染 ---- */
+function render() {
+  if (typeof POSITIONS === "undefined" || !POSITIONS.hold || !POSITIONS.hold.length) {
+    $("pos-list").innerHTML = '<div class="card" style="color:var(--tx3);font-size:12.5px;">暂无持仓记录：请在 data.js 的 POSITIONS 中维护。</div>';
+    return;
+  }
+  $("pos-updated").textContent = POSITIONS.updated || "--";
+  $("pos-asof").textContent = (DEFAULT.asOf && DEFAULT.asOf.us) || DEFAULT.date || "--";
+
+  let totalCost = 0, totalVal = 0;
+
+  /* 先算总成本 / 估值，得出占比 */
+  const rows = POSITIONS.hold.map((p) => {
+    const m = DEFAULT[p.idx] || {};
+    const r = m.close && p.idxAtCost ? m.close / p.idxAtCost - 1 : 0;   // 指数自建仓涨跌 ≈ 浮盈
+    const nav = p.cost * (1 + r);                                        // 估算净值
+    const costAmt = p.qty * p.cost;
+    const valAmt = p.qty * nav;
+    totalCost += costAmt; totalVal += valAmt;
+    return { p, m, r, nav, costAmt, valAmt };
+  });
+
+  /* 汇总 */
+  const totalR = totalCost ? (totalVal - totalCost) / totalCost : 0;
+  $("sum-grid").innerHTML =
+    '<div class="sum-cell"><div class="s-label">💰 总投入（成本）</div><div class="s-val">' + fmtWan(totalCost) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label">📦 组合市值（估）</div><div class="s-val">' + fmtWan(totalVal) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label">📈 组合浮盈</div><div class="s-val ' + cls(totalR) + '">' + fmtPct(totalR) + '</div></div>';
+
+  /* 持仓卡 */
+  $("pos-list").innerHTML = rows.map(({ p, m, r, nav, costAmt, valAmt }) => {
+    const pl = valAmt - costAmt;   // 浮盈额（估），显示模糊到万
+    const lo = m.low52 || Math.min(p.idxAtCost, m.close || p.idxAtCost);
+    const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
+    const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+    const pct = Math.round(pctOf(p.idxAtCost));   // 成本位置分位（52周低=0% → 历史高点=100%），取整保证显示与档位一致
+    const tier = pct < 35 ? ["t-low", "🟢 区间偏低"] : pct <= 65 ? ["t-mid", "🟡 区间中位"] : ["t-high", "🔵 区间偏高"];
+    const backToCost = 1 - m.close / p.idxAtCost;   // 指数再跌 x% 回到成本（正=需涨回本）
+    const w = costAmt / totalCost;
+    const idxName = p.idx === "ndx" ? "纳指100" : "标普500";
+    return '<div class="card">' +
+      '<div class="pos-head"><div class="pos-name">' + p.sym +
+        '<span class="code">' + p.code + '</span>' +
+        '<span class="idx-badge ' + p.idx + '">' + idxName + '</span></div>' +
+      '</div>' +
+      '<div class="stat-grid">' +
+        '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
+        '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
+        '<div class="row"><span style="color:var(--tx2)">建仓时指数</span><b>' + fmtIdx(p.idxAtCost) + '</b></div>' +
+        '<div class="row"><span style="color:var(--tx2)">现指数 (' + (DEFAULT.asOf && DEFAULT.asOf.us ? DEFAULT.asOf.us.slice(5).replace("-", ".") : "") + ')</span><b>' + fmtIdx(m.close) + '</b></div>' +
+      '</div>' +
+      '<div class="bar-wrap">' +
+        '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span><span>建仓时距高点 <b class="' + (p.idxAtCost >= hi ? "up" : "warn") + '">' + fmtPct(p.idxAtCost / hi - 1) + '</b></span></div>' +
+        '<div class="bar-track">' +
+          '<span class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%"></span>' +
+          '<span class="bar-marker now" style="left:' + pctOf(m.close) + '%"></span>' +
+        '</div>' +
+        '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
+        '<div class="bar-legend"><span>坐标：52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span></div>' +
+      '</div>' +
+      '<div class="kpi-row">' +
+        '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
+        '<div class="kpi"><div class="k-label">估算净值</div><div class="k-val">' + nav.toFixed(3) + '</div></div>' +
+        '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div></div>' +
+        '<div class="kpi"><div class="k-label">成本占比</div><div class="k-val">' + (w * 100).toFixed(0) + '%</div></div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  /* 操作日志（数组顺序即新在上） */
+  $("log-body").innerHTML = (POSITIONS.log || []).map((e) => {
+    const a = String(e.act || "");
+    const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
+    return '<tr>' +
+      '<td>' + (e.d || "--") + '</td>' +
+      '<td><span class="act-badge ' + c + '">' + e.act + '</span></td>' +
+      '<td style="font-family:var(--sans)">' + e.sym + '</td>' +
+      '<td>' + fmtN(e.qty) + '</td>' +
+      '<td>' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + '</td>' +
+      '<td class="lg-note">' + (e.note || "") + '</td>' +
+    '</tr>';
+  }).join("") || '<tr><td colspan="6" class="lg-note" style="text-align:center;padding:14px">暂无日志</td></tr>';
+}
+render();
+</script>
+</body>
+</html>

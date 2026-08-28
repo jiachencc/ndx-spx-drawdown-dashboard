@@ -9,7 +9,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **v6.6**（截至 2026-08-27；v6.5→v6.6 变更：数据层分离至 data.js、meta/favicon、入场动画） |
+| 版本 | **v6.7**（截至 2026-08-28；v6.6→v6.7 变更：新增持仓水位页 positions.html、字体提取为共享 font.css） |
 | 托管方式 | **GitHub Pages**（静态托管） |
 | 远程仓库 | `https://github.com/jiachencc/ndx-spx-drawdown-dashboard.git` |
 | 在线地址 | **https://jiachencc.github.io/ndx-spx-drawdown-dashboard/** |
@@ -23,7 +23,9 @@
 ndx_spx_dashboard_handoff/
 ├── handoff.md      ← 本文件（交接 + 部署指南）
 ├── index.html      ← 看板本体：结构 + CSS + 渲染逻辑（GitHub Pages 入口）
-└── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR，每日更新只改此文件
+├── positions.html  ← 持仓水位页：成本位置视角 + 操作日志（从看板页头「💼 持仓」进入）
+├── font.css        ← JetBrains Mono @font-face（base64 内嵌），index/positions 两页共享
+└── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR / POSITIONS，每日更新只改此文件
 ```
 
 ---
@@ -47,9 +49,10 @@ ndx_spx_dashboard_handoff/
 ### 3.3 数据更新（2026-08-27 起自动化）
 **AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN/CBOE/historyofmarket，每个交易日收盘后（UTC 21:47）跑 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)，自动重算 MA50/MA200/RSI/52周低/ATH 并提交。GitHub 定时任务可能延迟数小时，脚本有 `intraday` 判断兜底，晚跑数据仍正确。失败保留旧值；盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
 
-**人工只需维护 MANUAL 区两件事**：
+**人工只需维护 MANUAL 区三件事**：
 1. `epsGrowth`（盈利增速预期）——无免费 API，按你的信息源数日一更。
 2. `CALENDAR`（事件日历）——删除已过期事件、补充未来 1-2 周关键事件（名称可标"预计"，写一句决策向解读）。
+3. `POSITIONS`（持仓）——买卖后更新 `hold` 的 qty/cost/idxAtCost，并在 `log` 顶部加一条流水；只记份数与成本价，不记金额/账户（隐私模糊化）。展示由 positions.html 自动计算。
 
 ~~每月月初补 MONTHLY~~ 已自动化：月度涨跌幅由脚本按日 K 聚合（月末收盘环比，当月为至今），无需手改。
 
@@ -75,7 +78,7 @@ ndx_spx_dashboard_handoff/
 ### 4.2 视觉层级与布局规则
 - **视觉层级** `.card-hi` / `.card-lo`：决策级卡（触发矩阵、决策依据、止盈、DCA 回测）用 `.card-hi` 强化边框阴影引导优先阅读；背景级卡（事件日历）用 `.card-lo` 降饱和缩小。加在 `<div class="card">` 上即可，无 JS 依赖。
 - **布局对齐铁律**：`.grid > .card + .card { margin-top: 0 }` —— grid 内卡片间距一律由 `gap: 18px` 控制，不要给 grid 直接子卡片加 margin（会破坏同行 stretch 等高对齐）；纵向堆叠区块间分隔仍走 `.card + .card` 的 margin-top。
-- **数字排版**：数字统一 JetBrains Mono（可变字重 woff2 以 base64 内嵌于 `<style>`，latin 子集约 40KB，零外链；大号展示数字与数据小字同源，仅字号/字重分层）。body 已启用 `font-feature-settings: "tnum"`，多列数据自动对齐。新组件数字直接用 `var(--mono)` 即可，勿再新增字体栈。
+- **数字排版**：数字统一 JetBrains Mono（可变字重 woff2 以 base64 内嵌于共享 `font.css`，latin 子集约 40KB，index/positions 两页共用浏览器缓存，零外链；大号展示数字与数据小字同源，仅字号/字重分层）。body 已启用 `font-feature-settings: "tnum"`，多列数据自动对齐。新组件数字直接用 `var(--mono)` 即可，勿再新增字体栈。
 - **grid 溢出防御**：`.grid > .card { min-width: 0 }` —— grid item 默认 `min-width: auto` 会被内容 min-content 撑破列宽，导致窄屏（≤440px 手机）横向溢出。新增 grid 容器时沿用此规则。
 
 ### 4.3 关键 JS 入口
