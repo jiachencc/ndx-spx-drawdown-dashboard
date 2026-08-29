@@ -7,19 +7,19 @@
 
 /* ================= 数据模型 ================= */
 const DEFAULT = {
-  date: "2026-08-27",
-  intraday: false, // AUTO：美股 2026-08-27 收盘（2026-08-28T05:33Z 抓取）
-  ndx:   { close: 29641.56, ath: 30762.2, athDate: "2026-06-03", days: 59, chg: 1.43, ma50: 29275, ma200: 26906, rsi: 48.5, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
-  spx:   { close: 7730.99, ath: 7816.7, athDate: "2026-08-13", days: 10, chg: 0.72, ma50: 7558, ma200: 7114, rsi: 46.9, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
-  vix: 14.51,
+  date: "2026-08-28",
+  intraday: false, // AUTO：美股 2026-08-28 收盘（2026-08-29T03:23Z 抓取）
+  ndx:   { close: 29433.43, ath: 30762.2, athDate: "2026-06-03", days: 60, chg: -0.7, ma50: 29270, ma200: 26925, rsi: 46.6, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
+  spx:   { close: 7711.76, ath: 7816.7, athDate: "2026-08-13", days: 11, chg: -0.25, ma50: 7564, ma200: 7119, rsi: 45.3, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
+  vix: 14.43,
   fg: 56,
-  tnx: 4.67,
+  tnx: 4.72,
   tnx2: 4.229,
-  putcall: 0.73, // AUTO：CBOE 全品类总 Put/Call
+  putcall: 0.84, // AUTO：CBOE 全品类总 Put/Call
   fx: 6.72,
-  peFwd: 20.1, peTtm: 27.6, cape: 40.7, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
+  peFwd: 20.1, peTtm: 27.6, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护
-  asOf: { us: "2026-08-27", et: "16:00 EDT", local: "2026-08-28 13:33:57" },
+  asOf: { us: "2026-08-28", et: "16:00 EDT", local: "2026-08-29 11:23:12" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
@@ -33,7 +33,7 @@ const MONTHLY = [
   { m: "5月", ndx: 10.5, spx: 5.1 },
   { m: "6月", ndx: -0.2, spx: -1.1 },
   { m: "7月", ndx: -6.6, spx: -0.1 },
-  { m: "8月", ndx: 4.8, spx: 3.2 },
+  { m: "8月", ndx: 4.1, spx: 3 },
 ];
 const MC_MAX = 16; // 纵轴满刻度 ±%
 
