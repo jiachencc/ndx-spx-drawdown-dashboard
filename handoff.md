@@ -1,6 +1,6 @@
 # NDX / SPX 指数回撤决策看板 — 交接说明
 
-> 用途：本文件 + 仓库根目录 `index.html` 构成完整交接包。新窗口/新任务直接读这两份即可继续干活，无需翻历史对话。
+> 用途：本文件 + `index.html` + `positions.html` + `data.js` 构成完整交接包。新窗口/新任务直接读这四份即可继续干活，无需翻历史对话。
 > 看板性质：个人投资决策辅助单页（深色金融终端风，已支持浅色主题一键切换）。**不构成投资建议。**
 
 ---
@@ -9,11 +9,11 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **v6.7**（截至 2026-08-28；v6.6→v6.7 变更：新增持仓水位页 positions.html、字体提取为共享 font.css） |
+| 版本 | **v6.7**（截至 2026-08-28；v6.6→v6.7 变更：新增持仓水位页 positions.html、字体提取为共享 font.css；持仓页后续迭代：买入位置分布、日志折叠+筛选、成本位/现价点击弹窗） |
 | 托管方式 | **GitHub Pages**（静态托管） |
 | 远程仓库 | `https://github.com/jiachencc/ndx-spx-drawdown-dashboard.git` |
 | 在线地址 | **https://jiachencc.github.io/ndx-spx-drawdown-dashboard/** |
-| 本地文件 | `ndx_spx_dashboard_handoff/index.html`（~95KB）+ `data.js`（数据层，~35KB），除 data.js 外全内联零外链 |
+| 本地文件 | `index.html`（~100KB）+ `positions.html`（~40KB）+ `data.js`（数据层，~40KB）+ `font.css`（共享字体，~56KB），日常维护只改 data.js |
 
 ---
 
@@ -25,7 +25,11 @@ ndx_spx_dashboard_handoff/
 ├── index.html      ← 看板本体：结构 + CSS + 渲染逻辑（GitHub Pages 入口）
 ├── positions.html  ← 持仓水位页：成本位置视角 + 操作日志（从看板页头「💼 持仓」进入）
 ├── font.css        ← JetBrains Mono @font-face（base64 内嵌），index/positions 两页共享
-└── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR / POSITIONS，每日更新只改此文件
+├── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR / POSITIONS，每日更新只改此文件
+├── scripts/
+│   └── fetch_and_update.mjs   ← AUTO 区抓数脚本（见 §3.3）
+└── .github/workflows/
+    └── update-data.yml        ← 每日定时触发上面的脚本
 ```
 
 ---
@@ -33,9 +37,8 @@ ndx_spx_dashboard_handoff/
 ## 3. 核心约定（改数据前必读，避免破坏模型）
 
 ### 3.1 数据源与口径
-- **NDX（纳斯达克100）**：Nasdaq 日线 API 有 **1 天滞后**——`DEFAULT.ndx` 当日值用 **QQQ ETF 涨跌幅推导**（误差 < 0.02%），非官方收盘价。
-- **SPX（标普500）**：用 **SPY ETF 真实收盘 ×10** 作代理（点位比 ≈ 10:1）。
-- **年内最大回撤 `ddYtd`**：脚本从 Yahoo/stooq 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
+- **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。
+- **年内最大回撤 `ddYtd`**：脚本从 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
 - **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值四项（peFwd/peTtm/cape/pePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
 - **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
 - **定投回测**：`DCA_NDX` / `DCA_SPX` 各 **2517 点**（2016–2026 每日定投 1 元），仅展示累计收益率与一次性买入对比，不产生买卖信号。区间表含近1月/3月/半年/1年/全周期五档（窗口按交易日 21/63/126/252 近似切片）。
@@ -52,7 +55,7 @@ ndx_spx_dashboard_handoff/
 **人工只需维护 MANUAL 区三件事**：
 1. `epsGrowth`（盈利增速预期）——无免费 API，按你的信息源数日一更。
 2. `CALENDAR`（事件日历）——删除已过期事件、补充未来 1-2 周关键事件（名称可标"预计"，写一句决策向解读）。
-3. `POSITIONS`（持仓）——买卖后更新 `hold` 的 qty/cost/idxAtCost，并在 `log` 顶部加一条流水；只记份数与成本价，不记金额/账户（隐私模糊化）。展示由 positions.html 自动计算。
+3. `POSITIONS`（持仓）——买卖后更新 `hold` 的 qty/cost/idxAtCost，并在 `log` 顶部加一条流水（新流水带 `idxAt` 当日指数点位，供买入位置分布图用）；只记份数与成本价，不记金额/账户（隐私模糊化）。`strategy` 的 dip/rally 日内操作线（%）一般不动，调整属策略变更。展示由 positions.html 自动计算。
 
 ~~每月月初补 MONTHLY~~ 已自动化：月度涨跌幅由脚本按日 K 聚合（月末收盘环比，当月为至今），无需手改。
 
@@ -85,11 +88,19 @@ ndx_spx_dashboard_handoff/
 渲染总入口为 `renderAll()`（index.html），各区块渲染函数统一按 `renderXxx()` 命名，工具函数集中在文件顶部。`drawScale` 是唯一由 JS 动态生成的 SVG（主题切换时需重绘）。新增区块请沿用此命名约定，勿在文档中罗列函数清单——以代码为准以免漂移。
 
 ### 4.4 铁律（继承自查错经验）
-- **零外部依赖**：不引任何外部框架/CDN/字体/图表库，图表手写 SVG，图标手写 SVG path，不用 emoji 当图标。仓库内资源仅允许 `data.js` 一个本地脚本引用。
+- **零外部依赖**：不引任何外部框架/CDN/字体/图表库，图表手写 SVG，图标手写 SVG path，不用 emoji 当图标。仓库内本地引用仅允许 `data.js`（脚本）与 `font.css`（共享字体）。
   > **为什么保留**：GitHub Pages 已不强制此条，但它仍是本项目的有意设计——① 国内访问第三方 CDN 不稳定，外链易白屏；② 本看板含个人持仓信息，每次外链请求都会向第三方暴露访问时间与 IP；③ 无依赖即无升级与供应链风险。若未来确需引入外部库，先评估这三点。
 - **入场动画**：区块 `riseIn` 渐入 + `.card-hi::after` 金色分割线扫光；`prefers-reduced-motion` 下自动关闭。注意 `.card-hi` 需保持 `position: relative`。
 - 字体：中文/正文走系统字体栈，数字走内嵌 JetBrains Mono（见 4.2）；货币用 `¥`、红跌绿涨（国内习惯）。
 - 已知例外：主题切换按钮暂用 🌙/☀️ 文本符号（非 SVG 图标），属可接受妥协，其余功能性图标一律手写 SVG path。
+
+### 4.5 持仓页（positions.html）约定
+- **隐私红线**：只记份数与成本价，不记账户金额；金额展示模糊到「万」一位小数。
+- **成本位置分位** = (成本 − 52周低) / (ATH − 52周低)；三档标签按四舍五入后的整数分位判定：<35% 低 / 35–65% 中 / >65% 高，保证显示与档位一致。
+- **口径措辞**：统一用「成本/成本位/现价」，不用「建仓时/建仓」（log 是合并的历史快照，非真实建仓日）；log 中 `act:"建仓"` 仅作为操作类型保留。
+- **弹窗去重原则**：52周尺轨道整体可点击（点轨道吸附最近标记弹出解读）；弹窗只保留卡片上没有的详情（成本距高点、YTD 水位、浮盈垫），卡片已有的信息（水位梯 chips、今日涨跌）不重复出现。
+- **买入位置分布**：绿点按当日 `idxAt` 落位，点大小 ∝ 份数，点击弹出明细气泡。
+- 操作日志默认折叠 3 条，标题下「全部/纳指/标普」筛选 chips 按流水条数动态生成（基于 `hold` 的 `idx` 字段映射，非硬编码 sym）。
 
 ---
 
@@ -105,7 +116,7 @@ python3 -m http.server 8765
 ### 5.2 发布（git push 即部署）
 ```bash
 cd <本地仓库目录>
-git add index.html data.js   # 日常更新动的是 data.js，别漏
+git add index.html positions.html data.js   # 按实际改动添加；日常更新动的是 data.js，别漏
 git commit -m "data: 更新至 YYYY-MM-DD 收盘"
 git push origin main
 ```
@@ -124,17 +135,17 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 
 ## 6. 已知限制 & 待办
 
-- [x] ~~宏观指标过期~~：VIX/美债/汇率/恐贪已由 Actions 每日自动更新（估值五项与 putcall 仍手动）。
+- [x] ~~宏观指标过期~~：VIX/美债/汇率/恐贪已由 Actions 每日自动更新。
+- [x] ~~估值五项与 putcall 手动~~：已自动化（2026-08 起，见 §3.1）。
 - [x] ~~NDX 滞后 1 天~~：脚本现在直接抓 ^NDX / ^GSPC 官方指数，不再 QQQ 推导。
 - [x] ~~MONTHLY 无提醒机制~~：月度涨跌幅已由脚本按日 K 自动聚合（2026-08-28 起），不再是人工项。
 - [ ] **监控 Actions 健康度**：偶尔瞄一眼仓库 Actions 页 `update-data` 是否绿；连续红叉按 §3.3 兜底流程转人工。
-- [ ] 浅色主题下极个别写死颜色已覆盖（标题渐变、tag-black、SVG 标记点、hint-pop 气泡），如再发现白底白字按第 4.1 节补 `body.light` 覆盖即可。
 - [ ] 可选优化：降低首屏信息密度。
 
 ---
 
 ## 7. 重新开干 · 检查清单
 1. 读 `handoff.md`（本文件）确认约定与部署命令。
-2. 改数据 → 只编辑 `data.js`；改结构/样式/逻辑 → 编辑 `index.html`。
+2. 改数据 → 只编辑 `data.js`；改结构/样式/逻辑 → 编辑 `index.html`（持仓页改 `positions.html`）。
 3. 改完按第 5.2 节 `git push` 发布。
 4. 用第 5.3 节 curl 验证关键特性已上线。
