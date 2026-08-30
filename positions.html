@@ -17,7 +17,7 @@
     --line-soft: #1c2538;
     --tx: #e2e9f5;
     --tx2: #8fa0ba;
-    --tx3: #6f7f9a;
+    --tx3: #8294af;   /* 提亮一档（原 #6f7f9a 在暗色卡片上约 3.4:1，不达 WCAG AA） */
     --green: #2dd4a7;
     --red: #f26d7d;
     --yellow: #f7c14e;
@@ -36,7 +36,7 @@
     --line-soft: #eaf0f7;
     --tx: #16243b;
     --tx2: #52627e;
-    --tx3: #64748b;
+    --tx3: #5b6b85;   /* 加深一档（原 #64748b 在白底约 4.0:1，不达 WCAG AA） */
     --green: #0ea372;
     --red: #e23b53;
     --yellow: #c8901a;
@@ -45,6 +45,7 @@
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+  :focus:not(:focus-visible) { outline: none; }   /* 老浏览器无 :focus-visible 时的兜底，避免焦点样式丢失（对齐主看板） */
   html { -webkit-text-size-adjust: 100%; }
   body {
     background: radial-gradient(1200px 600px at 85% -10%, rgba(91,163,255,.06), transparent 60%), var(--bg);
@@ -194,29 +195,35 @@
   .act-open { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
   .act-close { background: rgba(242,109,125,.12); color: var(--red); border: 1px solid rgba(242,109,125,.3); }
   .act-other { background: var(--card2); color: var(--tx2); border: 1px solid var(--line); }
-  .footer { text-align: center; font-size: 10.5px; color: var(--tx3); margin-top: 20px; line-height: 1.8; }
+  .footer { text-align: center; font-size: 10.5px; color: var(--tx3); margin: 20px auto 0; max-width: 720px; line-height: 1.8; }
 
   @media (max-width: 480px) {
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
     .sum-cell .s-val { font-size: 15px; }
   }
+  /* 极窄屏：汇总三列降为两列，防 17px mono 数字溢出 */
+  @media (max-width: 400px) {
+    .sum-grid { grid-template-columns: repeat(2, 1fr); }
+    .sum-cell { padding: 8px 4px; }
+    .sum-cell .s-val { font-size: 13.5px; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="header">
+<main class="wrap">
+  <header class="header">
     <div>
-      <h1>💼 持仓水位</h1>
+      <h1><span aria-hidden="true">💼</span> 持仓水位</h1>
       <div class="sub">成本位置视角 · 当前状态 · 操作日志</div>
     </div>
     <div class="meta">
       <a class="theme-btn" href="index.html">← 看板</a>
-      <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题">🌙 深色</button>
+      <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span> 深色</button>
     </div>
-  </div>
+  </header>
 
   <div class="card privacy">
-    <span>🔒</span>
+    <span aria-hidden="true">🔒</span>
     <div><b>隐私口径</b>：本页只记录<b>份数与成本价</b>，不记录账户、金额与券商信息；市值 / 浮盈均由公开行情实时推算，仅供参考。</div>
   </div>
 
@@ -232,15 +239,16 @@
 
   <div id="pos-list"></div>
 
-  <div class="sec-title">🧾 操作日志 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（新在上）</span><button type="button" id="log-toggle" class="log-toggle" aria-expanded="false"></button></div>
+  <h2 class="sec-title"><span aria-hidden="true">🧾</span> 操作日志 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（新在上）</span><button type="button" id="log-toggle" class="log-toggle" aria-expanded="false"></button></h2>
   <div class="log-chips" id="log-chips"></div>
   <div class="card" id="log-list" style="padding:4px 12px;"></div>
 
-  <div class="footer">
-    持仓市值（估）= 成本价 × 现指数 ÷ 成本位指数 × 份数（忽略 QDII 溢价变化，含误差）<br>
-    本页为个人记录工具，不构成投资建议 · 数据与<a href="index.html" style="color:var(--blue)">主看板</a>共用 data.js
-  </div>
-</div>
+</main>
+
+<footer class="footer">
+  持仓市值（估）= 成本价 × 现指数 ÷ 成本位指数 × 份数（忽略 QDII 溢价变化，含误差）<br>
+  本页为个人记录工具，不构成投资建议 · 数据与<a href="index.html" style="color:var(--blue)">主看板</a>共用 data.js
+</footer>
 
 <script src="data.js"></script>
 <script>
@@ -252,7 +260,7 @@ const THEME_KEY = "wb_ndxspx_theme";
 const themeBtn = $("theme-toggle");
 function applyTheme(light) {
   document.body.classList.toggle("light", light);
-  themeBtn.innerHTML = light ? "☀️ 切深色" : "🌙 切浅色";
+  themeBtn.innerHTML = light ? '<span aria-hidden="true">☀️</span> 切深色' : '<span aria-hidden="true">🌙</span> 切浅色';
 }
 let savedTheme = null;
 try { const s = localStorage.getItem(THEME_KEY); if (s === "light" || s === "dark") savedTheme = s; } catch (e) {}
@@ -271,17 +279,28 @@ const fmtIdx = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const cls = (v) => v >= 0 ? "up" : "down";
 
 /* ---- 渲染 ---- */
+/* 布局/展示常量：集中管理魔法数，调整参数只改这里 */
+const CONFIG = {
+  LOG_PREVIEW: 3,     // 操作日志折叠时显示的条数
+  TIER_LOW: 35,       // 成本分位阈值：<35% 区间偏低
+  TIER_HIGH: 65,      // 成本分位阈值：>65% 区间偏高
+  BUY_BIN: 2.5,       // 买入分布横轴分箱宽度（百分点）
+  BUY_STACK_MAX: 3,   // 同分位绿点最大叠层（0~3 共 4 层，防溢出）
+  BUY_DOT_BASE: 5,    // 买入点最小直径（px）
+  BUY_DOT_RANGE: 3,   // 买入点随份数增大区间（px，5~8）
+  TIP_CLAMP: 40,      // 买入气泡距视口顶部的钳制距离（px）
+};
 let posInfos = [];   // 现价弹窗数据（每次 render 重建，下标对应 data-k）
 let costInfos = [];  // 成本位弹窗数据（同上）
 
-function render() {
+function renderImpl() {
   closeIdxPop();
   /* 持有天数：取每只 ETF 日志中最早日期，到数据日（asOf.us）的自然日差 */
   const asOfUs = DEFAULT.asOf && DEFAULT.asOf.us ? DEFAULT.asOf.us : null;
   const firstDate = {};
   (POSITIONS.log || []).forEach((e) => { if (!firstDate[e.sym] || e.d < firstDate[e.sym]) firstDate[e.sym] = e.d; });
   if (typeof POSITIONS === "undefined" || !POSITIONS.hold || !POSITIONS.hold.length) {
-    $("pos-list").innerHTML = '<div class="card" style="color:var(--tx3);font-size:12.5px;">暂无持仓记录：请在 data.js 的 POSITIONS 中维护。</div>';
+    $("pos-list").innerHTML = '<article class="card" style="color:var(--tx3);font-size:12.5px;">暂无持仓记录：请在 data.js 的 POSITIONS 中维护。</article>';
     return;
   }
   $("pos-updated").textContent = POSITIONS.updated || "--";
@@ -304,133 +323,139 @@ function render() {
   /* 汇总 */
   const totalR = totalCost ? (totalVal - totalCost) / totalCost : 0;
   $("sum-grid").innerHTML =
-    '<div class="sum-cell"><div class="s-label">💰 总投入（成本）</div><div class="s-val">' + fmtWan(totalCost) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label">📦 组合市值（估）</div><div class="s-val">' + fmtWan(totalVal) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label">📈 组合浮盈</div><div class="s-val ' + cls(totalR) + '">' + fmtPct(totalR) + '</div></div>';
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总投入（成本）</div><div class="s-val">' + fmtWan(totalCost) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📦</span> 组合市值（估）</div><div class="s-val">' + fmtWan(totalVal) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 组合浮盈</div><div class="s-val ' + cls(totalR) + '">' + fmtPct(totalR) + '</div></div>';
 
   /* 持仓卡 */
-  $("pos-list").innerHTML = rows.map(({ p, m, r, nav, costAmt, valAmt }, i) => {
-    const pl = valAmt - costAmt;   // 浮盈额（估），显示模糊到万
-    const lo = m.low52 || Math.min(p.idxAtCost, m.close || p.idxAtCost);
-    const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
-    const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
-    const pct = Math.round(pctOf(p.idxAtCost));   // 成本位置分位（52周低=0% → 历史高点=100%），取整保证显示与档位一致
-    const tier = pct < 35 ? ["t-low", "🟢 区间偏低"] : pct <= 65 ? ["t-mid", "🟡 区间中位"] : ["t-high", "🔵 区间偏高"];
-    const backToCost = 1 - m.close / p.idxAtCost;   // 指数再跌 x% 回到成本（正=需涨回本）
-    const idxName = p.idx === "ndx" ? "纳指100" : "标普500";
-    const heldDays = asOfUs && firstDate[p.sym] ? Math.max(1, Math.round((Date.parse(asOfUs) - Date.parse(firstDate[p.sym])) / 86400000)) : null;
-    /* 日内波动操作线（MANUAL 策略，data.js POSITIONS.strategy） */
-    const st = POSITIONS.strategy || { dip: -2, rally: 3 };
-    const chg = m.chg || 0;
-    const ruleTxt = "跌 " + Math.abs(st.dip) + "% 加仓 / 涨 " + st.rally + "% 减仓";
-    let strat;
-    if (chg <= st.dip) {
-      strat = '<span class="up">🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>';
-    } else if (chg >= st.rally) {
-      strat = '<span class="warn">🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>';
-    } else {
-      strat = '🎯 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（' + ruleTxt + '）';
-    }
-    posInfos[i] = { close: m.close, chg, lo, hi, days: m.days };
-    /* 成本位弹窗数据：三点关系 + 当前总结 + 规则化操作提示 */
-    const tierWord = tier[1].slice(2);   // 去掉 emoji，取「区间偏低/中位/偏高」
-    const advice = pct < 35
-      ? "🟢 成本位置较低，安全垫厚，适合按纪律耐心持有；若深度回调，可按计划分批加仓。"
-      : pct <= 65
-        ? "🟡 位置中性，按既定纪律执行：日内跌 ≥" + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
-        : "🔵 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。";
-    const sumTxt = "成本位于" + tierWord + "（分位 " + pct + "%）";
-    const cushionTxt = r >= 0
-      ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
-      : "当前浮亏，需涨 " + fmtPct(backToCost) + " 回本";
-    /* YTD 水位（今年尺）：年初→现价坐标，成本位青色竖杠落点即水位；YTD≤0 整条隐藏，>100% 钳制并标「高位买入」 */
-    const ytdR = m.prevYr && m.close ? m.close / m.prevYr - 1 : null;
-    /* 今年尺 mini-bar：年初→现价坐标，成本位青色竖杠落点即水位；>100% 钳制并标「高位买入」 */
-    let ytdBar = "";
-    if (ytdR > 0) {
-      const ytdRaw = (p.idxAtCost - m.prevYr) / (m.close - m.prevYr) * 100;
-      const ytdLeft = Math.max(0, Math.min(100, ytdRaw));
-      ytdBar = '<div class="bar-wrap ytd-bar">' +
-        '<div class="bar-title"><span>今年水位 · 成本在年初→现价涨幅中的位置 <b>' + Math.round(ytdLeft) + '%</b>' +
-          (ytdRaw > 100 ? '<span class="pos-tier t-mid">⚠️ 高位买入</span>' : '') + '</span>' +
-          '<span class="' + cls(ytdR) + '">今年 ' + fmtPct(ytdR) + '</span></div>' +
-        '<div class="bar-track">' +
-          '<span class="bar-end w"></span>' +
-          '<span class="bar-marker cost static" style="left:' + ytdLeft + '%"></span>' +
-        '</div>' +
-        '<div class="bar-labels"><span>年初 ' + fmtIdx(m.prevYr) + '</span><span>现价 ' + fmtIdx(m.close) + '</span></div>' +
-      '</div>';
-    }
-    costInfos[i] = { idxAtCost: p.idxAtCost, gapCost: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
-    /* 买入位置分布：每笔买入按当日指数落在52周区间的分位，绿点标在尺上方（大小∝份数），重叠位置纵向堆叠；点击看明细 */
-    const buys = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.idxAt);
-    const maxQ = Math.max.apply(null, buys.map((e) => e.qty).concat([1]));
-    const binCnt = {};
-    const buyMarks = buys.map((e) => {
-      const pc = Math.max(0, Math.min(100, pctOf(e.idxAt)));
-      const bin = Math.round(pc / 2.5);
-      const lvl = Math.min(binCnt[bin] || 0, 3);   // 同一分位最多叠 4 层，防溢出
-      binCnt[bin] = (binCnt[bin] || 0) + 1;
-      const sz = (5 + 3 * e.qty / maxQ).toFixed(1);   // 点大小 5~8px ∝ 份数
-      return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%"' +
-        ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
-        ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtN(e.qty) + ' 份">' +
-        '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
-    }).join("");
-    /* 三点水位梯：高点/现价/成本 按数值降序排列，现价行挂箭头 chips */
-    const dateStr = DEFAULT.asOf && DEFAULT.asOf.us ? " (" + DEFAULT.asOf.us.slice(5).replace("-", ".") + ")" : "";
-    const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
-    const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
-    const chipHigh = '<span class="lad-chip ' + (m.close >= hi ? "up" : "warn") + '">' + (m.close >= hi ? "▲" : "▼") + fmtPct(m.close / hi - 1) + ' 距高点</span>';
-    const ladRows = [
-      { k: "hi", name: "高点" + athStr, v: hi, dot: "var(--yellow)", chips: "" },
-      { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
-      { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: "" },
-    ].sort((a, b) => b.v - a.v);
-    return '<div class="card">' +
-      '<div class="pos-head"><div class="pos-name">' + p.sym +
-        '<span class="code">' + p.code + '</span>' +
-        '<span class="idx-badge ' + p.idx + '">' + idxName + '</span></div>' +
-        (heldDays ? '<span class="held">持有 ' + heldDays + ' 天</span>' : '') +
+  $("pos-list").innerHTML = rows.map((row, i) => holdCardHtml(row, i, { asOfUs, firstDate })).join("");
+
+/* 单张持仓卡 HTML（独立函数，降低 render() 复杂度；含弹窗数据赋值）
+   row = { p, m, r, nav, costAmt, valAmt }；ctx = { asOfUs, firstDate } */
+function holdCardHtml(row, i, ctx) {
+  const { p, m, r, nav, costAmt, valAmt } = row;
+  const { asOfUs, firstDate } = ctx;
+  const pl = valAmt - costAmt;   // 浮盈额（估），显示模糊到万
+  const lo = m.low52 || Math.min(p.idxAtCost, m.close || p.idxAtCost);
+  const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
+  const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+  const pct = Math.round(pctOf(p.idxAtCost));   // 成本位置分位（52周低=0% → 历史高点=100%），取整保证显示与档位一致
+  /* 档位：文本与 emoji 分离，emoji 仅装饰（渲染时 aria-hidden）；tierWord 不再依赖 slice 去 emoji */
+  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
+  const backToCost = 1 - m.close / p.idxAtCost;   // 指数再跌 x% 回到成本（正=需涨回本）
+  const idxName = p.idx === "ndx" ? "纳指100" : "标普500";
+  const heldDays = asOfUs && firstDate[p.sym] ? Math.max(1, Math.round((Date.parse(asOfUs) - Date.parse(firstDate[p.sym])) / 86400000)) : null;
+  /* 日内波动操作线（MANUAL 策略，data.js POSITIONS.strategy） */
+  const st = POSITIONS.strategy || { dip: -2, rally: 3 };
+  const chg = m.chg || 0;
+  const ruleTxt = "跌 " + Math.abs(st.dip) + "% 加仓 / 涨 " + st.rally + "% 减仓";
+  let strat;
+  if (chg <= st.dip) {
+    strat = '<span class="up"><span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>';
+  } else if (chg >= st.rally) {
+    strat = '<span class="warn"><span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>';
+  } else {
+    strat = '<span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（' + ruleTxt + '）';
+  }
+  posInfos[i] = { close: m.close, chg, lo, hi, days: m.days };
+  /* 成本位弹窗数据：三点关系 + 当前总结 + 规则化操作提示 */
+  const tierWord = tier[1];   // emoji 已分离，此处即纯文本
+  const advice = pct < CONFIG.TIER_LOW
+    ? '<span aria-hidden="true">🟢</span> 成本位置较低，安全垫厚，适合按纪律耐心持有；若深度回调，可按计划分批加仓。'
+    : pct <= CONFIG.TIER_HIGH
+      ? '<span aria-hidden="true">🟡</span> 位置中性，按既定纪律执行：日内跌 ≥' + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
+      : '<span aria-hidden="true">🔵</span> 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。';
+  const sumTxt = "成本位于" + tierWord + "（分位 " + pct + "%）";
+  const cushionTxt = r >= 0
+    ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
+    : "当前浮亏，需涨 " + fmtPct(backToCost) + " 回本";
+  /* YTD 水位（今年尺）：年初→现价坐标，成本位青色竖杠落点即水位；YTD≤0 整条隐藏，>100% 钳制并标「高位买入」 */
+  const ytdR = m.prevYr && m.close ? m.close / m.prevYr - 1 : null;
+  let ytdBar = "";
+  if (ytdR > 0) {
+    const ytdRaw = (p.idxAtCost - m.prevYr) / (m.close - m.prevYr) * 100;
+    const ytdLeft = Math.max(0, Math.min(100, ytdRaw));
+    ytdBar = '<div class="bar-wrap ytd-bar">' +
+      '<div class="bar-title"><span>今年水位 · 成本在年初→现价涨幅中的位置 <b>' + Math.round(ytdLeft) + '%</b>' +
+        (ytdRaw > 100 ? '<span class="pos-tier t-mid"><span aria-hidden="true">⚠️</span> 高位买入</span>' : '') + '</span>' +
+        '<span class="' + cls(ytdR) + '">今年 ' + fmtPct(ytdR) + '</span></div>' +
+      '<div class="bar-track">' +
+        '<span class="bar-end w"></span>' +
+        '<span class="bar-marker cost static" style="left:' + ytdLeft + '%"></span>' +
       '</div>' +
-      '<div class="stat-grid">' +
-        '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
-        '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
-      '</div>' +
-      '<div class="ladder">' +
-        ladRows.map((row) =>
-          '<div class="lad-row">' +
-            '<span class="lad-dot ' + row.k + '" style="background:' + row.dot + '"></span>' +
-            '<span class="lad-name">' + row.name + '</span>' +
-            '<b class="lad-val">' + fmtIdx(row.v) + '</b>' +
-            (row.chips ? '<span class="lad-chips">' + row.chips + '</span>' : '') +
-          '</div>').join("") +
-        '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
-      '</div>' +
-      '<div class="bar-wrap">' +
-        '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '">' + tier[1] + '</span></span></div>' +
-        '<div class="buy-layer">' + buyMarks + '</div>' +
-        '<div class="bar-track pops">' +
-          '<span class="bar-end"></span>' +
-          '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
-          '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
-        '</div>' +
-        '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
-        '<div class="bar-legend"><span>52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span><span><i style="background:var(--green);border-radius:50%"></i>买入</span></div>' +
-      '</div>' +
-      ytdBar +
-      '<div class="kpi-row">' +
-        '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
-        '<div class="kpi"><div class="k-label">市值（估）</div><div class="k-val">' + fmtWan(nav * p.qty) + '</div></div>' +
-        '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
-        '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (p.pct !== undefined ? p.pct.toFixed(1) + '%' : '--') + '</div></div>' +
-      '</div>' +
-      '<div class="strat-row">' + strat +
-        '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
-        '<div class="strat-note">触发线按<b>指数</b>当日涨跌计算（美股口径）。QDII ETF 的日内价格反映的是前一晚美股行情与当日溢价变化，与指数涨跌存在错位——以券商账户的实际成交为准。</div>' +
-      '</div>' +
+      '<div class="bar-labels"><span>年初 ' + fmtIdx(m.prevYr) + '</span><span>现价 ' + fmtIdx(m.close) + '</span></div>' +
     '</div>';
+  }
+  costInfos[i] = { idxAtCost: p.idxAtCost, gapCost: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
+  /* 买入位置分布：每笔买入按当日指数落在52周区间的分位，绿点标在尺上方（大小∝份数），重叠位置纵向堆叠；点击看明细 */
+  const buys = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.idxAt);
+  const maxQ = Math.max.apply(null, buys.map((e) => e.qty).concat([1]));
+  const binCnt = {};
+  const buyMarks = buys.map((e) => {
+    const pc = Math.max(0, Math.min(100, pctOf(e.idxAt)));
+    const bin = Math.round(pc / CONFIG.BUY_BIN);
+    const lvl = Math.min(binCnt[bin] || 0, CONFIG.BUY_STACK_MAX);   // 同一分位最多叠 4 层，防溢出
+    binCnt[bin] = (binCnt[bin] || 0) + 1;
+    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * e.qty / maxQ).toFixed(1);   // 点大小 5~8px ∝ 份数
+    return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%"' +
+      ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
+      ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtN(e.qty) + ' 份">' +
+      '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
   }).join("");
+  /* 三点水位梯：高点/现价/成本 按数值降序排列，现价行挂箭头 chips */
+  const dateStr = DEFAULT.asOf && DEFAULT.asOf.us ? " (" + DEFAULT.asOf.us.slice(5).replace("-", ".") + ")" : "";
+  const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
+  const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
+  const chipHigh = '<span class="lad-chip ' + (m.close >= hi ? "up" : "warn") + '">' + (m.close >= hi ? "▲" : "▼") + fmtPct(m.close / hi - 1) + ' 距高点</span>';
+  const ladRows = [
+    { k: "hi", name: "高点" + athStr, v: hi, dot: "var(--yellow)", chips: "" },
+    { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
+    { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: "" },
+  ].sort((a, b) => b.v - a.v);
+  return '<article class="card">' +
+    '<div class="pos-head"><div class="pos-name">' + p.sym +
+      '<span class="code">' + p.code + '</span>' +
+      '<span class="idx-badge ' + p.idx + '">' + idxName + '</span></div>' +
+      (heldDays ? '<span class="held">持有 ' + heldDays + ' 天</span>' : '') +
+    '</div>' +
+    '<div class="stat-grid">' +
+      '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
+      '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
+    '</div>' +
+    '<div class="ladder">' +
+      ladRows.map((lr) =>
+        '<div class="lad-row">' +
+          '<span class="lad-dot ' + lr.k + '" style="background:' + lr.dot + '"></span>' +
+          '<span class="lad-name">' + lr.name + '</span>' +
+          '<b class="lad-val">' + fmtIdx(lr.v) + '</b>' +
+          (lr.chips ? '<span class="lad-chips">' + lr.chips + '</span>' : '') +
+        '</div>').join("") +
+      '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
+    '</div>' +
+    '<div class="bar-wrap">' +
+      '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span></div>' +
+      '<div class="buy-layer">' + buyMarks + '</div>' +
+      '<div class="bar-track pops">' +
+        '<span class="bar-end"></span>' +
+        '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
+        '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
+      '</div>' +
+      '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
+      '<div class="bar-legend"><span>52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span><span><i style="background:var(--green);border-radius:50%"></i>买入</span></div>' +
+    '</div>' +
+    ytdBar +
+    '<div class="kpi-row">' +
+      '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
+      '<div class="kpi"><div class="k-label">市值（估）</div><div class="k-val">' + fmtWan(nav * p.qty) + '</div></div>' +
+      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
+      '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (p.pct !== undefined ? p.pct.toFixed(1) + '%' : '--') + '</div></div>' +
+    '</div>' +
+    '<div class="strat-row">' + strat +
+      '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
+      '<div class="strat-note">触发线按<b>指数</b>当日涨跌计算（美股口径）。QDII ETF 的日内价格反映的是前一晚美股行情与当日溢价变化，与指数涨跌存在错位——以券商账户的实际成交为准。</div>' +
+    '</div>' +
+  '</article>';
+}
 
   /* 水位梯：定位 成本↔现价 之间的填充段（两圆点中心之间） */
   document.querySelectorAll("#pos-list .ladder").forEach((lad) => {
@@ -447,7 +472,6 @@ function render() {
   renderLog();
 }
 
-const LOG_PREVIEW = 3;   // 折叠时显示的最新条数
 let logOpen = false;
 let logFilter = "all";   // all | ndx | spx（映射自 hold 的 idx）
 const symIdx = {};       // sym → idx，用于日志按品种过滤
@@ -467,10 +491,10 @@ function logItemHtml(e) {
 function renderLog() {
   const all = POSITIONS.log || [];
   const log = all.filter((e) => logFilter === "all" || symIdx[e.sym] === logFilter);
-  $("log-list").innerHTML = (logOpen ? log : log.slice(0, LOG_PREVIEW)).map(logItemHtml).join("")
+  $("log-list").innerHTML = (logOpen ? log : log.slice(0, CONFIG.LOG_PREVIEW)).map(logItemHtml).join("")
     || '<div class="log-note" style="padding:12px 2px;text-align:center">暂无日志</div>';
   const btn = $("log-toggle");
-  if (log.length > LOG_PREVIEW) {
+  if (log.length > CONFIG.LOG_PREVIEW) {
     btn.style.display = "";
     btn.textContent = logOpen ? "收起 ▴" : "展开全部 " + log.length + " 条 ▾";
     btn.setAttribute("aria-expanded", logOpen ? "true" : "false");
@@ -510,7 +534,7 @@ document.addEventListener("click", (e) => {
   const w = buyTip.offsetWidth;
   const cx = Math.max(w / 2 + 6, Math.min(window.innerWidth - w / 2 - 6, r.left + r.width / 2));
   buyTip.style.left = cx + "px";
-  buyTip.style.top = Math.max(40, r.top - 7) + "px";   // 气泡底缘距点顶 7px；顶部越界时钳到屏内
+  buyTip.style.top = Math.max(CONFIG.TIP_CLAMP, r.top - 7) + "px";   // 气泡底缘距点顶 7px；顶部越界时钳到屏内
 });
 /* ---- 位置解读弹窗（点击 bar 上的现价 / 成本位标记） ---- */
 let idxPop = null;
@@ -523,17 +547,17 @@ function closeIdxPop() {
   }
 }
 function nowPopHtml(info) {
-  return '<div class="ip-title">📍 现价 ' + fmtIdx(info.close) + ' · 今日 ' + fmtPct(info.chg / 100, 2) + '</div>' +
+  return '<div class="ip-title"><span aria-hidden="true">📍</span> 现价 ' + fmtIdx(info.close) + '</div>' +
     '<div class="ip-row"><span>距 52 周低（下跌缓冲）</span><b>' + fmtPct(info.close / info.lo - 1) + '</b></div>' +
     '<div class="ip-row"><span>距历史高点</span><b class="warn">' + fmtPct(info.close / info.hi - 1) + (info.days ? '<span class="ip-sub">（' + info.days + ' 天前）</span>' : '') + '</b></div>';
 }
 function costPopHtml(info) {
-  return '<div class="ip-title">🏷️ 成本位 ' + fmtIdx(info.idxAtCost) + '</div>' +
+  return '<div class="ip-title"><span aria-hidden="true">🏷️</span> 成本位 ' + fmtIdx(info.idxAtCost) + '</div>' +
     '<div class="ip-row"><span>现价较成本</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
     '<div class="ip-row"><span>成本距高点</span><b>' + fmtPct(info.gapCost) + '</b></div>' +
     '<div class="ip-row"><span>成本价 / 份数</span><b>' + info.cost.toFixed(3) + ' 元 · ' + fmtN(info.qty) + ' 份</b></div>' +
-    '<div class="ip-tip">📊 ' + info.sumTxt + '；' + info.cushionTxt + '<br>' + info.advice + '</div>' +
-    '<div class="ip-note">⚠️ 机械规则提示，非投资建议</div>';
+    '<div class="ip-tip"><span aria-hidden="true">📊</span> ' + info.sumTxt + '；' + info.cushionTxt + '<br>' + info.advice + '</div>' +
+    '<div class="ip-note"><span aria-hidden="true">⚠️</span> 机械规则提示，非投资建议</div>';
 }
 document.addEventListener("click", (e) => {
   if (e.target.closest(".idx-pop")) return;                             // 点弹窗内部不关闭
@@ -588,6 +612,18 @@ document.addEventListener("click", (e) => {
   }
 });
 
+/* 错误兜底：data.js 缺失或渲染异常时不白屏，给出可读提示（对齐主看板 renderAll 的降级策略） */
+function render() {
+  try { renderImpl(); }
+  catch (e) {
+    console.error("持仓页渲染异常:", e);
+    const el = $("pos-list");
+    if (el) el.innerHTML =
+      '<article class="card" style="color:var(--red);font-size:12.5px;line-height:1.7"><span aria-hidden="true">⚠️</span> 数据加载异常：' +
+      (e && e.message ? e.message : "未知错误") +
+      '<div style="margin-top:8px;color:var(--tx3);font-size:11px">请刷新页面重试，或检查 data.js 是否被正确加载。</div></article>';
+  }
+}
 render();
 </script>
 </body>

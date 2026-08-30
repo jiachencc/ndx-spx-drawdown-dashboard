@@ -18,7 +18,7 @@
     --line-soft: #1c2538;
     --tx: #e2e9f5;
     --tx2: #8fa0ba;
-    --tx3: #6f7f9a;
+    --tx3: #8294af;   /* 提亮一档（原 #6f7f9a 在暗色卡片上约 3.4:1，不达 WCAG AA；与持仓页保持一致） */
     --green: #2dd4a7;
     --red: #f26d7d;
     --yellow: #f7c14e;
@@ -39,7 +39,7 @@
     --line-soft: #eaf0f7;
     --tx: #16243b;
     --tx2: #52627e;
-    --tx3: #64748b;
+    --tx3: #5b6b85;   /* 加深一档（原 #64748b 在白底约 4.0:1，不达 WCAG AA；与持仓页保持一致） */
     --green: #0ea372;
     --red: #e23b53;
     --yellow: #c8901a;
@@ -308,8 +308,9 @@
     padding: 9px 12px; line-height: 1.4; transition: border-color .2s;
   }
   .kpi .k-label { font-size: 11px; color: var(--tx3); letter-spacing: .3px; }
-  .kpi .k-val { font-size: 15.5px; font-family: var(--mono); font-weight: 800; margin-top: 3px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .kpi .k-val.small { font-size: 13.5px; }
+  /* 字号随视口自适应：窄屏降档避免 ATH/涨回新高 等长数字被 ellipsis 截断（clamp 下限 11px 保证可读） */
+  .kpi .k-val { font-size: clamp(11px, 2.5vw, 15.5px); font-family: var(--mono); font-weight: 800; margin-top: 3px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .kpi .k-val.small { font-size: clamp(10.5px, 2.2vw, 13.5px); }
   .up { color: var(--green); } .down { color: var(--red); } .flat { color: var(--tx2); }
   /* ===== Scale / gauge ===== */
   .scale-card { padding: 18px 20px; }
@@ -348,8 +349,16 @@
   .st-on { background: rgba(242,109,125,.16); color: var(--red); border: 1px solid rgba(242,109,125,.4); }
   .st-near { background: rgba(247,193,78,.13); color: var(--yellow); border: 1px solid rgba(247,193,78,.4); }
   .st-off { background: rgba(143,160,186,.1); color: var(--tx2); border: 1px solid var(--line); }
+  /* 「远离」态：用虚线边框区分「观察」，不再依赖 opacity（透明度差在深色下几乎不可辨） */
+  .st-far { background: transparent; color: var(--tx3); border: 1px dashed var(--line); }
   .tp-on { background: rgba(45,212,167,.16); color: var(--green); border: 1px solid rgba(45,212,167,.4); }
   .tp-near { background: rgba(124,92,240,.13); color: var(--purple); border: 1px solid rgba(124,92,240,.4); }
+  /* ===== 配色方向提示：估值/情绪卡的红色=风险，与回撤区"红色=便宜/机会"方向相反 ===== */
+  .dir-hint {
+    font-size: 10.5px; color: var(--tx3); line-height: 1.6; margin: -4px 0 12px;
+    padding: 6px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; background: var(--card2);
+  }
+  .dir-hint b { color: var(--red); font-weight: 700; }
   /* ===== Meter rows (trend/valuation/sentiment) ===== */
   .meter { margin-bottom: 15px; }
   .meter:last-child { margin-bottom: 0; }
@@ -482,7 +491,7 @@
   .season-tip b { font-family: var(--mono); font-weight: 800; }
   /* ===== Monthly performance chart (tabbed) ===== */
   .mc-tabs { display: flex; gap: 8px; margin: 6px 0 2px; }
-  .mc-tab { flex: 1; padding: 10px 0; border: 1px solid var(--line); background: var(--bg2); color: var(--tx2); border-radius: 10px; font-size: 13px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: all .18s ease; -webkit-tap-highlight-color: transparent; }
+  .mc-tab { flex: 1; padding: 10px 0; border: 1px solid var(--line); background: var(--card2); color: var(--tx2); border-radius: 10px; font-size: 13px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: all .18s ease; -webkit-tap-highlight-color: transparent; }
   .mc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(74,158,255,.32); }
   .mc-tab:active { transform: scale(.98); }
   .mchart-wrap { display: flex; gap: 10px; margin-top: 8px; }
@@ -513,7 +522,7 @@
 </head>
 <body>
 <div id="loading" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;z-index:999999;background:var(--bg);color:var(--tx3);font-size:16px;flex-direction:column;gap:12px;transition:opacity .3s;">
-  <span style="font-size:32px;">📡</span>
+  <span style="font-size:32px;" aria-hidden="true">📡</span>
   <span>加载中…</span>
 </div>
 
@@ -525,17 +534,17 @@
     <div class="sub">NDX · SPX · 回撤监控 → 加减仓决策</div>
   </div>
   <div class="meta">
-    <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页">💼 持仓</a>
-    <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题">🌙 深色</button>
+    <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页"><span aria-hidden="true">💼</span> 持仓</a>
+    <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span> 深色</button>
     <span class="chip">💵 USD/CNY <b id="meta-fx">--</b></span>
-    <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)">🔶 美股盘中快照 · 正式收盘数据待更新</span>
-    <span class="chip chip-stale" id="stale-chip" style="display:none">⚠️ 数据过期 <b id="stale-days">0</b> 天</span>
+    <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)"><span aria-hidden="true">🔶</span> 美股盘中快照 · 正式收盘数据待更新</span>
+    <span class="chip chip-stale" id="stale-chip" style="display:none"><span aria-hidden="true">⚠️</span> 数据过期 <b id="stale-days">0</b> 天</span>
   </div>
 </div>
 
 <!-- ======= Data time (美股时区换算) ======= -->
 <div class="asof-bar" aria-label="数据更新时间">
-  <div class="asof-main">🕐 更新于 <b id="asof-local">--</b> · 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span></div>
+  <div class="asof-main"><span aria-hidden="true">🕐</span> 更新于 <b id="asof-local">--</b> · 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span></div>
   <div class="asof-cn" id="asof-macro" style="display:none">--</div>
   <div class="asof-legend">
     <span class="src-tag auto">AUTO</span>行情·宏观·估值·Put/Call·月度涨跌幅：每日自动更新
@@ -575,12 +584,12 @@
       <div class="drawdown-label">距历史高点回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="dd">?</button></div>
     </div>
     <div class="kpis">
-      <div class="kpi"><div class="k-label">📈 历史高点 ATH</div><div class="k-val" id="ndx-ath">--</div></div>
-      <div class="kpi"><div class="k-label">🚀 涨回新高需</div><div class="k-val down" id="ndx-toath">--</div></div>
-      <div class="kpi"><div class="k-label">⏳ 回撤已持续</div><div class="k-val" id="ndx-days">--</div></div>
-      <div class="kpi"><div class="k-label">📉 距 -15% 档</div><div class="k-val small" id="ndx-to15">--</div></div>
-      <div class="kpi"><div class="k-label">🔋 RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="ndx-rsi">--</div></div>
-      <div class="kpi"><div class="k-label">📍 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="ndx-52w">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📈</span> 历史高点 ATH</div><div class="k-val" id="ndx-ath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🚀</span> 涨回新高需</div><div class="k-val down" id="ndx-toath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">⏳</span> 回撤已持续</div><div class="k-val" id="ndx-days">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📉</span> 距 -15% 档</div><div class="k-val small" id="ndx-to15">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🔋</span> RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="ndx-rsi">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📍</span> 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="ndx-52w">--</div></div>
     </div>
   </div>
 
@@ -597,12 +606,12 @@
       <div class="drawdown-label">距历史高点回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="dd">?</button></div>
     </div>
     <div class="kpis">
-      <div class="kpi"><div class="k-label">📈 历史高点 ATH</div><div class="k-val" id="spx-ath">--</div></div>
-      <div class="kpi"><div class="k-label">🚀 涨回新高需</div><div class="k-val down" id="spx-toath">--</div></div>
-      <div class="kpi"><div class="k-label">⏳ 回撤已持续</div><div class="k-val" id="spx-days">--</div></div>
-      <div class="kpi"><div class="k-label">📉 距 -15% 档</div><div class="k-val small" id="spx-to15">--</div></div>
-      <div class="kpi"><div class="k-label">🔋 RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="spx-rsi">--</div></div>
-      <div class="kpi"><div class="k-label">📍 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="spx-52w">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📈</span> 历史高点 ATH</div><div class="k-val" id="spx-ath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🚀</span> 涨回新高需</div><div class="k-val down" id="spx-toath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">⏳</span> 回撤已持续</div><div class="k-val" id="spx-days">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📉</span> 距 -15% 档</div><div class="k-val small" id="spx-to15">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🔋</span> RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="spx-rsi">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📍</span> 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="spx-52w">--</div></div>
     </div>
   </div>
 
@@ -631,18 +640,18 @@
 <!-- ======= Trigger matrix ======= -->
 <div class="grid grid-two" aria-label="决策矩阵">
   <div class="card card-hi">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--yellow)"></span>🎯 回撤触发矩阵 · 加减仓分级<button class="hint-i" type="button" aria-label="查看释义" data-h="trig">?</button></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--yellow)"></span><span aria-hidden="true">🎯</span> 回撤触发矩阵 · 加减仓分级<button class="hint-i" type="button" aria-label="查看释义" data-h="trig">?</button></div>
     <div id="trig-matrix"></div>
   </div>
   <div class="card card-hi">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span>🔍 决策依据 · 档位资格 × 确认条件<button class="hint-i" type="button" aria-label="查看释义" data-h="cond">?</button></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span><span aria-hidden="true">🔍</span> 决策依据 · 档位资格 × 确认条件<button class="hint-i" type="button" aria-label="查看释义" data-h="cond">?</button></div>
     <div id="cond-check"></div>
   </div>
 </div>
 
 <!-- ======= Take-profit matrix ======= -->
 <div class="card card-hi">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>🛑 止盈触发矩阵 · 兑现分级<button class="hint-i" type="button" aria-label="查看释义" data-h="tp">?</button></div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">🛑</span> 止盈触发矩阵 · 兑现分级<button class="hint-i" type="button" aria-label="查看释义" data-h="tp">?</button></div>
   <div id="tp-matrix"></div>
   <div class="note">与回撤矩阵对称的<b>卖出纪律</b>：涨的时候分批兑现，避免"坐电梯"。命中 ≥2 项条件才升级档位；兑现后再等回撤矩阵的档位重新接回。</div>
 </div>
@@ -650,22 +659,26 @@
 <!-- ======= Mid grid: trend / valuation / sentiment ======= -->
 <div class="grid g-mid" aria-label="市场分析">
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>📐 趋势结构<span class="src-tag auto">AUTO</span></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span><span aria-hidden="true">📐</span> 趋势结构<span class="src-tag auto">AUTO</span></div>
     <div class="meter">
       <div class="m-head"><span class="m-label">NDX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="ndx-ma50v">--</span></div>
       <div class="m-bar"><div class="m-fill" id="ndx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
+      <div class="m-marks"><span>-3%</span><span>0</span><span>+3%</span></div>
     </div>
     <div class="meter">
       <div class="m-head"><span class="m-label">NDX vs MA200<button class="hint-i" type="button" aria-label="查看释义" data-h="ma200">?</button></span><span class="m-val" id="ndx-ma200v">--</span></div>
       <div class="m-bar"><div class="m-fill" id="ndx-ma200b" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>-5%</span><span>0</span><span>+8%</span></div>
     </div>
     <div class="meter">
       <div class="m-head"><span class="m-label">SPX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="spx-ma50v">--</span></div>
       <div class="m-bar"><div class="m-fill" id="spx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
+      <div class="m-marks"><span>-3%</span><span>0</span><span>+3%</span></div>
     </div>
     <div class="meter">
       <div class="m-head"><span class="m-label">SPX vs MA200<button class="hint-i" type="button" aria-label="查看释义" data-h="ma200">?</button></span><span class="m-val" id="spx-ma200v">--</span></div>
       <div class="m-bar"><div class="m-fill" id="spx-ma200b" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>-5%</span><span>0</span><span>+8%</span></div>
     </div>
     <div class="ma-state" id="ma-state">
       <span class="ma-chip" data-k="ndx-ma50">--</span>
@@ -674,7 +687,7 @@
       <span class="ma-chip" data-k="spx-ma200">--</span>
     </div>
     <div class="meter" style="margin-top:4px;">
-      <div class="m-head"><span class="m-label">🧩 市场广度 · NDX 相对 SPX (YTD)<button class="hint-i" type="button" aria-label="查看释义" data-h="breadth">?</button></span><span class="m-val" id="brd-val">--</span></div>
+      <div class="m-head"><span class="m-label"><span aria-hidden="true">🧩</span> 市场广度 · NDX 相对 SPX (YTD)<button class="hint-i" type="button" aria-label="查看释义" data-h="breadth">?</button></span><span class="m-val" id="brd-val">--</span></div>
       <div class="m-bar"><div class="m-fill" id="brd-bar" style="width:0%;background:var(--green);"></div></div>
       <div class="m-marks"><span>纳指跑输</span><span>0</span><span>纳指跑赢</span></div>
     </div>
@@ -683,7 +696,8 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>💰 估值锚<span class="src-tag auto">AUTO</span></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">💰</span> 估值锚<span class="src-tag auto">AUTO</span></div>
+    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 配色方向：本卡 <b>红=偏贵/风险</b>（回撤区红色代表便宜/机会，方向相反）</div>
     <div class="meter">
       <div class="m-head"><span class="m-label">SPX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="pepct">?</button></span><span class="m-val" id="val-pepct">--</span></div>
       <div class="m-bar"><div class="m-fill" id="val-pepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
@@ -703,7 +717,7 @@
       </div>
     </div>
     <div class="meter">
-      <div class="m-head"><span class="m-label">🛡️ Fwd ERP 股权风险溢价<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><span class="m-val" id="val-erp">--</span></div>
+      <div class="m-head"><span class="m-label"><span aria-hidden="true">🛡️</span> Fwd ERP 股权风险溢价<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><span class="m-val" id="val-erp">--</span></div>
       <div class="m-head" style="margin-top:4px;"><span class="m-label">TTM ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erpttm">?</button></span><span class="m-val" id="val-erp-ttm">--</span></div>
       <div class="m-bar"><div class="m-fill" id="val-erpb" style="width:0%;background:var(--red);"></div></div>
       <div class="m-marks"><span>极低 &lt;0</span><span>均值 2.5%</span><span>高 &gt;4%</span></div>
@@ -717,11 +731,12 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>🌡️ 情绪温度<span class="src-tag auto">AUTO</span></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">🌡️</span> 情绪温度<span class="src-tag auto">AUTO</span></div>
+    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 配色方向：本卡 <b>红=过热/风险</b>（回撤区红色代表便宜/机会，方向相反）</div>
     <div class="meter">
       <div class="m-head"><span class="m-label">VIX 恐慌指数<button class="hint-i" type="button" aria-label="查看释义" data-h="vix">?</button></span><span class="m-val" id="sent-vix">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-vixb" style="width:0%;background:var(--green);"></div></div>
-      <div class="m-marks"><span>恐慌 &lt;30</span><span>正常 15-30</span><span>贪婪 &lt;15</span></div>
+      <div class="m-marks"><span>贪婪 &lt;15</span><span>正常 15-30</span><span>恐慌 &gt;30</span></div>
     </div>
     <div class="meter">
       <div class="m-head"><span class="m-label">恐惧贪婪指数 (CNN)<button class="hint-i" type="button" aria-label="查看释义" data-h="fg">?</button></span><span class="m-val" id="sent-fg">--</span></div>
@@ -731,21 +746,23 @@
     <div class="meter">
       <div class="m-head"><span class="m-label">10Y 美债 (TNX)<button class="hint-i" type="button" aria-label="查看释义" data-h="tnx">?</button></span><span class="m-val" id="sent-tnx">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-tnxb" style="width:0%;background:var(--yellow);"></div></div>
+      <div class="m-marks"><span>0%</span><span>2.75%</span><span>5.5%</span></div>
     </div>
     <div class="meter">
       <div class="m-head"><span class="m-label">2Y 美债 + 曲线<button class="hint-i" type="button" aria-label="查看释义" data-h="curve">?</button></span><span class="m-val" id="sent-tnx2">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-tnx2b" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>0%</span><span>2.75%</span><span>5.5%</span></div>
     </div>
     <div class="meter">
-      <div class="m-head"><span class="m-label">🧩 Put/Call 期权情绪<button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
+      <div class="m-head"><span class="m-label"><span aria-hidden="true">🧩</span> Put/Call 期权情绪<button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-pcb" style="width:0%;background:var(--yellow);"></div></div>
-      <div class="m-marks"><span>防御 &gt;1.1</span><span>0.7-1.1 中性</span><span>贪婪 &lt;0.7</span></div>
+      <div class="m-marks"><span>贪婪 &lt;0.7</span><span>0.7-1.1 中性</span><span>防御 &gt;1.1</span></div>
     </div>
     <div class="note" id="note-sent">--</div>
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span>💱 汇率 & 压力测试<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span><span aria-hidden="true">💱</span> 汇率 & 压力测试<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
     <div class="idx-name" style="margin-bottom:4px;"><span>USD/CNY</span></div>
     <div class="fx-num" id="fx-num" style="color:var(--cyan)">--</div>
     <div class="idx-change" id="fx-chg">人民币升值吃掉 QDII 收益的风险敞口</div>
@@ -760,7 +777,7 @@
 
 <!-- ======= History comparison ======= -->
 <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span>📉 历史回撤对照 · 这次算什么水平</div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">📉</span> 历史回撤对照 · 这次算什么水平</div>
     <table class="hist-table">
       <tr><th>事件</th><th>回撤</th><th>耗时</th></tr>
       <tr><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">-49.1%</td><td>~950 天</td></tr>
@@ -779,7 +796,7 @@
       <span style="color:var(--yellow);font-family:var(--mono);" id="hist-rank">--</span>
     </div>
     <div class="hist-cagr">
-      <span class="hc-label">📈 长期年化基准（近18年 CAGR）</span>
+      <span class="hc-label"><span aria-hidden="true">📈</span> 长期年化基准（近18年 CAGR）</span>
       <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
       <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
     </div>
@@ -788,7 +805,7 @@
 
 <!-- ======= DCA zero indicator ======= -->
 <div class="card card-hi" id="card-dca">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>💸 定投回测指标 · 每日定投收益率<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">💸</span> 定投回测指标 · 每日定投收益率<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
   <div class="dca-ctrl">
     <div class="dca-ctrl-row"><label>标的</label>
       <div class="dca-toggle" id="dca-toggle">
@@ -810,7 +827,7 @@
 
 <!-- ======= Monthly performance ======= -->
 <div class="card">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span>📊 2026 年内月度涨跌幅<span class="src-tag auto">AUTO</span></div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">📊</span> 2026 年内月度涨跌幅<span class="src-tag auto">AUTO</span></div>
   <div class="mc-tabs">
     <button class="mc-tab active" data-idx="ndx">纳指100 NDX</button>
     <button class="mc-tab" data-idx="spx">标普500 SPX</button>
@@ -831,7 +848,7 @@
 <!-- ======= Indicator lexicon ======= -->
 <div class="card">
   <div class="card-title" style="justify-content:space-between;margin-bottom:0;">
-    <span style="display:flex;align-items:center;gap:8px;"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span>📖 指标小词典 · 看不懂随时查</span>
+    <span style="display:flex;align-items:center;gap:8px;"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span><span aria-hidden="true">📖</span> 指标小词典 · 看不懂随时查</span>
     <span class="lex-toggle open" id="lex-toggle">收起 <span class="arr">▶</span></span>
   </div>
   <div class="lex-body" id="lex-body"></div>
@@ -839,21 +856,21 @@
 
 <!-- ======= Future events ======= -->
 <div class="card card-lo">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span>📅 未来事件日历<span class="src-tag manual">MANUAL</span></div>
-  <div class="season-tip">⚠️ <b>9 月季节性逆风</b>：标普 1970 以来 9 月均值 <b>-0.7%</b>（全年最弱月）。当前 8/21 → 进入 9 月窗口，<b>建议</b>：原计划加仓额度下调 20%、避免 9 月初追涨。</div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span><span aria-hidden="true">📅</span> 未来事件日历<span class="src-tag manual">MANUAL</span></div>
+  <div class="season-tip"><span aria-hidden="true">⚠️</span> <b>9 月季节性逆风</b>：标普 1970 以来 9 月均值 <b>-0.7%</b>（全年最弱月）。当前已进入 9 月窗口期，<b>建议</b>：原计划加仓额度下调 20%、避免 9 月初追涨。</div>
   <div id="calendar"></div>
 </div>
 
 <!-- ======= Golden line ======= -->
 <div class="golden-line" id="golden-line">
-  🎙️ <b>一句话总结</b>：<span id="golden-text">--</span>
+  <span aria-hidden="true">🎙️</span> <b>一句话总结</b>：<span id="golden-text">--</span>
 </div>
 
 </main>
 
 <div class="footer">
   <a class="online-link" href="https://jiachencc.github.io/ndx-spx-drawdown-dashboard/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>打开在线最新版（GitHub Pages）</a><br>
-  📡 美股指数回撤决策看板 <b>v6.5</b> · 行情：Nasdaq NDX日线 + SPY ETF代理SPX · 宏观：CNBC美债 / CNN恐慌 / 人民币中间价 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
+  <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.7</b> · 行情：Yahoo ^NDX / ^GSPC 官方指数（stooq 兜底） · 宏观：CNN恐贪 / Yahoo 美债 / Frankfurter 汇率 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
   本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值/期权数据：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · <a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market</a> (CC BY 4.0) · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
@@ -1084,7 +1101,7 @@ function renderAll() {
   } catch (e) {
     console.error("renderAll 异常:", e);
     const banner = $("banner");
-    if (banner) banner.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--red)"><div style="font-size:36px;margin-bottom:12px;">⚠️</div><div style="font-size:15px;font-weight:700;margin-bottom:6px;">数据加载异常</div><div style="font-size:12px;color:var(--tx2);font-family:var(--mono)">' + (e.message || "未知错误") + '</div><div style="margin-top:16px;font-size:12px;color:var(--tx3)">请刷新页面重试，或联系维护者</div></div>';
+    if (banner) banner.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--red)"><div style="font-size:36px;margin-bottom:12px;" aria-hidden="true">⚠️</div><div style="font-size:15px;font-weight:700;margin-bottom:6px;">数据加载异常</div><div style="font-size:12px;color:var(--tx2);font-family:var(--mono)">' + (e.message || "未知错误") + '</div><div style="margin-top:16px;font-size:12px;color:var(--tx3)">请刷新页面重试，或联系维护者</div></div>';
     const ld2 = $("loading");
     if (ld2) { ld2.style.opacity = "0"; setTimeout(() => ld2.style.display = "none", 350); }
   }
@@ -1174,10 +1191,10 @@ function renderTriggers(ndxDD) {
   const th = D.thresholds;
   const bands = [th.t1, th.t2, th.t3, th.t4];
   const TRIG_DEF = [
-    { band: "-5%",  title: "🟢 关注线 · 正常定投",  desc: "触及即进入监控区 · 10年约5次/年，触发后60日胜率82%", weight: 0 },
-    { band: "-15%", title: "🟡 DCA 加仓档",         desc: "MA200（200日均线）未破 → DCA（定投）×2 · 10年仅4段(0.4次/年)，60日均值+13.4%", weight: 1 },
-    { band: "-25%", title: "🟠 重仓低吸档",         desc: "VIX（恐慌指数）>30 → 单笔额度×2~3 · 10年仅2段，触发后60日全胜(均值+22.7%)", weight: 2 },
-    { band: "-35%", title: "🔴 历史级机会档",        desc: "ERP（股票 vs 国债的收益差）>5% → 弹药分 3 批打满 · 10年1次(2020疫情)，极端罕见", weight: 3 },
+    { band: "-5%",  title: '<span aria-hidden="true">🟢</span> 关注线 · 正常定投', desc:"触及即进入监控区 · 10年约5次/年，触发后60日胜率82%", weight: 0 },
+    { band: "-15%", title: '<span aria-hidden="true">🟡</span> DCA 加仓档', desc: "MA200（200日均线）未破 → DCA（定投）×2 · 10年仅4段(0.4次/年)，60日均值+13.4%", weight: 1 },
+    { band: "-25%", title: '<span aria-hidden="true">🟠</span> 重仓低吸档', desc: "VIX（恐慌指数）>30 → 单笔额度×2~3 · 10年仅2段，触发后60日全胜(均值+22.7%)", weight: 2 },
+    { band: "-35%", title: '<span aria-hidden="true">🔴</span> 历史级机会档', desc: "ERP（股票 vs 国债的收益差）>5% → 弹药分 3 批打满 · 10年1次(2020疫情)，极端罕见", weight: 3 },
   ];
   let html = "";
   TRIG_DEF.forEach((t, i) => {
@@ -1198,7 +1215,7 @@ function renderTriggers(ndxDD) {
       stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
       distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
     } else {
-      stateHtml = `<span class="trig-state st-off" style="opacity:.6;">○ 远离</span>`;
+      stateHtml = `<span class="trig-state st-far">○ 远离</span>`;
       distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
     }
     html += `
@@ -1220,7 +1237,10 @@ function renderConds() {
   const dd = ddOf(D.ndx);
   const th = D.thresholds;
   /* 资格条件：回撤档位（与触发矩阵联动） */
-  const ddBand = dd <= th.t4 ? "⚫ -35% 历史级" : dd <= th.t3 ? "🔴 -25% 重仓" : dd <= th.t2 ? "🟠 -15% 加仓" : dd <= th.t1 ? "🟡 -5% 关注" : "🟢 待机区";
+  /* 图标与文字解耦：图标 aria-hidden（纯装饰），文字带语义，避免读屏朗读 emoji 名 */
+  const ddIcon = dd <= th.t4 ? "⚫" : dd <= th.t3 ? "🔴" : dd <= th.t2 ? "🟠" : dd <= th.t1 ? "🟡" : "🟢";
+  const ddWord = dd <= th.t4 ? "-35% 历史级" : dd <= th.t3 ? "-25% 重仓" : dd <= th.t2 ? "-15% 加仓" : dd <= th.t1 ? "-5% 关注" : "待机区";
+  const ddBand = '<span aria-hidden="true">' + ddIcon + '</span> ' + ddWord;
   const qualified = dd <= th.t1;
   /* 确认条件：趋势/动能/情绪/估值 */
   const conds = [
@@ -1232,7 +1252,7 @@ function renderConds() {
   const confirmHit = conds.filter(c => c.hit).length;
   let html = `
     <div class="trig-row" style="${qualified ? 'background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;' : ''}">
-      <div style="font-size:16px;width:24px;flex-shrink:0;">${qualified ? "✅" : "⬜"}</div>
+      <div style="font-size:16px;width:24px;flex-shrink:0;"><span aria-hidden="true">${qualified ? "✅" : "⬜"}</span></div>
       <div class="trig-info">
         <div class="t-title" style="font-size:12.5px;">资格条件 · 回撤档位已触发</div>
         <div class="t-desc">当前 ${ddBand}（距高点 ${dd.toFixed(2)}%）</div>
@@ -1242,7 +1262,7 @@ function renderConds() {
   conds.forEach(c => {
     html += `
       <div class="trig-row">
-        <div style="font-size:16px;width:24px;flex-shrink:0;">${c.hit ? "✅" : "⬜"}</div>
+        <div style="font-size:16px;width:24px;flex-shrink:0;"><span aria-hidden="true">${c.hit ? "✅" : "⬜"}</span></div>
         <div class="trig-info">
           <div class="t-title" style="font-size:12.5px;">${c.name}</div>
           <div class="t-desc">${c.note}</div>
@@ -1251,10 +1271,10 @@ function renderConds() {
       </div>`;
   });
   const verdict = !qualified
-    ? '<b style="color:var(--green)">🟢 未到加仓档位，维持正常定投，等待回撤给安全边际</b>'
+    ? '<b style="color:var(--green)"><span aria-hidden="true">🟢</span> 未到加仓档位，维持正常定投，等待回撤给安全边际</b>'
     : confirmHit >= 2
-      ? `<b style="color:var(--blue)">✅ ${ddBand}已触发且确认 ${confirmHit}/4，可执行对应档位操作</b>`
-      : `<b style="color:var(--yellow)">🟡 ${ddBand}已触发但确认不足（${confirmHit}/4），半仓试探或等 1-2 天确认</b>`;
+      ? `<b style="color:var(--blue)"><span aria-hidden="true">✅</span> ${ddBand}已触发且确认 ${confirmHit}/4，可执行对应档位操作</b>`
+      : `<b style="color:var(--yellow)"><span aria-hidden="true">🟡</span> ${ddBand}已触发但确认不足（${confirmHit}/4），半仓试探或等 1-2 天确认</b>`;
   html += `<div class="note" style="margin-top:10px;">确认条件命中 <b style="color:var(--blue)">${confirmHit}/4</b>。${verdict}</div>`;
   box.innerHTML = html;
 }
@@ -1268,13 +1288,13 @@ function renderTakeProfit() {
   const erpF = 100 / D.peFwd - D.tnx;          // Fwd 口径股权风险溢价
   const gap = (cur, tgt) => Math.max(0, tgt - cur);
   const TP_DEF = [
-    { band: "+18%", title: "🟢 T+1 · 停止大额定投", desc: "YTD（年初至今涨幅）≥ +18% 或 距 ATH（历史最高点）< 8% → 大额定投转小额 · 每季重估，距高点>10% 自动恢复大额（历史：YTD+15~20%后短期继续涨居多，只停加码不卖出）",
+    { band: "+18%", title: '<span aria-hidden="true">🟢</span> T+1 · 停止大额定投', desc: "YTD（年初至今涨幅）≥ +18% 或 距 ATH（历史最高点）< 8% → 大额定投转小额 · 每季重估，距高点>10% 自动恢复大额（历史：YTD+15~20%后短期继续涨居多，只停加码不卖出）",
       hit: () => ytd >= 18 || distAth < 8, dist: () => Math.min(gap(ytd, 18), gap(distAth, 8)) },
-    { band: "+22%", title: "🟡 T+2 · 兑现浮盈 15-20%", desc: "YTD ≥ +22% 或 恐贪 ≥ 85 → 分批兑现（历史：YTD 首破 +20% 后 20 日胜率仅 38%，疲软窗口起点）",
+    { band: "+22%", title: '<span aria-hidden="true">🟡</span> T+2 · 兑现浮盈 15-20%', desc: "YTD ≥ +22% 或 恐贪 ≥ 85 → 分批兑现（历史：YTD 首破 +20% 后 20 日胜率仅 38%，疲软窗口起点）",
       hit: () => ytd >= 22 || D.fg >= 85, dist: () => Math.min(gap(ytd, 22), gap(D.fg, 85)) },
-    { band: "90分位", title: "🟠 T+3 · 兑现至仓位下限", desc: "PE分位（估值贵过历史上多少%的时间）≥ 90% 且 RSI（涨跌动能指标）≥ 75 → 兑现至目标下限",
+    { band: "90分位", title: '<span aria-hidden="true">🟠</span> T+3 · 兑现至仓位下限', desc: "PE分位（估值贵过历史上多少%的时间）≥ 90% 且 RSI（涨跌动能指标）≥ 75 → 兑现至目标下限",
       hit: () => D.pePct >= 90 && ndx.rsi >= 75, dist: () => Math.min(gap(D.pePct, 90), gap(ndx.rsi, 75)) },
-    { band: "ERP<0", title: "🔴 T+4 · 降杠杆转防御", desc: "ERP（股票盈利收益率 − 国债利率，越低越贵）< 0 → 系统性降杠杆，转防御",
+    { band: "ERP<0", title: '<span aria-hidden="true">🔴</span> T+4 · 降杠杆转防御', desc: "ERP（股票盈利收益率 − 国债利率，越低越贵）< 0 → 系统性降杠杆，转防御",
       hit: () => erpF < 0, dist: () => Math.max(0, erpF) },
   ];
   let html = "";
@@ -1294,7 +1314,7 @@ function renderTakeProfit() {
       stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
       distTxt = "还差 " + d.toFixed(2) + "pp";
     } else {
-      stateHtml = `<span class="trig-state st-off" style="opacity:.6;">○ 远离</span>`;
+      stateHtml = `<span class="trig-state st-far">○ 远离</span>`;
       distTxt = "还差 " + d.toFixed(2) + "pp";
     }
     html += `
@@ -1316,25 +1336,25 @@ function renderBanner(ndxDD) {
   let icon, title, desc, tagCls, tagTxt;
   const rsiNote = D.ndx.rsi < 35 ? "（RSI 已超卖 ✅）" : "（RSI 中性，动能未确认 ⚠️）";
   if (ndxDD <= th.t4) {
-    icon = "⚫"; title = "历史级机会：已触发 -35% 档"; tagCls = "tag-black"; tagTxt = "⚫ 战略加仓";
+    icon = "⚫"; title = "历史级机会：已触发 -35% 档"; tagCls = "tag-black"; tagTxt = '<span aria-hidden="true">⚫</span> 战略加仓';
     desc = "5 年一遇回撤深度" + rsiNote + "。检查 ERP 是否>5%，剩余弹药分 3 批打满，但保留 20% 现金应对尾部风险。";
   } else if (ndxDD <= th.t3) {
-    icon = "🔴"; title = "重仓低吸：已触发 -25% 档"; tagCls = "tag-red"; tagTxt = "🔴 重仓区";
+    icon = "🔴"; title = "重仓低吸：已触发 -25% 档"; tagCls = "tag-red"; tagTxt = '<span aria-hidden="true">🔴</span> 重仓区';
     desc = "若 VIX>30 或恐慌蔓延，可提高单笔 DCA 额度（×2~×3）、拉大加仓间隔至 2-3 周一次" + rsiNote + "。";
   } else if (ndxDD <= th.t2) {
-    icon = "🟠"; title = "DCA 加仓：已触发 -15% 档"; tagCls = "tag-orange"; tagTxt = "🟠 加仓区";
+    icon = "🟠"; title = "DCA 加仓：已触发 -15% 档"; tagCls = "tag-orange"; tagTxt = '<span aria-hidden="true">🟠</span> 加仓区';
     desc = "MA200 未破则按计划 DCA×2" + rsiNote + "；HBM/DRAM 存储超级周期主题同步触发加仓条件。";
   } else if (ndxDD <= th.t1) {
-    icon = "🟡"; title = "关注区：回撤 " + pct(ndxDD); tagCls = "tag-yellow"; tagTxt = "🟡 关注 · 等待";
+    icon = "🟡"; title = "关注区：回撤 " + pct(ndxDD); tagCls = "tag-yellow"; tagTxt = '<span aria-hidden="true">🟡</span> 关注 · 等待';
     desc = "观察为主" + rsiNote + "。若估值分位<60% 或 VIX 快速抬升，可小额分批试探性加仓，否则按兵不动。";
   } else {
-    icon = "🟢"; title = "待机区：回撤 < 5%"; tagCls = "tag-green"; tagTxt = "🟢 正常定投";
+    icon = "🟢"; title = "待机区：回撤 < 5%"; tagCls = "tag-green"; tagTxt = '<span aria-hidden="true">🟢</span> 正常定投';
     desc = "趋势健康，维持原定投计划即可，不追高不加码，等待回撤给出安全边际。";
   }
-  $("sig-icon").textContent = icon;
+  $("sig-icon").innerHTML = '<span aria-hidden="true">' + icon + '</span>';
   $("sig-title").textContent = title;
   $("sig-desc").textContent = desc;
-  $("sig-tag").textContent = tagTxt;
+  $("sig-tag").innerHTML = tagTxt;   // tagTxt 内含 aria-hidden 的装饰 emoji，需按 HTML 赋值
   $("sig-tag").className = "sig-tag " + tagCls;
   /* 结论锚定：关键数字 */
   $("sk-dd").textContent = pct(ndxDD);
@@ -1484,7 +1504,7 @@ document.addEventListener("click", e => {
   hintPop = document.createElement("div");
   hintPop.className = "hint-pop";
   hintPop.dataset.k = key;
-  hintPop.innerHTML = '<div class="hp-plain">💬 ' + h.plain + '</div><div class="hp-pro">📐 ' + h.pro + '</div>';
+  hintPop.innerHTML = '<div class="hp-plain"><span aria-hidden="true">💬</span> ' + h.plain + '</div><div class="hp-pro"><span aria-hidden="true">📐</span> ' + h.pro + '</div>';
   document.body.appendChild(hintPop);
   const r = t.getBoundingClientRect();
   const w = Math.min(300, window.innerWidth - 24);
@@ -1505,7 +1525,7 @@ function renderLexicon() {
     return '<tr><td class="lx-name">' + h.name + '</td><td class="lx-plain">' + h.plain + '</td><td class="lx-pro">' + h.pro + '</td></tr>';
   }).join("");
   $("lex-body").innerHTML =
-    '<table class="lex-table"><tr><th>指标</th><th>💬 人话</th><th>📐 专业口径</th></tr>' + rows + '</table>';
+    '<table class="lex-table"><tr><th>指标</th><th><span aria-hidden="true">💬</span> 人话</th><th><span aria-hidden="true">📐</span> 专业口径</th></tr>' + rows + '</table>';
 }
 
 /* ================= 定投回测指标 ================= */
@@ -1618,7 +1638,7 @@ const themeBtn = $("theme-toggle");
 function applyTheme(mode) {
   const light = mode === "light";
   document.body.classList.toggle("light", light);
-  themeBtn.innerHTML = light ? "☀️ 切深色" : "🌙 切浅色";
+  themeBtn.innerHTML = light ? '<span aria-hidden="true">☀️</span> 切深色' : '<span aria-hidden="true">🌙</span> 切浅色';
   // 重新绘制依赖主题色的 SVG（drawScale 读取 body.light 选色）
   if (typeof D !== "undefined") drawScale(ddOf(D.ndx), ddOf(D.spx));
 }
