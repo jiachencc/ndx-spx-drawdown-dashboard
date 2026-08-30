@@ -62,11 +62,29 @@ const POSITIONS = {
   updated: "2026-08-28",
   strategy: { dip: -2, rally: 3 }, // MANUAL：日内波动操作线（%）：当日跌 ≥|dip| 提示加仓、涨 ≥rally 提示减仓
   hold: [
-    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 65100, cost: 1.570, idxAtCost: 28018 },
-    { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 34000, cost: 1.920, idxAtCost: 7258 },
+    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 65100, cost: 1.570, idxAtCost: 28018, pct: 40.2 },   // pct: MANUAL 组合占比%（占个人总投资组合）
+    { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 34000, cost: 1.920, idxAtCost: 7258, pct: 25.8 },
   ],
+  // MANUAL：操作日志（新在上）。当前为模拟示例流水（份数合计与 hold 一致，日期/价格/分布均为虚构），
+  // 仅保证格式与真实交易一致：{ d: "YYYY-MM-DD", act: "建仓|买入|加仓|减仓|卖出", sym, qty, cost, idxAt?, note? }
+  // idxAt = 买入当日指数点位（用于「买入位置分布」，真实使用时查当日行情手动填入；模拟数据均为虚构值）
   log: [
-    { d: "2026-08-28", act: "建仓", sym: "纳指ETF广发", qty: 65100, cost: 1.570, note: "历史买入合并为初始记录" },
-    { d: "2026-08-28", act: "建仓", sym: "标普500ETF南方", qty: 34000, cost: 1.920, note: "历史买入合并为初始记录" },
+    { d: "2026-08-25", act: "买入", sym: "纳指ETF广发", qty: 5000, cost: 1.655, idxAt: 29800 },
+    { d: "2026-08-20", act: "买入", sym: "纳指ETF广发", qty: 4500, cost: 1.640, idxAt: 29650 },
+    { d: "2026-08-20", act: "买入", sym: "标普500ETF南方", qty: 2000, cost: 2.010, idxAt: 7600 },
+    { d: "2026-08-14", act: "买入", sym: "纳指ETF广发", qty: 4000, cost: 1.655, idxAt: 29700 },
+    { d: "2026-08-12", act: "买入", sym: "标普500ETF南方", qty: 3500, cost: 1.995, idxAt: 7530 },
+    { d: "2026-08-07", act: "买入", sym: "纳指ETF广发", qty: 6000, cost: 1.598, idxAt: 27900 },
+    { d: "2026-08-05", act: "买入", sym: "标普500ETF南方", qty: 5000, cost: 1.912, idxAt: 7180 },
+    { d: "2026-07-31", act: "买入", sym: "纳指ETF广发", qty: 8000, cost: 1.522, idxAt: 25800 },
+    { d: "2026-07-29", act: "买入", sym: "标普500ETF南方", qty: 8000, cost: 1.902, idxAt: 7130 },
+    { d: "2026-07-24", act: "买入", sym: "纳指ETF广发", qty: 10000, cost: 1.548, idxAt: 26300 },
+    { d: "2026-07-17", act: "买入", sym: "纳指ETF广发", qty: 7000, cost: 1.565, idxAt: 26700 },
+    { d: "2026-07-15", act: "买入", sym: "标普500ETF南方", qty: 5000, cost: 1.890, idxAt: 7080 },
+    { d: "2026-07-10", act: "买入", sym: "纳指ETF广发", qty: 6000, cost: 1.601, idxAt: 27650 },
+    { d: "2026-07-03", act: "买入", sym: "标普500ETF南方", qty: 4000, cost: 1.878, idxAt: 7030 },
+    { d: "2026-07-02", act: "买入", sym: "纳指ETF广发", qty: 8000, cost: 1.618, idxAt: 28100 },
+    { d: "2026-06-25", act: "建仓", sym: "标普500ETF南方", qty: 6500, cost: 1.882, idxAt: 7050, note: "示例起始记录" },
+    { d: "2026-06-24", act: "建仓", sym: "纳指ETF广发", qty: 6600, cost: 1.632, idxAt: 28400, note: "示例起始记录" },
   ]
 };
