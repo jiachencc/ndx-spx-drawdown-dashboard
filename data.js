@@ -17,6 +17,11 @@ const DEFAULT = {
   tnx2: 4.229,
   putcall: 0.84, // AUTO：CBOE 全品类总 Put/Call
   fx: 6.72,
+  // AUTO：无对应免费指数的持仓用 ETF 自身场内价的 52 周区间作水位口径（腾讯日K，脚本自动更新）。
+  // 字段与 ndx/spx 同构：close 现价 / chg 当日涨跌% / low52 52周低 / ath 52周高 / athDate 高点日期 / prevYr 年初首个交易日收盘
+  kr:   { close: 4.816, chg: 0.92, low52: 1.704, ath: 7.12, athDate: "2026-07-02", prevYr: 2.795 },   // 中韩半导体ETF华泰 513310
+  n225: { close: 2.142, chg: -0.14, low52: 1.456, ath: 2.425, athDate: "2026-06-25", prevYr: 1.715 }, // 日经225ETF华安 513880
+  hkus: { close: 1.790, chg: 1.24, low52: 1.428, ath: 2.508, athDate: "2026-05-27", prevYr: 1.535 },  // 港美互联网LOF 160644
   peFwd: 20.1, peTtm: 27.6, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
   ndxPeFwd: 22.4, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护
@@ -56,35 +61,71 @@ const CALENDAR = [
 
 /* ================= 我的持仓（MANUAL：模糊化隐私——只记份数与成本，不记金额/账户资产） =================
  * 仅在买卖后手动维护；市值/浮盈/成本档位由 positions.html 用行情自动计算，勿在此记录金额。
- * idxAtCost = 建仓时点的指数点位（用 ETF 成本价 × 指数现价 ÷ ETF 现价 反推，含 QDII 溢价误差）。
- * 每次买卖后：更新 hold 的 qty/cost/idxAtCost，并在 log 顶部加一条流水。 */
+ * idxAtCost = 成本时点的口径值：指数口径（ndx/spx）＝ ETF 成本价 × 指数现价 ÷ ETF 现价 反推的指数点位；
+ * ETF 自身口径（kr/n225/hkus）＝ 加权成本价本身。每次买卖后：更新 hold 的 qty/cost/idxAtCost，并在 log 顶部加一条流水。 */
 const POSITIONS = {
   updated: "2026-08-28",
   strategy: { dip: -2, rally: 3 }, // MANUAL：日内波动操作线（%）：当日跌 ≥|dip| 提示加仓、涨 ≥rally 提示减仓
+  // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）＝ ETF 场内买入价相对基金实际价值的偏离；
+  // 由脚本从天天基金净值接口自动计算。QDII 净值滞后 1-2 个交易日，溢价为近似值。折价为负。
+  premiums: {
+    "159941": { pct: 10.7, nav: 1.5007, navDate: "2026-08-27" },
+    "513650": { pct: 8.2, nav: 1.8893, navDate: "2026-08-27" },
+    "513310": { pct: 10.2, nav: 4.3299, navDate: "2026-08-28" },
+    "513880": { pct: 4.8, nav: 2.0470, navDate: "2026-08-28" },
+    "160644": { pct: -2.1, nav: 1.8068, navDate: "2026-08-27" },
+  },
   hold: [
-    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 65100, cost: 1.570, idxAtCost: 28018, pct: 40.2 },   // pct: MANUAL 组合占比%（占个人总投资组合）
+    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 65100, cost: 1.570, idxAtCost: 28018, pct: 40.0 },   // pct: MANUAL 组合占比%（占个人总投资组合）
     { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 34000, cost: 1.920, idxAtCost: 7258, pct: 25.8 },
+    { sym: "中韩半导体ETF华泰", code: "513310", idx: "kr", qty: 11100, cost: 5.577, idxAtCost: 5.577, pct: 19.9 },
+    { sym: "日经225ETF华安", code: "513880", idx: "n225", qty: 11500, cost: 2.172, idxAtCost: 2.172, pct: 9.2 },
+    { sym: "港美互联网LOF", code: "160644", idx: "hkus", qty: 7600, cost: 2.596, idxAtCost: 2.596, pct: 5.1 },
   ],
-  // MANUAL：操作日志（新在上）。当前为模拟示例流水（份数合计与 hold 一致，日期/价格/分布均为虚构），
-  // 仅保证格式与真实交易一致：{ d: "YYYY-MM-DD", act: "建仓|买入|加仓|减仓|卖出", sym, qty, cost, idxAt?, note? }
-  // idxAt = 买入当日指数点位（用于「买入位置分布」，真实使用时查当日行情手动填入；模拟数据均为虚构值）
+  // MANUAL：操作日志（新在上）。中韩半导体/日经225/港美互联网为真实流水（idxAt=当日成交价）；
+  // 纳指/标普仍为模拟示例流水（份数合计与 hold 一致），待真实流水替换。
+  // 格式：{ d: "YYYY-MM-DD", act: "建仓|买入|加仓|减仓|卖出", sym, qty, cost, idxAt?, note? }
+  // idxAt = 买入当日口径值：指数口径（ndx/spx）填指数点位；ETF 自身口径（kr/n225/hkus）填当日场内成交价
+  // （用于「买入位置分布」绿点；省略 idxAt 则该笔不参与分布图）
   log: [
     { d: "2026-08-25", act: "买入", sym: "纳指ETF广发", qty: 5000, cost: 1.655, idxAt: 29800 },
+    { d: "2026-08-24", act: "买入", sym: "中韩半导体ETF华泰", qty: 700, cost: 4.660, idxAt: 4.660 },
     { d: "2026-08-20", act: "买入", sym: "纳指ETF广发", qty: 4500, cost: 1.640, idxAt: 29650 },
     { d: "2026-08-20", act: "买入", sym: "标普500ETF南方", qty: 2000, cost: 2.010, idxAt: 7600 },
+    { d: "2026-08-19", act: "买入", sym: "日经225ETF华安", qty: 2000, cost: 2.113, idxAt: 2.113 },
+    { d: "2026-08-17", act: "买入", sym: "中韩半导体ETF华泰", qty: 3000, cost: 5.062, idxAt: 5.062 },
     { d: "2026-08-14", act: "买入", sym: "纳指ETF广发", qty: 4000, cost: 1.655, idxAt: 29700 },
+    { d: "2026-08-13", act: "卖出", sym: "港美互联网LOF", qty: 3800, cost: 1.738, idxAt: 1.738 },
     { d: "2026-08-12", act: "买入", sym: "标普500ETF南方", qty: 3500, cost: 1.995, idxAt: 7530 },
     { d: "2026-08-07", act: "买入", sym: "纳指ETF广发", qty: 6000, cost: 1.598, idxAt: 27900 },
     { d: "2026-08-05", act: "买入", sym: "标普500ETF南方", qty: 5000, cost: 1.912, idxAt: 7180 },
     { d: "2026-07-31", act: "买入", sym: "纳指ETF广发", qty: 8000, cost: 1.522, idxAt: 25800 },
     { d: "2026-07-29", act: "买入", sym: "标普500ETF南方", qty: 8000, cost: 1.902, idxAt: 7130 },
     { d: "2026-07-24", act: "买入", sym: "纳指ETF广发", qty: 10000, cost: 1.548, idxAt: 26300 },
+    { d: "2026-07-24", act: "买入", sym: "标普500ETF南方", qty: 4000, cost: 1.878, idxAt: 7030 },
     { d: "2026-07-17", act: "买入", sym: "纳指ETF广发", qty: 7000, cost: 1.565, idxAt: 26700 },
+    { d: "2026-07-17", act: "买入", sym: "日经225ETF华安", qty: 3000, cost: 2.015, idxAt: 2.015 },
+    { d: "2026-07-17", act: "买入", sym: "中韩半导体ETF华泰", qty: 1000, cost: 4.809, idxAt: 4.809 },
     { d: "2026-07-15", act: "买入", sym: "标普500ETF南方", qty: 5000, cost: 1.890, idxAt: 7080 },
     { d: "2026-07-10", act: "买入", sym: "纳指ETF广发", qty: 6000, cost: 1.601, idxAt: 27650 },
+    { d: "2026-07-06", act: "买入", sym: "中韩半导体ETF华泰", qty: 800, cost: 6.080, idxAt: 6.080 },
     { d: "2026-07-03", act: "买入", sym: "标普500ETF南方", qty: 4000, cost: 1.878, idxAt: 7030 },
     { d: "2026-07-02", act: "买入", sym: "纳指ETF广发", qty: 8000, cost: 1.618, idxAt: 28100 },
+    { d: "2026-07-02", act: "买入", sym: "中韩半导体ETF华泰", qty: 1500, cost: 5.972, idxAt: 5.972 },
+    { d: "2026-07-02", act: "买入", sym: "中韩半导体ETF华泰", qty: 1600, cost: 5.967, idxAt: 5.967 },
+    { d: "2026-07-02", act: "买入", sym: "日经225ETF华安", qty: 3500, cost: 2.242, idxAt: 2.242 },
     { d: "2026-06-25", act: "建仓", sym: "标普500ETF南方", qty: 6500, cost: 1.882, idxAt: 7050, note: "示例起始记录" },
     { d: "2026-06-24", act: "建仓", sym: "纳指ETF广发", qty: 6600, cost: 1.632, idxAt: 28400, note: "示例起始记录" },
+    { d: "2026-06-23", act: "建仓", sym: "中韩半导体ETF华泰", qty: 1000, cost: 6.090, idxAt: 6.090 },
+    { d: "2026-06-23", act: "买入", sym: "中韩半导体ETF华泰", qty: 1500, cost: 6.102, idxAt: 6.102 },
+    { d: "2026-06-23", act: "建仓", sym: "日经225ETF华安", qty: 1000, cost: 2.273, idxAt: 2.273 },
+    { d: "2026-06-23", act: "买入", sym: "日经225ETF华安", qty: 2000, cost: 2.280, idxAt: 2.280 },
+    { d: "2026-06-10", act: "买入", sym: "港美互联网LOF", qty: 700, cost: 2.110, idxAt: 2.110 },
+    { d: "2026-06-08", act: "买入", sym: "港美互联网LOF", qty: 800, cost: 2.075, idxAt: 2.075 },
+    { d: "2026-06-04", act: "买入", sym: "港美互联网LOF", qty: 1500, cost: 2.180, idxAt: 2.180 },
+    { d: "2026-06-03", act: "买入", sym: "港美互联网LOF", qty: 3300, cost: 2.370, idxAt: 2.370 },
+    { d: "2026-06-03", act: "买入", sym: "港美互联网LOF", qty: 900, cost: 2.370, idxAt: 2.370 },
+    { d: "2026-06-02", act: "买入", sym: "港美互联网LOF", qty: 2200, cost: 2.426, idxAt: 2.426 },
+    { d: "2026-06-01", act: "建仓", sym: "港美互联网LOF", qty: 2000, cost: 2.297, idxAt: 2.297 },
   ]
 };

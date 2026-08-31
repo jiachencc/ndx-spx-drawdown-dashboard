@@ -273,6 +273,47 @@ try {
   if (m) pcV = parseFloat(m[1]);
 } catch (e) { console.warn("WARN putcall:", e.message); }
 
+/* ---------- 场内溢价率（best-effort，失败保留旧值）----------
+   溢价 = ETF 最新收盘价 ÷ 最新单位净值 − 1（%，保留 1 位小数）。
+   净值：天天基金 lsjz 接口（QDII 净值滞后 1-2 个交易日）；收盘价：腾讯日K（前复权）。 */
+const PREM_CODES = ["159941", "513650", "513310", "513880", "160644"];
+let premiumsV = null;
+const etfRangeV = {};   // code → 52周区间（ETF 自身场内价口径，供 DEFAULT.kr/n225/hkus 更新）
+try {
+  const results = {};
+  for (const code of PREM_CODES) {
+    try {
+      const sym = (/^(15|16)/.test(code) ? "sz" : "sh") + code;
+      const navRes = await fetch(`https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=1&pageSize=8`,
+        { headers: { ...H, Referer: "https://fundf10.eastmoney.com/" } });
+      if (!navRes.ok) throw new Error(`lsjz ${code} HTTP ${navRes.status}`);
+      const navList = (((await navRes.json()).Data || {}).LSJZList || [])
+        .filter(x => Number.isFinite(parseFloat(x?.DWJZ)));
+      const nav = navList[0];
+      if (!nav) throw new Error(`nav empty ${code}`);
+      const kRes = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${sym},day,,,270,qfq`, { headers: H });
+      if (!kRes.ok) throw new Error(`kline ${code} HTTP ${kRes.status}`);
+      const kn = (await kRes.json()).data[sym];
+      const bars = kn?.qfqday || kn?.day;
+      const last = bars?.at(-1), prevB = bars?.at(-2);
+      const close = parseFloat(last?.[2]);
+      const navV = parseFloat(nav.DWJZ);
+      if (!Number.isFinite(close) || !Number.isFinite(navV) || navV <= 0) throw new Error(`bad data ${code}`);
+      results[code] = { pct: Math.round((close / navV - 1) * 1000) / 10, nav: navV, navDate: nav.FSRQ };
+      /* 52周区间（近250交易日 low 最低 / high 最高，与 ndx/spx 口径一致）+ 当日涨跌 + 年初价 */
+      const w = bars.slice(-250);
+      const lo52 = Math.min(...w.map(b => parseFloat(b[4])));
+      const hiB = w.reduce((a, b) => parseFloat(b[3]) > parseFloat(a[3]) ? b : a, w[0]);
+      const yB = bars.find(b => b[0] >= new Date().getFullYear() + "-01-01") || bars[0];
+      etfRangeV[code] = {
+        close, chg: (close / parseFloat(prevB[2]) - 1) * 100,
+        low52: lo52, ath: parseFloat(hiB[3]), athDate: hiB[0], prevYr: parseFloat(yB[2]),
+      };
+    } catch (e) { console.warn("WARN premium loop:", e.message); }
+  }
+  if (Object.keys(results).length) premiumsV = results;
+} catch (e) { console.warn("WARN premium:", e.message); }
+
 /* ---------- 改写 data.js ---------- */
 let src = readFileSync(DATA_FILE, "utf8");
 const missing = [];
@@ -307,6 +348,22 @@ if (okCore) {
     apply(/^  ndxPeFwd: [^\n]*$/m, F.ndxPeLine, "ndxPe");
   }
   if (pcV) apply(/^  putcall: [\d.]+,[^\n]*$/m, `  putcall: ${pcV}, // AUTO：CBOE 全品类总 Put/Call`, "putcall");
+  /* ETF 自身口径的 52 周区间（DEFAULT.kr/n225/hkus，字段与 ndx/spx 同构） */
+  const ETF_KEYS = { "513310": "kr", "513880": "n225", "160644": "hkus" };
+  for (const [code, key] of Object.entries(ETF_KEYS)) {
+    const v = etfRangeV[code];
+    if (!v) continue;
+    const line = `  ${key}:   { close: ${v.close.toFixed(3)}, chg: ${v.chg.toFixed(2)}, low52: ${v.low52.toFixed(3)}, ath: ${v.ath.toFixed(3)}, athDate: "${v.athDate}", prevYr: ${v.prevYr.toFixed(3)} },   // ${key} 持仓（场内价口径，AUTO）`;
+    apply(new RegExp(`^  ${key}:\\s*\\{[^\\n]*$`, "m"), line, key);
+  }
+  if (premiumsV) {
+    const lines = Object.keys(premiumsV).map(c => {
+      const v = premiumsV[c];
+      return `    "${c}": { pct: ${v.pct.toFixed(1)}, nav: ${v.nav.toFixed(4)}, navDate: "${v.navDate}" },`;
+    }).join("\n");
+    F.premiums = `  premiums: { // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）；QDII 净值滞后 1-2 个交易日\n${lines}\n  },`;
+    apply(/  premiums: \{[\s\S]*?\n  \},/, F.premiums, "premiums");
+  }
   apply(/\/\* [^\n]*月度涨跌幅[^\n]*\*\/\nconst MONTHLY = \[[\s\S]*?\];/, F.monthly, "monthly");
   /* 宏观（vix/tnx/fx）全部随行情刷新 → 置 null 视为同步；任一失败则不动该行，旧快照日期继续如实展示 */
   if (okVix && okTnx && okFx) {

@@ -94,6 +94,9 @@
   .alloc-seg { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10.5px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; }
   .alloc-seg.ndx { background: linear-gradient(180deg, rgba(91,163,255,.85), rgba(91,163,255,.6)); }
   .alloc-seg.spx { background: linear-gradient(180deg, rgba(186,143,255,.85), rgba(186,143,255,.6)); }
+  .alloc-seg.kr { background: linear-gradient(180deg, rgba(70,201,240,.85), rgba(70,201,240,.6)); }
+  .alloc-seg.n225 { background: linear-gradient(180deg, rgba(255,190,80,.85), rgba(255,190,80,.6)); }
+  .alloc-seg.hkus { background: linear-gradient(180deg, rgba(86,214,158,.85), rgba(86,214,158,.6)); }
   .alloc-seg b { font-family: var(--mono); font-feature-settings: "tnum"; }
   .alloc-cap { display: flex; justify-content: center; gap: 14px; font-size: 10.5px; color: var(--tx3); margin-top: 5px; }
   .alloc-cap i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
@@ -105,6 +108,9 @@
   .idx-badge { font-family: var(--mono); font-size: 9.5px; font-weight: 700; border-radius: 6px; padding: 2px 7px; }
   .idx-badge.ndx { background: rgba(70,201,240,.12); color: var(--cyan); border: 1px solid rgba(70,201,240,.3); }
   .idx-badge.spx { background: rgba(91,163,255,.12); color: var(--blue); border: 1px solid rgba(91,163,255,.3); }
+  .idx-badge.kr { background: rgba(70,201,240,.12); color: var(--cyan); border: 1px solid rgba(70,201,240,.3); }
+  .idx-badge.n225 { background: rgba(255,190,80,.12); color: var(--yellow); border: 1px solid rgba(255,190,80,.3); }
+  .idx-badge.hkus { background: rgba(86,214,158,.12); color: var(--green); border: 1px solid rgba(86,214,158,.3); }
   .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; font-size: 12.5px; margin-bottom: 12px; }
   .stat-grid .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
   .stat-grid .row b { font-family: var(--mono); font-feature-settings: "tnum"; font-weight: 700; white-space: nowrap; }
@@ -124,6 +130,16 @@
   .lad-chip.up { color: var(--green); border-color: rgba(45,212,167,.3); background: rgba(45,212,167,.08); }
   .lad-chip.warn { color: var(--yellow); border-color: rgba(247,193,78,.3); background: rgba(247,193,78,.08); }
   .lad-chip.down { color: var(--red); border-color: rgba(242,109,125,.3); background: rgba(242,109,125,.08); }
+
+  /* ===== 场内溢价行：收盘价相对单位净值的偏离（水位梯下方小字） ===== */
+  .prem-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 11.5px; color: var(--tx3); margin: -6px 0 10px; min-width: 0; }
+  .prem-row b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .prem-row b.prem-ok { color: var(--tx2); }
+  .prem-row b.prem-warn { color: var(--yellow); }
+  .prem-row b.prem-high { color: var(--red); }
+  .prem-row b.prem-disc { color: var(--green); }
+  .prem-row .prem-tag { font-size: 10.5px; }
+  .prem-row .prem-note { color: var(--tx3); }
 
   /* ===== 成本位置条 ===== */
   .bar-wrap { margin: 4px 0 14px; }
@@ -289,7 +305,7 @@ themeBtn.addEventListener("click", () => {
 const fmtPct = (v, dp) => (v >= 0 ? "+" : "") + (v * 100).toFixed(dp === undefined ? 1 : dp) + "%";
 const fmtWan = (v) => (v / 10000).toFixed(1) + "万";
 const fmtN = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
-const fmtIdx = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const fmtIdx = (v) => v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : (Number.isFinite(v) ? v.toFixed(2) : "--");   // 指数点整数 / ETF 价 2 位小数
 const cls = (v) => v >= 0 ? "up" : "down";
 
 /* ---- 渲染 ---- */
@@ -303,7 +319,13 @@ const CONFIG = {
   BUY_DOT_BASE: 5,    // 买入点最小直径（px）
   BUY_DOT_RANGE: 3,   // 买入点随份数增大区间（px，5~8）
   TIP_CLAMP: 40,      // 买入气泡距视口顶部的钳制距离（px）
+  PREM_WARN: 3,       // 场内溢价警示阈值（%）：≥3% 黄色提示
+  PREM_HIGH: 8,       // 场内溢价高危阈值（%）：≥8% 红色警示
 };
+/* 市场元数据：名称徽章 / 筛选短名 / 堆叠条图例颜色（与 CSS .alloc-seg.<key> 对应） */
+const MARKET_NAMES = { ndx: "纳指100", spx: "标普500", kr: "中韩半导体", n225: "日经225", hkus: "港美互联网" };
+const MARKET_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日经", hkus: "港美" };
+const MARKET_COLORS = { ndx: "var(--blue)", spx: "var(--purple)", kr: "var(--cyan)", n225: "var(--yellow)", hkus: "var(--green)" };
 let posInfos = [];   // 现价弹窗数据（每次 render 重建，下标对应 data-k）
 let costInfos = [];  // 成本位弹窗数据（同上）
 
@@ -345,13 +367,13 @@ function renderImpl() {
   const alloc = {};
   rows.forEach((row) => { alloc[row.p.idx] = (alloc[row.p.idx] || 0) + row.valAmt; });
   const allocTotal = Object.values(alloc).reduce((a, b) => a + b, 0);
-  const allocNames = { ndx: "纳指", spx: "标普" };
+  const allocNames = MARKET_SHORT;
   $("alloc-bar").innerHTML = Object.keys(alloc).map((k) => {
     const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
-    return '<div class="alloc-seg ' + k + '" style="width:' + w.toFixed(1) + '%"><span>' + allocNames[k] + '</span><b>' + w.toFixed(1) + '%</b></div>';
+    return '<div class="alloc-seg ' + k + '" style="width:' + w.toFixed(1) + '%"><span>' + MARKET_NAMES[k] + '</span><b>' + w.toFixed(1) + '%</b></div>';
   }).join("");
   $("alloc-cap").innerHTML = Object.keys(alloc).map((k) =>
-    '<span><i style="background:' + (k === "ndx" ? "var(--blue)" : "var(--purple)") + '"></i>' + allocNames[k] + ' ' + fmtWan(alloc[k]) + '</span>').join("");
+    '<span><i style="background:' + (MARKET_COLORS[k] || "var(--tx3)") + '"></i>' + allocNames[k] + ' ' + fmtWan(alloc[k]) + '</span>').join("");
 
   /* 持仓卡 */
   $("pos-list").innerHTML = rows.map((row, i) => holdCardHtml(row, i, { asOfUs, firstDate })).join("");
@@ -369,7 +391,9 @@ function holdCardHtml(row, i, ctx) {
   /* 档位：文本与 emoji 分离，emoji 仅装饰（渲染时 aria-hidden）；tierWord 不再依赖 slice 去 emoji */
   const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "�"];
   const backToCost = 1 - m.close / p.idxAtCost;   // 指数再跌 x% 回到成本（正=需涨回本）
-  const idxName = p.idx === "ndx" ? "纳指100" : "标普500";
+  const idxName = MARKET_NAMES[p.idx] || p.idx;
+  const isIdxScope = p.idx === "ndx" || p.idx === "spx";   // 口径：指数（历史高点）vs ETF 自身（52周高）
+  const athLbl = isIdxScope ? "历史高点" : "52周高";
   const heldDays = asOfUs && firstDate[p.sym] ? Math.max(1, Math.round((Date.parse(asOfUs) - Date.parse(firstDate[p.sym])) / 86400000)) : null;
   /* 日内波动操作线（MANUAL 策略，data.js POSITIONS.strategy） */
   const st = POSITIONS.strategy || { dip: -2, rally: 3 };
@@ -413,8 +437,9 @@ function holdCardHtml(row, i, ctx) {
     '</div>';
   }
   costInfos[i] = { idxAtCost: p.idxAtCost, gapCost: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
-  /* 买入位置分布：每笔买入按当日指数落在52周区间的分位，绿点标在尺上方（大小∝份数），重叠位置纵向堆叠；点击看明细 */
-  const buys = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.idxAt);
+  /* 买入位置分布：每笔买入按当日落在52周区间的分位，绿点标在尺上方（大小∝份数），重叠位置纵向堆叠；点击看明细。卖出/减仓不参与 */
+  const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+  const buys = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.idxAt && !isSell(e));
   const maxQ = Math.max.apply(null, buys.map((e) => e.qty).concat([1]));
   const binCnt = {};
   const buyMarks = buys.map((e) => {
@@ -438,6 +463,21 @@ function holdCardHtml(row, i, ctx) {
     { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
     { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: "" },
   ].sort((a, b) => b.v - a.v);
+  /* 场内溢价：收盘价相对单位净值的偏离（data.js POSITIONS.premiums，AUTO）。QDII 限购时溢价升高，买入即承担溢价回落风险 */
+  const prem = (POSITIONS.premiums || {})[p.code];
+  let premRow = "";
+  if (prem && Number.isFinite(prem.pct)) {
+    const pv = prem.pct;
+    const pc = pv >= CONFIG.PREM_HIGH ? "prem-high" : pv >= CONFIG.PREM_WARN ? "prem-warn" : pv < 0 ? "prem-disc" : "prem-ok";
+    const tag = pv >= CONFIG.PREM_HIGH ? '<span class="prem-tag ' + pc + '"><span aria-hidden="true">⚠️</span> 场内买入价明显高于基金实际净值，慎买</span>'
+      : pv >= CONFIG.PREM_WARN ? '<span class="prem-tag ' + pc + '">溢价偏高，买入留意</span>'
+      : pv < 0 ? '<span class="prem-tag prem-disc">折价</span>' : "";
+    premRow = '<div class="prem-row"><span>场内溢价</span>' +
+      '<b class="' + pc + '">' + (pv >= 0 ? "+" : "") + pv.toFixed(1) + '%</b>' + tag +
+      '<span class="prem-note">净值 ' + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") +
+      (prem.navDate ? " (" + prem.navDate.slice(5).replace("-", ".") + ")" : "") + '</span>' +
+    '</div>';
+  }
   return '<article class="card" data-sym="' + p.sym + '">' +
     '<div class="pos-head"><div class="pos-name">' + p.sym +
       '<span class="code">' + p.code + '</span>' +
@@ -464,6 +504,7 @@ function holdCardHtml(row, i, ctx) {
         '</div>').join("") +
       '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
     '</div>' +
+    premRow +
     '<div class="bar-wrap">' +
       '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span></div>' +
       '<div class="buy-layer">' + buyMarks + '</div>' +
@@ -473,12 +514,12 @@ function holdCardHtml(row, i, ctx) {
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
       '</div>' +
       '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
-      '<div class="bar-legend"><span>52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span><span><i style="background:var(--green);border-radius:50%"></i>买入</span></div>' +
+      '<div class="bar-legend"><span>52周低 → ' + athLbl + '</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span><span><i style="background:var(--green);border-radius:50%"></i>买入</span></div>' +
     '</div>' +
     ytdBar +
     '<div class="strat-row">' + strat +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
-      '<div class="strat-note">触发线按<b>指数</b>当日涨跌计算（美股口径）。QDII ETF 的日内价格反映的是前一晚美股行情与当日溢价变化，与指数涨跌存在错位——以券商账户的实际成交为准。</div>' +
+      '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。</div>' +
     '</div>' +
   '</article>';
 }
@@ -511,7 +552,7 @@ function logItemHtml(e) {
   const a = String(e.act || "");
   const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
   const d = e.d ? e.d.slice(5).replace("-", ".") : "--";   // M.D 短格式，年份由上下文隐含
-  const link = e.idxAt !== undefined;   // 有当日指数点位的买入条目可点击联动绿点
+  const link = e.idxAt !== undefined && !/卖出|减仓|清仓/.test(a);   // 仅买入类条目可联动绿点
   return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
     '<span class="log-date">' + d + '</span>' +
     '<span class="act-badge ' + c + '">' + e.act + '</span>' +
@@ -533,8 +574,8 @@ function renderLog() {
   } else {
     btn.style.display = "none";
   }
-  /* 筛选 chips（数据驱动生成，带条数） */
-  $("log-chips").innerHTML = [["all", "全部"], ["ndx", "纳指"], ["spx", "标普"]].map(([k, label]) => {
+  /* 筛选 chips（数据驱动生成，带条数；市场来自 MARKET_SHORT） */
+  $("log-chips").innerHTML = [["all", "全部"]].concat(Object.keys(MARKET_SHORT).map((k) => [k, MARKET_SHORT[k]])).map(([k, label]) => {
     const n = k === "all" ? all.length : all.filter((e) => symIdx[e.sym] === k).length;
     return '<button type="button" class="log-chip' + (logFilter === k ? " on" : "") + '" data-f="' + k + '" aria-pressed="' + (logFilter === k) + '">' + label + ' ' + n + '</button>';
   }).join("");
