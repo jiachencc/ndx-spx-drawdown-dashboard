@@ -89,6 +89,14 @@
   .sum-cell { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 8px; text-align: center; min-width: 0; }
   .sum-cell .s-label { font-size: 10.5px; color: var(--tx3); margin-bottom: 4px; }
   .sum-cell .s-val { font-family: var(--mono); font-size: 17px; font-weight: 700; font-feature-settings: "tnum"; }
+  /* 组合占比堆叠条（按市值占比，宽度数据驱动） */
+  .alloc-bar { display: flex; height: 22px; border-radius: 999px; overflow: hidden; border: 1px solid var(--line-soft); margin-top: 10px; }
+  .alloc-seg { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10.5px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .alloc-seg.ndx { background: linear-gradient(180deg, rgba(91,163,255,.85), rgba(91,163,255,.6)); }
+  .alloc-seg.spx { background: linear-gradient(180deg, rgba(186,143,255,.85), rgba(186,143,255,.6)); }
+  .alloc-seg b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .alloc-cap { display: flex; justify-content: center; gap: 14px; font-size: 10.5px; color: var(--tx3); margin-top: 5px; }
+  .alloc-cap i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 
   /* ===== 持仓卡 ===== */
   .pos-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -163,13 +171,17 @@
   .bar-track.pops::before { content: ""; position: absolute; inset: -7px 0; }   /* 竖向热区扩大到 ~22px */
   button.bar-marker { pointer-events: none; }
   .buy-mark b { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px rgba(52,211,153,.55); }
+  .buy-mark.flash b { animation: buyflash .5s ease-in-out 3; }
+  @keyframes buyflash { 0%, 100% { transform: scale(1); box-shadow: 0 0 5px rgba(52,211,153,.55); } 50% { transform: scale(1.9); box-shadow: 0 0 14px rgba(52,211,153,1); } }
+  .log-item.linkable { cursor: pointer; }
+  .log-item.linkable:hover .log-date { color: var(--green); }
   .buy-mark i { width: 1.5px; background: rgba(52,211,153,.4); }
   .buy-tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 11px; font-family: var(--mono); color: var(--tx); white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; font-feature-settings: "tnum"; }
   body.light .buy-tip { box-shadow: 0 8px 22px -6px rgba(15,23,42,.25); }
   .pos-tier { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin-left: 6px; font-family: var(--sans); white-space: nowrap; }
   .pos-tier.t-low { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
   .pos-tier.t-mid { background: rgba(247,193,78,.1); color: var(--yellow); border: 1px solid rgba(247,193,78,.3); }
-  .pos-tier.t-high { background: rgba(91,163,255,.12); color: var(--blue); border: 1px solid rgba(91,163,255,.3); }
+  .pos-tier.t-high { background: rgba(255,107,129,.12); color: var(--red); border: 1px solid rgba(255,107,129,.3); }
 
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .kpi { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 4px; text-align: center; min-width: 0; }
@@ -235,6 +247,8 @@
 
   <div class="card">
     <div class="sum-grid" id="sum-grid"></div>
+    <div class="alloc-bar" id="alloc-bar" role="img" aria-label="组合占比"></div>
+    <div class="alloc-cap" id="alloc-cap"></div>
   </div>
 
   <div id="pos-list"></div>
@@ -327,6 +341,18 @@ function renderImpl() {
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📦</span> 组合市值（估）</div><div class="s-val">' + fmtWan(totalVal) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 组合浮盈</div><div class="s-val ' + cls(totalR) + '">' + fmtPct(totalR) + '</div></div>';
 
+  /* 组合占比堆叠条：按市值占比分指数聚合（数据驱动，非 hold.pct 硬编码） */
+  const alloc = {};
+  rows.forEach((row) => { alloc[row.p.idx] = (alloc[row.p.idx] || 0) + row.valAmt; });
+  const allocTotal = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const allocNames = { ndx: "纳指", spx: "标普" };
+  $("alloc-bar").innerHTML = Object.keys(alloc).map((k) => {
+    const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
+    return '<div class="alloc-seg ' + k + '" style="width:' + w.toFixed(1) + '%"><span>' + allocNames[k] + '</span><b>' + w.toFixed(1) + '%</b></div>';
+  }).join("");
+  $("alloc-cap").innerHTML = Object.keys(alloc).map((k) =>
+    '<span><i style="background:' + (k === "ndx" ? "var(--blue)" : "var(--purple)") + '"></i>' + allocNames[k] + ' ' + fmtWan(alloc[k]) + '</span>').join("");
+
   /* 持仓卡 */
   $("pos-list").innerHTML = rows.map((row, i) => holdCardHtml(row, i, { asOfUs, firstDate })).join("");
 
@@ -341,7 +367,7 @@ function holdCardHtml(row, i, ctx) {
   const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
   const pct = Math.round(pctOf(p.idxAtCost));   // 成本位置分位（52周低=0% → 历史高点=100%），取整保证显示与档位一致
   /* 档位：文本与 emoji 分离，emoji 仅装饰（渲染时 aria-hidden）；tierWord 不再依赖 slice 去 emoji */
-  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
+  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "�"];
   const backToCost = 1 - m.close / p.idxAtCost;   // 指数再跌 x% 回到成本（正=需涨回本）
   const idxName = p.idx === "ndx" ? "纳指100" : "标普500";
   const heldDays = asOfUs && firstDate[p.sym] ? Math.max(1, Math.round((Date.parse(asOfUs) - Date.parse(firstDate[p.sym])) / 86400000)) : null;
@@ -412,7 +438,7 @@ function holdCardHtml(row, i, ctx) {
     { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
     { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: "" },
   ].sort((a, b) => b.v - a.v);
-  return '<article class="card">' +
+  return '<article class="card" data-sym="' + p.sym + '">' +
     '<div class="pos-head"><div class="pos-name">' + p.sym +
       '<span class="code">' + p.code + '</span>' +
       '<span class="idx-badge ' + p.idx + '">' + idxName + '</span></div>' +
@@ -421,6 +447,12 @@ function holdCardHtml(row, i, ctx) {
     '<div class="stat-grid">' +
       '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
       '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
+    '</div>' +
+    '<div class="kpi-row">' +
+      '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
+      '<div class="kpi"><div class="k-label">市值（估）</div><div class="k-val">' + fmtWan(nav * p.qty) + '</div></div>' +
+      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
+      '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (p.pct !== undefined ? p.pct.toFixed(1) + '%' : '--') + '</div></div>' +
     '</div>' +
     '<div class="ladder">' +
       ladRows.map((lr) =>
@@ -444,12 +476,6 @@ function holdCardHtml(row, i, ctx) {
       '<div class="bar-legend"><span>52周低 → 历史高点</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span><span><i style="background:var(--green);border-radius:50%"></i>买入</span></div>' +
     '</div>' +
     ytdBar +
-    '<div class="kpi-row">' +
-      '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
-      '<div class="kpi"><div class="k-label">市值（估）</div><div class="k-val">' + fmtWan(nav * p.qty) + '</div></div>' +
-      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
-      '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (p.pct !== undefined ? p.pct.toFixed(1) + '%' : '--') + '</div></div>' +
-    '</div>' +
     '<div class="strat-row">' + strat +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
       '<div class="strat-note">触发线按<b>指数</b>当日涨跌计算（美股口径）。QDII ETF 的日内价格反映的是前一晚美股行情与当日溢价变化，与指数涨跌存在错位——以券商账户的实际成交为准。</div>' +
@@ -458,6 +484,14 @@ function holdCardHtml(row, i, ctx) {
 }
 
   /* 水位梯：定位 成本↔现价 之间的填充段（两圆点中心之间） */
+  positionLadderFills();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(positionLadderFills);   // 字体加载后行高变化，重算一次
+
+  /* 操作日志（数组顺序即新在上）：默认只显示最新 3 条，可展开全部 */
+  renderLog();
+}
+
+function positionLadderFills() {
   document.querySelectorAll("#pos-list .ladder").forEach((lad) => {
     const fill = lad.querySelector(".lad-fill");
     const dNow = lad.querySelector(".lad-dot.now"), dCost = lad.querySelector(".lad-dot.cost");
@@ -467,9 +501,6 @@ function holdCardHtml(row, i, ctx) {
     fill.style.top = (Math.min(a.top, b.top) - base + a.height / 2) + "px";
     fill.style.height = Math.abs(a.top - b.top) + "px";
   });
-
-  /* 操作日志（数组顺序即新在上）：默认只显示最新 3 条，可展开全部 */
-  renderLog();
 }
 
 let logOpen = false;
@@ -480,7 +511,8 @@ function logItemHtml(e) {
   const a = String(e.act || "");
   const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
   const d = e.d ? e.d.slice(5).replace("-", ".") : "--";   // M.D 短格式，年份由上下文隐含
-  return '<div class="log-item">' +
+  const link = e.idxAt !== undefined;   // 有当日指数点位的买入条目可点击联动绿点
+  return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
     '<span class="log-date">' + d + '</span>' +
     '<span class="act-badge ' + c + '">' + e.act + '</span>' +
     '<span class="log-sym">' + e.sym + '</span>' +
@@ -514,6 +546,29 @@ $("log-chips").addEventListener("click", (e) => {
   logFilter = btn.dataset.f;
   logOpen = false;   // 切换筛选后回到折叠态
   renderLog();
+});
+/* 日志条目 → 绿点联动：点击有 idxAt 的买入条目，滚动到对应持仓卡并闪烁该日绿点 */
+function flashBuyMark(item) {
+  const card = document.querySelector('.card[data-sym="' + item.dataset.sym + '"]');
+  if (!card) return;
+  const mk = card.querySelector('.buy-mark[data-d="' + item.dataset.d + '"]');
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (!mk) return;
+  mk.classList.remove("flash");
+  void mk.offsetWidth;   // 重启动画
+  mk.classList.add("flash");
+  setTimeout(() => mk.classList.remove("flash"), 1600);
+}
+$("log-list").addEventListener("click", (e) => {
+  const item = e.target.closest(".log-item.linkable");
+  if (item) flashBuyMark(item);
+});
+$("log-list").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const item = e.target.closest(".log-item.linkable");
+  if (!item) return;
+  e.preventDefault();
+  flashBuyMark(item);
 });
 
 /* 买入位置明细气泡：全局单例，点绿点显示「日期 · 价格 · 份数」，点空白关闭 */
