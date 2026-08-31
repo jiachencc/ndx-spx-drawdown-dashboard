@@ -39,7 +39,7 @@ ndx_spx_dashboard_handoff/
 ### 3.1 数据源与口径
 - **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。
 - **年内最大回撤 `ddYtd`**：脚本从 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
-- **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值四项（peFwd/peTtm/cape/pePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
+- **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值（peFwd/peTtm/cape/pePct + NDX 的 ndxPeFwd/ndxPePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json` + `/api/ndx/forward-pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位；`ndxPePct` 口径同法但样本自 2001 年起（NDX 远期PE 数据起点）。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
 - **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
 - **定投回测**：`DCA_NDX` / `DCA_SPX` 各 **2517 点**（2016–2026 每日定投 1 元），仅展示累计收益率与一次性买入对比，不产生买卖信号。区间表含近1月/3月/半年/1年/全周期五档（窗口按交易日 21/63/126/252 近似切片）。
 - **决策矩阵口径（2026-08-28 校准，基于 10 年日K回测）**：回撤矩阵的历史频率/胜率 = NDX 2016-2026 独立下跌段、触发后 60 个交易日窗口（-5% 约5次/年·胜率82%；-15% 4段；-25% 2段全胜；-35% 1次）。止盈阈值依据：T+1 用 YTD +18%（NDX 年均涨幅约 18%，15% 会常年触发停大额；YTD+15~20% 后 60 日胜率 89% 故只停加码不卖出）；T+2 用 YTD +22%（YTD 首破 +20% 后 20 日胜率仅 38%，是全矩阵唯一有本数据回测支撑的减仓信号）；决策依据确认条件 VIX 阈值用 25（20 在正常波动区间、常年命中无区分度）。卡片上的历史统计是固定文案（历史分布不随每日行情变化），状态联动由 JS 实时计算。

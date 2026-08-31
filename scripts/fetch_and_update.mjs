@@ -249,6 +249,17 @@ try {
     if (hist.length) pePctV = Math.round(100 * hist.filter(v => v <= peFwdV).length / hist.length);
   }
 } catch (e) { console.warn("WARN pe:", e.message); }
+/* NDX 远期PE + 2001 年以来周度分位（样本起点晚于 SPX 的 1990，口径更短） */
+let ndxPeFwdV, ndxPePctV;
+try {
+  const nf = await getJSON("https://historyofmarket.com/api/ndx/forward-pe.json");
+  const c = nf.current;
+  if (Number.isFinite(c?.forward)) {
+    ndxPeFwdV = c.forward;
+    const hist = (nf.forward || []).map(x => x?.value).filter(Number.isFinite);
+    if (hist.length) ndxPePctV = Math.round(100 * hist.filter(v => v <= ndxPeFwdV).length / hist.length);
+  }
+} catch (e) { console.warn("WARN ndx pe:", e.message); }
 try {
   const cp = await getJSON("https://historyofmarket.com/api/sp500/pe.json");
   const last = (cp.pe || []).at(-1);
@@ -289,6 +300,12 @@ if (okCore) {
     F.peLine = `  peFwd: ${peFwdV.toFixed(1)}, peTtm: ${peTtmV.toFixed(1)}, cape: ${cape.toFixed(1)}, pePct: ${pct}, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）`;
     apply(/^  peFwd: [^\n]*$/m, F.peLine, "pe");
   }
+  if (ndxPeFwdV) {
+    const ndxPctOld = parseInt(src.match(/ndxPePct: (\d+)/)?.[1], 10);
+    const npct = Number.isFinite(ndxPePctV) ? ndxPePctV : ndxPctOld;
+    F.ndxPeLine = `  ndxPeFwd: ${ndxPeFwdV.toFixed(1)}, ndxPePct: ${npct}, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）`;
+    apply(/^  ndxPeFwd: [^\n]*$/m, F.ndxPeLine, "ndxPe");
+  }
   if (pcV) apply(/^  putcall: [\d.]+,[^\n]*$/m, `  putcall: ${pcV}, // AUTO：CBOE 全品类总 Put/Call`, "putcall");
   apply(/\/\* [^\n]*月度涨跌幅[^\n]*\*\/\nconst MONTHLY = \[[\s\S]*?\];/, F.monthly, "monthly");
   /* 宏观（vix/tnx/fx）全部随行情刷新 → 置 null 视为同步；任一失败则不动该行，旧快照日期继续如实展示 */
@@ -309,6 +326,6 @@ const sum = [];
 for (const line of src.split("\n"))
   if (/^  (date|intraday|ndx|spx|vix|fg|tnx|tnx2|fx|asOf|macroAsOf|putcall|peFwd|epsGrowth)/.test(line)) sum.push(line.trim());
 console.log("--- data.js AUTO fields ---\n" + sum.join("\n"));
-console.log(`status: core=${okCore} vix=${okVix} tnx=${okTnx} fx=${okFx} fg=${okFg} pe=${peFwdV ? "ok" : "keep"} cape=${Number.isFinite(capeV) ? "ok" : "keep"} pc=${pcV ?? "keep"}`);
+console.log(`status: core=${okCore} vix=${okVix} tnx=${okTnx} fx=${okFx} fg=${okFg} pe=${peFwdV ? "ok" : "keep"} ndxpe=${ndxPeFwdV ? "ok" : "keep"} cape=${Number.isFinite(capeV) ? "ok" : "keep"} pc=${pcV ?? "keep"}`);
 if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### 数据更新摘要\n```\n" + sum.join("\n") + "\n```\n");

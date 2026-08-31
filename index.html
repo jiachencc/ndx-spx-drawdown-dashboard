@@ -704,6 +704,12 @@
       <div class="m-marks"><span>0%</span><span>50%</span><span>100%</span></div>
     </div>
     <div class="meter">
+      <div class="m-head"><span class="m-label">NDX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="ndxpepct">?</button></span><span class="m-val" id="val-ndxpepct">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">NDX 远期PE<button class="hint-i" type="button" aria-label="查看释义" data-h="pefwd">?</button></span><span class="m-val" id="val-ndxpe">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-ndxpepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
+      <div class="m-marks"><span>0%</span><span>50%</span><span>100%</span></div>
+    </div>
+    <div class="meter">
       <div class="m-head"><span class="m-label">SPX 远期PE<button class="hint-i" type="button" aria-label="查看释义" data-h="pefwd">?</button></span><span class="m-val" id="val-pe">--</span></div>
       <div class="m-head" style="margin-top:4px;"><span class="m-label">TTM PE<button class="hint-i" type="button" aria-label="查看释义" data-h="petm">?</button></span><span class="m-val" id="val-pe-ttm">--</span></div>
       <div class="m-head" style="margin-top:4px;"><span class="m-label">席勒 CAPE<button class="hint-i" type="button" aria-label="查看释义" data-h="cape">?</button></span><span class="m-val" id="val-cape">--</span></div>
@@ -800,6 +806,7 @@
       <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
       <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
     </div>
+    <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> <b>年内回撤是常态</b>：标普500 自 1928 年以来，<b>年内平均最大回撤 -16.2%</b>，而多数年份年末仍收正——当前的年内回撤（NDX <b id="hist-ddytd">--</b>）放在百年尺度只是寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
     <div class="note">当前回撤 <b id="hist-rank-txt">--</b>：在近 10 年属于 <b>普通技术性回调</b>，纳指历史上有 30%+ 交易日处于 -5% 以下。真正的加仓窗口（-15% 以下）出现频率约 12%，需耐心等。<b style="color:var(--green)">长期看，NDX 年化 +16% 是"回撤早晚会修复"的底气</b>。</div>
   </div>
 
@@ -1007,6 +1014,12 @@ function renderAll() {
   $("val-pepct").textContent = D.pePct + "%";
   $("val-pepct").style.color = bandColor(D.pePct, RULES.pePct);
   $("val-pepctb").style.width = D.pePct + "%";
+  if (D.ndxPePct !== undefined) {
+    $("val-ndxpepct").textContent = D.ndxPePct + "%";
+    $("val-ndxpepct").style.color = bandColor(D.ndxPePct, RULES.pePct);
+    $("val-ndxpepctb").style.width = D.ndxPePct + "%";
+    $("val-ndxpe").textContent = D.ndxPeFwd.toFixed(1) + "x";
+  }
   $("val-pe").textContent = D.peFwd.toFixed(1) + "x";
   $("val-pe-ttm").textContent = D.peTtm.toFixed(1) + "x";
   $("val-cape").textContent = D.cape.toFixed(1) + "x";
@@ -1029,8 +1042,9 @@ function renderAll() {
   $("val-epsb").style.background = eps < 0 ? "var(--red)" : "var(--green)";
   /* 估值注释（派生） */
   $("note-val").innerHTML =
-    "Forward PE 分位 <b>" + D.pePct + "%</b>（" + (D.pePct > 80 ? "偏贵" : D.pePct > 60 ? "中性" : "便宜") +
-    "）→ 回撤提供的是「打折」而非「便宜」，加仓宜分批忌梭哈。Fwd ERP <b style=\"color:" + (erpF < 1 ? "var(--red)" : "var(--green)") + "\">" + pct(erpF) + "</b>、TTM ERP " + pct(erpT) +
+    "SPX Forward PE 分位 <b>" + D.pePct + "%</b>（" + (D.pePct > 80 ? "偏贵" : D.pePct > 60 ? "中性" : "便宜") +
+    "）、NDX 分位 <b>" + (D.ndxPePct !== undefined ? D.ndxPePct + "%（2001 年以来口径）" : "--") +
+    "</b> → 回撤提供的是「打折」而非「便宜」，加仓宜分批忌梭哈。Fwd ERP <b style=\"color:" + (erpF < 1 ? "var(--red)" : "var(--green)") + "\">" + pct(erpF) + "</b>、TTM ERP " + pct(erpT) +
     " → " + (erpF < 1 ? "股债性价比极低，重手 DCA 的安全垫很薄" : "股债性价比尚可") +
     "。EPS 增速 <b style=\"color:" + (eps > 0 ? "var(--green)" : "var(--red)") + "\">" + pct(eps) + "</b> → " + (eps > 0 ? "回调不改盈利基本面" : "盈利收缩期，慎用加仓档位") + "。";
 
@@ -1130,6 +1144,7 @@ function renderHist(ndxDD) {
   $("med-val").style.left = pos + "%";
   $("med-val").textContent = pct(ndxDD);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
+  $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd) : "--";   // 年内回撤基准对照（数据驱动）
 }
 
 /* ================= Scale SVG ================= */
@@ -1470,6 +1485,7 @@ const HINTS = {
   breadth:  { name: "市场广度", plain: "<b>科技龙头（纳指）vs 整个市场（标普）</b>今年谁跑得快。龙头领跑 = 行情健康；龙头掉队 = 警惕抱团瓦解。", pro: "NDX 的 YTD 涨幅 − SPX 的 YTD 涨幅（pp = 百分点差）。" },
   ytd:      { name: "YTD",     plain: "<b>今年 1 月 1 日到现在</b>涨跌了多少。", pro: "Year-To-Date，年初至今回报。" },
   pepct:    { name: "远期PE分位", plain: "现在贵不贵，看它在<b>历史里的排名</b>。75% = 比过去 75% 的时间都贵，属偏贵区。", pro: "当前 Forward PE 在历史分布中的百分位（0–100%）。" },
+  ndxpepct: { name: "纳指远期PE分位", plain: "纳指100 贵不贵的历史排名，读法同上。注意<b>样本从 2001 年起</b>（标普从 1990 年起），口径更短，且纳指波动更大、分位天然更极端。", pro: "当前 NDX 100 Forward PE 在 2001 年以来周度分布中的百分位（historyofmarket.com，含 2000 泡沫与 2008 危机两个极端样本）。" },
   pefwd:    { name: "远期PE",  plain: "拿<b>未来一年的预测盈利</b>给市场标价。20.9 倍 ≈ 按预测盈利 20.9 年回本，越高越贵。", pro: "股价 ÷ 未来 12 个月预期每股盈利（EPS）。" },
   petm:     { name: "TTM PE",  plain: "拿<b>过去一年已赚到的钱</b>算贵不贵，比远期更实在。27.2 倍 ≈ 27.2 年回本。", pro: "股价 ÷ 滚动 12 个月实际 EPS。" },
   cape:     { name: "席勒CAPE", plain: "把<b>过去 10 年</b>的盈利平均后再算 PE，防止某一年盈利异常骗人。39.5 在历史上属极贵。", pro: "十年通胀调整后平均盈利的市盈率（Shiller CAPE）。" },

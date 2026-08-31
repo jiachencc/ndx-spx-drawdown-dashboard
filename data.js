@@ -18,6 +18,7 @@ const DEFAULT = {
   putcall: 0.84, // AUTO：CBOE 全品类总 Put/Call
   fx: 6.72,
   peFwd: 20.1, peTtm: 27.6, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
+  ndxPeFwd: 22.4, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护
   asOf: { us: "2026-08-28", et: "16:00 EDT", local: "2026-08-29 11:23:12" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
