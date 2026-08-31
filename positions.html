@@ -117,8 +117,6 @@
   .lad-row { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 7px 0 7px 22px; min-width: 0; flex-wrap: wrap; }
   .lad-dot { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--card); }
   .lad-dot.now { box-shadow: 0 0 0 3px var(--card), 0 0 8px rgba(226,233,245,.5); }
-  .lad-dot.cost { animation: costglow 2.4s ease-in-out infinite; }   /* 成本圆点柔和呼吸，提示「成本锚」 */
-  @keyframes costglow { 0%, 100% { box-shadow: 0 0 0 3px var(--card), 0 0 4px rgba(34,211,238,.4); } 50% { box-shadow: 0 0 0 3px var(--card), 0 0 12px rgba(34,211,238,.95); } }
   .lad-name { font-size: 11px; color: var(--tx3); flex: none; }
   .lad-val { font-family: var(--mono); font-size: 14px; font-weight: 700; font-feature-settings: "tnum"; }
   .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
@@ -180,17 +178,6 @@
   .buy-mark i { width: 1.5px; background: rgba(52,211,153,.4); }
   .buy-tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 11px; font-family: var(--mono); color: var(--tx); white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; font-feature-settings: "tnum"; }
   body.light .buy-tip { box-shadow: 0 8px 22px -6px rgba(15,23,42,.25); }
-  /* 成本阶梯图：累计平均成本随买入逐步变化（数据源 = 操作日志） */
-  .cs-title { font-size: 13px; font-weight: 700; margin: 18px 2px 8px; display: flex; align-items: center; gap: 8px; }
-  .cs-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 10.5px; color: var(--tx3); margin: 0 2px 8px; }
-  .cs-legend i { display: inline-block; width: 14px; height: 2px; margin-right: 5px; vertical-align: 3px; }
-  .cs-wrap { position: relative; height: 160px; }
-  .cs-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .cs-ylab { position: absolute; left: 0; transform: translateY(-50%); font-family: var(--mono); font-size: 9px; color: var(--tx3); font-feature-settings: "tnum"; pointer-events: none; background: var(--bg); padding: 0 3px; border-radius: 3px; }
-  .cs-xlab { position: absolute; bottom: 0; font-family: var(--mono); font-size: 9px; color: var(--tx3); font-feature-settings: "tnum"; pointer-events: none; }
-  .cs-dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--green); border: 1.5px solid var(--bg); padding: 0; box-sizing: border-box; transform: translate(-50%, -50%); cursor: pointer; box-shadow: 0 0 5px rgba(52,211,153,.55); }
-  .cs-dot::after { content: ""; position: absolute; inset: -8px; }   /* 扩大点击热区 */
-  .cs-dot:hover { box-shadow: 0 0 12px rgba(52,211,153,1); }
   .pos-tier { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin-left: 6px; font-family: var(--sans); white-space: nowrap; }
   .pos-tier.t-low { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
   .pos-tier.t-mid { background: rgba(247,193,78,.1); color: var(--yellow); border: 1px solid rgba(247,193,78,.3); }
@@ -265,14 +252,6 @@
   </div>
 
   <div id="pos-list"></div>
-
-  <h2 class="cs-title"><span aria-hidden="true">📶</span> 成本阶梯 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（累计平均成本随买入变化）</span></h2>
-  <div class="cs-legend">
-    <span><i style="background:var(--cyan)"></i>累计平均成本</span>
-    <span><i style="background:var(--green);height:6px;width:6px;border-radius:50%;vertical-align:0"></i>单笔成交价（点越大份数越多，可点）</span>
-    <span><i style="background:var(--purple);height:0;border-top:2px dashed var(--purple)"></i>当前持仓成本</span>
-  </div>
-  <div class="card"><div class="cs-wrap" id="cs-wrap"></div></div>
 
   <h2 class="sec-title"><span aria-hidden="true">🧾</span> 操作日志 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（新在上）</span><button type="button" id="log-toggle" class="log-toggle" aria-expanded="false"></button></h2>
   <div class="log-chips" id="log-chips"></div>
@@ -510,64 +489,6 @@ function holdCardHtml(row, i, ctx) {
 
   /* 操作日志（数组顺序即新在上）：默认只显示最新 3 条，可展开全部 */
   renderLog();
-
-  /* 成本阶梯图：按日志时间序滚动累计平均成本（数据源 = POSITIONS.log） */
-  renderCostStairs(rows);
-}
-
-/* 成本阶梯图：阶梯线+渐变面积=累计平均成本（青），绿点=单笔成交价（大小∝份数），
-   紫虚线=当前持仓成本；点绿点弹气泡（复用 buyTip 全局单例） */
-function renderCostStairs(rows) {
-  const wrap = $("cs-wrap");
-  if (!wrap) return;
-  const buys = (POSITIONS.log || [])
-    .filter((e) => /建仓|加仓|买入/.test(String(e.act || "")) && e.cost !== undefined)
-    .slice()
-    .sort((a, b) => a.d.localeCompare(b.d));   // 日志新在上，画图需时间正序
-  if (!buys.length) { wrap.innerHTML = '<div class="log-note" style="padding:12px 2px;text-align:center">暂无买入记录</div>'; return; }
-
-  const W = 100, H = 100, L = 9, R = 2, T = 9, B = 16;   // viewBox 坐标，preserveAspectRatio=none 拉伸
-  let cumQty = 0, cumAmt = 0;
-  const pts = buys.map((e) => {
-    cumQty += e.qty; cumAmt += e.qty * e.cost;
-    return { d: e.d, qty: e.qty, price: e.cost, avg: cumAmt / cumQty };
-  });
-  const curCost = rows.length ? rows.reduce((s, r) => s + r.costAmt, 0) / rows.reduce((s, r) => s + r.p.qty, 0) : pts[pts.length - 1].avg;
-  const vals = pts.flatMap((p) => [p.price, p.avg]).concat([curCost]);
-  const lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-  const span = Math.max(hi - lo, 1e-9), pad = span * 0.14;
-  const y = (v) => T + (1 - (v - (lo - pad)) / (span + 2 * pad)) * (H - T - B);
-  const x = (i) => L + (pts.length === 1 ? (W - L - R) / 2 : i / (pts.length - 1) * (W - L - R));
-  const maxQ = Math.max.apply(null, pts.map((p) => p.qty));
-  const md = (d) => d.slice(5).replace("-", ".").replace(/^0/, "");
-
-  /* 阶梯路径：每笔成交后平均成本跳变，保持到下一笔；面积路径 = 阶梯 + 底边闭合 */
-  let path = "M " + x(0).toFixed(2) + " " + y(pts[0].avg).toFixed(2);
-  for (let i = 1; i < pts.length; i++) path += " H " + x(i).toFixed(2) + " V " + y(pts[i].avg).toFixed(2);
-  const xEnd = (W - R).toFixed(2);
-  path += " H " + xEnd;
-  const areaPath = path + " V " + (H - B) + " H " + x(0).toFixed(2) + " Z";
-  const yCur = y(curCost).toFixed(2);
-
-  wrap.innerHTML =
-    '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' +
-      '<defs><linearGradient id="csfill" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0" stop-color="rgba(34,211,238,.2)"/><stop offset="1" stop-color="rgba(34,211,238,0)"/>' +
-      '</linearGradient></defs>' +
-      '<line x1="' + L + '" y1="' + yCur + '" x2="' + (W - R) + '" y2="' + yCur + '" stroke="var(--purple)" stroke-width="1" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" opacity=".85"/>' +
-      '<path d="' + areaPath + '" fill="url(#csfill)"/>' +
-      '<path d="' + path + '" fill="none" stroke="var(--cyan)" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
-    '</svg>' +
-    '<span class="cs-ylab" style="top:' + (y(lo) / H * 100).toFixed(1) + '%">' + lo.toFixed(3) + '</span>' +
-    '<span class="cs-ylab" style="top:' + (y(hi) / H * 100).toFixed(1) + '%">' + hi.toFixed(3) + '</span>' +
-    '<span class="cs-xlab" style="left:0">' + md(pts[0].d) + ' 起投</span>' +
-    '<span class="cs-xlab" style="right:0">' + md(pts[pts.length - 1].d) + ' 最新</span>' +
-    pts.map((p, i) => {
-      const sz = (5 + 4 * (p.qty / maxQ) ** 2).toFixed(1);   // 点大小 5~9px，平方放大头部大单的视觉差异
-      return '<button type="button" class="cs-dot" style="left:' + (x(i) / W * 100).toFixed(2) + '%;top:' + (y(p.price) / H * 100).toFixed(2) + '%;width:' + sz + 'px;height:' + sz + 'px"' +
-        ' data-tip="' + md(p.d) + ' · 成交 ' + p.price.toFixed(3) + ' · 累计 ' + p.avg.toFixed(3) + ' · ' + fmtN(p.qty) + ' 份"' +
-        ' aria-label="' + p.d + ' 买入 ' + p.price.toFixed(3) + ' 元，累计成本 ' + p.avg.toFixed(3) + ' 元"></button>';
-    }).join("");
 }
 
 function positionLadderFills() {
@@ -657,12 +578,11 @@ buyTip.style.display = "none";
 document.body.appendChild(buyTip);
 let lastBuyMark = null;
 document.addEventListener("click", (e) => {
-  const mk = e.target.closest(".buy-mark, .cs-dot");
+  const mk = e.target.closest(".buy-mark");
   if (!mk) { buyTip.style.display = "none"; lastBuyMark = null; return; }   // 点空白关闭
   if (mk === lastBuyMark) { buyTip.style.display = "none"; lastBuyMark = null; return; }   // 再点同一点关闭
   lastBuyMark = mk;
-  buyTip.textContent = mk.dataset.tip ||   // 成本阶梯圆点：预置文案
-    (mk.dataset.d || "--").slice(5).replace("-", ".").replace(/^0/, "") + " · " +
+  buyTip.textContent = (mk.dataset.d || "--").slice(5).replace("-", ".").replace(/^0/, "") + " · " +
     (+mk.dataset.c).toFixed(3) + " 元 · " + fmtN(+mk.dataset.q) + " 份";
   buyTip.style.display = "block";
   const r = mk.getBoundingClientRect();
