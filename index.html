@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美股指数回撤决策看板 · NDX / SPX</title>
+<meta name="description" content="美股指数回撤水位决策看板：NDX / SPX 回撤深度、四档加仓触发线、止盈矩阵与定投回测，个人投资决策辅助。">
+<link rel="stylesheet" href="font.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+
+  :root {
+    --bg: #0a0d13;
+    --bg-grad-1: #0e1526;
+    --card: #121826;
+    --card2: #1a2234;
+    --line: #232e44;
+    --line-soft: #1c2538;
+    --tx: #e2e9f5;
+    --tx2: #8fa0ba;
+    --tx3: #8294af;   /* 提亮一档（原 #6f7f9a 在暗色卡片上约 3.4:1，不达 WCAG AA；与持仓页保持一致） */
+    --green: #2dd4a7;
+    --red: #f26d7d;
+    --yellow: #f7c14e;
+    --blue: #5ba3ff;
+    --purple: #b195fb;
+    --cyan: #46c9f0;
+    --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    --radius: 14px;
+  }
+  /* ===== 浅色主题（点击右上角按钮切换） ===== */
+  body.light {
+    --bg: #eef2f8;
+    --bg-grad-1: #e6ecf6;
+    --card: #ffffff;
+    --card2: #f3f6fb;
+    --line: #dde4ef;
+    --line-soft: #eaf0f7;
+    --tx: #16243b;
+    --tx2: #52627e;
+    --tx3: #5b6b85;   /* 加深一档（原 #64748b 在白底约 4.0:1，不达 WCAG AA；与持仓页保持一致） */
+    --green: #0ea372;
+    --red: #e23b53;
+    --yellow: #c8901a;
+    --blue: #2f7be0;
+    --purple: #7c5cf0;
+    --cyan: #0a9fc4;
+  }
+  body.light .header h1 {
+    background: linear-gradient(100deg, #16243b 10%, #2f7be0 95%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  body.light .tag-black { background: #2a3142; color: #fff; border-color: #2a3142; }
+  body.light .hint-pop { background: #fff; border-color: #cbd5e1;
+    box-shadow: 0 14px 44px -8px rgba(15,23,42,.18), 0 0 0 1px rgba(91,163,255,.22); }
+  .theme-btn {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 5px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--tx2);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: border-color .2s, color .2s;
+  }
+  .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
+  a.theme-btn { text-decoration: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+  :focus:not(:focus-visible) { outline: none; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(91,163,255,.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(177,149,251,.05), transparent 55%),
+      var(--bg);
+    color: var(--tx);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    font-feature-settings: "tnum" 1, "cv01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    padding: 22px 18px 64px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  b, strong { font-weight: 700; }
+  .mono { font-family: var(--mono); font-feature-settings: "tnum" 1; }
+  /* ===== Header ===== */
+  .header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    flex-wrap: wrap; gap: 14px; margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .header h1 {
+    font-size: 24px; font-weight: 800; letter-spacing: 1px; line-height: 1.25;
+    background: linear-gradient(100deg, #fff 20%, #9db8ff 90%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header .sub { color: var(--tx2); font-size: 12.5px; margin-top: 4px; letter-spacing: .3px; }
+  .header .meta {
+    display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--tx2);
+    flex-wrap: wrap;
+  }
+  .chip {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--tx2);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    transition: border-color .2s;
+  }
+  .chip b { color: var(--cyan); font-weight: 700; }
+  /* ===== Signal banner ===== */
+  .signal-banner {
+    border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    border: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(91,163,255,.07), rgba(177,149,251,.05)), var(--card);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset, 0 8px 32px -12px rgba(0,0,0,.5);
+  }
+  .signal-banner .sig-icon {
+    width: 52px; height: 52px; font-size: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card2); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    flex-shrink: 0;
+  }
+  .signal-banner .sig-main { flex: 1; min-width: 220px; }
+  .signal-banner .sig-title { font-size: 20px; font-weight: 800; letter-spacing: .4px; line-height: 1.3; }
+  .signal-banner .sig-desc { font-size: 12.5px; color: var(--tx2); margin-top: 4px; line-height: 1.6; }
+  .sig-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .sig-kpis .sk {
+    display: inline-flex; align-items: baseline; gap: 7px;
+    background: var(--card2); border: 1px solid var(--line-soft); border-radius: 9px;
+    padding: 5px 11px; font-size: 11px;
+  }
+  .sig-kpis .sk-l { color: var(--tx3); }
+  .sig-kpis .sk b { font-family: var(--mono); font-size: 13.5px; font-weight: 800; letter-spacing: .2px; }
+  .signal-banner .sig-tag {
+    font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 700;
+    font-family: var(--mono);
+  }
+  .chip-stale { border-color: rgba(240,97,109,.55); color: var(--red); background: rgba(240,97,109,.1); }
+  .chip-stale b { color: var(--red); }
+  /* ===== 数据时间条（美股时区换算） ===== */
+  .asof-bar {
+    border: 1px solid rgba(0,210,255,.32); border-radius: var(--radius);
+    background: linear-gradient(90deg, rgba(0,210,255,.09), rgba(0,210,255,.02));
+    padding: 10px 15px; margin-bottom: 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .asof-main { font-size: 13.5px; color: var(--tx); line-height: 1.5; }
+  .asof-main b { color: var(--cyan); font-family: var(--mono); font-weight: 700; }
+  .asof-cn { font-size: 11.5px; color: var(--tx3); margin-top: 3px; line-height: 1.5; }
+  /* 卡片视觉层级：决策级强调 / 背景级降权 */
+  .card-hi {
+    border-color: rgba(91,163,255,.32);
+    box-shadow: 0 4px 30px -12px rgba(91,163,255,.2), 0 4px 24px -12px rgba(0,0,0,.45);
+  }
+  .card-hi .card-title { color: var(--tx); }
+  .card-lo { opacity: .82; }
+  .card-lo:hover { opacity: 1; }
+  /* ===== 入场动画：区块渐入 + 决策卡金色分割线扫入 ===== */
+  @keyframes riseIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @keyframes goldSweep { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
+  main > * { animation: riseIn .5s ease-out both; }
+  main > *:nth-child(2) { animation-delay: .07s; }
+  main > *:nth-child(3) { animation-delay: .14s; }
+  main > *:nth-child(4) { animation-delay: .21s; }
+  main > *:nth-child(5) { animation-delay: .28s; }
+  main > *:nth-child(n+6) { animation-delay: .35s; }
+  .card-hi { position: relative; }
+  .card-hi::after {
+    content: ""; position: absolute; left: 20px; right: 20px; top: 0; height: 2px;
+    border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, transparent, var(--yellow), transparent);
+    transform-origin: left center;
+    animation: goldSweep .9s cubic-bezier(.22,.61,.36,1) .4s both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    main > *, .card-hi::after { animation: none !important; }
+  }
+  .tag-green { background: rgba(38,201,158,.14); color: var(--green); border: 1px solid rgba(38,201,158,.4); }
+  .tag-yellow { background: rgba(245,185,61,.13); color: var(--yellow); border: 1px solid rgba(245,185,61,.4); }
+  .tag-orange { background: rgba(255,152,67,.13); color: #ff9843; border: 1px solid rgba(255,152,67,.4); }
+  .tag-red { background: rgba(240,97,109,.14); color: var(--red); border: 1px solid rgba(240,97,109,.4); }
+  .tag-purple { background: rgba(167,139,250,.14); color: var(--purple); border: 1px solid rgba(167,139,250,.4); }
+  .tag-black { background: rgba(255,255,255,.08); color: #fff; border: 1px solid #555; }
+  /* ===== 定投回测指标 ===== */
+  .dca-ctrl { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 4px 0 14px; }
+  .dca-ctrl-row { display: flex; align-items: center; gap: 7px; }
+  .dca-ctrl-row > label { font-size: 11px; color: var(--tx3); }
+  .dca-toggle { display: inline-flex; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; }
+  .dca-toggle button { background: transparent; color: var(--tx3); border: 0; padding: 5px 12px; font-size: 11.5px; cursor: pointer; font-family: var(--mono); }
+  .dca-toggle button.active { background: rgba(91,163,255,.18); color: var(--blue); font-weight: 700; }
+  .dca-inp { width: 64px; background: var(--card2); color: var(--tx); border: 1px solid var(--line-soft); border-radius: 8px; padding: 5px 8px; font-size: 12px; font-family: var(--mono); text-align: right; }
+  .dca-inp:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(91,163,255,.25); }
+  .dca-unit { font-size: 11px; color: var(--tx3); }
+  .dca-sum { font-size: 12px; color: var(--tx3); line-height: 1.75; margin-bottom: 12px; background: var(--card2); border: 1px solid var(--line-soft); border-radius: 9px; padding: 9px 11px; }
+  .dca-sum b { color: var(--tx); font-family: var(--mono); }
+  .dca-sum .pos { color: var(--green); font-weight: 700; }
+  .dca-sum .neg { color: var(--red); font-weight: 700; }
+  .dca-tbl { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-family: var(--mono); }
+  .dca-tbl th { font-size: 10.5px; color: var(--tx3); text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .dca-tbl th:first-child { text-align: left; }
+  .dca-tbl td { font-size: 12px; text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line-soft); }
+  .dca-tbl td:first-child { text-align: left; color: var(--tx2); }
+  .dca-tbl tr:last-child td { border-bottom: 0; font-weight: 700; }
+  .dca-tbl .pos { color: var(--green); }
+  .dca-tbl .neg { color: var(--red); }
+  /* ===== Grid ===== */
+  .grid { display: grid; gap: 18px; }
+  .grid > .card { min-width: 0; }  /* 防 grid item 的 auto 最小尺寸在窄屏被内容 min-content 撑破（iQOO 等小屏横向溢出的元凶） */
+  .grid + .grid, .grid + .card, .card + .grid, .card + .card { margin-top: 18px; }
+  /* grid 内部卡片间距由 gap 控制，margin 会破坏同行拉伸对齐 */
+  .grid > .card + .card { margin-top: 0; }
+  .grid-two { grid-template-columns: 1fr 1fr; }
+  .g-top { grid-template-columns: 1fr 1fr 1.4fr; align-items: stretch; }
+  .g-mid { grid-template-columns: repeat(4, 1fr); }
+
+  /* ===== Device-optimized layout ===== */
+  /* Mac / large desktop: default 3-col top + 4-col mid */
+
+  /* iPad landscape / large tablet (1024-1279) */
+  @media (max-width: 1279px) {
+    .g-top { grid-template-columns: 1fr 1fr 1.4fr; align-items: stretch; }
+    .g-mid { grid-template-columns: repeat(4, 1fr); }
+  }
+  /* iPad portrait / small tablet (768-1023) */
+  @media (max-width: 1023px) {
+    .g-top { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
+    .scale-wrap { grid-column: 1 / -1; }
+    .g-mid { grid-template-columns: 1fr 1fr; }
+  }
+  /* iQOO15 / phones (≤767) */
+  @media (max-width: 767px) {
+    body { padding: 16px 14px 48px; }
+    .header { flex-direction: column; align-items: flex-start; }
+    .header h1 { font-size: 20px; }
+    .header .meta { flex-wrap: wrap; gap: 8px; }
+    .chip { font-size: 10.5px; padding: 4px 10px; }
+    .g-top, .g-mid, .grid-two { grid-template-columns: 1fr; }
+    .trig-row { flex-wrap: wrap; }
+    .trig-band { width: 46px; }
+    .trig-right { min-width: 86px; }
+    .signal-banner { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+    .signal-banner .sig-tag { align-self: flex-start; }
+    .scale-stats { flex-wrap: wrap; gap: 10px; }
+    .scale-stats .ss { min-width: 90px; }
+    .cal-pri { font-size: 9.5px; padding: 2px 6px; }
+    .kpi .k-val { font-size: 14px; }
+    .card { padding: 16px; }
+    .idx-close { font-size: 24px; }
+    .drawdown-num { font-size: 38px; }
+    .hint-i { width: 22px; height: 22px; font-size: 12px; }
+  }
+  /* Very small phones (≤380) */
+  @media (max-width: 380px) {
+    .header h1 { font-size: 18px; }
+    .idx-close { font-size: 20px; }
+    .drawdown-num { font-size: 34px; }
+    .kpis { grid-template-columns: 1fr; }
+    .dca-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .dca-tbl-wrap table { min-width: 280px; }
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; display: flex; flex-direction: column; align-self: stretch;
+    min-height: 0;
+    box-shadow: 0 4px 24px -12px rgba(0,0,0,.45);
+    transition: border-color .2s, box-shadow .2s, transform .2s;
+  }
+  @media (hover: hover) {
+    .card:hover { border-color: #2c3a58; box-shadow: 0 8px 32px -14px rgba(0,0,0,.55); }
+    #card-ndx:hover, #card-spx:hover { transform: translateY(-1px); }
+  }
+  /* 核心回撤尺轻微强调 */
+  .scale-card {
+    background: linear-gradient(180deg, rgba(91,163,255,.05), transparent 60%), var(--card);
+    border-color: rgba(91,163,255,.25);
+    box-shadow: 0 4px 28px -12px rgba(91,163,255,.15);
+  }
+  .card-title {
+    font-size: 12px; font-weight: 800; color: var(--tx2); letter-spacing: 1.5px;
+    text-transform: uppercase; display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+  }
+  .card-title .bar { width: 3.5px; height: 14px; border-radius: 2px; display: inline-block; }
+  /* ===== Index card ===== */
+  .idx-name { font-size: 14.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; letter-spacing: .2px; }
+  .idx-name .src { font-size: 10px; color: var(--tx3); font-family: var(--mono); letter-spacing: 1px; }
+  /* 数据来源角标：AUTO=每日收盘后自动抓取 MANUAL=人工维护（说明见图例行） */
+  .src-tag { font-size: 9px; font-family: var(--mono); font-weight: 700; letter-spacing: 1px;
+    padding: 1.5px 6px; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+  .src-tag.auto { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent);
+    background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .src-tag.manual { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 45%, transparent);
+    background: color-mix(in srgb, var(--yellow) 10%, transparent); }
+  .asof-legend { font-size: 10.5px; color: var(--tx3); margin-top: 6px; padding: 0 2px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .idx-close { font-family: var(--mono); font-size: 30px; font-weight: 700; margin: 8px 0 3px; }
+  .idx-change { font-size: 12px; font-family: var(--mono); margin-bottom: 12px; }
+  .drawdown-box { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .drawdown-num { font-family: var(--mono); font-size: 46px; font-weight: 700; line-height: 1; }
+  .drawdown-label { font-size: 12px; color: var(--tx2); border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
+  .kpi {
+    background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px;
+    padding: 9px 12px; line-height: 1.4; transition: border-color .2s;
+  }
+  .kpi .k-label { font-size: 11px; color: var(--tx3); letter-spacing: .3px; }
+  /* 字号随视口自适应：窄屏降档避免 ATH/涨回新高 等长数字被 ellipsis 截断（clamp 下限 11px 保证可读） */
+  .kpi .k-val { font-size: clamp(11px, 2.5vw, 15.5px); font-family: var(--mono); font-weight: 800; margin-top: 3px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .kpi .k-val.small { font-size: clamp(10.5px, 2.2vw, 13.5px); }
+  .up { color: var(--green); } .down { color: var(--red); } .flat { color: var(--tx2); }
+  /* ===== Scale / gauge ===== */
+  .scale-card { padding: 18px 20px; }
+  .scale-svg { width: 100%; display: block; }
+  .legend { display: flex; justify-content: center; gap: 22px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
+  .legend .li { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .scale-markers { display: flex; justify-content: center; gap: 24px; margin-top: 14px; flex-wrap: wrap; }
+  .scale-markers .mk { font-size: 12.5px; color: var(--tx2); display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line); font-weight: 600; }
+  .scale-markers .mk-ndx { border-color: rgba(255,255,255,.28); }
+  .scale-markers .mk-spx { border-color: rgba(91,163,255,.45); }
+  .scale-markers .mk b { color: var(--tx); font-family: var(--mono); font-weight: 800; }
+  /* marker dot colors must match drawScale() per theme */
+  .scale-markers .dot-ndx { background: #ffffff; }
+  .scale-markers .dot-spx { background: #4a9eff; }
+  body.light .scale-markers .dot-ndx { background: #2563eb; }
+  body.light .scale-markers .dot-spx { background: #7c3aed; }
+  body.light .scale-markers .mk-ndx { border-color: rgba(15,23,42,.22); }
+  body.light .scale-markers .mk-spx { border-color: rgba(37,99,235,.35); }
+  .scale-stats { display: flex; justify-content: space-around; margin-top: 14px; text-align: center; gap: 8px; flex-wrap: wrap; flex: 1; min-height: 0; }
+  .scale-stats .ss b { display: block; font-family: var(--mono); font-size: 19px; letter-spacing: .3px; }
+  .scale-stats .ss span { font-size: 11px; color: var(--tx3); }
+  /* ===== Trigger matrix ===== */
+  .trig-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 0;
+    border-bottom: 1px dashed var(--line-soft);
+  }
+  .trig-row:last-child { border-bottom: none; }
+  .trig-band { width: 52px; text-align: center; font-family: var(--mono); font-weight: 800; font-size: 14px; flex-shrink: 0; }
+  .trig-info { flex: 1; }
+  .trig-info .t-title { font-size: 13px; font-weight: 700; letter-spacing: .2px; }
+  .trig-info .t-desc { font-size: 11.5px; color: var(--tx2); }
+  .trig-state { font-size: 11px; padding: 3px 11px; border-radius: 14px; flex-shrink: 0; font-weight: 700; letter-spacing: .3px; }
+  .trig-dist { font-family: var(--mono); font-size: 11px; color: var(--tx3); margin-top: 4px; text-align: center; }
+  .trig-right { display: flex; flex-direction: column; align-items: center; gap: 0; flex-shrink: 0; min-width: 88px; }
+  .st-on { background: rgba(242,109,125,.16); color: var(--red); border: 1px solid rgba(242,109,125,.4); }
+  .st-near { background: rgba(247,193,78,.13); color: var(--yellow); border: 1px solid rgba(247,193,78,.4); }
+  .st-off { background: rgba(143,160,186,.1); color: var(--tx2); border: 1px solid var(--line); }
+  /* 「远离」态：用虚线边框区分「观察」，不再依赖 opacity（透明度差在深色下几乎不可辨） */
+  .st-far { background: transparent; color: var(--tx3); border: 1px dashed var(--line); }
+  .tp-on { background: rgba(45,212,167,.16); color: var(--green); border: 1px solid rgba(45,212,167,.4); }
+  .tp-near { background: rgba(124,92,240,.13); color: var(--purple); border: 1px solid rgba(124,92,240,.4); }
+  /* ===== 配色方向提示：估值/情绪卡的红色=风险，与回撤区"红色=便宜/机会"方向相反 ===== */
+  .dir-hint {
+    font-size: 10.5px; color: var(--tx3); line-height: 1.6; margin: -4px 0 12px;
+    padding: 6px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; background: var(--card2);
+  }
+  .dir-hint b { color: var(--red); font-weight: 700; }
+  /* ===== Meter rows (trend/valuation/sentiment) ===== */
+  .meter { margin-bottom: 15px; }
+  .meter:last-child { margin-bottom: 0; }
+  .meter .m-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .meter .m-label { font-size: 12px; color: var(--tx2); }
+  .meter .m-val { font-family: var(--mono); font-weight: 800; font-size: 14px; letter-spacing: .2px; }
+  .meter .m-bar { height: 8px; border-radius: 4px; background: var(--card2); position: relative; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+  .meter .m-fill { height: 100%; border-radius: 4px; }
+  .meter .m-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--tx3); margin-top: 3px; font-family: var(--mono); }
+  .ma-state { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+  .ma-chip {
+    font-size: 10px; font-family: var(--mono); letter-spacing: .3px;
+    padding: 2.5px 8px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card2); color: var(--tx2); opacity: .75;
+  }
+  .ma-chip.on-up { border-color: rgba(38,201,158,.45); color: var(--green); background: rgba(38,201,158,.1); opacity: 1; }
+  .ma-chip.on-down { border-color: rgba(240,97,109,.45); color: var(--red); background: rgba(240,97,109,.1); opacity: 1; }
+  .zones { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
+  .zones div { height: 100%; }
+  .z-ok { background: rgba(45,212,167,.2); } .z-mid { background: rgba(247,193,78,.2); } .z-hot { background: rgba(242,109,125,.22); }
+  .cursor-dot { position: relative; }
+  .cursor-dot::after {
+    content: ""; position: absolute; left: var(--pos, 50%); top: -3px; width: 2.5px; height: 14px;
+    background: var(--cursor, #fff); border-radius: 2px; transform: translateX(-50%);
+  }
+  /* ===== Calendar ===== */
+  .cal-item { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line-soft); }
+  .cal-item:last-child { border-bottom: none; }
+  .cal-date { flex-shrink: 0; width: 46px; text-align: center; }
+  .cal-date .d { font-family: var(--mono); font-size: 18px; font-weight: 800; line-height: 1; }
+  .cal-date .m { font-size: 10.5px; color: var(--tx3); margin-top: 2px; }
+  .cal-info { flex: 1; }
+  .cal-info .e-name { font-size: 12.5px; font-weight: 600; }
+  .cal-info .e-desc { font-size: 11px; color: var(--tx2); }
+  .cal-pri { flex-shrink: 0; font-size: 10.5px; padding: 2px 9px; border-radius: 10px; height: fit-content; font-weight: 700; }
+  .pri-high { background: rgba(242,109,125,.14); color: var(--red); }
+  .pri-mid { background: rgba(247,193,78,.13); color: var(--yellow); }
+  .pri-low { background: rgba(143,160,186,.12); color: var(--tx2); }
+  /* ===== FX / misc ===== */
+  .fx-num { font-family: var(--mono); font-size: 38px; font-weight: 700; letter-spacing: .3px; }
+  .note { font-size: 11.5px; color: var(--tx2); margin-top: 12px; line-height: 1.75; }
+  .note b { color: var(--cyan); }
+  /* ===== Indicator hints & lexicon ===== */
+  .hint-i {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; margin-left: 5px; border-radius: 50%;
+    border: 1px solid var(--tx3); background: transparent; color: var(--tx3);
+    font-family: inherit; font-size: 9px; font-style: normal; line-height: 1; cursor: pointer;
+    padding: 0; vertical-align: 1px; user-select: none; flex-shrink: 0; transition: all .15s;
+  }
+  .hint-i:hover { border-color: var(--blue); color: var(--blue); }
+  .hint-i:active { transform: scale(.88); }
+  .hint-pop {
+    position: fixed; z-index: 99999; max-width: 320px;
+    background: #1a2436; border: 1px solid #33415e; border-radius: 12px;
+    padding: 10px 13px; box-shadow: 0 14px 44px -8px rgba(0,0,0,.75), 0 0 0 1px rgba(91,163,255,.18);
+    font-size: 11.5px; line-height: 1.65; animation: hpIn .15s ease;
+    backdrop-filter: blur(6px);
+  }
+  .hint-pop .hp-plain { color: var(--tx); }
+  .hint-pop .hp-plain b { color: var(--cyan); }
+  .hint-pop .hp-pro { color: var(--tx3); font-size: 10.5px; margin-top: 4px; border-top: 1px dashed var(--line); padding-top: 4px; }
+  @keyframes hpIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .lex-toggle {
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    font-size: 11.5px; color: var(--blue); font-weight: 700; user-select: none;
+    white-space: nowrap;
+  }
+  .lex-toggle .arr { transition: transform .2s; display: inline-block; }
+  .lex-toggle.open .arr { transform: rotate(90deg); }
+  .lex-body { margin-top: 12px; }
+  .lex-body.hidden { display: none; }
+  .lex-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11.5px; }
+  .lex-table th {
+    text-align: left; font-size: 10px; color: var(--tx3); letter-spacing: .5px;
+    padding: 5px 8px; border-bottom: 1px solid var(--line-soft);
+  }
+  .lex-table td { padding: 7px 8px; border-bottom: 1px dashed var(--line-soft); vertical-align: top; overflow-wrap: break-word; }
+  .lex-table tr:last-child td { border-bottom: none; }
+  .lex-table .lx-name { font-family: var(--mono); font-weight: 700; color: var(--cyan); white-space: nowrap; width: 78px; }
+  .lex-table .lx-plain { color: var(--tx); width: 42%; }
+  .lex-table .lx-pro { color: var(--tx3); font-size: 10.5px; }
+  @media (max-width: 767px) {
+    .lex-table td { padding: 6px 6px; font-size: 11px; }
+    .lex-table .lx-plain { width: 40%; }
+  }
+  .golden-line {
+    margin-top: 22px; padding: 14px 20px; border-radius: var(--radius); font-size: 13.5px;
+    background: linear-gradient(90deg, rgba(91,163,255,.12), rgba(177,149,251,.1));
+    border: 1px solid rgba(91,163,255,.4); color: var(--tx);
+    box-shadow: 0 4px 24px -12px rgba(91,163,255,.25);
+  }
+  .golden-line b { color: var(--blue); }
+  /* ===== Footer ===== */
+  .footer { margin-top: 24px; font-size: 11px; color: var(--tx3); text-align: center; line-height: 1.8; }
+  .footer a { color: var(--tx3); text-decoration: none; }
+  .footer .online-link { display: inline-block; margin: 4px 0 2px; padding: 5px 14px; font-size: 12px; color: #fff; background: linear-gradient(135deg,var(--cyan),var(--blue)); border-radius: 999px; text-decoration: none; cursor: pointer; }
+  .footer .online-link:hover { filter: brightness(1.12); }
+  .footer .online-link svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
+  /* ===== Editable ===== */
+  .tgl-btn { font-size: 11px; color: var(--blue); cursor: pointer; font-weight: 700; }
+  .hidden { display: none; }
+  .stress { margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  .stress-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 7px; flex-wrap: wrap; }
+  .stress-row b { font-family: var(--mono); color: var(--cyan); font-weight: 700; }
+  .stress-row .s-desc { color: var(--tx2); font-size: 11px; }
+  /* ===== History comparison ===== */
+  .hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .hist-table th { font-size: 10.5px; color: var(--tx3); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); letter-spacing: .5px; }
+  .hist-table td { padding: 7px 10px; border-bottom: 1px dashed var(--line-soft); font-family: var(--mono); }
+  .hist-table tr:last-child td { border-bottom: none; }
+  .hist-table .h-desc { font-family: var(--sans); color: var(--tx2); font-size: 11.5px; }
+  .hist-med { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
+  .hist-med .med-bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--card2); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+  .hist-med .med-bar i { position: absolute; top: -2px; height: 12px; width: 2.5px; background: var(--yellow); border-radius: 1px; }
+  .hist-med .med-bar .med-txt { position: absolute; top: -18px; transform: translateX(-50%); font-size: 10px; color: var(--yellow); font-family: var(--mono); }
+  .hist-cagr {
+    display: flex; align-items: center; gap: 16px; margin-top: 12px;
+    padding: 10px 14px; border-radius: 10px; flex-wrap: wrap;
+    background: rgba(45,212,167,.06); border: 1px solid rgba(45,212,167,.22);
+  }
+  .hist-cagr .hc-label { font-size: 11.5px; color: var(--tx2); font-weight: 700; }
+  .hist-cagr .hc-val { font-family: var(--mono); font-size: 13px; color: var(--tx2); }
+  .hist-cagr .hc-val b { color: var(--green); font-size: 15px; }
+  /* ===== Seasonality tip ===== */
+  .season-tip {
+    margin-bottom: 12px; padding: 9px 13px; border-radius: 10px; font-size: 12px; line-height: 1.7;
+    background: rgba(247,193,78,.07); border: 1px solid rgba(247,193,78,.28); color: var(--yellow);
+  }
+  .season-tip b { font-family: var(--mono); font-weight: 800; }
+  /* ===== Monthly performance chart (tabbed) ===== */
+  .mc-tabs { display: flex; gap: 8px; margin: 6px 0 2px; }
+  .mc-tab { flex: 1; padding: 10px 0; border: 1px solid var(--line); background: var(--card2); color: var(--tx2); border-radius: 10px; font-size: 13px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: all .18s ease; -webkit-tap-highlight-color: transparent; }
+  .mc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(74,158,255,.32); }
+  .mc-tab:active { transform: scale(.98); }
+  .mchart-wrap { display: flex; gap: 10px; margin-top: 8px; }
+  .mchart-axis { width: 36px; flex-shrink: 0; height: 230px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--tx3); text-align: right; }
+  .mchart-axis span:nth-child(2) { color: var(--tx2); }
+  .mchart { flex: 1; display: flex; gap: 8px; min-width: 0; }
+  .mc-group { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .mc-plot { position: relative; height: 230px; }
+  .mc-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(91,163,255,.12); pointer-events: none; }
+  .mc-line.zero { border-top: 1px solid var(--line); }
+  .mc-bar { position: absolute; left: 27%; width: 46%; max-width: 30px; border-radius: 4px; transition: height .35s ease; }
+  .mc-bar.pos { bottom: 50%; border-radius: 4px 4px 0 0; }
+  .mc-bar.neg { top: 50%; border-radius: 0 0 4px 4px; }
+  .mc-val { position: absolute; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; }
+  .mc-bar.pos .mc-val { top: -15px; }
+  .mc-bar.neg .mc-val { bottom: -15px; }
+  .mc-label { text-align: center; font-size: 11px; color: var(--tx2); margin-top: 6px; font-family: var(--mono); }
+  .mchart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 11.5px; color: var(--tx2); }
+  .mchart-legend .li { display: inline-flex; align-items: center; gap: 6px; }
+  .mchart-legend .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .sw-up { background: var(--green); }
+  .sw-down { background: var(--red); }
+  .mchart-summary { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--tx2); }
+  .mchart-summary b { font-family: var(--mono); }
+  .mchart-cross { margin-top: 8px; font-size: 12px; color: var(--tx3); }
+  .mchart-cross b { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div id="loading" style="display:flex;align-items:center;justify-content:center;position:fixed;inset:0;z-index:999999;background:var(--bg);color:var(--tx3);font-size:16px;flex-direction:column;gap:12px;transition:opacity .3s;">
+  <span style="font-size:32px;" aria-hidden="true">📡</span>
+  <span>加载中…</span>
+</div>
+
+<!-- ======= Header ======= -->
+<main>
+<div class="header">
+  <div>
+    <h1><span aria-hidden="true">📡</span> 美股指数回撤决策看板</h1>
+    <div class="sub">NDX · SPX · 回撤监控 → 加减仓决策</div>
+  </div>
+  <div class="meta">
+    <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页"><span aria-hidden="true">💼</span> 持仓</a>
+    <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span> 深色</button>
+    <span class="chip">💵 USD/CNY <b id="meta-fx">--</b></span>
+    <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)"><span aria-hidden="true">🔶</span> 美股盘中快照 · 正式收盘数据待更新</span>
+    <span class="chip chip-stale" id="stale-chip" style="display:none"><span aria-hidden="true">⚠️</span> 数据过期 <b id="stale-days">0</b> 天</span>
+  </div>
+</div>
+
+<!-- ======= Data time (美股时区换算) ======= -->
+<div class="asof-bar" aria-label="数据更新时间">
+  <div class="asof-main"><span aria-hidden="true">🕐</span> 更新于 <b id="asof-local">--</b> · 美股 <b id="asof-us">--</b> <span id="asof-phase">--</span></div>
+  <div class="asof-cn" id="asof-macro" style="display:none">--</div>
+  <div class="asof-legend">
+    <span class="src-tag auto">AUTO</span>行情·宏观·估值·Put/Call·月度涨跌幅：每日自动更新
+    <span style="opacity:.4">|</span>
+    <span class="src-tag manual">MANUAL</span>盈利预期·日历：人工维护
+  </div>
+</div>
+
+<!-- ======= Signal banner ======= -->
+<div class="signal-banner" id="banner" role="alert" aria-live="polite">
+  <div class="sig-icon" id="sig-icon">--</div>
+  <div class="sig-main">
+    <div class="sig-title" id="sig-title">--</div>
+    <div class="sig-desc" id="sig-desc">--</div>
+    <div class="sig-kpis" id="sig-kpis">
+      <span class="sk"><span class="sk-l">NDX 回撤</span><b id="sk-dd">--</b></span>
+      <span class="sk"><span class="sk-l">Fwd ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><b id="sk-erp">--</b></span>
+      <span class="sk"><span class="sk-l">恐贪</span><b id="sk-fg">--</b></span>
+      <span class="sk"><span class="sk-l">止盈档位</span><b id="sk-tp">--</b></span>
+    </div>
+  </div>
+  <div class="sig-tag" id="sig-tag">--</div>
+</div>
+
+<!-- ======= Top grid ======= -->
+<div class="grid g-top" aria-label="核心指数">
+  <!-- NDX card -->
+  <div class="card" id="card-ndx">
+    <div class="idx-name">
+      <span>🇺🇸 纳斯达克100 <span style="font-family:var(--mono);color:var(--tx3);font-size:11px">NDX</span></span>
+      <span class="src-tag auto">AUTO</span>
+    </div>
+    <div class="idx-close" id="ndx-close">--</div>
+    <div class="idx-change" id="ndx-chg">--</div>
+    <div class="drawdown-box">
+      <div class="drawdown-num" id="ndx-dd">--</div>
+      <div class="drawdown-label">距历史高点回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="dd">?</button></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📈</span> 历史高点 ATH</div><div class="k-val" id="ndx-ath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🚀</span> 涨回新高需</div><div class="k-val down" id="ndx-toath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">⏳</span> 回撤已持续</div><div class="k-val" id="ndx-days">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📉</span> 距 -15% 档</div><div class="k-val small" id="ndx-to15">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🔋</span> RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="ndx-rsi">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📍</span> 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="ndx-52w">--</div></div>
+    </div>
+  </div>
+
+  <!-- SPX card -->
+  <div class="card" id="card-spx">
+    <div class="idx-name">
+      <span>🇺🇸 标普500 <span style="font-family:var(--mono);color:var(--tx3);font-size:11px">SPX</span></span>
+      <span class="src-tag auto">AUTO</span>
+    </div>
+    <div class="idx-close" id="spx-close">--</div>
+    <div class="idx-change" id="spx-chg">--</div>
+    <div class="drawdown-box">
+      <div class="drawdown-num" id="spx-dd">--</div>
+      <div class="drawdown-label">距历史高点回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="dd">?</button></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📈</span> 历史高点 ATH</div><div class="k-val" id="spx-ath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🚀</span> 涨回新高需</div><div class="k-val down" id="spx-toath">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">⏳</span> 回撤已持续</div><div class="k-val" id="spx-days">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📉</span> 距 -15% 档</div><div class="k-val small" id="spx-to15">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">🔋</span> RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="spx-rsi">--</div></div>
+      <div class="kpi"><div class="k-label"><span aria-hidden="true">📍</span> 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="spx-52w">--</div></div>
+    </div>
+  </div>
+
+  <!-- Scale card -->
+  <div class="card scale-card scale-wrap">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span>回撤深度尺 · 当前位置<button class="hint-i" type="button" aria-label="查看释义" data-h="scale">?</button><span class="src-tag auto">AUTO</span></div>
+    <svg class="scale-svg" id="scale-svg" viewBox="0 0 620 110" preserveAspectRatio="xMidYMid meet" role="img" aria-label="回撤深度尺"></svg>
+    <div class="scale-markers" id="scale-markers">
+      <span class="mk mk-ndx"><i class="dot dot-ndx"></i><b>NDX</b> 当前回撤 <b id="ndx-mk-val">--</b></span>
+      <span class="mk mk-spx"><i class="dot dot-spx"></i><b>SPX</b> 当前回撤 <b id="spx-mk-val">--</b></span>
+    </div>
+    <div class="legend">
+      <span class="li"><span class="dot" style="background:var(--green)"></span>-5% 关注线</span>
+      <span class="li"><span class="dot" style="background:var(--yellow)"></span>-15% DCA 加仓</span>
+      <span class="li"><span class="dot" style="background:#ff9843"></span>-25% 重仓低吸</span>
+      <span class="li"><span class="dot" style="background:var(--red)"></span>-35% 历史级</span>
+    </div>
+    <div class="scale-stats">
+      <div class="ss"><b id="sstat-buy">--</b><span>NDX @ -15%（DCA 档）</span></div>
+      <div class="ss"><b id="sstat-buy2">--</b><span>NDX @ -25%（重仓档）</span></div>
+      <div class="ss"><b id="sstat-low">--</b><span>NDX @ -35%（历史级）</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Trigger matrix ======= -->
+<div class="grid grid-two" aria-label="决策矩阵">
+  <div class="card card-hi">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--yellow)"></span><span aria-hidden="true">🎯</span> 回撤触发矩阵 · 加减仓分级<button class="hint-i" type="button" aria-label="查看释义" data-h="trig">?</button></div>
+    <div id="trig-matrix"></div>
+  </div>
+  <div class="card card-hi">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span><span aria-hidden="true">🔍</span> 决策依据 · 档位资格 × 确认条件<button class="hint-i" type="button" aria-label="查看释义" data-h="cond">?</button></div>
+    <div id="cond-check"></div>
+  </div>
+</div>
+
+<!-- ======= Take-profit matrix ======= -->
+<div class="card card-hi">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">🛑</span> 止盈触发矩阵 · 兑现分级<button class="hint-i" type="button" aria-label="查看释义" data-h="tp">?</button></div>
+  <div id="tp-matrix"></div>
+  <div class="note">与回撤矩阵对称的<b>卖出纪律</b>：涨的时候分批兑现，避免"坐电梯"。命中 ≥2 项条件才升级档位；兑现后再等回撤矩阵的档位重新接回。</div>
+</div>
+
+<!-- ======= Mid grid: trend / valuation / sentiment ======= -->
+<div class="grid g-mid" aria-label="市场分析">
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span><span aria-hidden="true">📐</span> 趋势结构<span class="src-tag auto">AUTO</span></div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">NDX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="ndx-ma50v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="ndx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
+      <div class="m-marks"><span>-3%</span><span>0</span><span>+3%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">NDX vs MA200<button class="hint-i" type="button" aria-label="查看释义" data-h="ma200">?</button></span><span class="m-val" id="ndx-ma200v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="ndx-ma200b" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>-5%</span><span>0</span><span>+8%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX vs MA50<button class="hint-i" type="button" aria-label="查看释义" data-h="ma50">?</button></span><span class="m-val" id="spx-ma50v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="spx-ma50b" style="width:0%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div></div>
+      <div class="m-marks"><span>-3%</span><span>0</span><span>+3%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX vs MA200<button class="hint-i" type="button" aria-label="查看释义" data-h="ma200">?</button></span><span class="m-val" id="spx-ma200v">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="spx-ma200b" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>-5%</span><span>0</span><span>+8%</span></div>
+    </div>
+    <div class="ma-state" id="ma-state">
+      <span class="ma-chip" data-k="ndx-ma50">--</span>
+      <span class="ma-chip" data-k="ndx-ma200">--</span>
+      <span class="ma-chip" data-k="spx-ma50">--</span>
+      <span class="ma-chip" data-k="spx-ma200">--</span>
+    </div>
+    <div class="meter" style="margin-top:4px;">
+      <div class="m-head"><span class="m-label"><span aria-hidden="true">🧩</span> 市场广度 · NDX 相对 SPX (YTD)<button class="hint-i" type="button" aria-label="查看释义" data-h="breadth">?</button></span><span class="m-val" id="brd-val">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="brd-bar" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>纳指跑输</span><span>0</span><span>纳指跑赢</span></div>
+    </div>
+    <div class="note"><span id="brd-note">--</span></div>
+    <div class="note"><span id="note-trend">--</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">💰</span> 估值锚<span class="src-tag auto">AUTO</span></div>
+    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 配色方向：本卡 <b>红=偏贵/风险</b>（回撤区红色代表便宜/机会，方向相反）</div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="pepct">?</button></span><span class="m-val" id="val-pepct">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-pepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
+      <div class="m-marks"><span>0%</span><span>50%</span><span>100%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">NDX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="ndxpepct">?</button></span><span class="m-val" id="val-ndxpepct">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">NDX 远期PE<button class="hint-i" type="button" aria-label="查看释义" data-h="pefwd">?</button></span><span class="m-val" id="val-ndxpe">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-ndxpepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
+      <div class="m-marks"><span>0%</span><span>50%</span><span>100%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">SPX 远期PE<button class="hint-i" type="button" aria-label="查看释义" data-h="pefwd">?</button></span><span class="m-val" id="val-pe">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">TTM PE<button class="hint-i" type="button" aria-label="查看释义" data-h="petm">?</button></span><span class="m-val" id="val-pe-ttm">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">席勒 CAPE<button class="hint-i" type="button" aria-label="查看释义" data-h="cape">?</button></span><span class="m-val" id="val-cape">--</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">估值状态<button class="hint-i" type="button" aria-label="查看释义" data-h="valstate">?</button></span><span class="m-val" id="val-state">--</span></div>
+      <div class="zones cursor-dot" id="val-zones" style="--pos:0%;--cursor:var(--red)">
+        <div class="z-ok" style="flex:30"></div>
+        <div class="z-mid" style="flex:30"></div>
+        <div class="z-hot" style="flex:40"></div>
+      </div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label"><span aria-hidden="true">🛡️</span> Fwd ERP 股权风险溢价<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><span class="m-val" id="val-erp">--</span></div>
+      <div class="m-head" style="margin-top:4px;"><span class="m-label">TTM ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erpttm">?</button></span><span class="m-val" id="val-erp-ttm">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-erpb" style="width:0%;background:var(--red);"></div></div>
+      <div class="m-marks"><span>极低 &lt;0</span><span>均值 2.5%</span><span>高 &gt;4%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">前瞻 EPS 增速 (26E)<button class="hint-i" type="button" aria-label="查看释义" data-h="eps">?</button></span><span class="m-val" id="val-eps">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="val-epsb" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>-5%</span><span>0</span><span>+10%</span></div>
+    </div>
+    <div class="note" id="note-val">--</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">🌡️</span> 情绪温度<span class="src-tag auto">AUTO</span></div>
+    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 配色方向：本卡 <b>红=过热/风险</b>（回撤区红色代表便宜/机会，方向相反）</div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">VIX 恐慌指数<button class="hint-i" type="button" aria-label="查看释义" data-h="vix">?</button></span><span class="m-val" id="sent-vix">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-vixb" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>贪婪 &lt;15</span><span>正常 15-30</span><span>恐慌 &gt;30</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">恐惧贪婪指数 (CNN)<button class="hint-i" type="button" aria-label="查看释义" data-h="fg">?</button></span><span class="m-val" id="sent-fg">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-fgb" style="width:0%;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));"></div></div>
+      <div class="m-marks"><span>0 恐惧</span><span>50</span><span>100 贪婪</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">10Y 美债 (TNX)<button class="hint-i" type="button" aria-label="查看释义" data-h="tnx">?</button></span><span class="m-val" id="sent-tnx">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-tnxb" style="width:0%;background:var(--yellow);"></div></div>
+      <div class="m-marks"><span>0%</span><span>2.75%</span><span>5.5%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label">2Y 美债 + 曲线<button class="hint-i" type="button" aria-label="查看释义" data-h="curve">?</button></span><span class="m-val" id="sent-tnx2">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-tnx2b" style="width:0%;background:var(--green);"></div></div>
+      <div class="m-marks"><span>0%</span><span>2.75%</span><span>5.5%</span></div>
+    </div>
+    <div class="meter">
+      <div class="m-head"><span class="m-label"><span aria-hidden="true">🧩</span> Put/Call 期权情绪<button class="hint-i" type="button" aria-label="查看释义" data-h="putcall">?</button></span><span class="m-val" id="sent-pc">--</span></div>
+      <div class="m-bar"><div class="m-fill" id="sent-pcb" style="width:0%;background:var(--yellow);"></div></div>
+      <div class="m-marks"><span>贪婪 &lt;0.7</span><span>0.7-1.1 中性</span><span>防御 &gt;1.1</span></div>
+    </div>
+    <div class="note" id="note-sent">--</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span><span aria-hidden="true">💱</span> 汇率 & 压力测试<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
+    <div class="idx-name" style="margin-bottom:4px;"><span>USD/CNY</span></div>
+    <div class="fx-num" id="fx-num" style="color:var(--cyan)">--</div>
+    <div class="idx-change" id="fx-chg">人民币升值吃掉 QDII 收益的风险敞口</div>
+    <div class="stress">
+      <div class="stress-row"><b>NDX -10%</b> <span class="s-desc">--</span></div>
+      <div class="stress-row"><b>NDX -15%</b> <span class="s-desc">--</span></div>
+      <div class="stress-row"><b>NDX -25%</b> <span class="s-desc">--</span></div>
+      <div class="stress-row"><b>NDX -35%</b> <span class="s-desc">--</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= History comparison ======= -->
+<div class="card">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">📉</span> 历史回撤对照 · 这次算什么水平</div>
+    <table class="hist-table">
+      <tr><th>事件</th><th>回撤</th><th>耗时</th></tr>
+      <tr><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">-49.1%</td><td>~950 天</td></tr>
+      <tr><td class="h-desc">2008 金融危机</td><td style="color:var(--red)">-52.6%</td><td>~520 天</td></tr>
+      <tr><td class="h-desc">2020 疫情</td><td style="color:var(--red)">-30.1%</td><td>~33 天</td></tr>
+      <tr><td class="h-desc">2022 加息熊市</td><td style="color:var(--red)">-35.7%</td><td>~253 天</td></tr>
+      <tr><td class="h-desc">2025 技术性回调</td><td style="color:var(--yellow)">-13.7%</td><td>~70 天</td></tr>
+      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (2026-08)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
+    </table>
+    <div class="hist-med">
+      <span>近10年中位数回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
+      <div class="med-bar">
+        <i id="med-dot" style="left:0%;"></i>
+        <span class="med-txt" id="med-val" style="left:0%;">--</span>
+      </div>
+      <span style="color:var(--yellow);font-family:var(--mono);" id="hist-rank">--</span>
+    </div>
+    <div class="hist-cagr">
+      <span class="hc-label"><span aria-hidden="true">📈</span> 长期年化基准（近18年 CAGR）</span>
+      <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
+      <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
+    </div>
+    <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> <b>年内回撤是常态</b>：标普500 自 1928 年以来，<b>年内平均最大回撤 -16.2%</b>，而多数年份年末仍收正——当前的年内回撤（NDX <b id="hist-ddytd">--</b>）放在百年尺度只是寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
+    <div class="note">当前回撤 <b id="hist-rank-txt">--</b>：在近 10 年属于 <b>普通技术性回调</b>，纳指历史上有 30%+ 交易日处于 -5% 以下。真正的加仓窗口（-15% 以下）出现频率约 12%，需耐心等。<b style="color:var(--green)">长期看，NDX 年化 +16% 是"回撤早晚会修复"的底气</b>。</div>
+  </div>
+
+<!-- ======= DCA zero indicator ======= -->
+<div class="card card-hi" id="card-dca">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">💸</span> 定投回测指标 · 每日定投收益率<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
+  <div class="dca-ctrl">
+    <div class="dca-ctrl-row"><label>标的</label>
+      <div class="dca-toggle" id="dca-toggle">
+        <button class="dca-t active" data-idx="ndx">纳指100</button>
+        <button class="dca-t" data-idx="spx">标普500</button>
+      </div>
+    </div>
+    <div class="dca-ctrl-row"><label>每日</label>
+      <input id="dca-amt" class="dca-inp" type="number" value="1" min="1" step="1"><span class="dca-unit">元</span>
+    </div>
+  </div>
+  <div class="dca-sum" id="dca-sum">--</div>
+  <div class="dca-tbl-wrap"><table class="dca-tbl">
+    <thead><tr><th>窗口</th><th>定投收益</th><th>一次性买</th><th>定投−一次性</th></tr></thead>
+    <tbody id="dca-rows"></tbody>
+  </table></div>
+  <div class="note" id="dca-note">加载中…</div>
+</div>
+
+<!-- ======= Monthly performance ======= -->
+<div class="card">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">📊</span> 2026 年内月度涨跌幅<span class="src-tag auto">AUTO</span></div>
+  <div class="mc-tabs">
+    <button class="mc-tab active" data-idx="ndx">纳指100 NDX</button>
+    <button class="mc-tab" data-idx="spx">标普500 SPX</button>
+  </div>
+  <div class="mchart-wrap">
+    <div class="mchart-axis"><span id="mc-axpos">+16%</span><span>0</span><span id="mc-axneg">-16%</span></div>
+    <div class="mchart" id="mchart"></div>
+  </div>
+  <div class="mchart-legend">
+    <span class="li"><i class="sw sw-up"></i>涨 (正收益)</span>
+    <span class="li"><i class="sw sw-down"></i>跌 (负收益)</span>
+  </div>
+  <div class="mchart-summary" id="mchart-summary"></div>
+  <div class="mchart-cross" id="mchart-cross"></div>
+  <div class="note">纵轴满刻度 <b>±<span id="mc-max">16</span>%</b>，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b id="mc-asof">--</b>，采用 <b>ETF 总回报口径（含分红，QQQ/SPY 代理）</b>，与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
+</div>
+
+<!-- ======= Indicator lexicon ======= -->
+<div class="card">
+  <div class="card-title" style="justify-content:space-between;margin-bottom:0;">
+    <span style="display:flex;align-items:center;gap:8px;"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span><span aria-hidden="true">📖</span> 指标小词典 · 看不懂随时查</span>
+    <span class="lex-toggle open" id="lex-toggle">收起 <span class="arr">▶</span></span>
+  </div>
+  <div class="lex-body" id="lex-body"></div>
+</div>
+
+<!-- ======= Future events ======= -->
+<div class="card card-lo">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span><span aria-hidden="true">📅</span> 未来事件日历<span class="src-tag manual">MANUAL</span></div>
+  <div class="season-tip"><span aria-hidden="true">⚠️</span> <b>9 月季节性逆风</b>：标普 1970 以来 9 月均值 <b>-0.7%</b>（全年最弱月）。当前已进入 9 月窗口期，<b>建议</b>：原计划加仓额度下调 20%、避免 9 月初追涨。</div>
+  <div id="calendar"></div>
+</div>
+
+<!-- ======= Golden line ======= -->
+<div class="golden-line" id="golden-line">
+  <span aria-hidden="true">🎙️</span> <b>一句话总结</b>：<span id="golden-text">--</span>
+</div>
+
+</main>
+
+<div class="footer">
+  <a class="online-link" href="https://jiachencc.github.io/ndx-spx-drawdown-dashboard/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>打开在线最新版（GitHub Pages）</a><br>
+  <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.7</b> · 行情：Yahoo ^NDX / ^GSPC 官方指数（stooq 兜底） · 宏观：CNN恐贪 / Yahoo 美债 / Frankfurter 汇率 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
+  本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值/期权数据：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · <a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market</a> (CC BY 4.0) · 最后更新于 <span id="footer-updated">--</span>
+</div>
+
+<script src="data.js"></script>
+<script>
+"use strict";
+/* ================= 数据层 ================= */
+/* DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR 已分离到 data.js，每日更新行情只改 data.js */
+
+const D = DEFAULT;  // DEFAULT 全程只读，无需深拷贝
+
+/* ================= 计算 ================= */
+const fmt = (n, d=2) => n.toLocaleString("en-US", {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmt0 = n => Math.round(n).toLocaleString("en-US");
+const pct = n => (n>=0?"+":"") + n.toFixed(2) + "%";
+const ddOf = idx => (idx.close / idx.ath - 1) * 100;
+const toAthOf = idx => (idx.ath / idx.close - 1) * 100;
+const ytdOf = idx => (idx.close / idx.prevYr - 1) * 100;
+const maDev = (idx, key) => (idx.close / idx[key] - 1) * 100;
+const priceAt = (idx, dd) => idx.ath * (1 + dd/100);
+
+/* 阈值/配色集中配置（原散落各渲染函数中的魔法数） */
+const RULES = {
+  pePct: { hi: 80, mid: 60, dir: "hi", op: ">" },
+  vix:   { hi: 30, mid: 20, dir: "hi", op: ">" },
+  fg:    { hi: 55, mid: 45, dir: "hi", op: ">=" },
+  erp:   { hi: 0,  mid: 2,  dir: "lo", op: "<" },
+  eps:   { hi: 0,  mid: 3,  dir: "lo", op: "<" }
+};
+/* 回撤配色：≤t2 红 / ≤0 黄 / >0 绿（仅无回撤时用绿） */
+function ddColor(dd, th) {
+  return dd <= th.t2 ? "var(--red)" : (dd <= 0 ? "var(--yellow)" : "var(--green)");
+}
+/* 三档指标配色：dir=hi 数值越高越差；dir=lo 数值越低越差（op 仅 hi 侧生效） */
+function bandColor(v, r) {
+  if (r.dir === "lo") return v < r.hi ? "var(--red)" : (v < r.mid ? "var(--yellow)" : "var(--green)");
+  const ge = r.op === ">=" ? (a, b) => a >= b : (a, b) => a > b;
+  return ge(v, r.hi) ? "var(--red)" : (ge(v, r.mid) ? "var(--yellow)" : "var(--green)");
+}
+/* 指数卡渲染（NDX/SPX 复用，消除 ~35 行重复） */
+function renderIndexCard(p, idx, th) {
+  $(p + "-close").textContent = fmt0(idx.close);
+  const ytd = ytdOf(idx);
+  const ddY = idx.ddYtd ?? 0;
+  const ddYTxt = ddY < 0 ? pct(ddY) : "0.00%";
+  const md = (() => { const p = D.asOf.us.split("-"); return (+p[1]) + "." + (+p[2]); })();  // 数据日 M.D，如 8.27
+  $(p + "-chg").innerHTML = '今日(' + md + ') <b class="' + (idx.chg < 0 ? "down" : "up") + '">' + pct(idx.chg) + '</b> · 今年 <b class="' + (ytd < 0 ? "down" : "up") + '">' + pct(ytd) + '</b> · 年内最大回撤 <b style="color:' + ddColor(ddY, th) + '">' + ddYTxt + '</b>';
+  const dd = ddOf(idx);
+  $(p + "-dd").textContent = pct(dd);
+  $(p + "-dd").style.color = ddColor(dd, th);
+  $(p + "-ath").textContent = fmt0(idx.ath);
+  $(p + "-toath").textContent = pct(toAthOf(idx));
+  $(p + "-days").textContent = idx.days + " 天";
+  const to15 = dd - th.t2;
+  $(p + "-to15").textContent = "还差 " + to15.toFixed(2) + "pp";
+  $(p + "-to15").className = "k-val small " + (to15 > -3 ? "down" : "flat");
+  $(p + "-rsi").textContent = idx.rsi.toFixed(1);
+  $(p + "-rsi").style.color = idx.rsi >= 70 ? "var(--red)" : (idx.rsi <= 30 ? "var(--green)" : "var(--tx)");
+  const w52 = Math.min(100, Math.max(0, (idx.close - idx.low52) / (idx.ath - idx.low52) * 100));
+  $(p + "-52w").textContent = Math.round(w52) + "%";
+  $(p + "-52w").style.color = w52 <= 30 ? "var(--green)" : (w52 >= 80 ? "var(--red)" : "var(--tx)");
+}
+
+/* ================= 渲染 ================= */
+const $ = id => document.getElementById(id);
+
+function renderAll() {
+  try {
+    const ndx = D.ndx, spx = D.spx, th = D.thresholds;
+    const ndxDD = ddOf(ndx), spxDD = ddOf(spx);
+
+  /* meta */
+  $("footer-updated").textContent = D.asOf.local + " · 数据=美东 " + D.asOf.us + " 16:00 收盘";
+  $("meta-fx").textContent = D.fx.toFixed(2);
+  renderAsOf();
+  $("fx-num").textContent = D.fx.toFixed(2);
+
+  /* NDX / SPX 指数卡（复用 renderIndexCard，消除 ~35 行重复） */
+  renderIndexCard("ndx", ndx, th);
+  renderIndexCard("spx", spx, th);
+
+  /* scale SVG */
+  drawScale(ndxDD, spxDD);
+  $("ndx-mk-val").textContent = pct(ndxDD);
+  $("ndx-mk-val").style.color = ddColor(ndxDD, th);
+  $("spx-mk-val").textContent = pct(spxDD);
+  $("spx-mk-val").style.color = ddColor(spxDD, th);
+
+  /* trigger matrix */
+  renderTriggers(ndxDD);
+
+  /* condition check */
+  renderConds();
+
+  /* take-profit matrix */
+  renderTakeProfit();
+
+  /* trend meters */
+  const ndx50 = maDev(ndx,"ma50"), ndx200 = maDev(ndx,"ma200"), spx50 = maDev(spx,"ma50"), spx200 = maDev(spx,"ma200");
+  setMeter("ndx-ma50", ndx50, -3, 3);
+  setMeter("ndx-ma200", ndx200, -5, 8);
+  setMeter("spx-ma50", spx50, -3, 3);
+  setMeter("spx-ma200", spx200, -5, 8);
+  /* MA state chips（±0.5% 内视为纠缠） */
+  const maMap = { "ndx-ma50": ndx50, "ndx-ma200": ndx200, "spx-ma50": spx50, "spx-ma200": spx200 };
+  document.querySelectorAll(".ma-chip").forEach(ch => {
+    const dev = maMap[ch.dataset.k];
+    const k = ch.dataset.k.toUpperCase().replace("-", " ");
+    const state = dev > 0.5 ? "站上" : (dev < -0.5 ? "跌破" : "纠缠");
+    ch.textContent = k + " " + state;
+    ch.className = "ma-chip " + (dev > 0.5 ? "on-up" : (dev < -0.5 ? "on-down" : ""));
+  });
+  /* breadth: NDX 相对 SPX 的 YTD 强弱 */
+  const brd = ytdOf(ndx) - ytdOf(spx);
+  const brdTxt = (brd >= 0 ? "+" : "") + brd.toFixed(2) + "pp";
+  $("brd-val").textContent = brdTxt;
+  $("brd-val").style.color = brd >= 0 ? "var(--green)" : "var(--red)";
+  $("brd-bar").style.width = Math.min(100, Math.max(6, 50 + brd * 5)) + "%";
+  $("brd-bar").style.background = brd >= 0 ? "var(--green)" : "var(--red)";
+  $("brd-note").innerHTML = brd >= 0
+    ? "NDX 相对 SPX 跑赢 " + brdTxt + " → <b>龙头未散</b>，但若持续收窄需警惕结构性风险"
+    : "NDX 相对 SPX 跑输 " + brdTxt + " → <b>广度恶化</b>，反弹可靠性下降，回撤档位应降级处理";
+  /* 趋势注释（数字全部派生，避免文案与数据漂移） */
+  const maTxt = v => v > 0.5 ? "MA50 上方" : (v < -0.5 ? "MA50 下方" : "MA50 纠缠");
+  const bothUp = ndx50 > 0.5 && spx50 > 0.5, bothDn = ndx50 < -0.5 && spx50 < -0.5;
+  $("note-trend").innerHTML =
+    "NDX 现于 " + maTxt(ndx50) + "、MA200 " + (ndx200 > 0 ? "上方" : "下方") +
+    "；SPX 现于 " + maTxt(spx50) + "、MA200 " + (spx200 > 0 ? "上方" : "下方") +
+    " → <b>" + (ndx200 > 0 && spx200 > 0 ? "中期趋势完好" : "中期趋势承压") + "</b>，" +
+    (bothDn ? "短期动能减弱，典型回调而非转熊" : (bothUp ? "短期动能仍强" : "短期结构分化")) +
+    "。广度结论见上方仪表盘。";
+
+  /* valuation */
+  $("val-pepct").textContent = D.pePct + "%";
+  $("val-pepct").style.color = bandColor(D.pePct, RULES.pePct);
+  $("val-pepctb").style.width = D.pePct + "%";
+  if (D.ndxPePct !== undefined) {
+    $("val-ndxpepct").textContent = D.ndxPePct + "%";
+    $("val-ndxpepct").style.color = bandColor(D.ndxPePct, RULES.pePct);
+    $("val-ndxpepctb").style.width = D.ndxPePct + "%";
+    $("val-ndxpe").textContent = D.ndxPeFwd.toFixed(1) + "x";
+  }
+  $("val-pe").textContent = D.peFwd.toFixed(1) + "x";
+  $("val-pe-ttm").textContent = D.peTtm.toFixed(1) + "x";
+  $("val-cape").textContent = D.cape.toFixed(1) + "x";
+  $("val-state").textContent = D.pePct > 80 ? "偏贵 🔴" : (D.pePct > 60 ? "中性 🟡" : "便宜 🟢");
+  $("val-state").style.color = bandColor(D.pePct, RULES.pePct);
+  $("val-zones").style.setProperty("--pos", Math.min(100, Math.max(0, D.pePct)) + "%");
+  /* ERP = 盈利收益率 − 10Y 美债 */
+  const erpF = 100 / D.peFwd - D.tnx;
+  const erpT = 100 / D.peTtm - D.tnx;
+  $("val-erp").textContent = pct(erpF);
+  $("val-erp").style.color = bandColor(erpF, RULES.erp);
+  $("val-erp-ttm").textContent = pct(erpT);
+  $("val-erp-ttm").style.color = bandColor(erpT, RULES.erp);
+  $("val-erpb").style.width = Math.min(100, Math.max(6, erpF / 4 * 100)) + "%";
+  $("val-erpb").style.background = erpF < 1 ? "var(--red)" : (erpF < 2.5 ? "var(--yellow)" : "var(--green)");
+  const eps = D.epsGrowth;
+  $("val-eps").textContent = pct(eps);
+  $("val-eps").style.color = bandColor(eps, RULES.eps);
+  $("val-epsb").style.width = Math.min(100, Math.max(4, (eps + 5) / 15 * 100)) + "%";
+  $("val-epsb").style.background = eps < 0 ? "var(--red)" : "var(--green)";
+  /* 估值注释（派生） */
+  $("note-val").innerHTML =
+    "SPX Forward PE 分位 <b>" + D.pePct + "%</b>（" + (D.pePct > 80 ? "偏贵" : D.pePct > 60 ? "中性" : "便宜") +
+    "）、NDX 分位 <b>" + (D.ndxPePct !== undefined ? D.ndxPePct + "%（2001 年以来口径）" : "--") +
+    "</b> → 回撤提供的是「打折」而非「便宜」，加仓宜分批忌梭哈。Fwd ERP <b style=\"color:" + (erpF < 1 ? "var(--red)" : "var(--green)") + "\">" + pct(erpF) + "</b>、TTM ERP " + pct(erpT) +
+    " → " + (erpF < 1 ? "股债性价比极低，重手 DCA 的安全垫很薄" : "股债性价比尚可") +
+    "。EPS 增速 <b style=\"color:" + (eps > 0 ? "var(--green)" : "var(--red)") + "\">" + pct(eps) + "</b> → " + (eps > 0 ? "回调不改盈利基本面" : "盈利收缩期，慎用加仓档位") + "。";
+
+  /* sentiment */
+  $("sent-vix").textContent = D.vix.toFixed(2);
+  $("sent-vix").style.color = bandColor(D.vix, RULES.vix);
+  $("sent-vixb").style.width = Math.min(100, D.vix/40*100) + "%";
+  $("sent-vixb").style.background = D.vix > 30 ? "var(--red)" : "var(--green)";
+  $("sent-fg").textContent = D.fg + " " + (D.fg>=75?"极度贪婪":(D.fg>=55?"贪婪":(D.fg>=45?"中性":(D.fg>=25?"恐惧":"极度恐惧"))));
+  $("sent-fg").style.color = bandColor(D.fg, RULES.fg);
+  $("sent-fgb").style.width = D.fg + "%";
+  $("sent-tnx").textContent = D.tnx.toFixed(2) + "%";
+  $("sent-tnxb").style.width = Math.min(100, D.tnx/5.5*100) + "%";
+  /* 2Y + curve */
+  $("sent-tnx2").textContent = D.tnx2.toFixed(2) + "% · " + (D.tnx2 >= D.tnx ? "倒挂 🔴" : "正常 🟢");
+  $("sent-tnx2").style.color = D.tnx2 >= D.tnx ? "var(--red)" : "var(--green)";
+  $("sent-tnx2b").style.width = Math.min(100, D.tnx2/5.5*100) + "%";
+  $("sent-tnx2b").style.background = D.tnx2 >= D.tnx ? "var(--red)" : "var(--green)";
+  /* put/call */
+  const pc = D.putcall;
+  $("sent-pc").textContent = pc.toFixed(2) + " " + (pc > 1.1 ? "防御" : (pc < 0.7 ? "贪婪" : "中性"));
+  $("sent-pc").style.color = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--tx)");
+  $("sent-pcb").style.width = Math.min(100, pc/1.5*100) + "%";
+  $("sent-pcb").style.background = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--yellow)");
+  /* 情绪注释（派生） */
+  const vixState = D.vix > 30 ? "恐慌区" : (D.vix > 20 ? "警惕区" : (D.vix > 15 ? "正常区" : "低位"));
+  const fgState = D.fg >= 75 ? "极度贪婪" : (D.fg >= 55 ? "贪婪" : (D.fg >= 45 ? "中性" : (D.fg >= 25 ? "恐惧" : "极度恐惧")));
+  $("note-sent").innerHTML =
+    "VIX " + D.vix.toFixed(2) + " " + vixState + " + 恐贪 " + D.fg + " " + fgState +
+    " → <b>市场情绪" + (D.fg >= 55 ? "仍偏乐观" : (D.fg >= 45 ? "中性观望" : "转防御")) + "</b>；收益率曲线" +
+    (D.tnx2 >= D.tnx ? "倒挂 🔴" : "正斜率") + "、Put/Call " + pc.toFixed(2) + " " + (pc > 1.1 ? "防御" : (pc < 0.7 ? "贪婪" : "中性")) +
+    " → " + (D.tnx2 < D.tnx && pc >= 0.7 && D.vix < 30 ? "无系统性风险信号" : "存在风险信号，注意控制加仓节奏") + "。";
+
+  /* stress test — 与 thresholds 耦合，改阈值时文案自动同步 */
+  const stressDefs = [
+    [-10, "-10.0%"],
+    [th.t2, "DCA 档"],
+    [th.t3, "重仓档"],
+    [th.t4, "历史级"]
+  ];
+  const sRows = document.querySelectorAll(".stress-row b");
+  const sDescs = document.querySelectorAll(".stress-row .s-desc");
+  stressDefs.forEach((d, i) => {
+    sRows[i].textContent = "NDX " + d[0] + "%";
+    sDescs[i].textContent = "→ " + fmt0(priceAt(ndx, d[0])) + " 点（" + d[1] + "）";
+  });
+
+  /* scale stats */
+  $("sstat-buy").textContent = fmt0(priceAt(ndx, th.t2));
+  $("sstat-buy2").textContent = fmt0(priceAt(ndx, th.t3));
+  $("sstat-low").textContent = fmt0(priceAt(ndx, th.t4));
+
+  /* history */
+  renderHist(ndxDD);
+
+  /* banner */
+  renderBanner(ndxDD);
+
+  /* golden line */
+  renderGolden(ndxDD, spxDD);
+
+  /* data staleness */
+  renderStale();
+
+  /* hide loading overlay */
+  const ld = $("loading");
+  if (ld) { ld.style.opacity = "0"; setTimeout(() => ld.style.display = "none", 350); }
+  } catch (e) {
+    console.error("renderAll 异常:", e);
+    const banner = $("banner");
+    if (banner) banner.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--red)"><div style="font-size:36px;margin-bottom:12px;" aria-hidden="true">⚠️</div><div style="font-size:15px;font-weight:700;margin-bottom:6px;">数据加载异常</div><div style="font-size:12px;color:var(--tx2);font-family:var(--mono)">' + (e.message || "未知错误") + '</div><div style="margin-top:16px;font-size:12px;color:var(--tx3)">请刷新页面重试，或联系维护者</div></div>';
+    const ld2 = $("loading");
+    if (ld2) { ld2.style.opacity = "0"; setTimeout(() => ld2.style.display = "none", 350); }
+  }
+}
+
+function setMeter(prefix, val, min, max) {
+  const v = $(prefix+"v"), b = $(prefix+"b");
+  v.textContent = pct(val);
+  v.style.color = val < 0 ? "var(--red)" : "var(--green)";
+  const w = ((val - min) / (max - min)) * 100;
+  b.style.width = Math.max(3, Math.min(100, w)) + "%";
+  b.style.background = val < 0 ? "linear-gradient(90deg,var(--red),var(--yellow))" : "var(--green)";
+}
+
+/* ================= History comparison ================= */
+function renderHist(ndxDD) {
+  $("hist-cur").textContent = pct(ndxDD);
+  $("hist-cur-days").textContent = D.ndx.days + " 天";
+  const median = -7.5;
+  const deeper = ndxDD < median;
+  $("hist-rank").textContent = deeper ? "当前 低于中位" : "当前 高于中位";
+  $("hist-rank").style.color = deeper ? "var(--red)" : "var(--yellow)";
+  /* dot position on 0 ~ -40 scale */
+  const pos = Math.min(100, Math.max(2, (ndxDD - (-40)) / 40 * 100));
+  $("med-dot").style.left = pos + "%";
+  $("med-val").style.left = pos + "%";
+  $("med-val").textContent = pct(ndxDD);
+  $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
+  $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd) : "--";   // 年内回撤基准对照（数据驱动）
+}
+
+/* ================= Scale SVG ================= */
+function drawScale(ndxDD, spxDD) {
+  const svg = $("scale-svg");
+  const th = D.thresholds;
+  const W = 620, H = 110, L = 40, R = W - 40, Y = 44;
+  const lo = -40, hi = 0;
+  const x = dd => L + (dd - lo) / (hi - lo) * (R - L);
+  const dark = !document.body.classList.contains("light");
+  const cTick = dark ? "#5a6a85" : "#94a3b8";
+  const cTickTx = dark ? "#8fa0ba" : "#64748b";
+  const cNdx = dark ? "#ffffff" : "#2563eb";
+  const cSpx = dark ? "#4a9eff" : "#7c3aed";
+  const cStroke = dark ? "#0b0e14" : "#cbd5e1";
+  const cLeader = dark ? "rgba(255,255,255,.30)" : "rgba(15,23,42,.30)";
+  let s = `<rect width="${W}" height="${H}" fill="none"/>`;
+  /* gradient track */
+  const gid = "trackGrad";
+  s += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#f0616d"/><stop offset="0.3" stop-color="#f5b93d"/>
+    <stop offset="0.6" stop-color="#26c99e"/><stop offset="1" stop-color="#3dd6c3"/>
+  </linearGradient></defs>`;
+  /* track */
+  s += `<rect x="${L}" y="${Y-3}" width="${R-L}" height="6" rx="3" fill="url(#${gid})" opacity="0.5"/>`;
+  /* tick marks */
+  const ticks = [0, -5, -10, -15, -20, -25, -30, -35, -40];
+  ticks.forEach(t => {
+    const tx = x(t);
+    s += `<line x1="${tx}" y1="${Y-8}" x2="${tx}" y2="${Y+8}" stroke="${cTick}" stroke-width="1"/>`;
+    s += `<text x="${tx}" y="${Y+30}" fill="${cTickTx}" font-size="11" text-anchor="middle" style="font-family:var(--mono)">${t}%</text>`;
+  });
+  /* threshold zones shading (derived from D.thresholds) */
+  const zone = (from, to, color) => {
+    const x1 = x(from), x2 = x(to);
+    s += `<rect x="${x1}" y="${Y-9}" width="${x2-x1}" height="18" fill="${color}" opacity="0.08"/>`;
+  };
+  zone(th.t2, th.t1, "#f5b93d"); zone(th.t3, th.t2, "#ff9843"); zone(lo, th.t3, "#f0616d");
+  /* markers: NDX above the track, SPX below — never overlap */
+  const m = (dd, color, letter, letterFill, yoff) => {
+    const mx = x(Math.max(lo, Math.min(hi, dd)));
+    const my = Y + yoff;
+    /* leader line to the track */
+    const ly1 = yoff < 0 ? my + 7 : Y + 3;
+    const ly2 = yoff < 0 ? Y - 3 : my - 7;
+    s += `<line x1="${mx}" y1="${ly1}" x2="${mx}" y2="${ly2}" stroke="${cLeader}" stroke-width="1"/>`;
+    s += `<circle cx="${mx}" cy="${my}" r="7" fill="${color}" stroke="${cStroke}" stroke-width="2.5"/>`;
+    s += `<text x="${mx}" y="${my + 2.6}" fill="${letterFill}" font-size="8" font-weight="800" text-anchor="middle" style="font-family:var(--mono)">${letter}</text>`;
+  };
+  m(ndxDD, cNdx, "N", dark ? "#0b0e14" : "#ffffff", -16);
+  m(spxDD, cSpx, "S", "#ffffff", 16);
+  svg.setAttribute("aria-label", `回撤深度尺：NDX 当前回撤 ${pct(ndxDD)}，SPX 当前回撤 ${pct(spxDD)}`);
+  svg.innerHTML = s;
+}
+
+/* ================= Trigger matrix ================= */
+function renderTriggers(ndxDD) {
+  const box = $("trig-matrix");
+  const th = D.thresholds;
+  const bands = [th.t1, th.t2, th.t3, th.t4];
+  const TRIG_DEF = [
+    { band: "-5%",  title: '<span aria-hidden="true">🟢</span> 关注线 · 正常定投', desc:"触及即进入监控区 · 10年约5次/年，触发后60日胜率82%", weight: 0 },
+    { band: "-15%", title: '<span aria-hidden="true">🟡</span> DCA 加仓档', desc: "MA200（200日均线）未破 → DCA（定投）×2 · 10年仅4段(0.4次/年)，60日均值+13.4%", weight: 1 },
+    { band: "-25%", title: '<span aria-hidden="true">🟠</span> 重仓低吸档', desc: "VIX（恐慌指数）>30 → 单笔额度×2~3 · 10年仅2段，触发后60日全胜(均值+22.7%)", weight: 2 },
+    { band: "-35%", title: '<span aria-hidden="true">🔴</span> 历史级机会档', desc: "ERP（股票 vs 国债的收益差）>5% → 弹药分 3 批打满 · 10年1次(2020疫情)，极端罕见", weight: 3 },
+  ];
+  let html = "";
+  TRIG_DEF.forEach((t, i) => {
+    const dd = bands[i];
+    const passed = ndxDD <= dd;
+    const dist = ndxDD - dd;
+    let stateHtml, distTxt, rowBg = false, bandColor = "var(--tx3)";
+    if (passed) {
+      stateHtml = `<span class="trig-state st-on">✓ 已触发</span>`;
+      distTxt = "当前已穿越";
+      rowBg = true;
+      bandColor = "var(--red)";
+    } else if (dist <= 4) {
+      stateHtml = `<span class="trig-state st-near">◔ 接近</span>`;
+      distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
+      rowBg = true; bandColor = "var(--yellow)";
+    } else if (dist <= 12) {
+      stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
+      distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
+    } else {
+      stateHtml = `<span class="trig-state st-far">○ 远离</span>`;
+      distTxt = "还差 " + Math.abs(dist).toFixed(2) + "pp";
+    }
+    html += `
+      <div class="trig-row" ${rowBg ? 'style="background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;"' : ''}>
+        <div class="trig-band" style="color:${bandColor}">${t.band}</div>
+        <div class="trig-info">
+          <div class="t-title">${t.title}</div>
+          <div class="t-desc">${t.desc}</div>
+        </div>
+        <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
+      </div>`;
+  });
+  box.innerHTML = html + '<div class="note" style="margin-top:10px;">历史统计口径：NDX 2016-2026，独立下跌段，触发后 60 个交易日窗口</div>';
+}
+
+/* ================= Condition check ================= */
+function renderConds() {
+  const box = $("cond-check");
+  const dd = ddOf(D.ndx);
+  const th = D.thresholds;
+  /* 资格条件：回撤档位（与触发矩阵联动） */
+  /* 图标与文字解耦：图标 aria-hidden（纯装饰），文字带语义，避免读屏朗读 emoji 名 */
+  const ddIcon = dd <= th.t4 ? "⚫" : dd <= th.t3 ? "🔴" : dd <= th.t2 ? "🟠" : dd <= th.t1 ? "🟡" : "🟢";
+  const ddWord = dd <= th.t4 ? "-35% 历史级" : dd <= th.t3 ? "-25% 重仓" : dd <= th.t2 ? "-15% 加仓" : dd <= th.t1 ? "-5% 关注" : "待机区";
+  const ddBand = '<span aria-hidden="true">' + ddIcon + '</span> ' + ddWord;
+  const qualified = dd <= th.t1;
+  /* 确认条件：趋势/动能/情绪/估值 */
+  const conds = [
+    { name: "MA200（200日均线）之上，趋势完好", hit: D.ndx.close > D.ndx.ma200, note: "NDX " + fmt0(D.ndx.close) + " vs MA200 " + fmt0(D.ndx.ma200) },
+    { name: "RSI（涨跌动能指标）< 35，超卖", hit: D.ndx.rsi < 35,     note: "NDX RSI " + D.ndx.rsi.toFixed(1) },
+    { name: "VIX（恐慌指数）> 25，恐慌升温", hit: D.vix > 25,           note: "VIX " + D.vix.toFixed(2) },
+    { name: "Forward PE 估值分位 < 60，便宜", hit: D.pePct < 60,          note: "当前分位 " + D.pePct + "（贵过历史上 " + D.pePct + "% 的时间）" },
+  ];
+  const confirmHit = conds.filter(c => c.hit).length;
+  let html = `
+    <div class="trig-row" style="${qualified ? 'background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;' : ''}">
+      <div style="font-size:16px;width:24px;flex-shrink:0;"><span aria-hidden="true">${qualified ? "✅" : "⬜"}</span></div>
+      <div class="trig-info">
+        <div class="t-title" style="font-size:12.5px;">资格条件 · 回撤档位已触发</div>
+        <div class="t-desc">当前 ${ddBand}（距高点 ${dd.toFixed(2)}%）</div>
+      </div>
+      <span class="trig-state ${qualified ? "st-on" : "st-off"}">${qualified ? "已触发" : "未触发"}</span>
+    </div>`;
+  conds.forEach(c => {
+    html += `
+      <div class="trig-row">
+        <div style="font-size:16px;width:24px;flex-shrink:0;"><span aria-hidden="true">${c.hit ? "✅" : "⬜"}</span></div>
+        <div class="trig-info">
+          <div class="t-title" style="font-size:12.5px;">${c.name}</div>
+          <div class="t-desc">${c.note}</div>
+        </div>
+        <span class="trig-state ${c.hit ? "st-on" : "st-off"}">${c.hit ? "满足" : "未满足"}</span>
+      </div>`;
+  });
+  const verdict = !qualified
+    ? '<b style="color:var(--green)"><span aria-hidden="true">🟢</span> 未到加仓档位，维持正常定投，等待回撤给安全边际</b>'
+    : confirmHit >= 2
+      ? `<b style="color:var(--blue)"><span aria-hidden="true">✅</span> ${ddBand}已触发且确认 ${confirmHit}/4，可执行对应档位操作</b>`
+      : `<b style="color:var(--yellow)"><span aria-hidden="true">🟡</span> ${ddBand}已触发但确认不足（${confirmHit}/4），半仓试探或等 1-2 天确认</b>`;
+  html += `<div class="note" style="margin-top:10px;">确认条件命中 <b style="color:var(--blue)">${confirmHit}/4</b>。${verdict}</div>`;
+  box.innerHTML = html;
+}
+
+/* ================= Take-profit matrix ================= */
+function renderTakeProfit() {
+  const box = $("tp-matrix");
+  const ndx = D.ndx;
+  const ytd = ytdOf(ndx);
+  const distAth = -ddOf(ndx);                 // 距 ATH 的百分比（正值）
+  const erpF = 100 / D.peFwd - D.tnx;          // Fwd 口径股权风险溢价
+  const gap = (cur, tgt) => Math.max(0, tgt - cur);
+  const TP_DEF = [
+    { band: "+18%", title: '<span aria-hidden="true">🟢</span> T+1 · 停止大额定投', desc: "YTD（年初至今涨幅）≥ +18% 或 距 ATH（历史最高点）< 8% → 大额定投转小额 · 每季重估，距高点>10% 自动恢复大额（历史：YTD+15~20%后短期继续涨居多，只停加码不卖出）",
+      hit: () => ytd >= 18 || distAth < 8, dist: () => Math.min(gap(ytd, 18), gap(distAth, 8)) },
+    { band: "+22%", title: '<span aria-hidden="true">🟡</span> T+2 · 兑现浮盈 15-20%', desc: "YTD ≥ +22% 或 恐贪 ≥ 85 → 分批兑现（历史：YTD 首破 +20% 后 20 日胜率仅 38%，疲软窗口起点）",
+      hit: () => ytd >= 22 || D.fg >= 85, dist: () => Math.min(gap(ytd, 22), gap(D.fg, 85)) },
+    { band: "90分位", title: '<span aria-hidden="true">🟠</span> T+3 · 兑现至仓位下限', desc: "PE分位（估值贵过历史上多少%的时间）≥ 90% 且 RSI（涨跌动能指标）≥ 75 → 兑现至目标下限",
+      hit: () => D.pePct >= 90 && ndx.rsi >= 75, dist: () => Math.min(gap(D.pePct, 90), gap(ndx.rsi, 75)) },
+    { band: "ERP<0", title: '<span aria-hidden="true">🔴</span> T+4 · 降杠杆转防御', desc: "ERP（股票盈利收益率 − 国债利率，越低越贵）< 0 → 系统性降杠杆，转防御",
+      hit: () => erpF < 0, dist: () => Math.max(0, erpF) },
+  ];
+  let html = "";
+  TP_DEF.forEach(t => {
+    const hit = t.hit();
+    const d = t.dist();
+    let stateHtml, distTxt, rowBg = false, bandColor = "var(--tx3)";
+    if (hit) {
+      stateHtml = `<span class="trig-state tp-on">✓ 已触发</span>`;
+      distTxt = "已达兑现条件";
+      rowBg = true; bandColor = "var(--green)";
+    } else if (d <= 4) {
+      stateHtml = `<span class="trig-state tp-near">◔ 接近</span>`;
+      distTxt = "还差 " + d.toFixed(2) + "pp";
+      rowBg = true; bandColor = "var(--purple)";
+    } else if (d <= 12) {
+      stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
+      distTxt = "还差 " + d.toFixed(2) + "pp";
+    } else {
+      stateHtml = `<span class="trig-state st-far">○ 远离</span>`;
+      distTxt = "还差 " + d.toFixed(2) + "pp";
+    }
+    html += `
+      <div class="trig-row" ${rowBg ? 'style="background:rgba(45,212,167,.04);border-radius:8px;padding:9px 8px;"' : ''}>
+        <div class="trig-band" style="color:${bandColor}">${t.band}</div>
+        <div class="trig-info">
+          <div class="t-title">${t.title}</div>
+          <div class="t-desc">${t.desc}</div>
+        </div>
+        <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
+      </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ================= Banner ================= */
+function renderBanner(ndxDD) {
+  const th = D.thresholds;
+  let icon, title, desc, tagCls, tagTxt;
+  const rsiNote = D.ndx.rsi < 35 ? "（RSI 已超卖 ✅）" : "（RSI 中性，动能未确认 ⚠️）";
+  if (ndxDD <= th.t4) {
+    icon = "⚫"; title = "历史级机会：已触发 -35% 档"; tagCls = "tag-black"; tagTxt = '<span aria-hidden="true">⚫</span> 战略加仓';
+    desc = "5 年一遇回撤深度" + rsiNote + "。检查 ERP 是否>5%，剩余弹药分 3 批打满，但保留 20% 现金应对尾部风险。";
+  } else if (ndxDD <= th.t3) {
+    icon = "🔴"; title = "重仓低吸：已触发 -25% 档"; tagCls = "tag-red"; tagTxt = '<span aria-hidden="true">🔴</span> 重仓区';
+    desc = "若 VIX>30 或恐慌蔓延，可提高单笔 DCA 额度（×2~×3）、拉大加仓间隔至 2-3 周一次" + rsiNote + "。";
+  } else if (ndxDD <= th.t2) {
+    icon = "🟠"; title = "DCA 加仓：已触发 -15% 档"; tagCls = "tag-orange"; tagTxt = '<span aria-hidden="true">🟠</span> 加仓区';
+    desc = "MA200 未破则按计划 DCA×2" + rsiNote + "；HBM/DRAM 存储超级周期主题同步触发加仓条件。";
+  } else if (ndxDD <= th.t1) {
+    icon = "🟡"; title = "关注区：回撤 " + pct(ndxDD); tagCls = "tag-yellow"; tagTxt = '<span aria-hidden="true">🟡</span> 关注 · 等待';
+    desc = "观察为主" + rsiNote + "。若估值分位<60% 或 VIX 快速抬升，可小额分批试探性加仓，否则按兵不动。";
+  } else {
+    icon = "🟢"; title = "待机区：回撤 < 5%"; tagCls = "tag-green"; tagTxt = '<span aria-hidden="true">🟢</span> 正常定投';
+    desc = "趋势健康，维持原定投计划即可，不追高不加码，等待回撤给出安全边际。";
+  }
+  $("sig-icon").innerHTML = '<span aria-hidden="true">' + icon + '</span>';
+  $("sig-title").textContent = title;
+  $("sig-desc").textContent = desc;
+  $("sig-tag").innerHTML = tagTxt;   // tagTxt 内含 aria-hidden 的装饰 emoji，需按 HTML 赋值
+  $("sig-tag").className = "sig-tag " + tagCls;
+  /* 结论锚定：关键数字 */
+  $("sk-dd").textContent = pct(ndxDD);
+  $("sk-dd").style.color = ddColor(ndxDD, th);
+  const erpF = 100 / D.peFwd - D.tnx;
+  $("sk-erp").textContent = pct(erpF);
+  $("sk-erp").style.color = bandColor(erpF, RULES.erp);
+  $("sk-fg").textContent = D.fg;
+  $("sk-fg").style.color = D.fg >= 85 ? "var(--red)" : (D.fg >= 55 ? "var(--yellow)" : "var(--green)");
+  const ytd = ytdOf(D.ndx);
+  const distAth = -ndxDD;
+  const tpTxt = (ytd >= 15 || distAth < 8) ? "T+1 ✓" : (ytd >= 25 || D.fg >= 85) ? "T+2 观察" : "未触发";
+  $("sk-tp").textContent = tpTxt;
+  $("sk-tp").style.color = (ytd >= 15 || distAth < 8) ? "var(--yellow)" : "var(--tx3)";
+
+  renderDCA();
+}
+
+/* ================= Data staleness ================= */
+function renderStale() {
+  const sc = $("stale-chip");
+  if (!sc) return;
+  const lc = $("live-chip");
+  if (lc) lc.style.display = D.intraday ? "" : "none";
+  const d = new Date(D.date + "T12:00:00");
+  const days = Math.floor((new Date() - d) / 86400000);
+  if (!isFinite(days) || days <= 3) { sc.style.display = "none"; return; }
+  sc.style.display = "";
+  $("stale-days").textContent = days;
+}
+
+/* ================= Golden line ================= */
+function renderGolden(ndxDD, spxDD) {
+  const th = D.thresholds;
+  let text;
+  if (ndxDD <= th.t4) text = "回撤到 -35% 不是恐慌，是别人把筹码递到你手里——分 3 批接，留 2 成子弹。";
+  else if (ndxDD <= th.t3) text = "-25% 的回撤是市场给勇敢者的折扣券，但记得：打折的是价格，不是逻辑。";
+  else if (ndxDD <= th.t2) text = "-15% 触发的不是加仓按钮，而是纪律按钮——按计划走，别让情绪接管方向盘。";
+  else if (ndxDD <= th.t1) text = "回撤是导航仪不是倒车镜——-5% 只点亮了「关注灯」，估值情绪未配合，管住手等 -15% 的 DCA 线。";
+  else text = "市场在上涨，你更需要纪律——回撤不到 -5%，一切照旧，赚钱靠的是不在高位加码。";
+  $("golden-text").textContent = text;
+}
+
+/* ================= Monthly performance ================= */
+let mcSel = "ndx";  // 当前选中的指数 tab：ndx / spx
+function renderMonthly() {
+  const idxKey = mcSel;
+  const otherKey = mcSel === "ndx" ? "spx" : "ndx";
+  const otherName = mcSel === "ndx" ? "标普500 (SPX)" : "纳指100 (NDX)";
+  const half = 115;            // 230px 绘图区的一半
+  const pxPer = half / MC_MAX; // 每 1% 对应像素
+  /* 轴标签与说明随 MC_MAX 数据驱动，避免双源漂移 */
+  $("mc-axpos").textContent = "+" + MC_MAX + "%";
+  $("mc-axneg").textContent = "-" + MC_MAX + "%";
+  $("mc-max").textContent = MC_MAX;
+  $("mc-asof").textContent = D.asOf.us + (D.intraday ? " 盘中" : " 收盘");
+  let html = "";
+  MONTHLY.forEach(d => {
+    const v = d[idxKey];
+    const h = Math.max(2, Math.abs(v) * pxPer);
+    const dir = v >= 0 ? "pos" : "neg";
+    const col = v >= 0 ? "var(--green)" : "var(--red)";
+    const sign = v > 0 ? "+" : "";
+    html += `<div class="mc-group">
+      <div class="mc-plot">
+        <div class="mc-line" style="top:0"></div>
+        <div class="mc-line zero" style="top:50%"></div>
+        <div class="mc-line" style="bottom:0"></div>
+        <div class="mc-bar ${dir}" style="height:${h.toFixed(1)}px;background:${col}"><span class="mc-val" style="color:${col}">${sign}${v.toFixed(1)}</span></div>
+      </div>
+      <div class="mc-label">${d.m}</div>
+    </div>`;
+  });
+  $("mchart").innerHTML = html;
+
+  /* 汇总 */
+  const chain = arr => arr.reduce((a, x) => a * (1 + x / 100), 1) - 1;
+  const cum = chain(MONTHLY.map(d => d[idxKey]));
+  const otherCum = chain(MONTHLY.map(d => d[otherKey]));
+  const best = MONTHLY.reduce((b, d) => (d[idxKey] > b[idxKey] ? d : b), MONTHLY[0]);
+  const worst = MONTHLY.reduce((b, d) => (d[idxKey] < b[idxKey] ? d : b), MONTHLY[0]);
+  const upMonths = MONTHLY.filter(d => d[idxKey] >= 0).length;
+  $("mchart-summary").innerHTML =
+    `年内累计(总回报) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/${MONTHLY.length}</b>` +
+    ` · 最强 <b>${best.m} ${pct(best[idxKey])}</b> · 最弱 <b>${worst.m} ${pct(worst[idxKey])}</b>`;
+  $("mchart-cross").innerHTML =
+    `对比 ${otherName} 年内累计 <b class="up">${pct(otherCum*100)}</b>`;
+}
+
+/* CALENDAR 数组已移至 data.js；本函数仅负责渲染 */
+function renderCalendar() {
+  const box = $("calendar");
+  box.innerHTML = CALENDAR.map(c => `
+    <div class="cal-item">
+      <div class="cal-date"><div class="d">${c.d}</div><div class="m">${c.m}<br>${c.day}</div></div>
+      <div class="cal-info">
+        <div class="e-name">${c.name}</div>
+        <div class="e-desc">${c.desc || ""}</div>
+      </div>
+      <span class="cal-pri pri-${c.pri==="高"?"high":(c.pri==="中"?"mid":"low")}">${c.pri}</span>
+    </div>`).join("");
+}
+
+
+/* ================= Indicator hints & lexicon ================= */
+const HINTS = {
+  dd:       { name: "回撤",    plain: "从历史最高点往下数，<b>跌了多少</b>。跌 5% = 离山顶还差 5%。", pro: "当前价 ÷ 历史最高价 − 1，再 ×100%。" },
+  rsi:      { name: "RSI(14)", plain: "市场的<b>体温计</b>：＞70 太热（超买，易回调），＜30 太冷（超卖，易反弹），50 上下 = 没方向。", pro: "14 日平均涨幅 ÷ 平均跌幅，归一化到 0–100 的动能指标。" },
+  scale:    { name: "回撤深度尺", plain: "把当前回撤画在 0 ~ -40% 的尺子上，<b>越靠左 = 跌得越深</b>。圆点压进哪个色带，就对应哪个加仓档位。", pro: "N 点（轨道上方）= NDX，S 点（轨道下方）= SPX；色带边界取自 thresholds（-5/-15/-25/-35），下方三个价格 = NDX 跌至对应档位时的点位参考。" },
+  pos52w:   { name: "52周位置", plain: "现价在过去一年价格区间里排第几。<b>77% = 比过去一年 77% 的时间都贵</b>。", pro: "(现价 − 52周最低) ÷ (52周最高 − 52周最低) ×100。" },
+  ma50:     { name: "MA50",    plain: "最近 50 个交易日的<b>平均价线</b>，看短期趋势：价格在线上面 = 短期多头占优，下面 = 空头占优。", pro: "50 日均线 SMA(50)；显示的是现价相对它的偏离度。" },
+  ma200:    { name: "MA200",   plain: "最近 200 个交易日（约一年）的平均价线，<b>牛熊分界线</b>：站上 = 长期趋势完好，跌破 = 趋势转弱要警惕。", pro: "200 日均线 SMA(200)，机构常用的牛熊参考线。" },
+  breadth:  { name: "市场广度", plain: "<b>科技龙头（纳指）vs 整个市场（标普）</b>今年谁跑得快。龙头领跑 = 行情健康；龙头掉队 = 警惕抱团瓦解。", pro: "NDX 的 YTD 涨幅 − SPX 的 YTD 涨幅（pp = 百分点差）。" },
+  ytd:      { name: "YTD",     plain: "<b>今年 1 月 1 日到现在</b>涨跌了多少。", pro: "Year-To-Date，年初至今回报。" },
+  pepct:    { name: "远期PE分位", plain: "现在贵不贵，看它在<b>历史里的排名</b>。75% = 比过去 75% 的时间都贵，属偏贵区。", pro: "当前 Forward PE 在历史分布中的百分位（0–100%）。" },
+  ndxpepct: { name: "纳指远期PE分位", plain: "纳指100 贵不贵的历史排名，读法同上。注意<b>样本从 2001 年起</b>（标普从 1990 年起），口径更短，且纳指波动更大、分位天然更极端。", pro: "当前 NDX 100 Forward PE 在 2001 年以来周度分布中的百分位（historyofmarket.com，含 2000 泡沫与 2008 危机两个极端样本）。" },
+  pefwd:    { name: "远期PE",  plain: "拿<b>未来一年的预测盈利</b>给市场标价。20.9 倍 ≈ 按预测盈利 20.9 年回本，越高越贵。", pro: "股价 ÷ 未来 12 个月预期每股盈利（EPS）。" },
+  petm:     { name: "TTM PE",  plain: "拿<b>过去一年已赚到的钱</b>算贵不贵，比远期更实在。27.2 倍 ≈ 27.2 年回本。", pro: "股价 ÷ 滚动 12 个月实际 EPS。" },
+  cape:     { name: "席勒CAPE", plain: "把<b>过去 10 年</b>的盈利平均后再算 PE，防止某一年盈利异常骗人。39.5 在历史上属极贵。", pro: "十年通胀调整后平均盈利的市盈率（Shiller CAPE）。" },
+  valstate: { name: "估值状态", plain: "综合几个 PE 得出的<b>贵/中性/便宜</b>结论。偏贵时，回撤只是“打折”而不是“捡便宜”。", pro: "由 PE 分位映射出的红黄绿三档状态。" },
+  erp:      { name: "Fwd ERP", plain: "买股票比买国债<b>多赚的那点“风险补偿”</b>。+0.09% ≈ 白扛风险，说明股票吸引力极低。", pro: "(1 ÷ Forward PE − 10Y 美债收益率) ×100；＞2.5% 才算有吸引力。" },
+  erpttm:   { name: "TTM ERP", plain: "用<b>真实盈利</b>算的风险补偿。现在是负数，意味着“股不如债”。", pro: "(1 ÷ TTM PE − 10Y 美债收益率) ×100。" },
+  eps:      { name: "EPS增速", plain: "公司赚钱能力的<b>增速预期</b>。+8% = 市场预计盈利还能涨 8%，基本面还在向上。", pro: "每股盈利（EPS）预测同比增速；26E = 2026 财年预期。" },
+  vix:      { name: "VIX",     plain: "市场的<b>恐慌指数</b>：15 = 风平浪静，30+ = 人心惶惶，40+ = 踩踏风险。越恐慌反而常接近底部。", pro: "标普 500 期权隐含波动率，衡量未来 30 天预期波幅。" },
+  fg:       { name: "恐贪指数", plain: "市场情绪表：<b>＞75 贪婪</b>（警惕过热）、<b>＜25 恐惧</b>（常是机会区）。72 = 偏贪婪，追高要小心。", pro: "CNN Fear & Greed，0–100，综合波动率、涨跌广度等 7 项指标。" },
+  tnx:      { name: "10Y美债", plain: "<b>“无风险利率”</b>，是股票的竞争对手收益率。它越高，股票显得越贵，资金越容易被吸去债市。", pro: "10 年期美国国债收益率（TNX），常作估值贴现率基准。" },
+  curve:    { name: "收益率曲线", plain: "短期（2年）与长期（10年）利率之差。<b>倒挂（2Y＞10Y）</b>= 市场押注衰退，历史预警信号。", pro: "2Y − 10Y 利差；持续倒挂通常领先经济衰退 12–18 个月。" },
+  putcall:  { name: "Put/Call", plain: "看跌的人 vs 看涨的人谁更活跃。<b>＞1.1</b> 大众防御（逆向看机会）、<b>＜0.7</b> 大众贪婪（逆向要谨慎）。", pro: "看跌期权成交量 ÷ 看涨期权成交量。" },
+  trig:     { name: "回撤触发矩阵", plain: "跌到不同深度做不同动作：<b>-5% 只观察、-15% 开始加仓、-25% 重仓、-35% 历史级机会</b>。缩写：DCA=定投、MA200=200日均线（长期趋势线）、VIX=恐慌指数、ERP=股票相对国债的收益差。每档的历史频率/胜率来自 10 年日K回测（口径见卡片底部）。", pro: "四级回撤阈值 T1–T4，配合确认条件（趋势/动能/情绪/估值）后执行。" },
+  cond:     { name: "档位资格 × 确认条件", plain: "先看<b>资格条件</b>：回撤是否到达加仓档位；再看<b>确认条件</b>（4 条）：MA200=200日均线（趋势）、RSI=涨跌动能、VIX=恐慌指数、Forward PE 分位=估值贵便宜。资格触发 + 确认≥2 才出手，资格到了但确认不足就半仓试探。", pro: "回撤档位为资格条件，MA200/RSI/VIX/估值分位为确认条件，避免单信号误判。" },
+  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。缩写：YTD=年初至今涨幅、ATH=历史最高点、PE分位=估值百分位、RSI=涨跌动能、ERP=股票相对国债的收益差。档位动作：T+1 先停加码（YTD +18%）→ T+2 兑现部分（YTD +22%）→ T+3/T+4 降杠杆转防御。T+1 触发后市场若崩盘（距高点>10%）会自动恢复大额定投。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
+  stress:   { name: "压力测试", plain: "提前算好<b>预案</b>：NDX 再跌 10%/15%/25%/35% 点位到哪、该做什么。跌到哪早有数，不慌。", pro: "由 ATH 按不同回撤幅度反推的目标点位。" },
+  median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。-7.5% 是“普通回撤”的典型深度，-15% 以下才算少见。", pro: "近 10 年历次回撤深度的中位数。" },
+  dca:      { name: "定投回测指标", plain: "你每天投 1 元，<b>分批买入</b>至今总共赚/亏多少。它对比「定投」和「一次性全仓买入」两种玩法：上涨市里定投<b>跑输</b>一次性（越买越贵），下跌市里定投<b>跑赢</b>。它不是买卖信号，只是让你看清定投的真实体感。", pro: "定投收益率 = (P_end·Σ(1/P_t) − N)/N；与每日金额无关。对比同区间一次性买入的区间涨跌幅。" },
+};
+
+let hintPop = null;
+function closeHint() { if (hintPop) { hintPop.remove(); hintPop = null; } }
+document.addEventListener("click", e => {
+  if (e.target.closest(".hint-pop")) return;               // 点气泡内部不关闭
+  const t = e.target.closest(".hint-i");
+  if (!t) { closeHint(); return; }                          // 点别处关闭
+  const key = t.dataset.h;
+  const h = HINTS[key];
+  if (!h) { closeHint(); return; }
+  if (hintPop && hintPop.dataset.k === key) { closeHint(); return; } // 再点一次收起
+  closeHint();
+  hintPop = document.createElement("div");
+  hintPop.className = "hint-pop";
+  hintPop.dataset.k = key;
+  hintPop.innerHTML = '<div class="hp-plain"><span aria-hidden="true">💬</span> ' + h.plain + '</div><div class="hp-pro"><span aria-hidden="true">📐</span> ' + h.pro + '</div>';
+  document.body.appendChild(hintPop);
+  const r = t.getBoundingClientRect();
+  const w = Math.min(300, window.innerWidth - 24);
+  hintPop.style.width = w + "px";
+  const estH = hintPop.offsetHeight;
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(12, Math.min(window.innerWidth - w - 12, left));
+  let top = r.bottom + 8;
+  if (top + estH + 8 > window.innerHeight) top = Math.max(8, r.top - estH - 8);
+  hintPop.style.left = left + "px";
+  hintPop.style.top = top + "px";
+});
+window.addEventListener("resize", closeHint);
+
+function renderLexicon() {
+  const rows = Object.keys(HINTS).map(k => {
+    const h = HINTS[k];
+    return '<tr><td class="lx-name">' + h.name + '</td><td class="lx-plain">' + h.plain + '</td><td class="lx-pro">' + h.pro + '</td></tr>';
+  }).join("");
+  $("lex-body").innerHTML =
+    '<table class="lex-table"><tr><th>指标</th><th><span aria-hidden="true">💬</span> 人话</th><th><span aria-hidden="true">📐</span> 专业口径</th></tr>' + rows + '</table>';
+}
+
+/* ================= 定投回测指标 ================= */
+let dcaIdx = "ndx", dcaAmt = 1;
+
+// 定投收益率（每日1元，金额无关）：(P_end·Σ(1/P_t) − N)/N
+function dcaRet(sub) {
+  let s = 0;
+  for (let i = 0; i < sub.length; i++) s += 1 / sub[i];
+  return (sub[sub.length - 1] * s) / sub.length - 1;
+}
+// 一次性买入收益率：区间涨跌幅
+function lumpRet(sub) { return sub[sub.length - 1] / sub[0] - 1; }
+
+function fmtDate8(yyyymmdd) {
+  const s = "" + yyyymmdd;
+  return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8);
+}
+function pctSign(n) { return (n >= 0 ? "+" : "") + (Math.abs(n) < 0.1 ? n.toFixed(2) : n.toFixed(1)) + "%"; }
+function ppp(n) { return (n >= 0 ? "+" : "") + (Math.abs(n) < 0.1 ? n.toFixed(2) : n.toFixed(1)) + "pp"; }
+function clsN(n) { return n >= 0 ? "pos" : "neg"; }
+
+function renderDCA() {
+  const series = dcaIdx === "ndx" ? DCA_NDX : DCA_SPX;
+  const n = series.length;
+  const cur = series[n - 1];
+  const win = [
+    { label: "近1月", off: 21 },   // 窗口按交易日近似（21/63/126/252），与日历误差 ±几天不影响趋势
+    { label: "近3月", off: 63 },
+    { label: "近半年", off: 126 },
+    { label: "近1年", off: 252 },
+    { label: "全周期", off: n }
+  ];
+
+  // 全周期（与金额相关，需 amt）：累计投入 / 当前市值 / 总收益率
+  let shares = 0;
+  for (let i = 0; i < n; i++) shares += dcaAmt / series[i];
+  const inv = dcaAmt * n;
+  const mkt = shares * cur;
+  const fullRet = (mkt - inv) / inv;
+  $("dca-sum").innerHTML =
+    "自 <b>" + fmtDate8(DCA_START) + "</b> 起，每日定投 <b>" + dcaAmt + "</b> 元，共 <b>" + n + "</b> 天 —<br>" +
+    "累计投入 <b>" + fmt0(inv) + "</b> 元 · 当前市值 <b>" + fmt0(mkt) + "</b> 元 · 总收益率 <span class=\"" + clsN(fullRet) + "\">" + pctSign(fullRet * 100) + "</span>";
+
+  // 窗口表（收益率与金额无关）
+  let rows = "";
+  win.forEach(w => {
+    const s = Math.max(0, n - w.off);
+    const sub = series.slice(s);
+    const dr = dcaRet(sub) * 100;
+    const lr = lumpRet(sub) * 100;
+    const diff = dr - lr;
+    rows += "<tr><td>" + w.label + "</td>" +
+      "<td class=\"" + clsN(dr) + "\">" + pctSign(dr) + "</td>" +
+      "<td class=\"" + clsN(lr) + "\">" + pctSign(lr) + "</td>" +
+      "<td class=\"" + clsN(diff) + "\">" + ppp(diff) + "</td></tr>";
+  });
+  $("dca-rows").innerHTML = rows;
+
+  $("dca-note").innerHTML =
+    "📌 <b>怎么读</b>：本表按「每日定投 1 元」回测（收益率与金额无关，1 元或 100 元结果相同）。<b>定投收益</b>=分批买入至今的总回报；<b>一次性买</b>=区间起点全仓持有至今的涨跌幅。" +
+    "<br>👉 <b>关键结论</b>：所列窗口以长期上涨周期为主，<b>定投系统性跑输一次性买入</b>（牛市越买越贵）——短窗口（1月/3月）若定投跑赢或差距收窄，说明正处于下跌或震荡期，正是按纪律分批的低吸阶段。" +
+    "<br>⚠️ <b>反向也成立</b>：若起点落在下跌市，定投会跑赢一次性买。定投的真正价值在<b>平滑波动、强制储蓄</b>，而非「收益最大化」；真要抢反弹，一次性 + 回撤触发（-15% 加仓）更优。";
+}
+
+/* ================= 数据时间条（美股时区换算） ================= */
+function renderAsOf() {
+  const a = D.asOf;
+  $("asof-local").textContent = a.local.slice(5, 16);
+  $("asof-us").textContent = a.us.slice(5);
+  $("asof-phase").textContent = D.intraday ? "盘中（截至 " + a.et + "）" : "收盘";
+  const m = $("asof-macro");
+  m.textContent = D.macroAsOf ? "宏观 VIX/恐贪/美债 沿用 " + D.macroAsOf + " 快照" : "";
+  m.style.display = D.macroAsOf ? "" : "none";
+}
+
+/* ================= init ================= */
+document.querySelectorAll(".mc-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".mc-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    mcSel = btn.dataset.idx;
+    renderMonthly();
+  });
+});
+renderCalendar();
+renderMonthly();
+renderLexicon();
+/* 定投回测指标 交互 */
+document.querySelectorAll("#dca-toggle .dca-t").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#dca-toggle .dca-t").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    dcaIdx = b.dataset.idx;
+    renderDCA();
+  });
+});
+$("dca-amt").addEventListener("input", e => { const v = parseFloat(e.target.value); dcaAmt = (isFinite(v) && v > 0) ? v : 1; renderDCA(); });
+renderDCA();
+/* 词典折叠 */
+$("lex-toggle").addEventListener("click", () => {
+  const hide = $("lex-body").classList.toggle("hidden");
+  const t = $("lex-toggle");
+  t.classList.toggle("open", !hide);
+  t.innerHTML = (hide ? "展开" : "收起") + ' <span class="arr">▶</span>';
+});
+/* ===== 浅色/深色主题切换 ===== */
+const THEME_KEY = "wb_ndxspx_theme";
+const themeBtn = $("theme-toggle");
+function applyTheme(mode) {
+  const light = mode === "light";
+  document.body.classList.toggle("light", light);
+  themeBtn.innerHTML = light ? '<span aria-hidden="true">☀️</span> 切深色' : '<span aria-hidden="true">🌙</span> 切浅色';
+  // 重新绘制依赖主题色的 SVG（drawScale 读取 body.light 选色）
+  if (typeof D !== "undefined") drawScale(ddOf(D.ndx), ddOf(D.spx));
+}
+(function initTheme() {
+  let saved = "dark";
+  try { const s = localStorage.getItem(THEME_KEY); if (s === "light" || s === "dark") saved = s; } catch (e) {}
+  applyTheme(saved);
+})();
+themeBtn.addEventListener("click", () => {
+  const next = document.body.classList.contains("light") ? "dark" : "light";
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+});
+renderAll();
+</script>
+</body>
+</html>
