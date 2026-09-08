@@ -63,6 +63,25 @@ ndx_spx_dashboard_handoff/
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
 
+**📸 截图同步 SOP（用户发 App 截图 → AI 按此清单更新）**
+用户习惯直接发 App 截图（券商持仓页 + 各基金平台持仓页），**不填模板**。AI 收到截图后按以下清单逐项更新：
+
+1. `data.js` → `POSITIONS.hold`：每只场内 ETF 的 `qty` / `cost`（成本价，`idxAtCost` = `cost`）
+2. `data.js` → `POSITIONS.log`：顶部追加当日成交（买入/卖出 + 份数 + 成交价）
+3. `positions.html` → `OTC.updated`、`OTC.cash`（各渠道可用资金合计）
+4. `positions.html` → `OTC.funds[]`：每只场外的 `value`（资产）/ `pnl`（持仓收益）/ `day`（当日收益；**`null` = 该日未更新，勿用 0 冒充**）/ `rate` / `nav.close` + `nav.closeDate`
+5. `positions.html` → `SNAPSHOTS[]`：新增一期（完整快照带 `items`，或简快照带 `total`）
+6. `data.js` → `ACCT_STATS.updated` / `.pnl` / `.pnlPct` / `.monthly[当月].pnl`
+
+**易漏项**（2026-09-08 实操踩过，务必逐条核对）：
+- `OTC.cash`：券商「可用资金」变化要同步（它隐含当日银证转账净额，漏了会让归因对不上）
+- `ACCT_STATS.monthly`：当月盈亏必须累加当日，否则与 `.pnl` 脱节（`.pnl` = 各月之和）
+- 场外「在途」交易（定投/申购待确认）：**市值已含、盈亏未含**，须在当期 `note` 里注明金额
+- 未刷新的平台（如某只 App 当天没更新）：保留旧值 + `day: null`，并在注释里写明沿用日期
+- 新快照的 `items[].cost` 用「`val` − `pl`」反推，与 App 读数的分位误差属正常（≤ 几元）
+
+**隐私约束（勿违反）**：`FLOWS`（银证转账）**默认留空**——属收入侧指纹，不入库。留空后归因由「Δ累计投入」自动推导，与实锤值误差 <0.5%（2026-09-08 实测：推导 20,354 vs 实际 20,300，差 0.27%），不影响结论。用户如需本地银证实锤，记在 `data.private.backup.js`（已 .gitignore），**切勿提交**。
+
 ### 3.4 `asOf` 数据时间条
 页头下方时间条由 `us / et / local` 三个字符串组成（美股交易日 / 美东数据时刻 / 本地更新时间），页面渲染为一行：`🕐 更新于 08-28 13:33 · 美股 08-27 收盘`（`intraday` 为 true 时显示「盘中（截至 14:32 EDT）」）。`et` 为脚本抓取时的美东时刻（盘中=抓取时间，收盘=16:00），仅盘中时展示。宏观快照行（`macroAsOf` 非空时）自动出现，同步后隐藏。更新时**照抄 data.js 上一次的格式改数字即可**，`et` 的时区缩写（EDT/EST）随夏令时切换：每年 **3 月第二个周日 → 11 月第一个周日**为夏令时。
 
