@@ -7,13 +7,13 @@
 
 /* ================= 数据模型 ================= */
 const DEFAULT = {
-  date: "2026-09-04",
-  intraday: false, // AUTO：美股 2026-09-04 收盘（2026-09-08T13:20Z 抓取）
-  ndx:   { close: 29544.15, ath: 30762.2, athDate: "2026-06-03", days: 65, chg: 0.21, ma50: 29229, ma200: 27029, rsi: 42.1, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
-  spx:   { close: 7718.6, ath: 7816.7, athDate: "2026-08-13", days: 16, chg: -0.38, ma50: 7592, ma200: 7142, rsi: 47.4, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
-  vix: 15.42,
+  date: "2026-09-08",
+  intraday: true, // AUTO：盘中快照（2026-09-08T14:06Z 抓取）
+  ndx:   { close: 29448.14, ath: 30762.2, athDate: "2026-06-03", days: 66, chg: -0.32, ma50: 29236, ma200: 27054, rsi: 49.1, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
+  spx:   { close: 7684.24, ath: 7816.7, athDate: "2026-08-13", days: 17, chg: -0.45, ma50: 7598, ma200: 7147, rsi: 49.2, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
+  vix: 15.6,
   fg: 56,
-  tnx: 4.76,
+  tnx: 4.78,
   tnx2: 4.229,
   putcall: 0.76, // AUTO：CBOE 全品类总 Put/Call
   fx: 6.71,
@@ -28,7 +28,7 @@ const DEFAULT = {
   peFwd: 20.1, peTtm: 27.2, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
   ndxPeFwd: 22.4, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护
-  asOf: { us: "2026-09-04", et: "16:00 EDT", local: "2026-09-08 21:20:48" },
+  asOf: { us: "2026-09-08", et: "10:06 EDT", local: "2026-09-08 22:06:15" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
@@ -43,7 +43,7 @@ const MONTHLY = [
   { m: "6月", ndx: -0.2, spx: -1.1 },
   { m: "7月", ndx: -6.6, spx: -0.1 },
   { m: "8月", ndx: 4.2, spx: 2.6 },
-  { m: "9月", ndx: 0.3, spx: 0.4 },
+  { m: "9月", ndx: 0, spx: 0 },
 ];
 const MC_MAX = 16; // 纵轴满刻度 ±%
 
