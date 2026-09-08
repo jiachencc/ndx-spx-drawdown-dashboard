@@ -455,9 +455,6 @@
   /* ===== Footer ===== */
   .footer { margin-top: 24px; font-size: 11px; color: var(--tx3); text-align: center; line-height: 1.8; }
   .footer a { color: var(--tx3); text-decoration: none; }
-  .footer .online-link { display: inline-block; margin: 4px 0 2px; padding: 5px 14px; font-size: 12px; color: #fff; background: linear-gradient(135deg,var(--cyan),var(--blue)); border-radius: 999px; text-decoration: none; cursor: pointer; }
-  .footer .online-link:hover { filter: brightness(1.12); }
-  .footer .online-link svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
   /* ===== Editable ===== */
   .tgl-btn { font-size: 11px; color: var(--blue); cursor: pointer; font-weight: 700; }
   .hidden { display: none; }
@@ -876,7 +873,6 @@
 </main>
 
 <div class="footer">
-  <a class="online-link" href="https://jiachencc.github.io/ndx-spx-drawdown-dashboard/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>打开在线最新版（GitHub Pages）</a><br>
   <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.9</b> · 行情：Yahoo ^NDX / ^GSPC 官方指数（stooq 兜底） · 宏观：CNN恐贪 / Yahoo 美债 / Frankfurter 汇率 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
   本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值/期权数据：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · <a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market</a> (CC BY 4.0) · 最后更新于 <span id="footer-updated">--</span>
 </div>
@@ -950,7 +946,7 @@ function renderAll() {
     const ndxDD = ddOf(ndx), spxDD = ddOf(spx);
 
   /* meta */
-  $("footer-updated").textContent = D.asOf.local + " · 数据=美东 " + D.asOf.us + " 16:00 收盘";
+  $("footer-updated").textContent = D.asOf.local + " · 数据=美东 " + D.asOf.us + (D.intraday ? " 盘中" : " 16:00 收盘");   // 盘中时不再误写「16:00 收盘」
   $("meta-fx").textContent = D.fx.toFixed(2);
   renderAsOf();
   $("fx-num").textContent = D.fx.toFixed(2);
@@ -1612,7 +1608,13 @@ function renderAsOf() {
   const a = D.asOf;
   $("asof-local").textContent = a.local.slice(5, 16);
   $("asof-us").textContent = a.us.slice(5);
-  $("asof-phase").textContent = D.intraday ? "盘中（截至 " + a.et + "）" : "收盘";
+  /* 时区直白化：et 形如 "10:06 EDT"，去掉 EDT/EST 缩写，改为「美东上午/下午 X:XX」，一眼看懂美股处于白天还是黑夜 */
+  const etTime = a.et.replace(/\s*(EDT|EST)$/, "");
+  const etHh = parseInt(etTime, 10);
+  const meridiem = (!isNaN(etHh) && etHh >= 12) ? "下午" : "上午";
+  $("asof-phase").textContent = D.intraday
+    ? "交易中（美东" + meridiem + " " + etTime + "）"
+    : "已收盘";
   const m = $("asof-macro");
   m.textContent = D.macroAsOf ? "宏观 VIX/恐贪/美债 沿用 " + D.macroAsOf + " 快照" : "";
   m.style.display = D.macroAsOf ? "" : "none";
