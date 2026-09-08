@@ -169,16 +169,22 @@
   .idx-badge.n225 { background: rgba(255,190,80,.12); color: var(--yellow); border: 1px solid rgba(255,190,80,.3); }
   .idx-badge.hkus { background: rgba(86,214,158,.12); color: var(--green); border: 1px solid rgba(86,214,158,.3); }
   .idx-badge.global { background: rgba(143,160,186,.12); color: var(--tx2); border: 1px solid rgba(143,160,186,.3); }
-  .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; font-size: 12.5px; margin-bottom: 12px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 14px; font-size: 12px; margin-bottom: 8px; }
   .stat-grid .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
   .stat-grid .row b { font-family: var(--mono); font-feature-settings: "tnum"; font-weight: 700; white-space: nowrap; }
 
   /* ===== 三点水位梯：高点/现价/成本 ===== */
-  .ladder { position: relative; margin: 2px 0 12px; }
+  .ladder { position: relative; margin: 0 0 8px; }
   .ladder::before { content: ""; position: absolute; left: 4px; top: 14px; bottom: 14px; width: 2px; border-radius: 1px; background: var(--line); }
   .lad-fill { position: absolute; left: 4px; width: 2px; border-radius: 1px; background: linear-gradient(180deg, rgba(45,212,167,.12), rgba(45,212,167,.6)); }
   .lad-fill.down { background: linear-gradient(180deg, rgba(242,109,125,.6), rgba(242,109,125,.12)); }
-  .lad-row { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 7px 0 7px 22px; min-width: 0; flex-wrap: wrap; }
+  .lad-row { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 5px 0 8px 22px; min-width: 0; flex-wrap: wrap; }
+  /* 迷你比例轨：每行一条、左对齐同一起点，柱长 = 该价位相对 52 周低→高的分位（低 0% → 高 100%），柱长一眼可比 */
+  .lad-track { position: absolute; left: 22px; right: 6px; bottom: 1px; height: 3px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
+  .lad-track i { display: block; height: 100%; border-radius: 2px; opacity: .55; }
+  .lad-track i.tk-hi { background: var(--yellow); }
+  .lad-track i.tk-now { background: var(--tx); }
+  .lad-track i.tk-cost { background: var(--cyan); }
   .lad-dot { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--card); }
   .lad-dot.now { box-shadow: 0 0 0 3px var(--card), 0 0 8px rgba(226,233,245,.5); }
   .lad-name { font-size: 11px; color: var(--tx3); flex: none; }
@@ -188,6 +194,7 @@
   .lad-chip.up { color: var(--green); border-color: rgba(45,212,167,.3); background: rgba(45,212,167,.08); }
   .lad-chip.warn { color: var(--yellow); border-color: rgba(247,193,78,.3); background: rgba(247,193,78,.08); }
   .lad-chip.down { color: var(--red); border-color: rgba(242,109,125,.3); background: rgba(242,109,125,.08); }
+  .lad-chip.dip { color: var(--blue); border-color: rgba(91,163,255,.4); background: rgba(91,163,255,.1); }   /* DCA 加仓档用蓝：避免与青色「成本位」混淆 */
 
   /* ===== 场内溢价行 ===== */
   .prem-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 11.5px; color: var(--tx3); margin: -6px 0 10px; min-width: 0; }
@@ -200,15 +207,26 @@
   .prem-row .prem-note { color: var(--tx3); }
 
   /* ===== 成本位置条 ===== */
-  .bar-wrap { margin: 4px 0 14px; }
+  .bar-wrap { margin: 2px 0 10px; }
   .bar-title { font-size: 11px; color: var(--tx3); margin-bottom: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-  .bar-title b { color: var(--tx2); }
-  .bar-track { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(242,109,125,.35), var(--line), rgba(45,212,167,.4)); }
-  .bar-marker { position: absolute; top: -6px; width: 2px; height: 20px; border-radius: 1px; }
-  .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 8px rgba(70,201,240,.6); border: none; padding: 0; cursor: pointer; }
-  .bar-end { position: absolute; right: -1px; top: -6px; width: 2px; height: 20px; border-radius: 1px; background: var(--yellow); box-shadow: 0 0 8px rgba(247,193,78,.7); }
-  .bar-marker.now { background: var(--tx); box-shadow: 0 0 8px rgba(226,233,245,.5); border: none; padding: 0; cursor: pointer; }
-  .bar-marker.now::after, .bar-marker.cost::after { content: ""; position: absolute; left: -12px; top: -11px; width: 26px; height: 42px; }
+  .bar-title b { color: var(--tx2); font-size: 12.5px; }   /* 分位数字略强调，档位标签弱化形成层级 */
+  /* 中性底（不再用误导性固定渐变）；红/绿只在现价↔成本间的 .seg 区间带出现，颜色即「浮亏/浮盈」 */
+  /* 胶囊轨道 + 内阴影质感（"轨道"而不是"色块"，配合游标 marker 读位置） */
+  .bar-track { position: relative; height: 12px; border-radius: 999px; background: var(--line-soft); box-shadow: inset 0 1px 2px rgba(0,0,0,.22); }
+  body.light .bar-track { box-shadow: inset 0 1px 2px rgba(15,23,42,.12); }
+  .bar-track .seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; pointer-events: none; overflow: hidden; }
+  /* 斜纹填充：盈亏区间有质感，且与纯色游标区分开 */
+  .bar-track .seg.gain { background: repeating-linear-gradient(135deg, rgba(45,212,167,.45) 0 4px, rgba(45,212,167,.15) 4px 9px); }
+  .bar-track .seg.loss { background: repeating-linear-gradient(135deg, rgba(242,109,125,.45) 0 4px, rgba(242,109,125,.15) 4px 9px); }
+  /* 区间带剪成箭头形：平端 = 成本位，尖角端 = 指向现价位（现价在右 s-r、在左 s-l）；无字符、方向藏在形状里 */
+  .bar-track .seg.s-r { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); }
+  .bar-track .seg.s-l { clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%); }
+  /* 游标形态（替代细竖线）：成本=青圆、现价=白圆（略大，代表"当下"），都带描边+光晕 */
+  .bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: none; padding: 0; margin: 0; cursor: pointer; }
+  .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 0 2px var(--card), 0 0 9px rgba(70,201,240,.6); }
+  .bar-end { position: absolute; right: -2px; top: 50%; transform: translateY(-50%); width: 6px; height: 18px; border-radius: 3px; background: var(--yellow); box-shadow: 0 0 9px rgba(247,193,78,.7); }
+  .bar-marker.now { width: 14px; height: 14px; background: var(--tx); box-shadow: 0 0 0 2px var(--card), 0 0 12px rgba(226,233,245,.75); }
+  .bar-marker.now::after, .bar-marker.cost::after { content: ""; position: absolute; left: -7px; top: -15px; width: 26px; height: 42px; }   /* 游标变小后仍保留 26×42 可点区 */
   .idx-pop {
     position: absolute; bottom: 18px; z-index: 50; width: max-content; max-width: 250px;
     background: #1a2436; border: 1px solid #33415e; border-radius: 12px;
@@ -253,9 +271,10 @@
   .pos-tier { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin-left: 6px; font-family: var(--sans); white-space: nowrap; }
   .pos-tier.t-low { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
   .pos-tier.t-mid { background: rgba(247,193,78,.1); color: var(--yellow); border: 1px solid rgba(247,193,78,.3); }
-  .pos-tier.t-high { background: rgba(255,107,129,.12); color: var(--red); border: 1px solid rgba(255,107,129,.3); }
+  .pos-tier.t-high { background: rgba(91,163,255,.12); color: var(--blue); border: 1px solid rgba(91,163,255,.3); }   /* 偏高=中性蓝：红留给浮亏/跌破档，避免误读为危险信号 */
 
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .kpi-row.kpi3 { grid-template-columns: repeat(3, 1fr); }   /* 场内卡 3 格版：浮盈并入市值格，与竖梯 chips 去重 */
   .kpi { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 4px; text-align: center; min-width: 0; }
   .kpi .k-label { font-size: 10px; color: var(--tx3); margin-bottom: 3px; }
   .kpi .k-val { font-family: var(--mono); font-size: 13.5px; font-weight: 700; font-feature-settings: "tnum"; }
@@ -567,6 +586,7 @@ const CONFIG = {
   TIP_CLAMP: 40,
   PREM_WARN: 3,
   PREM_HIGH: 8,
+  DCA_DIP_TIERS: [-15, -25],   // 成本回撤加仓档（%，负数=较成本跌的深度）：现价跌破档位即提示「已达/距 X% 档」（POSITIONS.strategy.dipTiers 可覆盖）
   SNAP_PL_MIN: 50,   // 快照对比：盈亏变化 ≥ 此值（元）才显示
   SNAP_PCT_MIN: 1,   // 快照对比：占比变化 ≥ 此值（百分点）才显示
 };
@@ -1159,7 +1179,7 @@ function holdCardHtml(row, i, ctx) {
   const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
   const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
   const pct = Math.round(pctOf(p.idxAtCost));
-  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔴"];
+  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
   const backToCost = 1 - m.close / p.idxAtCost;
   const idxName = MARKET_NAMES[p.idx] || p.idx;
   const isIdxScope = p.idx === "ndx" || p.idx === "spx";
@@ -1193,13 +1213,16 @@ function holdCardHtml(row, i, ctx) {
   const buys = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.cost !== undefined && !isSell(e));
   const maxQ = Math.max.apply(null, buys.map((e) => e.qty).concat([1]));
   const binCnt = {};
-  const buyMarks = buys.map((e) => {
+  const buyMarks = buys.map((e, bi) => {
     const pc = Math.max(0, Math.min(100, pctOf(e.cost)));
     const bin = Math.round(pc / CONFIG.BUY_BIN);
     const lvl = Math.min(binCnt[bin] || 0, CONFIG.BUY_STACK_MAX);
     binCnt[bin] = (binCnt[bin] || 0) + 1;
     const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * e.qty / maxQ).toFixed(1);
-    return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%"' +
+    /* 时间衰减：越早的买入点越淡（0.95 最新 → 0.4 最早），一眼看出建仓先后 */
+    const age = buys.length > 1 ? bi / (buys.length - 1) : 0;
+    const op = (0.95 - 0.55 * age).toFixed(2);
+    return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
       ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtN(e.qty) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
@@ -1209,12 +1232,33 @@ function holdCardHtml(row, i, ctx) {
   const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
   const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
   const chipHigh = '<span class="lad-chip ' + (m.close >= hi ? "up" : "warn") + '">' + (m.close >= hi ? "▲" : "▼") + fmtPct(m.close / hi - 1) + ' 距高点</span>';
+  /* DCA 回撤加仓档 chip（成本口径：现价较成本每跌破一档即提示；POSITIONS.strategy.dipTiers 可覆盖 CONFIG 默认档） */
+  const dipTiers = (POSITIONS.strategy && POSITIONS.strategy.dipTiers) || CONFIG.DCA_DIP_TIERS;
+  const curDd = r * 100;
+  let chipDip = "";
+  if (dipTiers && dipTiers.length) {
+    const reached = dipTiers.filter((x) => curDd <= x);   // 已跌破的档
+    if (reached.length) {
+      chipDip = '<span class="lad-chip warn">已达 −' + Math.abs(Math.min.apply(null, reached)) + '% 加仓档</span>';
+    } else {
+      const deeper = dipTiers.filter((x) => x < curDd);   // 尚未跌破的档
+      if (deeper.length) {
+        const next = Math.max.apply(null, deeper);        // 最近下一档（curDd=-10.9 → next=-15）
+        chipDip = '<span class="lad-chip dip">距 −' + Math.abs(next) + '% 档还差 ' + (curDd - next).toFixed(1) + 'pp</span>';   // curDd=-10.9,next=-15 → 4.1pp（正数）
+      }
+    }
+  }
   const ladRows = [
     { k: "hi", name: "高点" + athStr, v: hi, dot: "var(--yellow)", chips: "" },
     { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
-    { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: "" },
+    { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: chipDip },
   ].sort((a, b) => b.v - a.v);
   /* 场内溢价 */
+  /* 区间着色带：现价↔成本之间 = 当前浮盈(绿)/浮亏(红)区间；带内箭头从成本端指向现价端 */
+  const segC = pctOf(p.idxAtCost), segN = pctOf(m.close);
+  const segWv = Math.abs(segC - segN);
+  const seg = (m.close && p.idxAtCost && segWv > 0.01)
+    ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + (segWv >= 4 && m.close !== p.idxAtCost ? (m.close > p.idxAtCost ? " s-r" : " s-l") : "") + '" style="left:' + Math.min(segC, segN) + '%;width:' + segWv + '%"></span>' : "";
   const prem = (POSITIONS.premiums || {})[p.code];
   let premRow = "";
   if (prem && Number.isFinite(prem.pct)) {
@@ -1239,9 +1283,8 @@ function holdCardHtml(row, i, ctx) {
       '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
       '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
     '</div>' +
-    '<div class="kpi-row">' +
-      '<div class="kpi"><div class="k-label">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
-      '<div class="kpi"><div class="k-label">市值（估）</div><div class="k-val">' + fmtWan(valAmt) + '</div></div>' +
+    '<div class="kpi-row kpi3">' +
+      '<div class="kpi"><div class="k-label" title="市值与浮盈按场内现价估算（含溢价）；App 净值口径差≈场内溢价率">市值（估）</div><div class="k-val">' + fmtWan(valAmt) + '</div><div class="k-sub ' + cls(r) + '">浮盈 ' + fmtPct(r) + ' ' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
       '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
       '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div></div>' +
     '</div>' +
@@ -1252,6 +1295,7 @@ function holdCardHtml(row, i, ctx) {
           '<span class="lad-name">' + lr.name + '</span>' +
           '<b class="lad-val">' + fmtIdx(lr.v) + '</b>' +
           (lr.chips ? '<span class="lad-chips">' + lr.chips + '</span>' : '') +
+          '<span class="lad-track"><i class="tk-' + lr.k + '" style="width:' + pctOf(lr.v).toFixed(1) + '%"></i></span>' +
         '</div>').join("") +
       '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
     '</div>' +
@@ -1259,17 +1303,17 @@ function holdCardHtml(row, i, ctx) {
     '<div class="bar-wrap">' +
       '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span></div>' +
       '<div class="buy-layer">' + buyMarks + '</div>' +
-      '<div class="bar-track pops">' +
+      '<div class="bar-track pops">' + seg +
         '<span class="bar-end"></span>' +
         '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
       '</div>' +
       '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
-      '<div class="bar-legend"><span>52周低 → ' + athLbl + '</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现价</span><span><i style="background:var(--yellow)"></i>高点</span><span><i style="background:var(--green);border-radius:50%"></i>买入</span></div>' +
+      '<div class="bar-legend"><span>52周区间</span><span><i style="background:var(--cyan);border-radius:50%"></i>成本</span><span><i style="background:var(--tx);border-radius:50%"></i>现价</span><span><i style="background:var(--yellow);border-radius:2px"></i>高点</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入*</span></div>' +
     '</div>' +
     '<div class="strat-row">' + strat +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
-      '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。</div>' +
+      '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>卡内市值/浮盈按<b>场内现价</b>（含溢价）估算，与 App 净值口径的差额 ≈ 本卡「场内溢价」行的溢价率。</div>' +
     '</div>' +
   '</article>';
 }
@@ -1281,11 +1325,16 @@ function otcCardHtml(row, k, ctx) {
   const pl = f.pnl;
   const pctOf = (v) => Math.max(0, Math.min(100, ((v - n.lo) / (n.hi - n.lo)) * 100));
   const pct = Math.round(pctOf(costNav));
-  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔴"];
+  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
   const backToCost = -r;   // 1 − close/costNav = −rate
   const nowPct = Math.round(pctOf(n.close));
   const nowTier = nowPct < CONFIG.TIER_LOW ? "t-low" : nowPct <= CONFIG.TIER_HIGH ? "t-mid" : "t-high";
   const dayCls = f.day > 0 ? "up" : f.day < 0 ? "down" : "";
+  /* 区间着色带（净值口径同场内）：最新净值↔成本净值间 = 浮盈(绿)/浮亏(红)；带内箭头从成本端指向现净值端 */
+  const segC = pctOf(costNav), segN = pctOf(n.close);
+  const segWv = Math.abs(segC - segN);
+  const seg = (Number.isFinite(costNav) && costNav > 0 && Number.isFinite(n.close) && segWv > 0.01)
+    ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + (segWv >= 4 && n.close !== costNav ? (n.close > costNav ? " s-r" : " s-l") : "") + '" style="left:' + Math.min(segC, segN) + '%;width:' + segWv + '%"></span>' : "";
   /* 弹窗数据 */
   posInfos[k] = { close: n.close, chg: null, lo: n.lo, hi: n.hi, days: null, nav4: true };
   const tierWord = tier[1];
@@ -1332,19 +1381,20 @@ function otcCardHtml(row, k, ctx) {
           '<span class="lad-name">' + lr.name + '</span>' +
           '<b class="lad-val">' + fmtNav(lr.v) + '</b>' +
           (lr.chips ? '<span class="lad-chips">' + lr.chips + '</span>' : '') +
+          '<span class="lad-track"><i class="tk-' + lr.k + '" style="width:' + pctOf(lr.v).toFixed(1) + '%"></i></span>' +
         '</div>').join("") +
       '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
     '</div>' +
     '<div class="bar-wrap">' +
       '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span>' +
         '<span>净值水位 <b>' + nowPct + '%</b><span class="pos-tier ' + nowTier + '">' + (nowPct < CONFIG.TIER_LOW ? "区间偏低" : nowPct <= CONFIG.TIER_HIGH ? "区间中位" : "区间偏高") + '</span></span></div>' +
-      '<div class="bar-track pops">' +
+      '<div class="bar-track pops">' + seg +
         '<span class="bar-end"></span>' +
         '<button type="button" class="bar-marker cost" style="left:' + pctOf(costNav) + '%" data-k="' + k + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
         '<button type="button" class="bar-marker now" style="left:' + pctOf(n.close) + '%" data-k="' + k + '" aria-label="查看净值位置解读" aria-expanded="false"></button>' +
       '</div>' +
       '<div class="bar-labels"><span>' + fmtNav(n.lo) + '</span><span>' + fmtNav(n.hi) + '</span></div>' +
-      '<div class="bar-legend"><span>52周净值低 → 高</span><span><i style="background:var(--cyan)"></i>成本位</span><span><i style="background:var(--tx)"></i>现净值</span><span><i style="background:var(--yellow)"></i>高点</span></div>' +
+      '<div class="bar-legend"><span>52周净值区间</span><span><i style="background:var(--cyan);border-radius:50%"></i>成本</span><span><i style="background:var(--tx);border-radius:50%"></i>现净值</span><span><i style="background:var(--yellow);border-radius:2px"></i>高点</span></div>' +
     '</div>' +
     '<div class="otc-note">成本净值 = 最新净值 ÷（1 + 持有收益率），由收益率反推；场外按净值申赎、无溢价。' +
       (f.code === "015884" ? '该基金累计收益含已实现部分，与持有收益率口径略有差异。' : '') +
@@ -1583,9 +1633,13 @@ document.addEventListener("click", (e) => {
   idxPop = document.createElement("div");
   idxPop.className = "idx-pop";
   idxPop.dataset.k = key; idxPop.dataset.t = t;
+  idxPop.setAttribute("role", "dialog");
+  idxPop.setAttribute("aria-label", (isCost ? "成本位" : "现价") + "解读");
+  idxPop.tabIndex = -1;
   idxPop.innerHTML = isCost ? costPopHtml(info) : nowPopHtml(info);
   btn.parentElement.appendChild(idxPop);
   btn.setAttribute("aria-expanded", "true");
+  idxPop.focus();   // 焦点落入弹窗，读屏/键盘可感知；Esc 或点击外部关闭
   const tw = btn.parentElement.offsetWidth, pw = idxPop.offsetWidth;
   const cx = parseFloat(btn.style.left) / 100 * tw;
   const half = pw / 2 + 4;
@@ -1601,6 +1655,10 @@ window.addEventListener("resize", () => {
   closeIdxPop();
   clearTimeout(trendRzTimer);
   trendRzTimer = setTimeout(() => { if (trendCtx) renderTrend(trendCtx.v, trendCtx.c); }, 150);   // 走势图按容器宽度重绘
+});
+/* Esc 关闭解读弹窗与买入气泡（键盘可达，读屏友好） */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeIdxPop(); buyTip.style.display = "none"; lastBuyMark = null; }
 });
 
 /* ---- 策略行「?」提示 ---- */
