@@ -1364,20 +1364,21 @@ function snapPairHtml(prev, cur) {
       }
     });
   }
+  /* 当日盈亏：独立成行，标明「单日参考」口径，避免与两期变动混淆 */
   const dayTxt = typeof cur.day === "number"
-    ? '<span class="snap-delta ' + (cur.day >= 0 ? "up" : "down") + '">当日 ' + fmtAmt2(cur.day) + "</span>" : "";
+    ? '<div class="snap-line day"><span class="n">当日</span><span class="v"><b class="' + (cur.day >= 0 ? "up" : "down") + '">' + fmtAmt2(cur.day) + '</b> <span class="snap-sub">单日参考 · 场外为 T-1 净值</span></span></div>' : "";
   /* 累计浮盈亏区间：弱化后缀，与「本期变化」主数字区分 */
   const plTxt = (typeof prev.pl === "number" && typeof cur.pl === "number")
     ? ' <span class="snap-sub">（累计 ' + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "）</span>" : "";
   const flowTxt = Math.abs(flow) < 1 ? "" :
-    ' ＋ 资金' + (flow > 0 ? "转入" : "转出") + ' <b class="' + (flow > 0 ? "info" : "warn") + '">' + fmtAbs2(flow) + "</b>";
+    ' ＋ 新投入 <b class="' + (flow > 0 ? "info" : "warn") + '" title="定投扣款/银证转入等外部新资金，非收益">' + (flow > 0 ? "+" : "−") + fmtN(Math.abs(flow)) + "</b>";
   return '<article class="snap-item" data-d="' + cur.d + '">' +
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + "</span>" +
-      (cur.tag ? '<span class="snap-tag ' + (SNAP_TAG_CLS[cur.tag] || "add") + '">' + esc(cur.tag) + "</span>" : "") +
-      '<span class="snap-delta ' + (dTot >= 0 ? "up" : "down") + '"><span aria-hidden="true">' + (dTot >= 0 ? "↑" : "↓") + "</span>" + fmtN(Math.abs(dTot)) + "</span></h3>" +
-    '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtWan(tp) + " → <b>" + fmtWan(tc) + "</b> " + dayTxt + "</div>" +
-    '<div class="snap-line attr"><span class="n">归因</span><span class="v">盈亏变化 <b class="' + (dPl >= 0 ? "up" : "down") + '">' + fmtAmt2(dPl) + "</b>" + flowTxt + plTxt + "</div>" +
+      (cur.tag ? '<span class="snap-tag ' + (SNAP_TAG_CLS[cur.tag] || "add") + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
+    '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtWan(tp) + " → <b>" + fmtWan(tc) + '</b> <span class="snap-delta ' + (dTot >= 0 ? "up" : "down") + '" title="两期总资产变动 ＝ 收益 ＋ 新投入">变动 <span aria-hidden="true">' + (dTot >= 0 ? "↑" : "↓") + "</span>" + fmtN(Math.abs(dTot)) + "</span></div>" +
+    '<div class="snap-line attr"><span class="n">拆解</span><span class="v">＝ 收益 <b class="' + (dPl >= 0 ? "up" : "down") + '" title="两期之间市值与已实现盈亏变化（含支付宝等补齐的多日累计），非单日">' + fmtAmt2(dPl) + "</b>" + flowTxt + plTxt + "</div>" +
+    dayTxt +
     flowBreakHtml(flow, prev.d, cur.d) +
     snapActions(prev, cur) +
     (lines.length ? lines.join("") : (!prev.items || !cur.items ? '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">历史简快照无持仓明细，明细 diff 自相邻完整快照起</span></div>' : '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">持仓无变动</span></div>')) +
@@ -1406,8 +1407,8 @@ function renderSnapLog() {
     html.push('<article class="snap-item snap-sum">' +
       '<h3 class="snap-head"><span class="snap-date">区间累计 ' + a.d.slice(5).replace("-", ".") + " → " + b.d.slice(5).replace("-", ".") + '</span>' +
         '<span class="snap-delta ' + (dTot >= 0 ? "up" : "down") + '">' + fmtAmt2(dTot) + "（" + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%）</span></h3>" +
-      '<div class="snap-line attr"><span class="n">构成</span><span class="v">盈亏变化 <b class="' + (dPl >= 0 ? "up" : "down") + '">' + fmtAmt2(dPl) + "</b>" +
-        (Math.abs(flow) >= 1 ? ' ＋ 资金' + (flow > 0 ? "转入" : "转出") + ' <b class="' + (flow > 0 ? "info" : "warn") + '">' + fmtAbs2(flow) + "</b>" : "") + "</div>" +
+      '<div class="snap-line attr"><span class="n">拆解</span><span class="v">＝ 收益 <b class="' + (dPl >= 0 ? "up" : "down") + '" title="区间内市值与已实现盈亏变化">' + fmtAmt2(dPl) + "</b>" +
+        (Math.abs(flow) >= 1 ? ' ＋ 新投入 <b class="' + (flow > 0 ? "info" : "warn") + '" title="定投扣款/银证转入等外部新资金，非收益">' + (flow > 0 ? "+" : "−") + fmtN(Math.abs(flow)) + "</b>" : "") + "</div>" +
       flowBreakHtml(flow, a.d, b.d) +
       (plNow !== null ? '<div class="snap-line"><span class="n">' + (plNow >= 0 ? "当前浮盈" : "当前浮亏") + '</span><span class="v"><b class="' + (plNow >= 0 ? "up" : "down") + '">' + fmtAmt2(plNow) + "</b>" +
         ' <span class="snap-sub">（' + (costHold ? (plNow / costHold * 100).toFixed(2) : "--") + "%，持仓成本 " + fmtN(costHold) + "）</span>" +
