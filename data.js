@@ -19,12 +19,12 @@ const DEFAULT = {
   fx: 6.71,
   // AUTO：无对应免费指数的持仓用 ETF 自身场内价的 52 周区间作水位口径（腾讯日K，脚本自动更新）。
   // 字段与 ndx/spx 同构：close 现价 / chg 当日涨跌% / low52 52周低 / ath 52周高 / athDate 高点日期 / prevYr 年初首个交易日收盘
-  kr:   { close: 4.865, chg: 0.48, low52: 1.810, ath: 7.120, athDate: "2026-07-02", prevYr: 2.795 },   // kr 持仓（场内价口径，AUTO）
-  n225:   { close: 2.166, chg: -0.23, low52: 1.456, ath: 2.425, athDate: "2026-06-25", prevYr: 1.715 },   // n225 持仓（场内价口径，AUTO）
-  hkus:   { close: 1.814, chg: -1.41, low52: 1.430, ath: 2.508, athDate: "2026-05-27", prevYr: 1.535 },   // hkus 持仓（场内价口径，AUTO）
+  kr:   { close: 4.890, chg: 0.51, low52: 1.810, ath: 7.120, athDate: "2026-07-02", prevYr: 2.795 },   // kr 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
+  n225:   { close: 2.164, chg: -0.09, low52: 1.456, ath: 2.425, athDate: "2026-06-25", prevYr: 1.715 },   // n225 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
+  hkus:   { close: 1.848, chg: 1.81, low52: 1.430, ath: 2.508, athDate: "2026-05-27", prevYr: 1.535 },   // hkus 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
   // AUTO：纳指/标普 ETF 自身场内价口径（腾讯日K，52周区间），供持仓页水位梯/买入分布用（与真实流水成交价同口径）
-  etfNdx: { close: 1.663, chg: -0.30, low52: 1.244, ath: 1.773, athDate: "2026-06-01" },  // etfNdx 持仓（场内价口径，AUTO）
-  etfSpx: { close: 2.015, chg: -0.44, low52: 1.610, ath: 2.066, athDate: "2026-08-17" },  // etfSpx 持仓（场内价口径，AUTO）
+  etfNdx: { close: 1.662, chg: -0.06, low52: 1.244, ath: 1.773, athDate: "2026-06-01" },  // etfNdx 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
+  etfSpx: { close: 2.024, chg: 0.45, low52: 1.610, ath: 2.066, athDate: "2026-08-17" },  // etfSpx 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
   peFwd: 20.1, peTtm: 27.2, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
   ndxPeFwd: 22.4, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护

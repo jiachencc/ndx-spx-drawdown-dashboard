@@ -243,6 +243,13 @@
   @keyframes ipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   .strat-row { margin-top: 8px; font-size: 11.5px; color: var(--tx3); line-height: 1.6; overflow-wrap: break-word; }
   .held { font-family: var(--mono); font-size: 10px; color: var(--tx3); font-feature-settings: "tnum"; }
+  /* 同步状态徽章（场外基金：upd 截图同步时间）与数据新鲜度（fresh-*） */
+  .sync-ok, .sync-stale, .sync-cnt, .fresh-ok, .fresh-stale, .fresh-old { font-family: var(--mono); font-size: 9.5px; font-feature-settings: "tnum"; }
+  .sync-ok, .fresh-ok { color: var(--green); }
+  .sync-stale, .fresh-stale { color: var(--yellow); }
+  .fresh-old { color: var(--red); }
+  .sync-cnt { color: var(--tx3); }
+  .sync-cnt.ok { color: var(--green); }
   .strat-hint { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 4px; border: 1px solid var(--line); border-radius: 50%; background: none; color: var(--tx3); font-size: 9.5px; font-family: var(--sans); cursor: pointer; vertical-align: 1px; padding: 0; }
   .strat-note { display: none; font-size: 10.5px; color: var(--tx3); margin-top: 6px; line-height: 1.55; padding: 7px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; }
   .strat-note.open { display: block; }
@@ -461,30 +468,35 @@ try {
 const $ = (id) => document.getElementById(id);
 
 /* ---- 场外持仓数据（MANUAL 快照；净值为天天基金抓取快照） ----
- * day: null = 该净值日未更新（渲染「—」且不计入当日合计），勿用 0 冒充 */
+ * day: null = 该净值日未更新（渲染「—」且不计入当日合计），勿用 0 冒充
+ * upd: 该基金截图同步时间（"YYYY-MM-DD HH:MM"，取截图状态栏时刻）——
+ *      与 OTC.updated 同日显示绿「✓HH:MM」，否则琥珀「待更」；用于「已同步 X/8」进度 */
 const OTC = {
   updated: "2026-09-09",
-  cash: 9824.40,  // 各渠道可用资金合计（含逆回购：基金账户 268 + 场内券商 9,556.40；9-09 卖出回款 9,220 已买逆回购）
+  cash: 9824.40,  // 各渠道可用资金合计（含逆回购：基金账户 268 + 场内券商 9,556.40；9-09 卖出回款 9,225 已买逆回购）
   // costNav（成本净值）由持有收益率反推：close ÷ (1 + rate/100)，渲染时计算
   funds: [
-    { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "第三方平台", theme: "global", value: 22521.05, day: 99.48, pnl: -1978.95, rate: -8.08,
+    { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "第三方平台", theme: "global", value: 22521.05, day: 99.48, pnl: -1978.95, rate: -8.08, upd: "2026-09-09 19:19",
       nav: { close: 6.3111, closeDate: "2026-09-08", hi: 7.6159, hiDate: "2026-06-22", lo: 4.7185 } },
-    { name: "广发纳指100ETF联接(QDII)F", code: "021778", channel: "第三方平台", theme: "ndx", value: 21867.18, day: -25.03, pnl: -232.82, rate: -1.06,
+    { name: "广发纳指100ETF联接(QDII)F", code: "021778", channel: "第三方平台", theme: "ndx", value: 21867.18, day: -25.03, pnl: -232.82, rate: -1.06, upd: "2026-09-09 19:19",
       nav: { close: 8.1828, closeDate: "2026-09-08", hi: 8.5656, hiDate: "2026-06-02", lo: 6.5266 } },
-    { name: "南方纳斯达克100指数(QDII)I", code: "021000", channel: "南方基金", theme: "ndx", value: 21296.64, day: -21.89, pnl: 96.64, rate: 0.46,
+    { name: "南方纳斯达克100指数(QDII)I", code: "021000", channel: "南方基金", theme: "ndx", value: 21296.64, day: -21.89, pnl: 96.64, rate: 0.46, upd: "2026-09-09 19:19",
       nav: { close: 2.2916, closeDate: "2026-09-08", hi: 2.3925, hiDate: "2026-06-02", lo: 1.8431 } },
-    { name: "博时标普500ETF联接E", code: "018738", channel: "博时APP", theme: "spx", value: 14175.26, day: -76.96, pnl: 352.35, rate: 2.53,
+    { name: "博时标普500ETF联接E", code: "018738", channel: "博时APP", theme: "spx", value: 14175.26, day: -76.96, pnl: 352.35, rate: 2.53, upd: "2026-09-09 19:19",
       nav: { close: 5.5899, closeDate: "2026-09-08", hi: 5.6774, hiDate: "2026-08-13", lo: 4.7519 } },
-    /* 09-09 更新范围：广发两只（023402/021778，第三方平台买入）/ 南方（021000）/ 博时（018738）已刷新；
-   华安（040046/014978）App 已更新至 09-08 估值（-0.11%，日盈亏按 0.11%×现值推算）；
-   未更新：摩根/中欧（007280/015884）沿用 09-08 旧值。 */
-    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8882.85, day: -76.56, pnl: 136.04, rate: 1.56,
+    /* 09-09 晚 8/8 全覆盖：广发两只（023402/021778，19:19 已更新）/ 南方（021000）/ 博时（018738，
+   09-08 官方净值 5.5899 确认，-76.96 为 09-09 盘中预估）/ 华安直销（040046/014978，−3.55/−3.58）/
+   支付宝两只（007280/015884，22:12~22:13 更新）。注意：摩根/中欧此前沿用 09-03 App 口径，
+   09-09 支付宝一次性补齐多日累计变动（与上期快照差值含 09-04~09-09 累计，非单日）；
+   QDII「今日收益」均为 09-08 净值在 09-09 晚入账。
+   upd = 截图同步时间（取截图状态栏时刻），供页面「已同步 X/8」徽章；未同步的基金保留旧值。 */
+    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8879.68, day: -3.17, pnl: 132.87, rate: 1.52, upd: "2026-09-09 22:13",
       nav: { close: 2.2417, closeDate: "2026-09-08", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
-    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4891.08, day: 77.45, pnl: -1408.92, rate: -22.36,
+    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4862.89, day: -28.19, pnl: -1437.11, rate: -22.81, upd: "2026-09-09 22:12",
       nav: { close: 1.4594, closeDate: "2026-09-08", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
-    { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3326.74, day: -3.66, pnl: 26.74, rate: 0.86,
+    { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3326.74, day: -3.55, pnl: 26.74, rate: 0.86, upd: "2026-09-09 19:20",
       nav: { close: 8.1962, closeDate: "2026-09-08", hi: 8.6249, hiDate: "2026-06-02", lo: 6.5577 } },
-    { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3326.13, day: -3.66, pnl: 26.13, rate: 0.84,
+    { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3326.13, day: -3.58, pnl: 26.13, rate: 0.84, upd: "2026-09-09 19:20",
       nav: { close: 8.0266, closeDate: "2026-09-08", hi: 8.4510, hiDate: "2026-06-02", lo: 6.4277 } },
   ],
 };
@@ -541,13 +553,32 @@ const SNAPSHOTS = [
       "513880": { name: "日经225ETF华安", qty: 13900, cost: 29980.20, val: 30107.40, pl: 127.20 },
       "160644": { name: "港美互联网LOF", qty: 12600, cost: 28832.80, val: 22856.40, pl: -5976.40 },
       "023402": { name: "全球精选", qty: 3553, cost: 24500, val: 22421.57, pl: -2078.43 },
-      "021778": { name: "广发纳指F", qty: 2663, cost: 21900, val: 21792.22, pl: -207.78 },
-      "021000": { name: "南方纳指I", qty: 9031.61, cost: 20798, val: 21118.53, pl: 118.53 },
-      "018738": { name: "博时标普E", qty: 2536, cost: 13847.26, val: 14252.35, pl: 351.20 },
+      "021778": { name: "广发纳指F", qty: 2663, cost: 22000, val: 21792.22, pl: -207.78 },
+      "021000": { name: "南方纳指I", qty: 9031.61, cost: 21000, val: 21118.53, pl: 118.53 },
+      "018738": { name: "博时标普E", qty: 2536, cost: 13901.15, val: 14252.35, pl: 351.20 },
       "007280": { name: "日本精选", qty: 3962, cost: 8747, val: 8913.00, pl: 166.00 },
       "015884": { name: "中欧港股", qty: 3351, cost: 6300, val: 4920.63, pl: -1379.37 },
       "040046": { name: "华安纳指A", qty: 382, cost: 3100, val: 3130.34, pl: 30.34 },
       "014978": { name: "华安纳指C", qty: 390, cost: 3100, val: 3129.83, pl: 29.83 },
+    },
+  },
+  {
+    d: "2026-09-09", cash: 9824.40, pl: -6396.90, day: 983.11, tag: "减仓",
+    note: "场内卖出港美互联网 5,000@1.845（14:08，回款 9,225 已转逆回购；券商 FIFO 优先卖旧仓，剩余 7,600 份摊薄成本 2.581——浮亏 -5,568 含已实现亏损，券商口径不单独剔出）。当日全场 +983.11：场内 +1,046.00（港美 +413.40、中韩 +332.50、标普 +396.00，纳指 -68.10、日经 -27.80）；场外 -62.89，8/8 只晚盘全覆盖（支付宝两只 22:12 补齐，与上期差值含 09-04~09-09 多日累计）。场外定投：华安 A/C 各 +200 扣款、南方 2 笔确认中（持仓成本 21,200 含在途 400）、广发纳指F 2 笔待确认（cost 22,100）。⚠ 博时 cost 回落 78 元系 09-08 盘中估值→官方净值 5.5899 确认的口径修正，非资金流出；对账单实锤 09-08 银证 +20,000（属上期）、09-09 无银证转账，本期推导资金进出 +621.57 ≈ 场外定投净扣款 + 口径微调。",
+    items: {
+      "159941": { name: "纳指ETF广发", qty: 68100, cost: 107117.80, val: 113182.20, pl: 6064.40 },
+      "513650": { name: "标普500ETF南方", qty: 44000, cost: 85482.95, val: 89056.00, pl: 3573.05 },
+      "513310": { name: "中韩半导体ETF华泰", qty: 13300, cost: 72588.60, val: 65037.00, pl: -7551.60 },
+      "513880": { name: "日经225ETF华安", qty: 13900, cost: 29980.20, val: 30079.60, pl: 99.40 },
+      "160644": { name: "港美互联网LOF", qty: 7600, cost: 19612.80, val: 14044.80, pl: -5568.00 },
+      "023402": { name: "全球精选", qty: 3553, cost: 24500, val: 22521.05, pl: -1978.95 },
+      "021778": { name: "广发纳指F", qty: 2663, cost: 22100, val: 21867.18, pl: -232.82 },
+      "021000": { name: "南方纳指I", qty: 9118.80, cost: 21200, val: 21296.64, pl: 96.64 },
+      "018738": { name: "博时标普E", qty: 2535.87, cost: 13822.91, val: 14175.26, pl: 352.35 },
+      "007280": { name: "日本精选", qty: 3962, cost: 8746.81, val: 8879.68, pl: 132.87 },
+      "015884": { name: "中欧港股", qty: 3351, cost: 6300, val: 4862.89, pl: -1437.11 },
+      "040046": { name: "华安纳指A", qty: 382, cost: 3300, val: 3326.74, pl: 26.74 },
+      "014978": { name: "华安纳指C", qty: 390, cost: 3300, val: 3326.13, pl: 26.13 },
     },
   },
 ];
@@ -635,7 +666,18 @@ function renderImpl() {
     if (!n) return ' <span class="fresh-ok">今日</span>';
     return ' <span class="fresh-' + (n >= 3 ? "old" : "stale") + '">' + n + ' 天前</span>';
   };
-  $("otc-updated").innerHTML = (OTC.updated || "--") + freshBadge(OTC.updated);
+  /* 场外同步徽章：upd = 该基金截图同步时间（含状态栏时刻）。与 OTC.updated 同日 → 绿「✓HH:MM」；
+   * 否则琥珀显示上次同步日期（说明该 App 截图还没发，页面沿用旧值）。 */
+  const syncBadge = (f) => {
+    if (!f.upd) return ' <span class="sync-stale" title="未记录同步时间">?</span>';
+    const d = f.upd.slice(0, 10), t = (f.upd.slice(11, 16) || "").trim();
+    const md = d.slice(5).replace("-", ".");
+    if (d === OTC.updated) return ' <span class="sync-ok" title="App 截图已同步（' + f.upd + '）">✓' + t + '</span>';
+    return ' <span class="sync-stale" title="沿用 ' + md + ' 截图旧值，待更新">待更</span>';
+  };
+  const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) === OTC.updated).length;
+  $("otc-updated").innerHTML = (OTC.updated || "--") + freshBadge(OTC.updated) +
+    ' <span class="sync-cnt' + (syncCnt === OTC.funds.length ? " ok" : "") + '">· 已同步 ' + syncCnt + "/" + OTC.funds.length + '</span>';
   $("pos-asof").textContent = asOfUs || DEFAULT.date || "--";
   $("etf-cnt").textContent = "(" + (POSITIONS.hold || []).length + " 只)";
   posInfos = []; costInfos = [];
@@ -706,7 +748,7 @@ function renderImpl() {
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
   rows.forEach((row) => plRows.push({ name: row.p.sym, src: "场内", pl: row.valAmt - row.costAmt, r: row.r, sel: ".card[data-sym='" + row.p.sym + "']" }));
-  otcRows.forEach((row) => plRows.push({ name: plDisplayName(row.f.name), src: row.f.channel, pl: row.f.pnl, r: row.r, sel: ".card[data-code='" + row.f.code + "']" }));
+  otcRows.forEach((row) => plRows.push({ name: plDisplayName(row.f.name), src: row.f.channel, badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, sel: ".card[data-code='" + row.f.code + "']" }));
   plRows.sort((a, b) => b.pl - a.pl);
   $("pl-cnt").textContent = "(" + plRows.length + " 项 · 按盈亏金额)";
   const plMax = Math.max.apply(null, plRows.map((x) => Math.abs(x.pl)).concat([1]));
@@ -728,7 +770,7 @@ function renderImpl() {
       return '<button type="button" class="pl-row" data-sel="' + x.sel + '" aria-label="定位 ' + esc(x.src) + ' ' + esc(x.name) + ' 持仓卡">' +
         '<span class="pl-name">' +
           '<span class="pl-nm">' + esc(x.name) + '</span>' +
-          '<span class="pl-src">' + esc(x.src) + '</span>' +
+          '<span class="pl-src">' + esc(x.src) + (x.badge || "") + '</span>' +
         '</span>' +
         '<span class="pl-zone"><span class="pl-axis"></span>' + bar +
           '<span class="pl-lbl ' + lblCls + '" style="' + lblPos + '">' + amt + '<i>' + fmtPct(x.r) + '</i></span>' +

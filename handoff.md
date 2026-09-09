@@ -9,7 +9,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **v6.9**（截至 2026-09-08；v6.8→v6.9 变更：快照模型增加简快照（历史补录）与 `day` 当日盈亏字段、归因口径勘误固化（09-03 外部转入实为 32,073.19——v6.5 的 25,243.67 系「Δ总资产−当日」漏计 09-01/02 下跌；`cost = total − pl` 不受价格时点影响，Δ累计投入即真实外部进出）、区间累计卡改持仓成本口径（剔现金）＋较基线收窄。v6.7→v6.8 变更：持仓页重构——盈亏总览 + 资产走势（总资产/累计投入双线+差值着色）+ 快照对比（自动 diff + 资金归因）、场外 OTC 快照接入、持仓口径统一为 ETF 自身场内价、真实交割单流水、`?debug` 自检、日志周小计、主题防闪白/跟随系统、reduced-motion 与打印适配；行情脚本新增 `etfNdx`/`etfSpx` 水位） |
+| 版本 | **v7.0**（截至 2026-09-09；v6.9→v7.0 变更：09-09 完整快照（减仓：港美卖 5,000@1.845）；场外 8/8 全覆盖——支付宝/蚂蚁两只（007280/015884）补齐多日累计口径差；对账单实锤验证 09-08 银证 +20,000、09-02 +10,000，推导 flow 与实锤误差 <0.3%；博时 cost 口径修正（盘中估值→官方净值确认，非资金流出）。v6.8→v6.9 变更：快照模型增加简快照（历史补录）与 `day` 当日盈亏字段、归因口径勘误固化（09-03 外部转入实为 32,073.19——v6.5 的 25,243.67 系「Δ总资产−当日」漏计 09-01/02 下跌；`cost = total − pl` 不受价格时点影响，Δ累计投入即真实外部进出）、区间累计卡改持仓成本口径（剔现金）＋较基线收窄。v6.7→v6.8 变更：持仓页重构——盈亏总览 + 资产走势（总资产/累计投入双线+差值着色）+ 快照对比（自动 diff + 资金归因）、场外 OTC 快照接入、持仓口径统一为 ETF 自身场内价、真实交割单流水、`?debug` 自检、日志周小计、主题防闪白/跟随系统、reduced-motion 与打印适配；行情脚本新增 `etfNdx`/`etfSpx` 水位） |
 | 托管方式 | **GitHub Pages**（静态托管） |
 | 远程仓库 | `https://github.com/jiachencc/ndx-spx-drawdown-dashboard.git` |
 | 在线地址 | **https://jiachencc.github.io/ndx-spx-drawdown-dashboard/** |
@@ -69,7 +69,7 @@ ndx_spx_dashboard_handoff/
 1. `data.js` → `POSITIONS.hold`：每只场内 ETF 的 `qty` / `cost`（成本价，`idxAtCost` = `cost`）
 2. `data.js` → `POSITIONS.log`：顶部追加当日成交（买入/卖出 + 份数 + 成交价）
 3. `positions.html` → `OTC.updated`、`OTC.cash`（各渠道可用资金合计）
-4. `positions.html` → `OTC.funds[]`：每只场外的 `value`（资产）/ `pnl`（持仓收益）/ `day`（当日收益；**`null` = 该日未更新，勿用 0 冒充**）/ `rate` / `nav.close` + `nav.closeDate`
+4. `positions.html` → `OTC.funds[]`：每只场外的 `value`（资产）/ `pnl`（持仓收益）/ `day`（当日收益；**`null` = 该日未更新，勿用 0 冒充**）/ `rate` / `nav.close` + `nav.closeDate` / `upd`（**截图同步时间** `"YYYY-MM-DD HH:MM"`，取截图状态栏时刻；页面据此显示「✓时间/待更」徽章与「已同步 X/8」进度，各 App 更新时间不一致、截图分批发时一眼看出还欠哪家）
 5. `positions.html` → `SNAPSHOTS[]`：新增一期（完整快照带 `items`，或简快照带 `total`）
 6. `data.js` → `ACCT_STATS.updated` / `.pnl` / `.pnlPct` / `.monthly[当月].pnl`
 
