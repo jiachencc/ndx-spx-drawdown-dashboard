@@ -252,7 +252,7 @@
   /* 买入位置分布 */
   .buy-layer { position: relative; height: 38px; margin-bottom: 1px; }
   .buy-layer:empty { display: none; }
-  .buy-mark { position: absolute; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; background: none; border: none; padding: 0; cursor: pointer; }
+  .buy-mark, .sell-mark { position: absolute; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; background: none; border: none; padding: 0; cursor: pointer; }
   .bar-track.pops { cursor: pointer; touch-action: manipulation; }
   .bar-track.pops::before { content: ""; position: absolute; inset: -7px 0; }
   button.bar-marker { pointer-events: none; }
@@ -266,6 +266,11 @@
   .pl-src { font-size: 9.5px; font-weight: 400; font-family: var(--sans); color: var(--tx3); white-space: nowrap; flex-shrink: 0; }
   .pl-src::before { content: "/ "; }   /* 斜杠分隔：与名称同行的紧凑渠道标注 */
   .buy-mark i { width: 1.5px; background: rgba(52,211,153,.4); }
+  /* 卖出标记：红空心圈（与买入绿实心对称，空心=已离场）；不堆叠，笔数少时更清爽 */
+  .sell-mark b { border-radius: 50%; background: transparent; border: 1.5px solid var(--red); box-shadow: 0 0 4px rgba(242,109,125,.5); box-sizing: border-box; }
+  .sell-mark i { width: 1.5px; background: rgba(242,109,125,.35); }
+  .sell-mark.flash b { animation: sellflash .5s ease-in-out 3; }
+  @keyframes sellflash { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.9); box-shadow: 0 0 14px rgba(242,109,125,1); } }
   .buy-tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 11px; font-family: var(--mono); color: var(--tx); white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; font-feature-settings: "tnum"; }
   body.light .buy-tip { box-shadow: 0 8px 22px -6px rgba(15,23,42,.25); }
   .pos-tier { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin-left: 6px; font-family: var(--sans); white-space: nowrap; }
@@ -328,6 +333,8 @@
   /* 资产走势：KPI 行 / 时间 chips / crosshair 读数条 / 图例开关 */
   .trend-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
   .trend-chips { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin: 0 2px 8px; }
+  .trend-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 2px 8px; flex-wrap: wrap; }   /* 左=视图切换 右=时间范围 */
+  .trend-bar .trend-chips { margin: 0; }
   .tchip { font-size: 10.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); }
   .tchip.on { background: rgba(91,163,255,.12); color: var(--blue); border-color: rgba(91,163,255,.35); font-weight: 600; }
   .tchip:disabled { opacity: .35; cursor: default; }
@@ -417,7 +424,10 @@ try {
   <h2 class="sec-title"><span aria-hidden="true">📈</span> 资产走势 <span class="cnt" id="trend-cnt"></span></h2>
   <div class="card trend-card">
     <div class="trend-kpis" id="trend-kpis"></div>
-    <div class="trend-chips" id="trend-chips"></div>
+    <div class="trend-bar">
+      <div class="trend-chips" id="trend-views"></div>
+      <div class="trend-chips" id="trend-chips"></div>
+    </div>
     <div class="trend-readout" id="trend-readout">移动或滑动查看各期 · 点击数据点看详情</div>
     <div id="trend-box"></div>
     <div class="trend-legend"><span><i></i>总资产</span><button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true"><i class="cost"></i>累计投入（虚线，点击开关）</button><span><b class="tdot"></b>今日估算</span><span>两线间距 = 浮盈亏（绿盈/红亏）</span><span>下柱较上期归因：<i class="sq" style="background:var(--red)"></i>市值亏 <i class="sq" style="background:var(--green)"></i>市值盈 <i class="sq" style="background:var(--cyan)"></i>资金段</span></div>
@@ -454,7 +464,7 @@ const $ = (id) => document.getElementById(id);
  * day: null = 该净值日未更新（渲染「—」且不计入当日合计），勿用 0 冒充 */
 const OTC = {
   updated: "2026-09-08",
-  cash: 604.40,   // 各渠道可用资金合计（不记来源拆分；基金账户 268 不变，场内券商 9-08 净增 +215.60）
+  cash: 9824.40,  // 各渠道可用资金合计（含逆回购：基金账户 268 + 场内券商 9,556.40；9-09 卖出回款 9,220 已买逆回购）
   // costNav（成本净值）由持有收益率反推：close ÷ (1 + rate/100)，渲染时计算
   funds: [
     { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "广发基金", theme: "global", value: 22421.57, day: 200.02, pnl: -2078.43, rate: -8.48,
@@ -467,10 +477,10 @@ const OTC = {
       nav: { close: 5.6234, closeDate: "2026-09-08", hi: 5.6774, hiDate: "2026-08-13", lo: 4.7519 } },
     /* 09-08 更新范围：广发（023402/021778）/ 南方（021000）/ 博时（018738）已刷新；
    未更新：摩根/中欧沿用 09-03 快照；华安 2 只（040046/014978）App 9-08 未刷新，估值沿用 09-07。 */
-    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8913.00, day: null, pnl: 166.00, rate: 1.90,
-      nav: { close: 2.2496, closeDate: "2026-09-03", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
-    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4920.63, day: null, pnl: -1379.37, rate: -21.89,
-      nav: { close: 1.4684, closeDate: "2026-09-03", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
+    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8882.85, day: -76.56, pnl: 136.04, rate: 1.56,
+      nav: { close: 2.2417, closeDate: "2026-09-08", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
+    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4891.08, day: 77.45, pnl: -1408.92, rate: -22.36,
+      nav: { close: 1.4594, closeDate: "2026-09-08", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
     { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3130.34, day: 4.95, pnl: 30.34, rate: 1.01,
       nav: { close: 8.2052, closeDate: "2026-09-04", hi: 8.6249, hiDate: "2026-06-02", lo: 6.5577 } },
     { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3129.83, day: 4.94, pnl: 29.83, rate: 0.99,
@@ -731,7 +741,10 @@ function renderImpl() {
   positionLadderFills();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(positionLadderFills);
 
-  renderTrend(totalVal, totalCost);
+  /* 走势图 cost 必须与快照 snapCost 同口径（含现金 = 持仓成本 + 现金）——
+     直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，
+     把浮亏显示成浮盈（差值填充因此变绿）。修复后 today.val − cost ≡ totalPl。 */
+  renderTrend(totalVal, totalCost + OTC.cash);
   renderSnapLog();
   renderAcctStats();
   renderLog();
@@ -744,8 +757,94 @@ let trendRange = "all";   // 时间范围：all/1m/3m/6m/1y（快照日期过滤
 let trendShowCost = true; // 投入线开关（localStorage 持久化）
 let trendLayout = null;   // { px, py, pts }（crosshair 最近点计算用）
 const TREND_RANGES = [["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
+/* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准） */
+let trendView = "amount";
+try { trendView = localStorage.getItem("trendView") || "amount"; } catch (err) { /* 隐私模式下忽略 */ }
+const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"]];
+function renderTrendViews() {
+  const el = $("trend-views");
+  if (!el) return;
+  el.innerHTML = TREND_VIEWS.map(([k, label]) =>
+    '<button type="button" class="tchip' + (trendView === k ? " on" : "") + '" data-v="' + k + '">' + label + "</button>"
+  ).join("");
+}
 const RANGE_DAYS = { "1m": 31, "3m": 92, "6m": 183, "1y": 365 };
 try { trendShowCost = localStorage.getItem("wb_ndxspx_trendcost") !== "0"; } catch (e) {}
+const MON_IDX = {};
+["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"].forEach((m, i) => { MON_IDX[m] = i + 1; });
+function todayStr() {
+  const n = new Date();
+  return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0");
+}
+/* 完整历程序列：SNAPSHOTS 只覆盖 08-28 起（12 天），真实建仓自 06-01（100 天 / 43 笔），中间 88 天缺失。
+   用 ACCT_STATS.monthly（App 月度读数）重建「累计盈亏」全程，补上 7 月 −1.8 万这段。
+   ⚠ 口径：场内账户（含已实现），与全账户（含场外+现金）不同——图上以图例文字标注，勿混用。 */
+function buildPnlPts() {
+  const S = (typeof ACCT_STATS !== "undefined") ? ACCT_STATS : null;
+  const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
+  if (!S || !S.monthly || !S.monthly.length || !log.length) return [];
+  let first = "";
+  log.forEach((e) => { if (!first || e.d < first) first = e.d; });
+  if (!first) return [];
+  const pts = [{ d: first, pl: 0, isFirst: true }];
+  let cum = 0, yr = +first.slice(0, 4), prevM = 0;
+  S.monthly.forEach((mo) => {
+    const mi = MON_IDX[mo.m];
+    if (!mi) return;
+    if (prevM && mi < prevM) yr += 1;   // 跨年
+    prevM = mi;
+    cum += mo.pnl;
+    const d = mo.note ? todayStr()
+      : yr + "-" + String(mi).padStart(2, "0") + "-" + String(new Date(yr, mi, 0).getDate()).padStart(2, "0");
+    if (d > first) pts.push({ d: d, pl: cum, isCur: !!mo.note });
+  });
+  return pts;
+}
+/* TWR 时间加权收益率：∏(Vᵢ − Fᵢ)/Vᵢ₋₁ − 1，剔除资金进出，反映投资能力本身 */
+function calcTWR(pts) {
+  if (!pts || pts.length < 2) return 0;
+  let acc = 1;
+  for (let i = 1; i < pts.length; i++) {
+    const v0 = pts[i - 1].val, v1 = pts[i].val;
+    const f = (typeof pts[i].flow === "number") ? pts[i].flow : 0;
+    if (!v0) continue;
+    acc *= (v1 - f) / v0;
+  }
+  return acc - 1;
+}
+/* 由走势点构造 XIRR 现金流：首期投入(−) + 各期净流入(−) + 期末总资产(+) */
+function trendCashflows(pts) {
+  if (!pts || pts.length < 2) return null;
+  const t0 = Date.parse(pts[0].d), tE = Date.parse(pts[pts.length - 1].d);
+  if (!isFinite(t0) || !isFinite(tE) || tE <= t0) return null;
+  const cfs = [{ t: 0, amt: -pts[0].cost }];
+  for (let i = 1; i < pts.length; i++) {
+    const f = (typeof pts[i].flow === "number") ? pts[i].flow : 0;
+    if (Math.abs(f) >= 1) cfs.push({ t: (Date.parse(pts[i].d) - t0) / 86400000, amt: -f });
+  }
+  const days = (tE - t0) / 86400000;
+  cfs.push({ t: days, amt: pts[pts.length - 1].val });
+  return { cfs, days };
+}
+/* XIRR 资金加权年化：二分法解 Σ amtᵢ/(1+r)^(tᵢ/365) = 0。资金分批进出时的真实回报率 */
+function calcXIRR(cfs) {
+  if (!cfs || cfs.length < 2) return null;
+  const npv = (r) => cfs.reduce((a, c) => a + c.amt / Math.pow(1 + r, c.t / 365), 0);
+  let lo = -0.9999, hi = 10;
+  if (npv(lo) * npv(hi) > 0) return null;   // 无解（现金流同号）
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (npv(mid) > 0) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+/* 基准收益率：BENCH 点位按最早一期归一化；无对应日期返回 null（图上自动降级） */
+function benchRateAt(d) {
+  if (typeof BENCH === "undefined" || !BENCH) return null;
+  const keys = Object.keys(BENCH).sort();
+  if (!keys.length || typeof BENCH[d] !== "number" || !BENCH[keys[0]]) return null;
+  return BENCH[d] / BENCH[keys[0]] - 1;
+}
 function buildTrendPts(todayVal, todayCost) {
   const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
   /* 排序兜底 + 坏点降级 + 同日去重（保留当日最后一份），保证走势输入恒为有效升序序列 */
@@ -796,27 +895,37 @@ function renderTrendKpis(pts) {
   const rate = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
   const last = pts[pts.length - 1], base = pts[0];
   const r1 = rate(last), r0 = rate(base), dRpp = (r1 - r0) * 100;
-  const flowSum = pts.reduce((a, p) => a + (typeof p.flow === "number" ? p.flow : 0), 0);
-  let deep = pts[0];
-  pts.forEach((p) => { if (p.val - p.cost < deep.val - deep.cost) deep = p; });
   const dTotB = last.val - base.val;
+  /* TWR：剔除资金进出后的投资能力收益；XIRR：资金分批进出的真实年化（跨度 <90 天年化失真，改显天数） */
+  const twr = calcTWR(pts);
+  const cf = trendCashflows(pts);
+  const xirr = cf ? calcXIRR(cf.cfs) : null;
+  const xTxt = (xirr === null || !cf || cf.days < 90)
+    ? "XIRR " + (cf ? Math.round(cf.days) : 0) + " 天 · 年化失真"
+    : "XIRR " + fmtPct(xirr, 1) + " 年化";
+  /* 最大浮亏取全程（场内口径，来自 ACCT_STATS.monthly），补足快照期仅 12 天的盲区 */
+  const whole = buildPnlPts();
+  let deepW = null;
+  if (whole.length) { deepW = whole[0]; whole.forEach((p) => { if (p.pl < deepW.pl) deepW = p; }); }
   el.innerHTML =
     '<div class="kpi"><div class="k-label">总资产' + (last.isToday ? "（估）" : "") + '</div><div class="k-val">' + fmtWan(last.val) + '</div><div class="k-sub ' + cls(dTotB) + '">' + (dTotB >= 0 ? "+" : "") + fmtPct(base.val ? dTotB / base.val : 0, 1) + ' 较基线</div></div>' +
     '<div class="kpi"><div class="k-label">当前收益率</div><div class="k-val ' + cls(r1) + '">' + fmtPct(r1, 2) + '</div><div class="k-sub ' + cls(dRpp) + '">' + (dRpp >= 0 ? "+" : "") + dRpp.toFixed(2) + 'pp 较基线</div></div>' +
-    '<div class="kpi"><div class="k-label">累计投入</div><div class="k-val">' + fmtWan(last.cost) + '</div><div class="k-sub ' + cls(flowSum) + '">期间净投入 ' + fmtAmt(flowSum) + '</div></div>' +
-    '<div class="kpi"><div class="k-label">区间最深浮亏</div><div class="k-val down">' + fmtAmt(deep.val - deep.cost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deep.d.slice(5, 7)) + "." + (+deep.d.slice(8, 10)) + " · " + fmtPct(rate(deep), 1) + '</div></div>';
+    '<div class="kpi"><div class="k-label" title="时间加权收益率 ∏(Vᵢ−Fᵢ)/Vᵢ₋₁：剔除资金进出影响，反映投资能力本身。与「当前收益率」的差额即资金进出的稀释效应">TWR 时间加权</div><div class="k-val ' + cls(twr) + '">' + fmtPct(twr, 2) + '</div><div class="k-sub" style="color:var(--tx3)">' + xTxt + '</div></div>' +
+    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : '');
 }
 /* 相邻两点间：总资产线与投入线围成的区域，浮盈绿/浮亏红（交叉时按交点拆分） */
 function trendSegFill(x1, v1, c1, x2, v2, c2) {
   const d1 = v1 - c1, d2 = v2 - c2;
+  /* 只填浮盈段：浮亏时资产线本就在投入线下方（「水下」已由两线相对位置表达），
+     再刷一层满宽红底会被误读成图表背景 */
+  if (d1 <= 0 && d2 <= 0) return "";
   const poly = (xa, va, ca, xb, vb, cb, k) =>
     '<polygon points="' + xa + "," + va + " " + xb + "," + vb + " " + xb + "," + cb + " " + xa + "," + ca +
     '" style="fill:var(--' + k + ')" opacity=".14"/>';
-  if ((d1 >= 0) === (d2 >= 0)) return poly(x1, v1, c1, x2, v2, c2, d1 >= 0 ? "green" : "red");
+  if ((d1 >= 0) === (d2 >= 0)) return poly(x1, v1, c1, x2, v2, c2, "green");
   const r = Math.abs(d1) / (Math.abs(d1) + Math.abs(d2));
   const xi = x1 + (x2 - x1) * r, yi = v1 + (v2 - v1) * r;
-  return poly(x1, v1, c1, xi, yi, yi, d1 >= 0 ? "green" : "red") +
-    poly(xi, yi, yi, x2, v2, c2, d2 >= 0 ? "green" : "red");
+  return d2 > 0 ? poly(xi, yi, yi, x2, v2, c2, "green") : poly(x1, v1, c1, xi, yi, yi, "green");
 }
 function trendTipHtml(p) {
   const pl = p.val - p.cost;
@@ -835,6 +944,11 @@ function trendTipHtml(p) {
   else s += '<br><span style="color:var(--tx3)">完整归因见下方「快照对比」对应期次</span>';
   return s;
 }
+/* 盈亏全程视图的点气泡（数据为 { d, pl }，场内账户口径） */
+function pnlTipHtml(p) {
+  return p.d.slice(5).replace("-", ".") + ' 累计盈亏 <b style="color:var(--' + (p.pl >= 0 ? "green" : "red") + ')">' + fmtAmt(p.pl) + " 元</b>" +
+    '<br><span style="color:var(--tx3)">场内账户口径（含已实现）</span>';
+}
 function renderTrend(todayVal, todayCost) {
   const box = $("trend-box");
   if (!box) return;
@@ -844,6 +958,7 @@ function renderTrend(todayVal, todayCost) {
   const pts = filterTrendPts(allPts);
   trendPts = pts;
   renderTrendChips(allPts);
+  renderTrendViews();
   renderTrendKpis(pts);
   $("trend-cnt").textContent = "(快照 " + snaps.length + " 期" + (pts.length && pts[pts.length - 1].isToday ? " + 今日" : "") + ")";
   if (!snaps.length) {   // 空态：教学态引导，而非空白
@@ -858,6 +973,8 @@ function renderTrend(todayVal, todayCost) {
     if ($("trend-sum")) $("trend-sum").innerHTML = "";
     return;
   }
+  if (trendView === "pnl") { renderPnlView(box); return; }
+  if (trendView === "rate") { renderRateView(box, pts); return; }
   const W = box.clientWidth || 320, H1 = 168, H = H1 + 86, mL = 42, mR = 12, mT = 16, mB = 22;   // 双线区固定 H1，追加的 86px 为下方归因柱区
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs);
@@ -883,7 +1000,7 @@ function renderTrend(todayVal, todayCost) {
   });
   if (trendShowCost) {
     for (let i = 0; i < pts.length - 1; i++)
-      svg += trendSegFill(px[i], P(py[i]), P(cy[i]), px[i + 1], P(py[i + 1]), P(cy[i + 1]));
+      svg += trendSegFill(P(px[i]), P(py[i]), P(cy[i]), P(px[i + 1]), P(py[i + 1]), P(cy[i + 1]));   // x 坐标一并格式化，避免超长小数串进 SVG
     svg += '<polyline points="' + cy.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
       '" fill="none" style="stroke:var(--cyan)" stroke-width="1.5" stroke-dasharray="5 4"/>';
   }
@@ -956,6 +1073,123 @@ function renderTrend(todayVal, todayCost) {
 }
 
 /* ---- crosshair：指针吸附最近点，读数条常显于图上（触摸/鼠标通用；touch-action:pan-y 保证页面可滚） ---- */
+/* 视图②：盈亏全程（06-01 起，月度）—— 补足 SNAPSHOTS 只覆盖 08-28 起的缺口，呈现建仓以来的盈亏全貌（含 7 月深亏）。
+   ⚠ 口径为场内账户（含已实现），与「金额」视图的全账户（含场外+现金）不同，摘要条已标注。 */
+function renderPnlView(box) {
+  const pts = buildPnlPts();
+  if (pts.length < 2) {
+    box.innerHTML = '<div class="trend-empty">暂无月度盈亏读数：在 data.js 的 ACCT_STATS.monthly 补 App 月度盈亏，即可生成建仓以来全程曲线。</div>';
+    return;
+  }
+  const W = box.clientWidth || 320, H = 178, mL = 48, mR = 12, mT = 20, mB = 24;
+  const xs = pts.map((p) => Date.parse(p.d));
+  const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
+  const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
+  const vs = pts.map((p) => p.pl).concat([0]);   // 含 0，保证零轴在视野内
+  let lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
+  const pad = (hi - lo) * 0.15 || Math.abs(lo) * 0.2 || 100;
+  lo -= pad; hi += pad;
+  const Y = (v) => mT + (hi - v) / (hi - lo || 1) * (H - mT - mB);
+  const P = (v) => v.toFixed(1);
+  const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(p.pl));
+  trendLayout = { px: px, py: py, pts: pts, mode: "pnl" };
+  if ($("trend-cnt")) $("trend-cnt").textContent = "(月度 " + pts.length + " 期 · " + pts[0].d.slice(5).replace("-", ".") + " 起)";
+  let deepI = 0;
+  pts.forEach((p, i) => { if (p.pl < pts[deepI].pl) deepI = i; });
+  const zeroY = Y(0), col = (v) => (v >= 0 ? "green" : "red");
+  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="累计盈亏全程：' +
+    pts[0].d + " 至今，最深 " + fmtAmt(pts[deepI].pl) + "，当前 " + fmtAmt(pts[pts.length - 1].pl) + ' 元">';
+  [hi, (hi + lo) / 2, lo].forEach((tv) => {
+    const y = Y(tv).toFixed(1);
+    svg += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
+      '<text x="' + (mL - 6) + '" y="' + (+y + 3.5) + '" text-anchor="end" style="fill:var(--tx3);font:10px var(--mono)">' + (tv / 10000).toFixed(1) + "万</text>";
+  });
+  svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
+  /* 面积：逐段按正负着色，跨零段按交点拆分 */
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d1 = pts[i].pl, d2 = pts[i + 1].pl;
+    if ((d1 >= 0) === (d2 >= 0)) {
+      svg += '<polygon points="' + P(px[i]) + "," + P(py[i]) + " " + P(px[i + 1]) + "," + P(py[i + 1]) + " " + P(px[i + 1]) + "," + P(zeroY) + " " + P(px[i]) + "," + P(zeroY) +
+        '" style="fill:var(--' + col(d1) + ')" opacity=".16"/>';
+    } else {
+      const r = Math.abs(d1) / (Math.abs(d1) + Math.abs(d2));
+      const xi = px[i] + (px[i + 1] - px[i]) * r;
+      svg += '<polygon points="' + P(px[i]) + "," + P(py[i]) + " " + P(xi) + "," + P(zeroY) + " " + P(px[i]) + "," + P(zeroY) + '" style="fill:var(--' + col(d1) + ')" opacity=".16"/>' +
+        '<polygon points="' + P(xi) + "," + P(zeroY) + " " + P(px[i + 1]) + "," + P(py[i + 1]) + " " + P(px[i + 1]) + "," + P(zeroY) + '" style="fill:var(--' + col(d2) + ')" opacity=".16"/>';
+    }
+  }
+  svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
+  pts.forEach((p, i) => {
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? 5 : 3.8) +
+      '" style="fill:var(--' + col(p.pl) + ');stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
+      p.d + " 累计盈亏 " + fmtAmt(p.pl) + ' 元"/>';
+    if (i === 0 || i === pts.length - 1 || i === deepI)
+      svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + col(p.pl) + ');font:700 10px var(--mono)">' + fmtAmt(p.pl) + "</text>";
+    svg += '<text x="' + P(px[i]) + '" y="' + (H - 7) + '" text-anchor="middle" style="fill:var(--tx3);font:10px var(--mono)">' + (+p.d.slice(5, 7)) + "." + (+p.d.slice(8, 10)) + "</text>";
+  });
+  /* crosshair 吸附元素（与「金额」视图同款：pointermove 经 showXhair 更新） */
+  svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
+    '<circle class="xhair-dot" cx="0" cy="0" r="5.5" style="display:none;fill:var(--card);stroke:var(--blue);stroke-width:2.5"/>';
+  svg += "</svg>";
+  box.innerHTML = svg;
+  if ($("trend-readout")) $("trend-readout").textContent = "移动或滑动查看各期 · 点击数据点看详情";
+  if ($("trend-sum")) $("trend-sum").innerHTML = "全程（场内账户口径，含已实现）· 最深浮亏 <b class=\"down\">" + fmtAmt(pts[deepI].pl) + "</b>（" +
+    (+pts[deepI].d.slice(5, 7)) + "." + (+pts[deepI].d.slice(8, 10)) + "）· 当前 <b class=\"" + cls(pts[pts.length - 1].pl) + "\">" + fmtAmt(pts[pts.length - 1].pl) +
+    "</b> · 自最深回升 " + fmtN(pts[pts.length - 1].pl - pts[deepI].pl) + " 元";
+}
+/* 视图③：收益率（%）—— 组合 vs 基准。剔除规模影响，直接看效率与是否跑赢躺平 */
+function renderRateView(box, pts) {
+  const rate = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
+  const W = box.clientWidth || 320, H = 178, mL = 46, mR = 12, mT = 20, mB = 24;
+  const xs = pts.map((p) => Date.parse(p.d));
+  const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
+  const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
+  const rs = pts.map(rate).concat([0]);
+  let lo = Math.min.apply(null, rs), hi = Math.max.apply(null, rs);
+  const pad = (hi - lo) * 0.18 || 0.01;
+  lo -= pad; hi += pad;
+  const Y = (v) => mT + (hi - v) / (hi - lo || 1) * (H - mT - mB);
+  const P = (v) => v.toFixed(1);
+  const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(rate(p)));
+  trendLayout = { px: px, py: py, pts: pts, mode: "rate" };
+  if ($("trend-cnt")) $("trend-cnt").textContent = "(快照 " + pts.length + " 期 · 成本口径)";
+  const zeroY = Y(0);
+  const bi = [];
+  pts.forEach((p, i) => { const b = benchRateAt(p.d); if (b !== null) bi.push({ i: i, b: b }); });
+  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="收益率走势：当前 ' + fmtPct(rate(pts[pts.length - 1]), 2) + '">';
+  [hi, (hi + lo) / 2, lo].forEach((tv) => {
+    const y = Y(tv).toFixed(1);
+    svg += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
+      '<text x="' + (mL - 6) + '" y="' + (+y + 3.5) + '" text-anchor="end" style="fill:var(--tx3);font:10px var(--mono)">' + (tv * 100).toFixed(1) + "%</text>";
+  });
+  svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
+  if (bi.length >= 2)
+    svg += '<polyline points="' + bi.map((o) => P(px[o.i]) + "," + P(Y(o.b))).join(" ") + '" fill="none" style="stroke:var(--tx3);stroke-width:1.5" stroke-dasharray="5 4"/>';
+  svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
+  pts.forEach((p, i) => {
+    const r = rate(p);
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="3.8"' +
+      ' style="fill:var(--blue);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
+      p.d + " 收益率 " + fmtPct(r, 2) + '"/>';
+    if (i === 0 || i === pts.length - 1)
+      svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + (r >= 0 ? "green" : "red") + ');font:700 10px var(--mono)">' + fmtPct(r, 2) + "</text>";
+    svg += '<text x="' + P(px[i]) + '" y="' + (H - 7) + '" text-anchor="middle" style="fill:var(--tx3);font:10px var(--mono)">' + (+p.d.slice(5, 7)) + "." + (+p.d.slice(8, 10)) + "</text>";
+  });
+  svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
+    '<circle class="xhair-dot" cx="0" cy="0" r="5.5" style="display:none;fill:var(--card);stroke:var(--blue);stroke-width:2.5"/>';
+  svg += "</svg>";
+  box.innerHTML = svg;
+  if ($("trend-readout")) $("trend-readout").textContent = "移动或滑动查看各期 · 点击数据点看详情";
+  const last = rate(pts[pts.length - 1]);
+  let sum = "收益率（成本口径，全账户）· 当前 <b class=\"" + cls(last) + "\">" + fmtPct(last, 2) + "</b>";
+  if (bi.length >= 2) {
+    const lb = bi[bi.length - 1].b;
+    sum += " · 同期基准 <b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
+  } else {
+    sum += " · <span style=\"color:var(--tx3)\">基准待补：在 data.js 的 BENCH 记入各期 NDX 收盘即可对比</span>";
+  }
+  if ($("trend-sum")) $("trend-sum").innerHTML = sum;
+}
 function showXhair(i) {
   const L = trendLayout;
   const box = $("trend-box");
@@ -971,8 +1205,17 @@ function showXhair(i) {
   const p = L.pts[i], x = L.px[i].toFixed(1);
   line.style.display = ""; line.setAttribute("x1", x); line.setAttribute("x2", x);
   dot.style.display = ""; dot.setAttribute("cx", x); dot.setAttribute("cy", L.py[i].toFixed(1));
-  const pl = p.val - p.cost, rate = p.cost ? pl / p.cost : 0;
-  ro.innerHTML = '<b>' + (p.isToday ? "今日估算" : p.d.slice(5).replace("-", ".")) + '</b> · 资产 <b>' + fmtWan(p.val) + '</b> · 投入 <b>' + fmtWan(p.cost) + '</b> · 收益率 <span class="' + cls(rate) + '">' + fmtPct(rate, 2) + "</span>";
+  const dt = p.isToday ? "今日估算" : p.d.slice(5).replace("-", ".");
+  const mode = L.mode || "amount";
+  if (mode === "pnl") {   // 盈亏全程视图：点数据为 { d, pl }
+    ro.innerHTML = '<b>' + dt + '</b> · 累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元";
+  } else if (mode === "rate") {
+    const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
+    ro.innerHTML = '<b>' + dt + '</b> · 收益率 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + '</b> · 资产 <b>' + fmtWan(p.val) + "</b>";
+  } else {
+    const pl = p.val - p.cost, rate = p.cost ? pl / p.cost : 0;
+    ro.innerHTML = '<b>' + dt + '</b> · 资产 <b>' + fmtWan(p.val) + '</b> · 投入 <b>' + fmtWan(p.cost) + '</b> · 收益率 <span class="' + cls(rate) + '">' + fmtPct(rate, 2) + "</span>";
+  }
 }
 function bindTrendCrosshair() {
   const box = $("trend-box");
@@ -1227,6 +1470,19 @@ function holdCardHtml(row, i, ctx) {
       ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtN(e.qty) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
   }).join("");
+  /* 卖出标记：红空心圈，位置=成交价分位，大小∝份数；与买入点同处 buy-layer（颜色区分买/卖） */
+  const sells = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.cost !== undefined && isSell(e));
+  const maxQS = Math.max.apply(null, sells.map((e) => Math.abs(e.qty)).concat([1]));
+  const sellMarks = sells.map((e, si) => {
+    const pc = Math.max(0, Math.min(100, pctOf(e.cost)));
+    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * Math.abs(e.qty) / maxQS + 1).toFixed(1);
+    const age = sells.length > 1 ? si / (sells.length - 1) : 0;
+    const op = (0.95 - 0.35 * age).toFixed(2);   // 时间衰减幅度小于买入，保证卖出点始终可见
+    return '<button type="button" class="sell-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
+      ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + Math.abs(e.qty) + '"' +
+      ' aria-label="' + e.d + ' 卖出 ' + e.cost + ' 元 ' + fmtN(Math.abs(e.qty)) + ' 份">' +
+      '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:3px"></i></button>';
+  }).join("");
   /* 三点水位梯 */
   const dateStr = DEFAULT.asOf && DEFAULT.asOf.us ? " (" + DEFAULT.asOf.us.slice(5).replace("-", ".") + ")" : "";
   const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
@@ -1302,14 +1558,14 @@ function holdCardHtml(row, i, ctx) {
     premRow +
     '<div class="bar-wrap">' +
       '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span></div>' +
-      '<div class="buy-layer">' + buyMarks + '</div>' +
+      '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
       '<div class="bar-track pops">' + seg +
         '<span class="bar-end"></span>' +
         '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
       '</div>' +
       '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
-      '<div class="bar-legend"><span>52周区间</span><span><i style="background:var(--cyan);border-radius:50%"></i>成本</span><span><i style="background:var(--tx);border-radius:50%"></i>现价</span><span><i style="background:var(--yellow);border-radius:2px"></i>高点</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入*</span></div>' +
+      '<div class="bar-legend"><span>52周区间</span><span><i style="background:var(--cyan);border-radius:50%"></i>成本</span><span><i style="background:var(--tx);border-radius:50%"></i>现价</span><span><i style="background:var(--yellow);border-radius:2px"></i>高点</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入*</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
     '</div>' +
     '<div class="strat-row">' + strat +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
@@ -1501,7 +1757,7 @@ $("log-chips").addEventListener("click", (e) => {
 function flashBuyMark(item) {
   const card = document.querySelector('.card[data-sym="' + item.dataset.sym + '"]');
   if (!card) return;
-  const mk = card.querySelector('.buy-mark[data-d="' + item.dataset.d + '"]');
+  const mk = card.querySelector('.buy-mark[data-d="' + item.dataset.d + '"], .sell-mark[data-d="' + item.dataset.d + '"]');
   card.scrollIntoView({ behavior: "smooth", block: "center" });
   if (!mk) return;
   mk.classList.remove("flash");
@@ -1547,9 +1803,12 @@ document.addEventListener("click", (e) => {
   if (td) {
     if (td === lastBuyMark) { buyTip.style.display = "none"; lastBuyMark = null; return; }
     lastBuyMark = td;
-    const p = trendPts[+td.dataset.i];
+    const ti = +td.dataset.i;
+    /* 盈亏全程视图的点数据是 { d, pl }（存于 trendLayout.pts），不能沿用金额口径的 trendPts */
+    const tMode = (trendLayout && trendLayout.mode) || "amount";
+    const p = (tMode === "pnl" && trendLayout) ? trendLayout.pts[ti] : trendPts[ti];
     if (p) {
-      buyTip.innerHTML = trendTipHtml(p);
+      buyTip.innerHTML = (tMode === "pnl") ? pnlTipHtml(p) : trendTipHtml(p);
       buyTip.style.whiteSpace = "normal"; buyTip.style.maxWidth = "250px"; buyTip.style.textAlign = "center";
       buyTip.style.display = "block";
       const r = td.getBoundingClientRect();
@@ -1560,11 +1819,12 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
-  const mk = e.target.closest(".buy-mark");
+  const mk = e.target.closest(".buy-mark, .sell-mark");
   if (!mk) { buyTip.style.display = "none"; lastBuyMark = null; return; }
   if (mk === lastBuyMark) { buyTip.style.display = "none"; lastBuyMark = null; return; }
   lastBuyMark = mk;
-  buyTip.textContent = (mk.dataset.d || "--").slice(5).replace("-", ".").replace(/^0/, "") + " · " +
+  buyTip.textContent = (mk.classList.contains("sell-mark") ? "卖出 " : "买入 ") +
+    (mk.dataset.d || "--").slice(5).replace("-", ".").replace(/^0/, "") + " · " +
     (+mk.dataset.c).toFixed(3) + " 元 · " + fmtN(+mk.dataset.q) + " 份";
   buyTip.style.whiteSpace = "nowrap"; buyTip.style.maxWidth = ""; buyTip.style.textAlign = "";
   buyTip.style.display = "block";
@@ -1689,6 +1949,14 @@ function render() {
 render();
 
 /* ---- 走势图交互绑定：时间 chips / 图例开关 / crosshair（box 元素持久，innerHTML 重绘不影响监听） ---- */
+$("trend-views").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-v]");
+  if (!b || b.dataset.v === trendView) return;
+  trendView = b.dataset.v;
+  try { localStorage.setItem("trendView", trendView); } catch (err) { /* 隐私模式下忽略 */ }
+  renderTrendViews();
+  if (trendCtx) renderTrend(trendCtx.v, trendCtx.c);
+});
 $("trend-chips").addEventListener("click", (e) => {
   const b = e.target.closest(".tchip");
   if (!b || b.disabled || b.dataset.r === trendRange) return;
