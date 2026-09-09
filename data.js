@@ -7,28 +7,28 @@
 
 /* ================= 数据模型 ================= */
 const DEFAULT = {
-  date: "2026-09-08",
-  intraday: false, // AUTO：美股 2026-09-08 收盘（2026-09-08T23:41Z 抓取）
-  ndx:   { close: 29507.7, ath: 30762.2, athDate: "2026-06-03", days: 66, chg: -0.12, ma50: 29237, ma200: 27055, rsi: 50.3, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
-  spx:   { close: 7673.52, ath: 7816.7, athDate: "2026-08-13", days: 17, chg: -0.58, ma50: 7598, ma200: 7147, rsi: 48.2, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
-  vix: 15.72,
+  date: "2026-09-09",
+  intraday: false, // AUTO：美股 2026-09-09 收盘（2026-09-09T23:31Z 抓取）
+  ndx:   { close: 29421.55, ath: 30762.2, athDate: "2026-06-03", days: 67, chg: -0.29, ma50: 29230, ma200: 27078, rsi: 49.9, low52: 22953, prevYr: 25250, ddYtd: -11.8 },
+  spx:   { close: 7636.36, ath: 7816.7, athDate: "2026-08-13", days: 18, chg: -0.48, ma50: 7602, ma200: 7152, rsi: 43.2, low52: 6344, prevYr: 6846, ddYtd: -9.1 },
+  vix: 16.46,
   fg: 56,
-  tnx: 4.81,
+  tnx: 4.84,
   tnx2: 4.229,
-  putcall: 0.76, // AUTO：CBOE 全品类总 Put/Call
+  putcall: 0.8, // AUTO：CBOE 全品类总 Put/Call
   fx: 6.71,
   // AUTO：无对应免费指数的持仓用 ETF 自身场内价的 52 周区间作水位口径（腾讯日K，脚本自动更新）。
   // 字段与 ndx/spx 同构：close 现价 / chg 当日涨跌% / low52 52周低 / ath 52周高 / athDate 高点日期 / prevYr 年初首个交易日收盘
-  kr:   { close: 4.890, chg: 0.51, low52: 1.810, ath: 7.120, athDate: "2026-07-02", prevYr: 2.795 },   // kr 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
-  n225:   { close: 2.164, chg: -0.09, low52: 1.456, ath: 2.425, athDate: "2026-06-25", prevYr: 1.715 },   // n225 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
-  hkus:   { close: 1.848, chg: 1.81, low52: 1.430, ath: 2.508, athDate: "2026-05-27", prevYr: 1.535 },   // hkus 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
+  kr:   { close: 4.890, chg: 0.51, low52: 1.810, ath: 7.120, athDate: "2026-07-02", prevYr: 2.795 },   // kr 持仓（场内价口径，AUTO）
+  n225:   { close: 2.164, chg: -0.09, low52: 1.456, ath: 2.425, athDate: "2026-06-25", prevYr: 1.715 },   // n225 持仓（场内价口径，AUTO）
+  hkus:   { close: 1.848, chg: 1.87, low52: 1.430, ath: 2.508, athDate: "2026-05-27", prevYr: 1.535 },   // hkus 持仓（场内价口径，AUTO）
   // AUTO：纳指/标普 ETF 自身场内价口径（腾讯日K，52周区间），供持仓页水位梯/买入分布用（与真实流水成交价同口径）
-  etfNdx: { close: 1.662, chg: -0.06, low52: 1.244, ath: 1.773, athDate: "2026-06-01" },  // etfNdx 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
-  etfSpx: { close: 2.024, chg: 0.45, low52: 1.610, ath: 2.066, athDate: "2026-08-17" },  // etfSpx 持仓（场内价口径，AUTO；09-09 收盘据券商截图校准）
-  peFwd: 20.1, peTtm: 27.2, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
+  etfNdx: { close: 1.662, chg: -0.06, low52: 1.244, ath: 1.773, athDate: "2026-06-01" },  // etfNdx 持仓（场内价口径，AUTO）
+  etfSpx: { close: 2.024, chg: 0.45, low52: 1.610, ath: 2.066, athDate: "2026-08-17" },  // etfSpx 持仓（场内价口径，AUTO）
+  peFwd: 20.1, peTtm: 27.1, cape: 27.9, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）
   ndxPeFwd: 22.4, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8.0, // MANUAL：盈利增速预期，无免费源，人工维护
-  asOf: { us: "2026-09-08", et: "16:00 EDT", local: "2026-09-09 07:41:05" },
+  asOf: { us: "2026-09-09", et: "16:00 EDT", local: "2026-09-10 07:31:22" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
@@ -43,7 +43,7 @@ const MONTHLY = [
   { m: "6月", ndx: -0.2, spx: -1.1 },
   { m: "7月", ndx: -6.6, spx: -0.1 },
   { m: "8月", ndx: 4.2, spx: 2.6 },
-  { m: "9月", ndx: 0.2, spx: -0.2 },
+  { m: "9月", ndx: -0.1, spx: -0.6 },
 ];
 const MC_MAX = 16; // 纵轴满刻度 ±%
 
@@ -70,11 +70,11 @@ const POSITIONS = {
   // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）＝ ETF 场内买入价相对基金实际价值的偏离；
   // 由脚本从天天基金净值接口自动计算。QDII 净值滞后 1-2 个交易日，溢价为近似值。折价为负。
   premiums: { // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）；QDII 净值滞后 1-2 个交易日
-    "159941": { pct: 11.3, nav: 1.4948, navDate: "2026-09-07" },
-    "160644": { pct: -2.7, nav: 1.8645, navDate: "2026-09-07" },
-    "513310": { pct: 10.1, nav: 4.4188, navDate: "2026-09-08" },
-    "513650": { pct: 6.9, nav: 1.8852, navDate: "2026-09-07" },
-    "513880": { pct: 4.2, nav: 2.0794, navDate: "2026-09-08" },
+    "159941": { pct: 11.3, nav: 1.4932, navDate: "2026-09-08" },
+    "160644": { pct: -0.7, nav: 1.8607, navDate: "2026-09-08" },
+    "513310": { pct: 9.3, nav: 4.4745, navDate: "2026-09-09" },
+    "513650": { pct: 8.0, nav: 1.8745, navDate: "2026-09-08" },
+    "513880": { pct: 4.5, nav: 2.0718, navDate: "2026-09-09" },
   },
   hold: [
     { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 68100, cost: 1.573, idxAtCost: 1.573, pct: 40.6 },   // pct: MANUAL 组合占比%（占个人总投资组合）
