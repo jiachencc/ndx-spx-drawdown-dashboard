@@ -100,6 +100,7 @@
   .sector-radar .sr-val { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
   .sector-radar .sr-pct { color: var(--tx3); font-size: 9.5px; font-family: var(--mono); }
   .sector-radar .sr-load { color: var(--tx3); font-size: 10px; }
+  .sector-radar .sr-time { color: var(--tx3); font-size: 9.5px; font-family: var(--mono); margin-left: auto; white-space: nowrap; }
   .alloc-seg { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 8px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; font-feature-settings: "tnum"; border: 0; padding: 0; cursor: pointer; }
   .alloc-seg.ndx { background: linear-gradient(180deg, rgba(91,163,255,.85), rgba(91,163,255,.6)); }
   .alloc-seg.spx { background: linear-gradient(180deg, rgba(186,143,255,.85), rgba(186,143,255,.6)); }
@@ -730,6 +731,16 @@ async function renderSectorRadar() {
     } catch (err) { /* 保留 sectorData（可为 null → 走降级） */ }
   }
   el.dataset.done = "1";
+  /* 时间标注：拉取时刻（证明是刚拉的）+ 行情时间（美股未开盘时为前一交易日收盘，各标的悬停可见各自时间） */
+  let timeHtml;
+  if (sectorData) {
+    const n = new Date();
+    const hm = String(n.getHours()).padStart(2, "0") + ":" + String(n.getMinutes()).padStart(2, "0");
+    const mt = ((sectorData.usNDX || {}).t || "").slice(5, 16).replace("-", ".");   // "09-10 17:15"
+    timeHtml = '<span class="sr-time" title="拉取时刻 ' + hm + "；行情时间取美股标的，其余标的悬停可见各自时间\">⟳ " + hm + (mt ? " · 行情 " + mt : "") + "</span>";
+  } else {
+    timeHtml = '<span class="sr-time" title="实时接口不可用，显示 CI 每日收盘后抓取的静态值">CI 收盘值</span>';
+  }
   el.innerHTML = SECTOR_RADAR.map((s) => {
     const d = sectorData && sectorData[s.q];
     let val;
@@ -744,7 +755,7 @@ async function renderSectorRadar() {
     const pct = (sectorExp[s.theme] != null && sectorExp[s.theme] >= 0.5)
       ? '<span class="sr-pct">' + sectorExp[s.theme].toFixed(0) + "%</span>" : "";
     return '<span class="sr-item"><span class="sr-name">' + s.name + "</span>" + val + pct + "</span>";
-  }).join("");
+  }).join("") + timeHtml;
 }
 function renderImpl() {
   closeIdxPop();
