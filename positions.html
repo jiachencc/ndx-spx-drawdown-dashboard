@@ -136,7 +136,18 @@
   .snap-line .n { font-weight: 600; color: var(--tx2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .snap-line .v { font-family: var(--mono); font-size: 11.5px; color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
   .snap-line .v b { color: var(--tx); font-weight: 700; }
-  .snap-line.item { grid-template-columns: 104px 1fr; }   /* 持仓明细行：名称更长，单独放宽标签列 */
+  /* 持仓明细行：「名称(+仓位小标签) | 本期盈亏 | 累计盈亏」——重心在盈亏，仓位降为名称后缀 */
+  .snap-line.item { grid-template-columns: 1fr 78px 84px; }
+  .snap-line.item .n { display: flex; align-items: baseline; gap: 4px; }
+  .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .snap-line.item .n .qty-tag { flex-shrink: 0; font-size: 10px; font-weight: 400; color: var(--tx3); font-family: var(--mono); white-space: nowrap; font-feature-settings: "tnum"; }
+  .snap-line.item .d { font-family: var(--mono); font-size: 11.5px; text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
+  .snap-line.item .v { text-align: right; }
+  .snap-line.item.snap-sum-row { border-top: 1px dashed var(--line-soft); margin-top: 3px; padding-top: 5px; font-weight: 600; }   /* 明细合计：与「拆解」对账 */
+  /* 快照卡内分组：细分隔线 + 组标题（兼作明细列头：本期盈亏 / 累计盈亏） */
+  .snap-divider { border-top: 1px dashed var(--line-soft); margin: 6px 0 4px; }
+  .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: 10px; font-weight: 700; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
+  .snap-group-title span:not(:first-child) { text-align: right; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
   .snap-delta { font-family: var(--mono); font-size: 11px; font-weight: 700; font-feature-settings: "tnum"; }
   .snap-delta.up { color: var(--green); } .snap-delta.down { color: var(--red); }
@@ -371,7 +382,9 @@
     .pl-name { font-size: 11px; }
     .pl-head .pl-mid { display: none; }
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
-    .snap-line.item { grid-template-columns: 84px 1fr; }
+    .snap-line.item { grid-template-columns: 1fr 64px 72px; }
+    .snap-group-title { grid-template-columns: 1fr 64px 72px; }
+    .snap-line.item .n .qty-tag { font-size: 9.5px; }
     .snap-break { margin-left: 66px; }
   }
   /* 动效敏感用户：关闭所有动画 */
@@ -472,32 +485,31 @@ const $ = (id) => document.getElementById(id);
  * upd: 该基金截图同步时间（"YYYY-MM-DD HH:MM"，取截图状态栏时刻）——
  *      与 OTC.updated 同日显示绿「✓HH:MM」，否则琥珀「待更」；用于「已同步 X/8」进度 */
 const OTC = {
-  updated: "2026-09-09",
-  cash: 9824.40,  // 各渠道可用资金合计（含逆回购：基金账户 268 + 场内券商 9,556.40；9-09 卖出回款 9,225 已买逆回购）
+  updated: "2026-09-11",
+  cash: 9824.40,  // 各渠道可用资金合计（含逆回购：基金账户 268 + 场内券商 9,556.40；9-09/9-10 卖出回款已买逆回购）
   // costNav（成本净值）由持有收益率反推：close ÷ (1 + rate/100)，渲染时计算
   funds: [
-    { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "第三方平台", theme: "global", value: 22521.05, day: 99.48, pnl: -1978.95, rate: -8.08, upd: "2026-09-09 19:19",
+    { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "第三方平台", theme: "global", value: 22562.26, day: 41.21, pnl: -1937.74, rate: -7.91, upd: "2026-09-11 11:10",
       nav: { close: 6.3111, closeDate: "2026-09-08", hi: 7.6159, hiDate: "2026-06-22", lo: 4.7185 } },
-    { name: "广发纳指100ETF联接(QDII)F", code: "021778", channel: "第三方平台", theme: "ndx", value: 21867.18, day: -25.03, pnl: -232.82, rate: -1.06, upd: "2026-09-09 19:19",
+    { name: "广发纳指100ETF联接(QDII)F", code: "021778", channel: "第三方平台", theme: "ndx", value: 21922.49, day: -74.65, pnl: -307.48, rate: -1.40, upd: "2026-09-11 11:10",
       nav: { close: 8.1828, closeDate: "2026-09-08", hi: 8.5656, hiDate: "2026-06-02", lo: 6.5266 } },
-    { name: "南方纳斯达克100指数(QDII)I", code: "021000", channel: "南方基金", theme: "ndx", value: 21296.64, day: -21.89, pnl: 96.64, rate: 0.46, upd: "2026-09-09 19:19",
-      nav: { close: 2.2916, closeDate: "2026-09-08", hi: 2.3925, hiDate: "2026-06-02", lo: 1.8431 } },
-    { name: "博时标普500ETF联接E", code: "018738", channel: "博时APP", theme: "spx", value: 14175.26, day: -76.96, pnl: 352.35, rate: 2.53, upd: "2026-09-09 19:19",
-      nav: { close: 5.5899, closeDate: "2026-09-08", hi: 5.6774, hiDate: "2026-08-13", lo: 4.7519 } },
-    /* 09-09 晚 8/8 全覆盖：广发两只（023402/021778，19:19 已更新）/ 南方（021000）/ 博时（018738，
-   09-08 官方净值 5.5899 确认，-76.96 为 09-09 盘中预估）/ 华安直销（040046/014978，−3.55/−3.58）/
-   支付宝两只（007280/015884，22:12~22:13 更新）。注意：摩根/中欧此前沿用 09-03 App 口径，
-   09-09 支付宝一次性补齐多日累计变动（与上期快照差值含 09-04~09-09 累计，非单日）；
-   QDII「今日收益」均为 09-08 净值在 09-09 晚入账。
-   upd = 截图同步时间（取截图状态栏时刻），供页面「已同步 X/8」徽章；未同步的基金保留旧值。 */
-    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8879.68, day: -3.17, pnl: 132.87, rate: 1.52, upd: "2026-09-09 22:13",
+    { name: "南方纳斯达克100指数(QDII)I", code: "021000", channel: "南方基金", theme: "ndx", value: 21626.70, day: -69.96, pnl: 26.70, rate: 0.13, upd: "2026-09-11 11:10",
+      nav: { close: 2.2840, closeDate: "2026-09-09", hi: 2.3925, hiDate: "2026-06-02", lo: 1.8431 } },
+    { name: "博时标普500ETF联接E", code: "018738", channel: "博时APP", theme: "spx", value: 14103.75, day: -71.51, pnl: 203.75, rate: 1.47, upd: "2026-09-11 11:11",
+      nav: { close: 5.5617, closeDate: "2026-09-09", hi: 5.6774, hiDate: "2026-08-13", lo: 4.7519 } },
+    /* 09-10 数据（截图于 09-11 11:10~11:28）：8/8 全刷新 —— 支付宝（023402/021778）、南方（021000）、
+   博时（018738）、华安直销（040046/014978）、摩根+中欧（007280/015884，11:28 由支付宝补齐）；
+   其中南方/博时/华安净值为 09-09 官方值，摩根/中欧净值沿用 09-08。
+   QDII「日收益」均为 09-09 净值在 09-10 晚入账的口径。
+   upd = 截图同步时间（取截图状态栏时刻），供页面「已同步 X/8」徽章。 */
+    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8895.54, day: 15.87, pnl: 148.73, rate: 1.70, upd: "2026-09-11 11:28",
       nav: { close: 2.2417, closeDate: "2026-09-08", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
-    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4862.89, day: -28.19, pnl: -1437.11, rate: -22.81, upd: "2026-09-09 22:12",
+    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 5004.87, day: 141.99, pnl: -1295.13, rate: -20.56, upd: "2026-09-11 11:28",
       nav: { close: 1.4594, closeDate: "2026-09-08", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
-    { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3326.74, day: -3.55, pnl: 26.74, rate: 0.86, upd: "2026-09-09 19:20",
-      nav: { close: 8.1962, closeDate: "2026-09-08", hi: 8.6249, hiDate: "2026-06-02", lo: 6.5577 } },
-    { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3326.13, day: -3.58, pnl: 26.13, rate: 0.84, upd: "2026-09-09 19:20",
-      nav: { close: 8.0266, closeDate: "2026-09-08", hi: 8.4510, hiDate: "2026-06-02", lo: 6.4277 } },
+    { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3515.19, day: -11.58, pnl: 15.19, rate: 0.46, upd: "2026-09-11 11:11",
+      nav: { close: 8.1667, closeDate: "2026-09-09", hi: 8.6249, hiDate: "2026-06-02", lo: 6.5577 } },
+    { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3514.52, day: -11.58, pnl: 14.52, rate: 0.44, upd: "2026-09-11 11:11",
+      nav: { close: 7.9977, closeDate: "2026-09-09", hi: 8.4510, hiDate: "2026-06-02", lo: 6.4277 } },
   ],
 };
 
@@ -581,6 +593,25 @@ const SNAPSHOTS = [
       "014978": { name: "华安纳指C", qty: 390, cost: 3300, val: 3326.13, pl: 26.13 },
     },
   },
+  {
+    d: "2026-09-10", cash: 9824.40, pl: -8118.61, day: -1644.61, tag: "减仓",
+    note: "场内卖出港美互联网 2,500@1.867（14:54 对账单，金额 4,662.50）；当日全场 −1,644.61（场内 −1,604.40：纳指 −817.20、中韩 −718.20 领跌，港美 +164.90 独涨；场外 −40.21，8/8 只全刷新——摩根 +15.87、中欧港股 +141.99）。华安 A/C、南方份额增加系定投申购（非收益）。⚠ cash 未随卖出回款与定投扣款同步（仍 9,824.40），本期推导资金进出含该口径差；银证转账按脱敏约定未入库。",
+    items: {
+      "159941": { name: "纳指ETF广发", qty: 68100, cost: 107117.80, val: 112365.00, pl: 5247.20 },
+      "513650": { name: "标普500ETF南方", qty: 44000, cost: 85482.95, val: 88836.00, pl: 3353.05 },
+      "513310": { name: "中韩半导体ETF华泰", qty: 13300, cost: 72588.60, val: 64318.80, pl: -8269.80 },
+      "513880": { name: "日经225ETF华安", qty: 13900, cost: 29980.20, val: 30065.70, pl: 85.50 },
+      "160644": { name: "港美互联网LOF", qty: 5100, cost: 14950.30, val: 9547.20, pl: -5403.10 },
+      "023402": { name: "全球精选", qty: 3553, cost: 24500, val: 22562.26, pl: -1937.74 },
+      "021778": { name: "广发纳指F", qty: 2663, cost: 22100, val: 21922.49, pl: -307.48 },
+      "021000": { name: "南方纳指I", qty: 9293.65, cost: 21600, val: 21626.70, pl: 26.70 },
+      "018738": { name: "博时标普E", qty: 2535.87, cost: 13900.00, val: 14103.75, pl: 203.75 },
+      "007280": { name: "日本精选", qty: 3962, cost: 8746.81, val: 8895.54, pl: 148.73 },
+      "015884": { name: "中欧港股", qty: 3351, cost: 6300, val: 5004.87, pl: -1295.13 },
+      "040046": { name: "华安纳指A", qty: 430, cost: 3500, val: 3515.19, pl: 15.19 },
+      "014978": { name: "华安纳指C", qty: 439, cost: 3500, val: 3514.52, pl: 14.52 },
+    },
+  },
 ];
 
 /* ---- 主题（与主看板共用同一 localStorage 键；未设置时跟随系统） ---- */
@@ -631,6 +662,7 @@ const CONFIG = {
   DCA_DIP_TIERS: [-15, -25],   // 成本回撤加仓档（%，负数=较成本跌的深度）：现价跌破档位即提示「已达/距 X% 档」（POSITIONS.strategy.dipTiers 可覆盖）
   SNAP_PL_MIN: 50,   // 快照对比：盈亏变化 ≥ 此值（元）才显示
   SNAP_PCT_MIN: 1,   // 快照对比：占比变化 ≥ 此值（百分点）才显示
+  SNAP_VAL_MIN: 100, // 快照对比：市值变化阈值（备用）——明细已改用 SNAP_PL_MIN 判定，此项保留供市值口径扩展
 };
 const MARKET_NAMES = { ndx: "纳指100", spx: "标普500", kr: "中韩半导体", n225: "日经225", hkus: "港美互联网", global: "全球精选" };
 const MARKET_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日经", hkus: "港美" };   // 日志筛选（仅场内有流水）
@@ -717,6 +749,10 @@ function renderImpl() {
   const dayVals = OTC.funds.map((f) => (Number.isFinite(f.day) ? f.day : null));   // null = 未更新，不参与合计
   const dayOtc = dayVals.filter((v) => v !== null).reduce((a, b) => a + b, 0);    // 当日：场外快照口径（场内为上一美股交易日，不混合）
   const dayMiss = dayVals.filter((v) => v === null).length;
+  /* 场内当日盈亏（估）：Σ 市值 × chg/(100+chg)，chg 为当个交易日涨跌%（data.js AUTO/手工校对）；
+     与场外 day（QDII 净值滞后一天的口径）相加即为「当日盈亏」，与 09-10 起快照 day 字段一致 */
+  const etfDayPl = rows.reduce((a, r) => { const c = r.m.chg || 0; return a + r.valAmt * c / (100 + c); }, 0);
+  const dayAll = etfDayPl + dayOtc;
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   const plNums = rows.map((x) => x.valAmt - x.costAmt).concat(otcRows.map((x) => x.f.pnl));
   const winCnt = plNums.filter((v) => v > 0.5).length, lossCnt = plNums.filter((v) => v < -0.5).length;
@@ -726,7 +762,12 @@ function renderImpl() {
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">⚖️</span> 盈 / 亏持仓</div><div class="s-val"><span class="up">' + winCnt + '</span><span style="color:var(--tx3);font-size:12px"> 盈 / </span><span class="down">' + lossCnt + '</span><span style="color:var(--tx3);font-size:12px"> 亏</span></div><div class="s-sub" style="color:var(--tx3)">共 ' + plNums.length + ' 项</div></div>' +
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">🏦</span> 场内盈亏（估）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub ' + cls(etfPl) + '">' + fmtPct(etfCost ? etfPl / etfCost : 0) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📋</span> 场外盈亏（快照）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub ' + cls(otcPl) + '">' + fmtPct(otcCost ? otcPl / otcCost : 0) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📉</span> 当日（场外快照）</div><div class="s-val ' + cls(dayOtc) + '">' + (dayOtc >= 0 ? "+" : "") + dayOtc.toFixed(2) + '</div><div class="s-sub" style="color:var(--tx3)">仅场外' + (dayMiss ? " · " + dayMiss + " 只未更新" : " 8 基金") + '</div></div>';
+    '<div class="sum-cell"><div class="s-label" title="场内为估值：当日涨跌幅 × 当前持仓推算（当日盘中若有买卖，与券商 App 会略有差异）；场外取 App「日收益」快照读数"><span aria-hidden="true">📉</span> 当日盈亏（估）</div><div class="s-val ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div>' +
+      '<div class="s-sub" style="display:flex;flex-wrap:wrap;justify-content:center;gap:0 6px;color:var(--tx3)">' +
+        '<span>场内 <b class="' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + "</b></span>" +
+        '<span>＋ 场外 <b class="' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + "</b></span>" +
+        (dayMiss ? '<span style="flex-basis:100%">' + dayMiss + " 只场外未更新</span>" : "") +
+      "</div></div>";
 
   /* 组合占比：按市场聚合（场内估值 + 场外快照 + 现金），瘦条只显示短名+百分比，明细进 aria-label */
   const alloc = {};
@@ -1324,45 +1365,51 @@ function snapActions(prev, cur) {
 const SNAP_TAG_CLS = { "加仓": "add", "减仓": "cut", "清仓": "close", "建仓": "open" };
 /* 期次解读文本：⚠ 标记着色强调（内容原样，仅加语义包裹） */
 const snapNoteHtml = (t) => esc(t).split("⚠").join('<b class="warn">⚠</b>');
+/* 快照明细行：「名称(+仓位小标签) | 本期盈亏 | 累计盈亏」——本位是盈亏，仓位仅作后缀提示 */
+const SNAP_TAG_TXT = { open: "建仓", close: "清仓", add: "加仓", cut: "减仓" };
+const snapSigned = (v) => '<span class="' + cls(v) + '">' + (v >= 0 ? "+" : "−") + fmtN(Math.abs(v)) + "</span>";
+function snapItemRow(name, dq, dPlItem, plCum, tag) {
+  let qt = "";
+  if (tag) qt = '<span class="snap-tag ' + tag + '">' + SNAP_TAG_TXT[tag] + "</span>";
+  else if (dq !== null && Math.abs(dq) >= 0.5)
+    qt = '<span class="qty-tag">' + (dq > 0 ? "+" : "−") + fmtN(Math.abs(dq)) + "份</span>";
+  return '<div class="snap-line item"><span class="n" title="' + esc(name) + '"><span class="nn">' + esc(name) + "</span>" + qt + "</span>" +
+    '<span class="d">' + snapSigned(dPlItem) + '</span><span class="v">' + snapSigned(plCum) + "</span></div>";
+}
 function snapPairHtml(prev, cur) {
   const tp = snapTotal(prev), tc = snapTotal(cur);
+  /* 本期间隔天数：快照非连续时（跨周末/断档）「本期盈亏」是累计值，需在列头标明 */
+  const spanDays = Math.max(1, Math.round((Date.parse(cur.d) - Date.parse(prev.d)) / 86400000));
   const dTot = tc - tp;
   const flow = snapFlow(prev, cur);
   const dPl = dTot - flow;   // 期间盈亏变化（= Δ浮盈亏，含已实现）
   const lines = [];
-  /* 持仓明细 diff：仅当相邻两期均为完整快照时展示 */
+  let sumRow = "";
+  /* 持仓明细 diff：仅当相邻两期均为完整快照时展示（三段式，按金额变化降序） */
   if (prev.items && cur.items) {
     const codes = Array.from(new Set(Object.keys(prev.items).concat(Object.keys(cur.items))));
+    const diffs = [];
     codes.forEach((code) => {
       const a = prev.items[code], b = cur.items[code];
-      if (!a) {   // 新建仓
-        lines.push('<div class="snap-line item"><span class="n" title="' + esc(b.name) + '">' + esc(b.name) + "</span>" +
-          '<span class="v"><span class="snap-tag open">建仓</span> 市值 <b>' + fmtWan(b.val) + "</b></span></div>");
-        return;
-      }
-      if (!b) {   // 清仓
-        lines.push('<div class="snap-line item"><span class="n" title="' + esc(a.name) + '">' + esc(a.name) + "</span>" +
-          '<span class="v"><span class="snap-tag close">清仓</span> 原浮盈亏 <b>' + fmtAmt(a.pl) + "</b></span></div>");
-        return;
-      }
-      const parts = [];
+      if (!a) { diffs.push({ name: b.name, dq: null, dPlItem: b.pl || 0, plCum: b.pl || 0, tag: "open" }); return; }   // 建仓
+      if (!b) { diffs.push({ name: a.name, dq: null, dPlItem: -(a.pl || 0), plCum: 0, tag: "close" }); return; }       // 清仓
       const dq = (b.qty || 0) - (a.qty || 0);
-      if (dq > 0) parts.push('<span class="snap-tag add">加仓 ' + fmtN(dq) + ' 份</span>');
-      else if (dq < 0 && !b.qty) parts.push('<span class="snap-tag close">清仓 ' + fmtN(-dq) + ' 份</span>');
-      else if (dq < 0) parts.push('<span class="snap-tag cut">减仓 ' + fmtN(-dq) + ' 份</span>');
-      const dPlItem = (b.pl || 0) - (a.pl || 0);   // 与外层的期间 dPl 区分，避免同名遮蔽
-      if (Math.abs(dPlItem) >= CONFIG.SNAP_PL_MIN) {
-        parts.push(fmtAmt(a.pl) + ' → <b>' + fmtAmt(b.pl) + '</b> ' +
-          '<span class="snap-delta ' + (dPlItem >= 0 ? "up" : "down") + '"><span aria-hidden="true">' + (dPlItem >= 0 ? "↑" : "↓") + "</span>" + fmtN(Math.abs(dPlItem)) + "</span>");
-      }
-      const pp = tp ? a.val / tp * 100 : 0, pc = tc ? b.val / tc * 100 : 0;
-      if (Math.abs(pc - pp) >= CONFIG.SNAP_PCT_MIN) {
-        parts.push('<span class="snap-sub">占比 ' + pp.toFixed(0) + "% → " + pc.toFixed(0) + "%</span>");
-      }
-      if (parts.length) {
-        lines.push('<div class="snap-line item"><span class="n" title="' + esc(b.name) + '">' + esc(b.name) + '</span><span class="v">' + parts.join(" ") + "</span></div>");
-      }
+      const dPlItem = (b.pl || 0) - (a.pl || 0);   // 本期盈亏（本位指标，不受申购/赎回扰动）
+      /* 份额有变 → 必显示；份额未变则本期盈亏需 ≥ SNAP_PL_MIN */
+      if (Math.abs(dq) < 0.5 && Math.abs(dPlItem) < CONFIG.SNAP_PL_MIN) return;
+      diffs.push({ name: b.name, dq: dq, dPlItem: dPlItem, plCum: b.pl || 0, tag: "" });
     });
+    diffs.sort((x, y) => x.dPlItem - y.dPlItem);   // 按本期盈亏升序：亏得最多的排最前
+    diffs.forEach((d) => lines.push(snapItemRow(d.name, d.dq, d.dPlItem, d.plCum, d.tag)));
+    /* 合计行：取全量 items（不套明细阈值），使「本期盈亏合计」＝上方「拆解＝收益」、「累计合计」＝快照 pl */
+    let sD = 0, sC = 0;
+    codes.forEach((code) => {
+      const a = prev.items[code], b = cur.items[code];
+      sD += ((b && b.pl) || 0) - ((a && a.pl) || 0);
+      sC += (b && b.pl) || 0;
+    });
+    sumRow = '<div class="snap-line item snap-sum-row"><span class="n">合计 ' + codes.length + ' 只</span>' +
+      '<span class="d">' + snapSigned(sD) + '</span><span class="v">' + snapSigned(sC) + "</span></div>";
   }
   /* 当日盈亏：独立成行，标明「单日参考」口径，避免与两期变动混淆 */
   const dayTxt = typeof cur.day === "number"
@@ -1372,16 +1419,21 @@ function snapPairHtml(prev, cur) {
     ? ' <span class="snap-sub">（累计 ' + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "）</span>" : "";
   const flowTxt = Math.abs(flow) < 1 ? "" :
     ' ＋ 新投入 <b class="' + (flow > 0 ? "info" : "warn") + '" title="定投扣款/银证转入等外部新资金，非收益">' + (flow > 0 ? "+" : "−") + fmtN(Math.abs(flow)) + "</b>";
+  const actsHtml = snapActions(prev, cur);
   return '<article class="snap-item" data-d="' + cur.d + '">' +
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
-      '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + "</span>" +
+      '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（隔 " + spanDays + " 天）" : "") + "</span>" +
       (cur.tag ? '<span class="snap-tag ' + (SNAP_TAG_CLS[cur.tag] || "add") + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
     '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtWan(tp) + " → <b>" + fmtWan(tc) + '</b> <span class="snap-delta ' + (dTot >= 0 ? "up" : "down") + '" title="两期总资产变动 ＝ 收益 ＋ 新投入">变动 <span aria-hidden="true">' + (dTot >= 0 ? "↑" : "↓") + "</span>" + fmtN(Math.abs(dTot)) + "</span></div>" +
     '<div class="snap-line attr"><span class="n">拆解</span><span class="v">＝ 收益 <b class="' + (dPl >= 0 ? "up" : "down") + '" title="两期之间市值与已实现盈亏变化（含支付宝等补齐的多日累计），非单日">' + fmtAmt2(dPl) + "</b>" + flowTxt + plTxt + "</div>" +
     dayTxt +
     flowBreakHtml(flow, prev.d, cur.d) +
-    snapActions(prev, cur) +
-    (lines.length ? lines.join("") : (!prev.items || !cur.items ? '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">历史简快照无持仓明细，明细 diff 自相邻完整快照起</span></div>' : '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">持仓无变动</span></div>')) +
+    (actsHtml ? '<div class="snap-divider"></div>' + actsHtml : "") +
+    (lines.length
+      ? '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（间隔 ' + spanDays + ' 天）；上方「当日」才是单日口径">本期盈亏' + (spanDays > 1 ? "·" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' + lines.join("") + sumRow
+      : (!prev.items || !cur.items ? "" :
+        '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span></div>' +
+        '<div class="snap-line item"><span class="n"></span><span class="d"></span><span class="v" style="color:var(--tx3)">无变动</span></div>')) +
     (cur.note ? '<div class="snap-note">' + snapNoteHtml(cur.note) + "</div>" : "") +
   "</article>";
 }
