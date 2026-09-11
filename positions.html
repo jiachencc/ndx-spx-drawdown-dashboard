@@ -93,6 +93,13 @@
   .sum-cell .s-val { font-family: var(--mono); font-size: 17px; font-weight: 700; font-feature-settings: "tnum"; }
   .sum-cell .s-sub { font-family: var(--mono); font-size: 10.5px; margin-top: 3px; font-feature-settings: "tnum"; }
   .alloc-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; border: 1px solid var(--line-soft); margin-top: 10px; }
+  /* 板块雷达：横向 chips，与上方占比条对照（前端实时拉腾讯行情；失败回退 CI 收盘值） */
+  .sector-radar { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 10.5px; min-height: 15px; }
+  .sector-radar .sr-item { display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; }
+  .sector-radar .sr-name { color: var(--tx3); }
+  .sector-radar .sr-val { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .sector-radar .sr-pct { color: var(--tx3); font-size: 9.5px; font-family: var(--mono); }
+  .sector-radar .sr-load { color: var(--tx3); font-size: 10px; }
   .alloc-seg { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 8px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; font-feature-settings: "tnum"; border: 0; padding: 0; cursor: pointer; }
   .alloc-seg.ndx { background: linear-gradient(180deg, rgba(91,163,255,.85), rgba(91,163,255,.6)); }
   .alloc-seg.spx { background: linear-gradient(180deg, rgba(186,143,255,.85), rgba(186,143,255,.6)); }
@@ -436,6 +443,7 @@ try {
   <div class="card">
     <div class="sum-grid" id="sum-grid"></div>
     <div class="alloc-bar" id="alloc-bar" role="img" aria-label="组合占比"></div>
+    <div class="sector-radar" id="sector-radar" aria-label="市场板块今日涨跌" aria-live="polite"></div>
   </div>
 
   <h2 class="sec-title"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
@@ -683,6 +691,61 @@ let posInfos = [];   // 现价弹窗数据（场内+场外连续编号，对应 
 let costInfos = [];  // 成本位弹窗数据
 let symIdx = {};     // sym → idx（场内日志筛选）
 
+/* ================= 板块雷达（前端直连腾讯行情，实时）=================
+ * 数据源 https://qt.gtimg.cn/q=<sym>：HTTPS + CORS 已实测可用；返回 GBK，此处只取数字字段避开中文
+ * 隐私：referrerPolicy: "no-referrer"，不把本站地址暴露给第三方
+ * 降级：请求失败 → 回退 data.js 里 CI 抓取的 ETF 收盘涨跌（DEFAULT），不会空白
+ * 节流：60s 内不重复请求（页面重绘时复用上次结果） */
+const SECTOR_RADAR = [
+  { theme: "ndx", name: "纳指100", q: "usNDX", fb: "etfNdx" },
+  { theme: "spx", name: "标普500", q: "usINX", fb: "etfSpx" },
+  { theme: "kr", name: "半导体", q: "usSOXX", fb: "kr" },
+  { theme: "n225", name: "日本", q: "usEWJ", fb: "n225" },
+  { theme: "hkus", name: "恒生科技", q: "hkHSTECH", fb: "hkus" },
+];
+let sectorExp = {};    // theme → 占组合 %（复用组合占比计算结果）
+let sectorData = null; // 最近一次成功拉取的实时数据
+let sectorAt = 0;      // 上次拉取时间戳（60s 节流）
+async function renderSectorRadar() {
+  const el = $("sector-radar");
+  if (!el) return;
+  if (!sectorData || Date.now() - sectorAt > 60000) {
+    if (!el.dataset.done) el.innerHTML = '<span class="sr-load">市场板块加载中…</span>';
+    try {
+      const res = await fetch("https://qt.gtimg.cn/q=" + SECTOR_RADAR.map((s) => s.q).join(","),
+        { referrerPolicy: "no-referrer", cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const buf = await res.arrayBuffer();
+      let txt = "";
+      try { txt = new TextDecoder("gbk").decode(buf); } catch (e) { txt = new TextDecoder().decode(buf); }
+      const got = {};
+      txt.split(";").forEach((line) => {
+        const m = line.match(/v_([A-Za-z0-9_]+)="([^"]*)"/);
+        if (!m) return;
+        const f = m[2].split("~");
+        const chg = parseFloat(f[32]);   // 腾讯字段：[30]=时间 [31]=涨跌额 [32]=涨跌幅% [33]=最高价（勿混）
+        if (isFinite(chg)) got[m[1]] = { close: parseFloat(f[3]), chg: chg, t: f[30] || "" };
+      });
+      if (Object.keys(got).length) { sectorData = got; sectorAt = Date.now(); }
+    } catch (err) { /* 保留 sectorData（可为 null → 走降级） */ }
+  }
+  el.dataset.done = "1";
+  el.innerHTML = SECTOR_RADAR.map((s) => {
+    const d = sectorData && sectorData[s.q];
+    let val;
+    if (d) {
+      val = '<span class="sr-val ' + cls(d.chg) + '" title="' + esc(d.t) + ' 实时">' + (d.chg >= 0 ? "+" : "−") + Math.abs(d.chg).toFixed(2) + "%</span>";
+    } else {
+      const fb = (typeof DEFAULT !== "undefined") ? DEFAULT[s.fb] : null;
+      val = (fb && isFinite(fb.chg))
+        ? '<span class="sr-val ' + cls(fb.chg) + '" title="实时不可用 · 显示 CI 收盘值">' + (fb.chg >= 0 ? "+" : "−") + Math.abs(fb.chg).toFixed(2) + "%</span>"
+        : '<span class="sr-val" style="color:var(--tx3)">—</span>';
+    }
+    const pct = (sectorExp[s.theme] != null && sectorExp[s.theme] >= 0.5)
+      ? '<span class="sr-pct">' + sectorExp[s.theme].toFixed(0) + "%</span>" : "";
+    return '<span class="sr-item"><span class="sr-name">' + s.name + "</span>" + val + pct + "</span>";
+  }).join("");
+}
 function renderImpl() {
   closeIdxPop();
   if (typeof DEFAULT === "undefined" || typeof POSITIONS === "undefined") {
@@ -785,6 +848,10 @@ function renderImpl() {
   }).join("");
   $("alloc-bar").setAttribute("aria-label", "组合占比：" + Object.keys(alloc).map((k) =>
     ALLOC_NAMES[k] + " " + (allocTotal ? (alloc[k] / allocTotal * 100).toFixed(1) : 0) + "%（" + fmtWan(alloc[k]) + "）").join("，"));
+  /* 板块雷达：把各方向占比交给雷达，与实时涨跌并排展示 */
+  sectorExp = {};
+  Object.keys(alloc).forEach((k) => { sectorExp[k] = allocTotal ? alloc[k] / allocTotal * 100 : 0; });
+  renderSectorRadar();
 
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
