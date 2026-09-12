@@ -65,7 +65,7 @@ const CALENDAR = [
  * 口径统一为 ETF 自身场内价：idxAtCost = 加权成本价（= cost）。行情基准 DEFAULT.etfNdx/etfSpx/kr/n225/hkus。
  * 每次买卖后：更新 hold 的 qty/cost，并在 log 顶部加一条流水。 */
 const POSITIONS = {
-  updated: "2026-09-09",
+  updated: "2026-09-11",
   strategy: { dip: -2, rally: 3 }, // MANUAL：日内波动操作线（%）：当日跌 ≥|dip| 提示加仓、涨 ≥rally 提示减仓
   // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）＝ ETF 场内买入价相对基金实际价值的偏离；
   // 由脚本从天天基金净值接口自动计算。QDII 净值滞后 1-2 个交易日，溢价为近似值。折价为负。
