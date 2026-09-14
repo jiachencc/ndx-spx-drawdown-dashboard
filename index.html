@@ -550,6 +550,8 @@
   </div>
 </div>
 
+<details class="asof-bar" id="source-details"><summary id="source-summary">数据来源与有效性</summary><div id="source-rows" style="font-size:12px;overflow-wrap:anywhere"></div><p style="font-size:11px;color:var(--tx3)">有效期按来源日期和工作日容忍窗口计算，未内置各交易所节假日；不代表实时行情。抓取时间不替代来源日期。</p></details>
+
 <!-- ======= Signal banner ======= -->
 <div class="signal-banner" id="banner" role="alert" aria-live="polite">
   <div class="sig-icon" id="sig-icon">--</div>
@@ -809,7 +811,7 @@
 
 <!-- ======= DCA zero indicator ======= -->
 <div class="card card-hi" id="card-dca">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">💸</span> 定投回测指标 · 每日定投收益率<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="dca">?</button></div>
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">💸</span> 定投回测指标 · 每日定投收益率<span class="src-tag manual">固定历史快照</span><button class="hint-i" type="button" aria-label="查看定投回测释义" data-h="dca">?</button></div>
   <div class="dca-ctrl">
     <div class="dca-ctrl-row"><label>标的</label>
       <div class="dca-toggle" id="dca-toggle">
@@ -900,7 +902,7 @@ const RULES = {
   pePct: { hi: 80, mid: 60, dir: "hi", op: ">" },
   vix:   { hi: 30, mid: 20, dir: "hi", op: ">" },
   fg:    { hi: 55, mid: 45, dir: "hi", op: ">=" },
-  erp:   { hi: 0,  mid: 2,  dir: "lo", op: "<" },
+  erp:   { hi: DECISION_RULES.t4Erp, mid: 2,  dir: "lo", op: "<" },   // hi 与 T+4 同源
   eps:   { hi: 0,  mid: 3,  dir: "lo", op: "<" }
 };
 /* 回撤配色：≤t2 红 / ≤0 黄 / >0 绿（仅无回撤时用绿） */
@@ -928,12 +930,12 @@ function renderIndexCard(p, idx, th) {
   $(p + "-toath").textContent = pct(toAthOf(idx));
   $(p + "-days").textContent = idx.days + " 天";
   const to15 = dd - th.t2;
-  $(p + "-to15").textContent = "还差 " + to15.toFixed(2) + "pp";
+  $(p + "-to15").textContent = to15 <= 1e-9 ? "已到档" : "还差 " + to15.toFixed(2) + "pp";
   $(p + "-to15").className = "k-val small " + (to15 > -3 ? "down" : "flat");
   $(p + "-rsi").textContent = idx.rsi.toFixed(1);
   $(p + "-rsi").style.color = idx.rsi >= 70 ? "var(--red)" : (idx.rsi <= 30 ? "var(--green)" : "var(--tx)");
-  const w52 = Math.min(100, Math.max(0, (idx.close - idx.low52) / (idx.ath - idx.low52) * 100));
-  $(p + "-52w").textContent = Math.round(w52) + "%";
+  const w52 = Number.isFinite(idx.high52) && idx.high52 > idx.low52 ? Math.min(100, Math.max(0, (idx.close - idx.low52) / (idx.high52 - idx.low52) * 100)) : NaN;
+  $(p + "-52w").textContent = Number.isFinite(w52) ? Math.round(w52) + "%" : "待核验";
   $(p + "-52w").style.color = w52 <= 30 ? "var(--green)" : (w52 >= 80 ? "var(--red)" : "var(--tx)");
 }
 
@@ -1022,8 +1024,8 @@ function renderAll() {
   $("val-state").textContent = D.pePct > 80 ? "偏贵 🔴" : (D.pePct > 60 ? "中性 🟡" : "便宜 🟢");
   $("val-state").style.color = bandColor(D.pePct, RULES.pePct);
   $("val-zones").style.setProperty("--pos", Math.min(100, Math.max(0, D.pePct)) + "%");
-  /* ERP = 盈利收益率 − 10Y 美债 */
-  const erpF = 100 / D.peFwd - D.tnx;
+  /* ERP = 盈利收益率 − 10Y 美债；Fwd 口径取自规则引擎，TTM 口径无对应规则 */
+  const erpF = evaluateDecision(D).erp;
   const erpT = 100 / D.peTtm - D.tnx;
   $("val-erp").textContent = pct(erpF);
   $("val-erp").style.color = bandColor(erpF, RULES.erp);
@@ -1104,6 +1106,7 @@ function renderAll() {
 
   /* data staleness */
   renderStale();
+  renderSourceHealth();
 
   /* hide loading overlay */
   const ld = $("loading");
@@ -1210,10 +1213,14 @@ function renderTriggers(ndxDD) {
   let html = "";
   TRIG_DEF.forEach((t, i) => {
     const dd = bands[i];
-    const passed = ndxDD <= dd;
+    const state = evaluateDecision(D);
+    const passed = state.healthy && state.level >= i + 1;
     const dist = ndxDD - dd;
     let stateHtml, distTxt, rowBg = false, bandColor = "var(--tx3)";
-    if (passed) {
+    if (!state.healthy) {
+      stateHtml = '<span class="trig-state st-off">数据受限</span>';
+      distTxt = "只读规则";
+    } else if (passed) {
       stateHtml = `<span class="trig-state st-on">✓ 已触发</span>`;
       distTxt = "当前已穿越";
       rowBg = true;
@@ -1231,7 +1238,7 @@ function renderTriggers(ndxDD) {
     }
     html += `
       <div class="trig-row" ${rowBg ? 'style="background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;"' : ''}>
-        <div class="trig-band" style="color:${bandColor}">${t.band}</div>
+        <div class="trig-band" style="color:${bandColor}">${dd}%</div>
         <div class="trig-info">
           <div class="t-title">${t.title}</div>
           <div class="t-desc">${t.desc}</div>
@@ -1239,7 +1246,7 @@ function renderTriggers(ndxDD) {
         <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
       </div>`;
   });
-  box.innerHTML = html + '<div class="note" style="margin-top:10px;">历史统计口径：NDX 2016-2026，独立下跌段，触发后 60 个交易日窗口</div>';
+  box.innerHTML = html + '<div class="note" style="margin-top:10px;">历史统计为旧版固定文案，原始样本与生成脚本待核验，不参与规则计算，也不代表未来胜率。所称口径：NDX 2016-2026 独立下跌段、触发后 60 个交易日。</div>';
 }
 
 /* ================= Condition check ================= */
@@ -1250,9 +1257,10 @@ function renderConds() {
   /* 资格条件：回撤档位（与触发矩阵联动） */
   /* 图标与文字解耦：图标 aria-hidden（纯装饰），文字带语义，避免读屏朗读 emoji 名 */
   const ddIcon = dd <= th.t4 ? "⚫" : dd <= th.t3 ? "🔴" : dd <= th.t2 ? "🟠" : dd <= th.t1 ? "🟡" : "🟢";
-  const ddWord = dd <= th.t4 ? "-35% 历史级" : dd <= th.t3 ? "-25% 重仓" : dd <= th.t2 ? "-15% 加仓" : dd <= th.t1 ? "-5% 关注" : "待机区";
+  const ddWord = dd <= th.t4 ? th.t4 + "% 第四档" : dd <= th.t3 ? th.t3 + "% 第三档" : dd <= th.t2 ? th.t2 + "% 加仓档" : dd <= th.t1 ? th.t1 + "% 关注" : "待机区";
   const ddBand = '<span aria-hidden="true">' + ddIcon + '</span> ' + ddWord;
-  const qualified = dd <= th.t1;
+  const state = evaluateDecision(D);
+  const qualified = state.level >= 2;
   /* 确认条件：趋势/动能/情绪/估值 */
   const conds = [
     { name: "MA200（200日均线）之上，趋势完好", hit: D.ndx.close > D.ndx.ma200, note: "NDX " + fmt0(D.ndx.close) + " vs MA200 " + fmt0(D.ndx.ma200) },
@@ -1260,7 +1268,8 @@ function renderConds() {
     { name: "VIX（恐慌指数）> 25，恐慌升温", hit: D.vix > 25,           note: "VIX " + D.vix.toFixed(2) },
     { name: "Forward PE 估值分位 < 60，便宜", hit: D.pePct < 60,          note: "当前分位 " + D.pePct + "（贵过历史上 " + D.pePct + "% 的时间）" },
   ];
-  const confirmHit = conds.filter(c => c.hit).length;
+  conds.forEach((c, i) => { c.hit = state.confirmations[i].hit; });
+  const confirmHit = state.count;
   let html = `
     <div class="trig-row" style="${qualified ? 'background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;' : ''}">
       <div style="font-size:16px;width:24px;flex-shrink:0;"><span aria-hidden="true">${qualified ? "✅" : "⬜"}</span></div>
@@ -1268,7 +1277,7 @@ function renderConds() {
         <div class="t-title" style="font-size:12.5px;">资格条件 · 回撤档位已触发</div>
         <div class="t-desc">当前 ${ddBand}（距高点 ${dd.toFixed(2)}%）</div>
       </div>
-      <span class="trig-state ${qualified ? "st-on" : "st-off"}">${qualified ? "已触发" : "未触发"}</span>
+      <span class="trig-state ${qualified ? "st-on" : "st-off"}">${!state.healthy ? "数据受限" : qualified ? "已到档" : "未到档"}</span>
     </div>`;
   conds.forEach(c => {
     html += `
@@ -1281,87 +1290,36 @@ function renderConds() {
         <span class="trig-state ${c.hit ? "st-on" : "st-off"}">${c.hit ? "满足" : "未满足"}</span>
       </div>`;
   });
-  const verdict = !qualified
-    ? '<b style="color:var(--green)"><span aria-hidden="true">🟢</span> 未到加仓档位，维持正常定投，等待回撤给安全边际</b>'
-    : confirmHit >= 2
-      ? `<b style="color:var(--blue)"><span aria-hidden="true">✅</span> ${ddBand}已触发且确认 ${confirmHit}/4，可执行对应档位操作</b>`
-      : `<b style="color:var(--yellow)"><span aria-hidden="true">🟡</span> ${ddBand}已触发但确认不足（${confirmHit}/4），半仓试探或等 1-2 天确认</b>`;
+  const verdict = '<b style="color:var(--' + (!state.healthy ? "red" : "blue") + ')">' + state.status + '</b>' +
+    (qualified && !state.bandReady ? '；本档专属条件未满足，不能由其他确认项替代。' : '');
   html += `<div class="note" style="margin-top:10px;">确认条件命中 <b style="color:var(--blue)">${confirmHit}/4</b>。${verdict}</div>`;
   box.innerHTML = html;
 }
 
 /* ================= Take-profit matrix ================= */
 function renderTakeProfit() {
-  const box = $("tp-matrix");
-  const ndx = D.ndx;
-  const ytd = ytdOf(ndx);
-  const distAth = -ddOf(ndx);                 // 距 ATH 的百分比（正值）
-  const erpF = 100 / D.peFwd - D.tnx;          // Fwd 口径股权风险溢价
-  const gap = (cur, tgt) => Math.max(0, tgt - cur);
-  const TP_DEF = [
-    { band: "+18%", title: '<span aria-hidden="true">🟢</span> T+1 · 停止大额定投', desc: "YTD（年初至今涨幅）≥ +18% 或 距 ATH（历史最高点）< 8% → 大额定投转小额 · 每季重估，距高点>10% 自动恢复大额（历史：YTD+15~20%后短期继续涨居多，只停加码不卖出）",
-      hit: () => ytd >= 18 || distAth < 8, dist: () => Math.min(gap(ytd, 18), gap(distAth, 8)) },
-    { band: "+22%", title: '<span aria-hidden="true">🟡</span> T+2 · 兑现浮盈 15-20%', desc: "YTD ≥ +22% 或 恐贪 ≥ 85 → 分批兑现（历史：YTD 首破 +20% 后 20 日胜率仅 38%，疲软窗口起点）",
-      hit: () => ytd >= 22 || D.fg >= 85, dist: () => Math.min(gap(ytd, 22), gap(D.fg, 85)) },
-    { band: "90分位", title: '<span aria-hidden="true">🟠</span> T+3 · 兑现至仓位下限', desc: "PE分位（估值贵过历史上多少%的时间）≥ 90% 且 RSI（涨跌动能指标）≥ 75 → 兑现至目标下限",
-      hit: () => D.pePct >= 90 && ndx.rsi >= 75, dist: () => Math.min(gap(D.pePct, 90), gap(ndx.rsi, 75)) },
-    { band: "ERP<0", title: '<span aria-hidden="true">🔴</span> T+4 · 降杠杆转防御', desc: "ERP（股票盈利收益率 − 国债利率，越低越贵）< 0 → 系统性降杠杆，转防御",
-      hit: () => erpF < 0, dist: () => Math.max(0, erpF) },
-  ];
-  let html = "";
-  TP_DEF.forEach(t => {
-    const hit = t.hit();
-    const d = t.dist();
-    let stateHtml, distTxt, rowBg = false, bandColor = "var(--tx3)";
-    if (hit) {
-      stateHtml = `<span class="trig-state tp-on">✓ 已触发</span>`;
-      distTxt = "已达兑现条件";
-      rowBg = true; bandColor = "var(--green)";
-    } else if (d <= 4) {
-      stateHtml = `<span class="trig-state tp-near">◔ 接近</span>`;
-      distTxt = "还差 " + d.toFixed(2) + "pp";
-      rowBg = true; bandColor = "var(--purple)";
-    } else if (d <= 12) {
-      stateHtml = `<span class="trig-state st-off">○ 观察</span>`;
-      distTxt = "还差 " + d.toFixed(2) + "pp";
-    } else {
-      stateHtml = `<span class="trig-state st-far">○ 远离</span>`;
-      distTxt = "还差 " + d.toFixed(2) + "pp";
-    }
-    html += `
-      <div class="trig-row" ${rowBg ? 'style="background:rgba(45,212,167,.04);border-radius:8px;padding:9px 8px;"' : ''}>
-        <div class="trig-band" style="color:${bandColor}">${t.band}</div>
-        <div class="trig-info">
-          <div class="t-title">${t.title}</div>
-          <div class="t-desc">${t.desc}</div>
-        </div>
-        <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
-      </div>`;
-  });
-  box.innerHTML = html;
+  const state = evaluateDecision(D);
+  $("tp-matrix").innerHTML = state.exits.map(t => {
+    const active = state.healthy && t.hit;
+    const label = !state.healthy ? "数据受限" : t.hit ? "已触发" : "未触发";
+    return '<div class="trig-row"><div class="trig-band">' + t.band + '</div><div class="trig-info">' +
+      '<div class="t-title">' + t.id + ' · ' + t.title + '</div><div class="t-desc">' + t.detail + '</div></div>' +
+      '<div class="trig-right"><span class="trig-state ' + (active ? "tp-on" : "st-off") + '">' + label + '</span>' +
+      '<div class="trig-dist">' + (!state.healthy ? "仅展示规则，不生成动作结论" : t.hit ? "规则条件满足" : t.unmet) + '</div></div></div>';
+  }).join("");
 }
 
 /* ================= Banner ================= */
 function renderBanner(ndxDD) {
   const th = D.thresholds;
-  let icon, title, desc, tagCls, tagTxt;
-  const rsiNote = D.ndx.rsi < 35 ? "（RSI 已超卖 ✅）" : "（RSI 中性，动能未确认 ⚠️）";
-  if (ndxDD <= th.t4) {
-    icon = "⚫"; title = "历史级机会：已触发 -35% 档"; tagCls = "tag-black"; tagTxt = '<span aria-hidden="true">⚫</span> 战略加仓';
-    desc = "5 年一遇回撤深度" + rsiNote + "。检查 ERP 是否>5%，剩余弹药分 3 批打满，但保留 20% 现金应对尾部风险。";
-  } else if (ndxDD <= th.t3) {
-    icon = "🔴"; title = "重仓低吸：已触发 -25% 档"; tagCls = "tag-red"; tagTxt = '<span aria-hidden="true">🔴</span> 重仓区';
-    desc = "若 VIX>30 或恐慌蔓延，可提高单笔 DCA 额度（×2~×3）、拉大加仓间隔至 2-3 周一次" + rsiNote + "。";
-  } else if (ndxDD <= th.t2) {
-    icon = "🟠"; title = "DCA 加仓：已触发 -15% 档"; tagCls = "tag-orange"; tagTxt = '<span aria-hidden="true">🟠</span> 加仓区';
-    desc = "MA200 未破则按计划 DCA×2" + rsiNote + "；HBM/DRAM 存储超级周期主题同步触发加仓条件。";
-  } else if (ndxDD <= th.t1) {
-    icon = "🟡"; title = "关注区：回撤 " + pct(ndxDD); tagCls = "tag-yellow"; tagTxt = '<span aria-hidden="true">🟡</span> 关注 · 等待';
-    desc = "观察为主" + rsiNote + "。若估值分位<60% 或 VIX 快速抬升，可小额分批试探性加仓，否则按兵不动。";
-  } else {
-    icon = "🟢"; title = "待机区：回撤 < 5%"; tagCls = "tag-green"; tagTxt = '<span aria-hidden="true">🟢</span> 正常定投';
-    desc = "趋势健康，维持原定投计划即可，不追高不加码，等待回撤给出安全边际。";
-  }
+  const state = evaluateDecision(D);
+  const icon = state.healthy ? "=" : "!";
+  const title = state.status;
+  const tagCls = state.healthy ? "tag-yellow" : "tag-red";
+  const tagTxt = state.healthy ? "规则评估" : "数据受限";
+  const desc = !state.healthy
+    ? "关键输入未核验或已过期：" + state.invalid.map(h => h.label).join("、") + "。历史读数仍可查看，暂不生成操作结论。"
+    : "回撤 " + pct(state.dd) + "；确认 " + state.count + "/4。页头与矩阵共用同一规则；多档同时满足时显示最高止盈档，买卖规则冲突需人工复核。";
   $("sig-icon").innerHTML = '<span aria-hidden="true">' + icon + '</span>';
   $("sig-title").textContent = title;
   $("sig-desc").textContent = desc;
@@ -1370,16 +1328,15 @@ function renderBanner(ndxDD) {
   /* 结论锚定：关键数字 */
   $("sk-dd").textContent = pct(ndxDD);
   $("sk-dd").style.color = ddColor(ndxDD, th);
-  const erpF = 100 / D.peFwd - D.tnx;
+  const erpF = state.erp;
   $("sk-erp").textContent = pct(erpF);
   $("sk-erp").style.color = bandColor(erpF, RULES.erp);
   $("sk-fg").textContent = D.fg;
-  $("sk-fg").style.color = D.fg >= 85 ? "var(--red)" : (D.fg >= 55 ? "var(--yellow)" : "var(--green)");
+  $("sk-fg").style.color = D.fg >= state.rules.t2Fg ? "var(--red)" : (D.fg >= RULES.fg.hi ? "var(--yellow)" : "var(--green)");
   const ytd = ytdOf(D.ndx);
   const distAth = -ndxDD;
-  const tpTxt = (ytd >= 15 || distAth < 8) ? "T+1 ✓" : (ytd >= 25 || D.fg >= 85) ? "T+2 观察" : "未触发";
-  $("sk-tp").textContent = tpTxt;
-  $("sk-tp").style.color = (ytd >= 15 || distAth < 8) ? "var(--yellow)" : "var(--tx3)";
+  $("sk-tp").textContent = !state.healthy ? "暂不评估" : state.exit ? state.exit.id + " 已触发" : "未触发";
+  $("sk-tp").style.color = state.healthy && state.exit ? "var(--yellow)" : "var(--tx3)";
 
   renderDCA();
 }
@@ -1397,16 +1354,27 @@ function renderStale() {
   $("stale-days").textContent = days;
 }
 
+function renderSourceHealth() {
+  const keys = ["ndx", "spx", "vix", "fg", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth"];
+  const all = keys.map(k => sourceHealth(k));
+  $("source-summary").textContent = "数据有效性：" + all.filter(h => h.usable).length + "/" + all.length + " 项在有效期内；展开查看各自来源日期";
+  const root = $("source-rows"); root.replaceChildren();
+  all.forEach(h => { const p = document.createElement("p"); p.textContent = h.label + " · " + h.text + " · 数据日 " + (h.asOf || "未知") + " · 来源 " + h.source + " · 最近成功抓取 " + (SOURCE_META[h.key]?.fetchedAt || "未记录"); p.style.color = h.usable ? "var(--tx2)" : "var(--red)"; root.appendChild(p); });
+  if (!evaluateDecision(D).healthy) {
+    ["note-trend", "note-val", "note-sent"].forEach(id => { $(id).textContent = "输入日期或口径未核验，仅展示沿用指标；暂停市场状态与操作判断，详见来源明细。"; });
+  }
+  const fields = { "ndx-close": ["ndx"], "spx-close": ["spx"], "sent-vix": ["vix", "fg", "tnx", "tnx2", "putcall"], "val-pe": ["peFwd", "peTtm", "pePct", "cape", "ndxPeFwd", "ndxPePct", "epsGrowth"], "fx-num": ["fx"] };
+  Object.entries(fields).forEach(([id, ks]) => {
+    const card = $(id)?.closest(".card"); if (!card) return;
+    let note = card.querySelector(".source-health-note");
+    if (!note) { note = document.createElement("div"); note.className = "source-health-note note"; card.appendChild(note); }
+    note.textContent = ks.map(k => { const h = sourceHealth(k); return h.label + " " + (h.asOf || "日期未知") + "（" + h.text + "）"; }).join(" · ");
+  });
+}
+
 /* ================= Golden line ================= */
 function renderGolden(ndxDD, spxDD) {
-  const th = D.thresholds;
-  let text;
-  if (ndxDD <= th.t4) text = "回撤到 -35% 不是恐慌，是别人把筹码递到你手里——分 3 批接，留 2 成子弹。";
-  else if (ndxDD <= th.t3) text = "-25% 的回撤是市场给勇敢者的折扣券，但记得：打折的是价格，不是逻辑。";
-  else if (ndxDD <= th.t2) text = "-15% 触发的不是加仓按钮，而是纪律按钮——按计划走，别让情绪接管方向盘。";
-  else if (ndxDD <= th.t1) text = "回撤是导航仪不是倒车镜——-5% 只点亮了「关注灯」，估值情绪未配合，管住手等 -15% 的 DCA 线。";
-  else text = "市场在上涨，你更需要纪律——回撤不到 -5%，一切照旧，赚钱靠的是不在高位加码。";
-  $("golden-text").textContent = text;
+  $("golden-text").textContent = evaluateDecision(D).status + "。规则辅助记录，不代替风险判断；历史统计待可复现回测验证。";
 }
 
 /* ================= Monthly performance ================= */
@@ -1421,7 +1389,8 @@ function renderMonthly() {
   $("mc-axpos").textContent = "+" + MC_MAX + "%";
   $("mc-axneg").textContent = "-" + MC_MAX + "%";
   $("mc-max").textContent = MC_MAX;
-  $("mc-asof").textContent = D.asOf.us + (D.intraday ? " 盘中" : " 收盘");
+  const mh = sourceHealth("monthly");
+  $("mc-asof").textContent = (mh.asOf || "日期未核验") + " · " + mh.text + " · 价格涨跌口径";
   let html = "";
   MONTHLY.forEach(d => {
     const v = d[idxKey];
@@ -1449,7 +1418,7 @@ function renderMonthly() {
   const worst = MONTHLY.reduce((b, d) => (d[idxKey] < b[idxKey] ? d : b), MONTHLY[0]);
   const upMonths = MONTHLY.filter(d => d[idxKey] >= 0).length;
   $("mchart-summary").innerHTML =
-    `年内累计(总回报) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/${MONTHLY.length}</b>` +
+    `年内累计(价格涨跌) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/${MONTHLY.length}</b>` +
     ` · 最强 <b>${best.m} ${pct(best[idxKey])}</b> · 最弱 <b>${worst.m} ${pct(worst[idxKey])}</b>`;
   $("mchart-cross").innerHTML =
     `对比 ${otherName} 年内累计 <b class="up">${pct(otherCum*100)}</b>`;
@@ -1475,7 +1444,7 @@ const HINTS = {
   dd:       { name: "回撤",    plain: "从历史最高点往下数，<b>跌了多少</b>。跌 5% = 离山顶还差 5%。", pro: "当前价 ÷ 历史最高价 − 1，再 ×100%。" },
   rsi:      { name: "RSI(14)", plain: "市场的<b>体温计</b>：＞70 太热（超买，易回调），＜30 太冷（超卖，易反弹），50 上下 = 没方向。", pro: "14 日平均涨幅 ÷ 平均跌幅，归一化到 0–100 的动能指标。" },
   scale:    { name: "回撤深度尺", plain: "把当前回撤画在 0 ~ -40% 的尺子上，<b>越靠左 = 跌得越深</b>。圆点压进哪个色带，就对应哪个加仓档位。", pro: "N 点（轨道上方）= NDX，S 点（轨道下方）= SPX；色带边界取自 thresholds（-5/-15/-25/-35），下方三个价格 = NDX 跌至对应档位时的点位参考。" },
-  pos52w:   { name: "52周位置", plain: "现价在过去一年价格区间里排第几。<b>77% = 比过去一年 77% 的时间都贵</b>。", pro: "(现价 − 52周最低) ÷ (52周最高 − 52周最低) ×100。" },
+  pos52w:   { name: "52周位置", plain: "现价在过去一年最高与最低价之间的<b>线性位置</b>，不是历史价格的时间百分位。", pro: "(现价 − 52周最低) ÷ (52周最高 − 52周最低) ×100。缺少独立 52 周最高值时不以 ATH 冒充。" },
   ma50:     { name: "MA50",    plain: "最近 50 个交易日的<b>平均价线</b>，看短期趋势：价格在线上面 = 短期多头占优，下面 = 空头占优。", pro: "50 日均线 SMA(50)；显示的是现价相对它的偏离度。" },
   ma200:    { name: "MA200",   plain: "最近 200 个交易日（约一年）的平均价线，<b>牛熊分界线</b>：站上 = 长期趋势完好，跌破 = 趋势转弱要警惕。", pro: "200 日均线 SMA(200)，机构常用的牛熊参考线。" },
   breadth:  { name: "市场广度", plain: "<b>科技龙头（纳指）vs 整个市场（标普）</b>今年谁跑得快。龙头领跑 = 行情健康；龙头掉队 = 警惕抱团瓦解。", pro: "NDX 的 YTD 涨幅 − SPX 的 YTD 涨幅（pp = 百分点差）。" },
@@ -1495,8 +1464,8 @@ const HINTS = {
   curve:    { name: "收益率曲线", plain: "短期（2年）与长期（10年）利率之差。<b>倒挂（2Y＞10Y）</b>= 市场押注衰退，历史预警信号。", pro: "2Y − 10Y 利差；持续倒挂通常领先经济衰退 12–18 个月。" },
   putcall:  { name: "Put/Call", plain: "看跌的人 vs 看涨的人谁更活跃。<b>＞1.1</b> 大众防御（逆向看机会）、<b>＜0.7</b> 大众贪婪（逆向要谨慎）。", pro: "看跌期权成交量 ÷ 看涨期权成交量。" },
   trig:     { name: "回撤触发矩阵", plain: "跌到不同深度做不同动作：<b>-5% 只观察、-15% 开始加仓、-25% 重仓、-35% 历史级机会</b>。缩写：DCA=定投、MA200=200日均线（长期趋势线）、VIX=恐慌指数、ERP=股票相对国债的收益差。每档的历史频率/胜率来自 10 年日K回测（口径见卡片底部）。", pro: "四级回撤阈值 T1–T4，配合确认条件（趋势/动能/情绪/估值）后执行。" },
-  cond:     { name: "档位资格 × 确认条件", plain: "先看<b>资格条件</b>：回撤是否到达加仓档位；再看<b>确认条件</b>（4 条）：MA200=200日均线（趋势）、RSI=涨跌动能、VIX=恐慌指数、Forward PE 分位=估值贵便宜。资格触发 + 确认≥2 才出手，资格到了但确认不足就半仓试探。", pro: "回撤档位为资格条件，MA200/RSI/VIX/估值分位为确认条件，避免单信号误判。" },
-  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。缩写：YTD=年初至今涨幅、ATH=历史最高点、PE分位=估值百分位、RSI=涨跌动能、ERP=股票相对国债的收益差。档位动作：T+1 先停加码（YTD +18%）→ T+2 兑现部分（YTD +22%）→ T+3/T+4 降杠杆转防御。T+1 触发后市场若崩盘（距高点>10%）会自动恢复大额定投。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
+  cond:     { name: "档位资格 × 确认条件", plain: "先看<b>资格条件</b>：回撤是否到达加仓档位；再看<b>确认条件</b>（4 条）：MA200=200日均线（趋势）、RSI=涨跌动能、VIX=恐慌指数、Forward PE 分位=估值贵便宜。从 -15% 起才具备加仓档位资格；确认≥2 且本档专属条件满足后才显示规则满足。确认不足不推导试探仓位；数据受限时暂停结论。", pro: "回撤档位为资格条件，MA200/RSI/VIX/估值分位为确认条件，避免单信号误判。" },
+  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。缩写：YTD=年初至今涨幅、ATH=历史最高点、PE分位=估值百分位、RSI=涨跌动能、ERP=股票相对国债的收益差。档位动作：T+1 先停加码（YTD +18%）→ T+2 兑现部分（YTD +22%）→ T+3/T+4 降杠杆转防御。距高点>10% 时 T+1 规则暂停；本页没有跨日持久状态，不模拟滞回式恢复。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
   stress:   { name: "压力测试", plain: "提前算好<b>预案</b>：NDX 再跌 10%/15%/25%/35% 点位到哪、该做什么。跌到哪早有数，不慌。", pro: "由 ATH 按不同回撤幅度反推的目标点位。" },
   median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。-7.5% 是“普通回撤”的典型深度，-15% 以下才算少见。", pro: "近 10 年历次回撤深度的中位数。" },
   dca:      { name: "定投回测指标", plain: "你每天投 1 元，<b>分批买入</b>至今总共赚/亏多少。它对比「定投」和「一次性全仓买入」两种玩法：上涨市里定投<b>跑输</b>一次性（越买越贵），下跌市里定投<b>跑赢</b>。它不是买卖信号，只是让你看清定投的真实体感。", pro: "定投收益率 = (P_end·Σ(1/P_t) − N)/N；与每日金额无关。对比同区间一次性买入的区间涨跌幅。" },
@@ -1579,8 +1548,9 @@ function renderDCA() {
   const mkt = shares * cur;
   const fullRet = (mkt - inv) / inv;
   $("dca-sum").innerHTML =
-    "自 <b>" + fmtDate8(DCA_START) + "</b> 起，每日定投 <b>" + dcaAmt + "</b> 元，共 <b>" + n + "</b> 天 —<br>" +
-    "累计投入 <b>" + fmt0(inv) + "</b> 元 · 当前市值 <b>" + fmt0(mkt) + "</b> 元 · 总收益率 <span class=\"" + clsN(fullRet) + "\">" + pctSign(fullRet * 100) + "</span>";
+    "固定历史回测 <b>" + DCA_META.start + " → " + DCA_META.end + "</b>（不随页头行情更新）<br>" +
+    "每日定投 <b>" + dcaAmt + "</b> 元，共 <b>" + n + "</b> 个样本日 · 累计投入 <b>" + fmt0(inv) +
+    "</b> 元 · 回测期末市值 <b>" + fmt0(mkt) + "</b> 元 · 总收益率 <span class=\"" + clsN(fullRet) + "\">" + pctSign(fullRet * 100) + "</span>";
 
   // 窗口表（收益率与金额无关）
   let rows = "";
@@ -1590,17 +1560,14 @@ function renderDCA() {
     const dr = dcaRet(sub) * 100;
     const lr = lumpRet(sub) * 100;
     const diff = dr - lr;
-    rows += "<tr><td>" + w.label + "</td>" +
+    rows += "<tr><td>" + (w.off === n ? "全周期" : "末尾 " + w.off + " 日样本") + "</td>" +
       "<td class=\"" + clsN(dr) + "\">" + pctSign(dr) + "</td>" +
       "<td class=\"" + clsN(lr) + "\">" + pctSign(lr) + "</td>" +
       "<td class=\"" + clsN(diff) + "\">" + ppp(diff) + "</td></tr>";
   });
   $("dca-rows").innerHTML = rows;
 
-  $("dca-note").innerHTML =
-    "📌 <b>怎么读</b>：本表按「每日定投 1 元」回测（收益率与金额无关，1 元或 100 元结果相同）。<b>定投收益</b>=分批买入至今的总回报；<b>一次性买</b>=区间起点全仓持有至今的涨跌幅。" +
-    "<br>👉 <b>关键结论</b>：所列窗口以长期上涨周期为主，<b>定投系统性跑输一次性买入</b>（牛市越买越贵）——短窗口（1月/3月）若定投跑赢或差距收窄，说明正处于下跌或震荡期，正是按纪律分批的低吸阶段。" +
-    "<br>⚠️ <b>反向也成立</b>：若起点落在下跌市，定投会跑赢一次性买。定投的真正价值在<b>平滑波动、强制储蓄</b>，而非「收益最大化」；真要抢反弹，一次性 + 回撤触发（-15% 加仓）更优。";
+  $("dca-note").textContent = "截止 " + DCA_META.end + "。窗口按末尾 21/63/126/252 个交易样本近似，不是截至今天的自然月。原逐日日期未保留，窗口精确起日不可还原。来源：" + DCA_META.source + "。" + DCA_META.basis + "。收益率与每日金额无关；两种投入方式的资金到位时点不同，不能据此证明回撤触发策略更优。";
 }
 
 /* ================= 数据时间条（美股时区换算） ================= */
@@ -1616,8 +1583,9 @@ function renderAsOf() {
     ? "交易中（美东" + meridiem + " " + etTime + "）"
     : "已收盘";
   const m = $("asof-macro");
-  m.textContent = D.macroAsOf ? "宏观 VIX/恐贪/美债 沿用 " + D.macroAsOf + " 快照" : "";
-  m.style.display = D.macroAsOf ? "" : "none";
+  const unknown = ["vix", "fg", "tnx", "tnx2", "fx"].map(k => sourceHealth(k)).filter(h => !h.usable);
+  m.textContent = unknown.length ? "部分宏观读数未核验或已过期：" + unknown.map(h => h.label).join("、") : "宏观各项日期见下方来源明细";
+  m.style.display = "";
 }
 
 /* ================= init ================= */

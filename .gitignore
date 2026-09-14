@@ -1,2 +1,15 @@
+# ── 本地/工具产物（不入库）──────────────────────────────
 _extract_font.py
 data.private.backup.js
+
+# macOS 目录元数据
+.DS_Store
+
+# 审阅/导出产物（截图 + 报告，单次生成、体积大、可再生）
+outputs/
+
+# 本地会话记忆（IDE 副产物，非项目文件）
+.workbuddy-ai/
+
+# atomicWrite 临时文件（正常不残留；进程被强杀时可能出现）
+*.pending-*
