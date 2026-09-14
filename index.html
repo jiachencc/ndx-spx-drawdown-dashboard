@@ -127,6 +127,7 @@
   .signal-banner .sig-main { flex: 1; min-width: 220px; }
   .signal-banner .sig-title { font-size: 20px; font-weight: 800; letter-spacing: .4px; line-height: 1.3; }
   .signal-banner .sig-desc { font-size: 12.5px; color: var(--tx2); margin-top: 4px; line-height: 1.6; }
+  .signal-banner .sig-plain { font-size: 12.5px; color: var(--tx2); line-height: 1.65; margin-top: 8px; padding: 7px 11px; border-left: 3px solid var(--blue); background: rgba(255,255,255,.035); border-radius: 0 6px 6px 0; }
   .sig-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .sig-kpis .sk {
     display: inline-flex; align-items: baseline; gap: 7px;
@@ -558,6 +559,7 @@
   <div class="sig-main">
     <div class="sig-title" id="sig-title">--</div>
     <div class="sig-desc" id="sig-desc">--</div>
+    <div class="sig-plain" id="sig-plain">--</div>
     <div class="sig-kpis" id="sig-kpis">
       <span class="sk"><span class="sk-l">NDX 回撤</span><b id="sk-dd">--</b></span>
       <span class="sk"><span class="sk-l">Fwd ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><b id="sk-erp">--</b></span>
@@ -1325,6 +1327,8 @@ function renderBanner(ndxDD) {
   $("sig-icon").innerHTML = '<span aria-hidden="true">' + icon + '</span>';
   $("sig-title").textContent = title;
   $("sig-desc").textContent = desc;
+  $("sig-plain").textContent = state.plain;
+  $("sig-plain").style.borderLeftColor = state.healthy ? "var(--blue)" : "var(--red)";
   $("sig-tag").innerHTML = tagTxt;   // tagTxt 内含 aria-hidden 的装饰 emoji，需按 HTML 赋值
   $("sig-tag").className = "sig-tag " + tagCls;
   /* 结论锚定：关键数字 */

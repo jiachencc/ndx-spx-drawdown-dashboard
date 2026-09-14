@@ -462,13 +462,13 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   // Band-specific prerequisites must also pass; generic confirmations cannot override them.
   const bandReady = level === 2 ? d.ndx.close > d.ndx.ma200 : level === 3 ? d.vix > R.bandVix : level === 4 ? erp > R.bandErp : false;
   const exits = [
-    { id: "T+1", inputs: ["ndx"], band: "+" + R.t1Ytd + "% / 距高点", title: "停止大额定投", hit: (ytd >= R.t1Ytd - 1e-9 || distAth < R.t1NearHigh - 1e-9) && distAth <= R.t1PauseAbove + 1e-9,
+    { id: "T+1", inputs: ["ndx"], band: "+" + R.t1Ytd + "% / 距高点", title: "停止大额定投", plain: "意思：今年涨得够多、或已经很贴近历史高点，规则建议先停下大笔加仓。注意是「停止加仓」，不是卖出。", hit: (ytd >= R.t1Ytd - 1e-9 || distAth < R.t1NearHigh - 1e-9) && distAth <= R.t1PauseAbove + 1e-9,
       detail: "YTD ≥" + R.t1Ytd + "% 或距高点 <" + R.t1NearHigh + "%；距高点 >" + R.t1PauseAbove + "% 时暂停此档（无持久状态，不模拟滞回）。", unmet: distAth > R.t1PauseAbove ? "距高点 >" + R.t1PauseAbove + "%，此档暂停" : "YTD 尚差 " + Math.max(0, R.t1Ytd - ytd).toFixed(2) + "pp；距高点须 <" + R.t1NearHigh + "%（当前 " + distAth.toFixed(2) + "%）" },
-    { id: "T+2", inputs: ["ndx", "fg"], band: "+" + R.t2Ytd + "% / 恐贪", title: "兑现浮盈 15–20%", hit: ytd >= R.t2Ytd - 1e-9 || d.fg >= R.t2Fg,
+    { id: "T+2", inputs: ["ndx", "fg"], band: "+" + R.t2Ytd + "% / 恐贪", title: "兑现浮盈 15–20%", plain: "意思：涨幅或市场情绪到了高位，规则建议分批卖出、先把一部分浮盈落袋（约 15–20%）。", hit: ytd >= R.t2Ytd - 1e-9 || d.fg >= R.t2Fg,
       detail: "YTD ≥" + R.t2Ytd + "% 或恐贪 ≥" + R.t2Fg + "。规则阈值，历史有效性待独立回测。", unmet: "YTD 尚差 " + Math.max(0, R.t2Ytd - ytd).toFixed(2) + "pp；恐贪尚差 " + Math.max(0, R.t2Fg - d.fg).toFixed(1) + " 点" },
-    { id: "T+3", inputs: ["pePct", "ndx"], band: R.t3PePct + "分位 + RSI", title: "兑现至仓位下限", hit: d.pePct >= R.t3PePct && d.ndx.rsi >= R.t3Rsi,
+    { id: "T+3", inputs: ["pePct", "ndx"], band: R.t3PePct + "分位 + RSI", title: "兑现至仓位下限", plain: "意思：估值已经极端贵、动能也过热，规则建议卖到事先设好的仓位下限。", hit: d.pePct >= R.t3PePct && d.ndx.rsi >= R.t3Rsi,
       detail: "SPX PE分位 ≥" + R.t3PePct + "% 且 NDX RSI ≥" + R.t3Rsi + "（跨市场组合规则）。", unmet: "PE分位 " + d.pePct + "/" + R.t3PePct + "；RSI " + d.ndx.rsi + "/" + R.t3Rsi + "；两项均须满足" },
-    { id: "T+4", inputs: ["peFwd", "tnx"], band: "ERP < " + R.t4Erp, title: "降杠杆转防御", hit: erp < R.t4Erp,
+    { id: "T+4", inputs: ["peFwd", "tnx"], band: "ERP < " + R.t4Erp, title: "降杠杆转防御", plain: "意思：股票的隐含收益率（1÷远期PE）已经低于国债利率——承担了股票风险却拿不到额外补偿，所以规则建议降低风险敞口。它跟赚没赚钱无关，也不是止盈。", hit: erp < R.t4Erp,
       detail: "SPX 盈利收益率差代理 <" + R.t4Erp + "；不是可兑现的超额收益。", unmet: "盈利收益率差 " + erp.toFixed(2) + "%，条件为 <" + R.t4Erp + "%" }
   ];
   const exit = exits.filter(x => x.hit).at(-1) || null;
@@ -476,6 +476,16 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   confirmations.forEach(c => { c.warning = ruleInputs(c.inputs); });
   exits.forEach(x => { x.warning = ruleInputs(x.inputs); });
   const base = !healthy ? "数据未核验，暂停动作结论" : exit && entry === "eligible" ? "规则冲突，需人工复核" : exit ? exit.id + " 已触发" : entry === "eligible" ? "回撤档位与确认条件满足" : entry === "unconfirmed" ? "回撤已到档，确认不足" : entry === "observe" ? "关注区，仅观察" : "待机区，未到加仓档位";
-  return { dd, ytd, distAth, erp, rules: R, level, confirmations, count, bandReady, exits, exit, healthy, invalid, entry, health, core, advisory, degraded,
+  /* 面向非专业读者的一句话解释：说清"结论是什么意思"，而不是重复技术状态。 */
+  const plain = (!healthy
+    ? "关键行情（指数 / VIX / 利率）没拿到或已过期，本页暂停给出操作结论，只展示沿用的指标。"
+    : exit && entry === "eligible" ? exit.plain + "但同时回撤也到了加仓档，两者矛盾，规则要求人工复核。"
+    : exit ? exit.plain
+    : entry === "eligible" ? "意思：回撤已到加仓档，且确认条件满足，规则认为可以按档位加仓。"
+    : entry === "unconfirmed" ? "意思：回撤已到加仓档，但确认条件不足，规则建议再等一等。"
+    : entry === "observe" ? "意思：已进入关注区，还不到加仓档，只观察。"
+    : "意思：还没到任何档位，按原计划持有即可。")
+    + (degraded.length ? " 另有 " + degraded.length + " 项数据当前拿不到（" + degraded.map(h => h.label).join("、") + "），依赖它们的规则已在下方单独标注；结论照给，但请留意。" : "");
+  return { dd, ytd, distAth, erp, rules: R, level, confirmations, count, bandReady, exits, exit, healthy, invalid, entry, health, core, advisory, degraded, plain,
     status: base + (degraded.length ? "；降级输入：" + degraded.map(h => h.label).join("、") : "") };
 }

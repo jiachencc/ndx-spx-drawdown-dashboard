@@ -80,6 +80,12 @@ test("entry requires generic confirmations and band-specific prerequisite", () =
 test("unverified source blocks actionable status even when thresholds hit", () => {
   const s = ctx.evaluateDecision(base.DEFAULT, now, {}); assert.equal(s.healthy, false); assert.match(s.status, /暂停/);
 });
+test("banner carries a plain-language explanation, not a restatement of the status", () => {
+  const s = decision({ pePct: 95, tnx: 6, ndx: { rsi: 80 } });   // 触发 T+4
+  assert.equal(s.exit.id, "T+4");
+  assert.match(s.plain, /不是止盈/, "T+4 必须讲清它不是止盈");
+  assert.notEqual(s.plain, s.status);
+});
 test("an advisory input degrades its own rule instead of blanking the dashboard", () => {
   // 恐贪抓不到（CNN 反爬）不应让整页失去结论，但 T+2 必须显式标出这一点。
   const partial = { ...meta }; delete partial.fg;
