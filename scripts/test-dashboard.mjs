@@ -184,7 +184,11 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
   let badPrice = false, calls = 0;
   try {
     const seeded = structuredClone(base); seeded.SOURCE_META = {};
-    let fixtureData = replaceConst(data, "DEFAULT", seeded.DEFAULT);
+    // 溯源段必须一起清空：replaceConst 只改 DEFAULT，若留着线上真实的来源日期，
+    // 合成数据会被「来源日期回退」保护判定为失败（这不是被测逻辑出错）。
+    const AUTO_META = /\/\* AUTO_META_START:[\s\S]*?\/\* AUTO_META_END \*\//;
+    let fixtureData = replaceConst(data, "DEFAULT", seeded.DEFAULT)
+      .replace(AUTO_META, "/* AUTO_META_START: test fixture. */\nconst SOURCE_META = {};\n/* AUTO_META_END */");
     writeFileSync(join(dir, "data.js"), fixtureData);
     writeFileSync(join(dir, "index.html"), index);
     const minimalSnapshots = 'const SNAPSHOTS = [\n{d:"2026-09-10",total:100,pl:0}\n];';
@@ -234,7 +238,7 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     assert.equal(updated.SOURCE_META.tnx2.asOf, "2026-09-11");
     assert.equal(updated.DEFAULT.tnx2, 3.55);
     // The Sina cross-check is advisory: agreeing closes are recorded, not used to gate.
-    assert.equal(updated.SOURCE_META.crosscheck.status, "ok");
+    assert.equal(updated.SOURCE_META.crosscheck.status, "ok", JSON.stringify(updated.SOURCE_META.crosscheck));
     assert.equal(updated.SOURCE_META.crosscheck.asOf, "2026-09-11");
     assert.deepEqual(updated.POSITIONS.premiums["513880"], base.POSITIONS.premiums["513880"]);
     assert.equal(updated.SOURCE_META["premium:513880"].status, "retained");
