@@ -550,7 +550,7 @@
   </div>
 </div>
 
-<details class="asof-bar" id="source-details"><summary id="source-summary">数据来源与有效性</summary><div id="source-rows" style="font-size:12px;overflow-wrap:anywhere"></div><p style="font-size:11px;color:var(--tx3)">有效期按来源日期和工作日容忍窗口计算，未内置各交易所节假日；不代表实时行情。抓取时间不替代来源日期。</p></details>
+<details class="asof-bar" id="source-details"><summary id="source-summary">数据来源与有效性</summary><div id="source-rows" style="font-size:12px;overflow-wrap:anywhere"></div><p style="font-size:11px;color:var(--tx3)">有效期＝来源日期 + 工作日容忍窗口（未计交易所节假日）；不代表实时行情；抓取时刻不替代来源日期。</p></details>
 
 <!-- ======= Signal banner ======= -->
 <div class="signal-banner" id="banner" role="alert" aria-live="polite">
@@ -1361,9 +1361,34 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&a
 function renderSourceHealth() {
   const keys = ["ndx", "spx", "vix", "fg", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth", "crosscheck"];
   const all = keys.map(k => sourceHealth(k));
-  $("source-summary").textContent = "数据有效性：" + all.filter(h => h.usable).length + "/" + all.length + " 项在有效期内；展开查看各自来源日期";
+  const ok = all.filter(h => h.usable), bad = all.filter(h => !h.usable);
+  $("source-summary").textContent = "数据有效性 " + ok.length + "/" + all.length + " 在有效期"
+    + (bad.length ? " · 降级 " + bad.length + " 项：" + bad.map(h => h.label).join("、") : "");
+  /* 降级项逐行给出原因；有效项压成一行 chips（日期缩到 MM-DD，来源与抓取时刻移到悬停）。 */
   const root = $("source-rows"); root.replaceChildren();
-  all.forEach(h => { const p = document.createElement("p"); p.textContent = h.label + " · " + h.text + " · 数据日 " + (h.asOf || "未知") + " · 来源 " + h.source + " · 最近成功抓取 " + (SOURCE_META[h.key]?.fetchedAt || "未记录"); p.style.color = h.usable ? "var(--tx2)" : "var(--red)"; root.appendChild(p); });
+  const provenance = h => h.source + " · 最近成功抓取 " + (SOURCE_META[h.key]?.fetchedAt || "未记录");
+  const heading = (text, color) => { const d = document.createElement("div"); d.textContent = text; d.style.cssText = "font-size:11px;margin:7px 0 2px;color:" + color; return d; };
+  if (bad.length) {
+    root.appendChild(heading("降级输入（不影响核心结论，相关规则已单独标注）", "var(--red)"));
+    bad.forEach(h => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;align-items:baseline";
+      const n = document.createElement("span"); n.textContent = "⚠ " + h.label; n.style.cssText = "min-width:118px;color:var(--red)"; n.title = provenance(h);
+      const v = document.createElement("span"); v.textContent = h.text; v.style.cssText = "color:var(--tx3)"; v.title = provenance(h);
+      row.append(n, v); root.appendChild(row);
+    });
+  }
+  root.appendChild(heading("有效期内 " + ok.length + " 项（悬停查看来源与抓取时刻）", "var(--tx3)"));
+  const chips = document.createElement("div");
+  chips.style.cssText = "display:flex;flex-wrap:wrap;gap:3px 12px";
+  ok.forEach(h => {
+    const s = document.createElement("span");
+    s.textContent = h.label + " " + (h.asOf || "").slice(5);
+    s.style.cssText = "color:var(--tx3);font-family:var(--mono)";
+    s.title = provenance(h);
+    chips.appendChild(s);
+  });
+  root.appendChild(chips);
   if (!evaluateDecision(D).healthy) {
     ["note-trend", "note-val", "note-sent"].forEach(id => { $(id).textContent = "输入日期或口径未核验，仅展示沿用指标；暂停市场状态与操作判断，详见来源明细。"; });
   }
@@ -1372,7 +1397,7 @@ function renderSourceHealth() {
     const card = $(id)?.closest(".card"); if (!card) return;
     let note = card.querySelector(".source-health-note");
     if (!note) { note = document.createElement("div"); note.className = "source-health-note note"; card.appendChild(note); }
-    note.textContent = ks.map(k => { const h = sourceHealth(k); return h.label + " " + (h.asOf || "日期未知") + "（" + h.text + "）"; }).join(" · ");
+    note.textContent = ks.map(k => { const h = sourceHealth(k); return h.usable ? h.label + " " + (h.asOf || "—").slice(5) : "⚠ " + h.label + "（" + h.text + "）"; }).join(" · ");
   });
 }
 
