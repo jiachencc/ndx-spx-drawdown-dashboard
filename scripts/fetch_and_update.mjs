@@ -114,6 +114,26 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     } catch (e) { rec.failure(key, raw.source, e.message); }
   }
   if (!core) throw new Error("Both core indices unavailable; original file untouched");
+  // Independent cross-check of the two core closes. Non-blocking by design: a mismatch is
+  // information to surface, not a reason to publish stale numbers instead.
+  if (core === 2) await attempt(["crosscheck"], "Sina gb_$ndx / gb_$inx", async () => {
+    const res = await get("https://hq.sinajs.cn/list=gb_$ndx,gb_$inx", { headers: { Referer: "https://finance.sina.com.cn" } });
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let text; try { text = new TextDecoder("gbk").decode(bytes); } catch { text = new TextDecoder().decode(bytes); }
+    const grab = sym => {
+      const head = "hq_str_" + sym + "=\"", at = text.indexOf(head);
+      if (at < 0) return null;
+      const body = text.slice(at + head.length), parts = body.slice(0, body.indexOf("\"")).split(",");
+      return { close: parseFloat(parts[1]), date: (parts[3] || "").slice(0, 10) };
+    };
+    const ndx = grab("gb_$ndx"), spx = grab("gb_$inx");
+    if (!ndx || !spx || !isDate(ndx.date) || !isDate(spx.date)) throw new Error("Sina quote unavailable");
+    const devs = [["NDX", d.ndx.close / ndx.close - 1], ["SPX", d.spx.close / spx.close - 1]].map(([k, v]) => [k, v * 100]);
+    const worst = devs.reduce((a, x) => Math.abs(x[1]) > Math.abs(a[1]) ? x : a);
+    if (!Number.isFinite(worst[1])) throw new Error("Sina parse failed");
+    if (Math.abs(worst[1]) > 0.5) throw new Error(worst[0] + " close differs " + worst[1].toFixed(2) + "% from Sina");
+    rec.success("crosscheck", ndx.date, "Sina gb_$ndx / gb_$inx", { deltaPct: rounded(worst[1], 3), compared: devs.map(x => x[0] + " " + x[1].toFixed(2) + "%").join(", ") });
+  });
   // Mixed dates are never advertised as one fully synchronized snapshot.
   if (core === 2 && rec.meta.ndx.asOf === rec.meta.spx.asOf) {
     const nr = coreResults[0].value.result, sr = coreResults[1].value.result;
@@ -128,10 +148,24 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   d.asOf = { us: coreDate, et: (d.intraday ? clockNY : "16:00") + " " + zone, local: now.toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }) };
   d.macroAsOf = null; // Legacy compatibility only: UI reads SOURCE_META, never this global flag.
   await Promise.all([
-    ...[["vix", "^VIX", "^vix"], ["tnx", "^TNX", "^tnx"], ["tnx2", "^UST2Y", "^tn2"]].map(([key, symbol, fallback]) => attempt([key], "Yahoo/Stooq", async () => {
+    ...[["vix", "^VIX", "^vix"], ["tnx", "^TNX", "^tnx"]].map(([key, symbol, fallback]) => attempt([key], "Yahoo/Stooq", async () => {
       const raw = await seriesProvider(symbol, fallback, "5d"), point = latest(raw);
       accept(key, rounded(point.value, 3), point.date, raw.source);
     })),
+    // Yahoo has no 2-year constant-maturity ticker (^UST2Y is 404), so read the official curve.
+    attempt(["tnx2"], "US Treasury par yield curve", async () => {
+      const year = dayNY.slice(0, 4);
+      const csv = (await (await get("https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/" + year
+        + "/all?type=daily_treasury_yield_curve&field_tdr_date_value=" + year + "&page&_format=csv")).text()).replace(/^\uFEFF/, "");
+      const lines = csv.trim().split(/\r?\n/);
+      const cols = lines[0].split(",").map(s => s.replace(/^"|"$/g, "").trim());
+      const col = cols.indexOf("2 Yr");
+      if (col < 0) throw new Error("2 Yr column missing");
+      const row = lines.slice(1).map(l => l.split(",")).find(c => c.length > col && /^\d{2}\/\d{2}\/\d{4}$/.test((c[0] || "").trim()));
+      if (!row || !(+row[col] > 0)) throw new Error("dated 2Y observation missing");
+      const [mm, dd, yyyy] = row[0].trim().split("/");
+      accept("tnx2", rounded(+row[col], 3), yyyy + "-" + mm + "-" + dd, "US Treasury par yield curve (US government work)");
+    }),
     attempt(["fg"], "CNN Fear & Greed", async () => {
       const j = await json("https://production-dataviz.cnn.com/api/data/v1/fearandgreed/grapher/12mo.json");
       const g = j.fear_and_greed || j.fearAndGreed;

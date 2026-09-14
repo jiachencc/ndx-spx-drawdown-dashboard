@@ -80,6 +80,17 @@ test("entry requires generic confirmations and band-specific prerequisite", () =
 test("unverified source blocks actionable status even when thresholds hit", () => {
   const s = ctx.evaluateDecision(base.DEFAULT, now, {}); assert.equal(s.healthy, false); assert.match(s.status, /暂停/);
 });
+test("an advisory input degrades its own rule instead of blanking the dashboard", () => {
+  // 恐贪抓不到（CNN 反爬）不应让整页失去结论，但 T+2 必须显式标出这一点。
+  const partial = { ...meta }; delete partial.fg;
+  const s = ctx.evaluateDecision(base.DEFAULT, now, partial);
+  assert.equal(s.healthy, true);
+  assert.equal(s.invalid.length, 0);
+  assert.ok(s.degraded.some(h => h.key === "fg"), "fg must be reported as degraded");
+  assert.match(s.status, /降级输入/);
+  assert.match(s.exits[1].warning, /恐贪/);
+  assert.equal(s.exits[0].warning, "", "T+1 depends on NDX alone");
+});
 test("freshness handles weekends, future dates and retained observations", () => {
   assert.equal(ctx.sourceHealth("ndx", now, meta).usable, true);
   assert.equal(ctx.sourceHealth("ndx", new Date("2026-09-16T22:00:00Z"), meta).usable, false);
@@ -128,7 +139,9 @@ test("automated rewrite keeps hand-written comments, key style and values", () =
   // A writer that re-serialises DEFAULT would delete these annotations and quote every key.
   const out = replaceConst(data, "DEFAULT", base.DEFAULT);
   ["MANUAL：盈利增速预期", "kr 持仓（场内价口径，AUTO）", "字段与 ndx/spx 同构", "AUTO：S&P500 估值"].forEach(c => assert.ok(out.includes(c), c));
-  assert.ok(!out.includes('"ndx": {'), "keys must stay unquoted");
+  // 只在 DEFAULT 块内检查：文件里的 SOURCE_META 段本来就是 JSON，带引号键名属正常
+  const at = out.indexOf("const DEFAULT = {"), block = out.slice(at, out.indexOf("\n};", at));
+  assert.ok(!block.includes('"ndx": {') && !block.includes('"spx": {'), "keys must stay unquoted");
   assert.deepEqual(readModel(out).DEFAULT, base.DEFAULT);
   const prem = replaceMember(data, "premiums", base.POSITIONS.premiums);
   assert.ok(prem.includes("AUTO：场内溢价率"));
@@ -178,10 +191,15 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
         return new Response(JSON.stringify({ data: { [sym]: { qfqday: bars } } }));
       }
       if (u.includes("eastmoney")) return new Response(JSON.stringify({ Data: { LSJZList: [{ DWJZ: "125", FSRQ: "2026-09-10" }] } }));
+      if (u.includes("home.treasury.gov")) return new Response('Date,"1 Mo","2 Mo","3 Mo","6 Mo","1 Yr","2 Yr","3 Yr","5 Yr","7 Yr","10 Yr","20 Yr","30 Yr"\n09/11/2026,4,3.9,3.8,3.7,3.6,3.55,3.6,3.7,3.9,4.2,4.8,4.9\n09/10/2026,4,3.9,3.8,3.7,3.6,3.5,3.6,3.7,3.9,4.2,4.8,4.9');
+      if (u.includes("hq.sinajs.cn")) {
+        const b = syntheticBars(), last = b.close.at(-1), day = b.dates.at(-1);
+        return new Response('var hq_str_gb_$ndx="NDX,' + last + ',0.91,' + day + ' 05:30:00,1";\nvar hq_str_gb_$inx="SPX,' + last + ',0.86,' + day + ' 04:46:29,1";');
+      }
       throw new Error("Unexpected test network URL");
     };
     const provider = async symbol => {
-      if (symbol === "^UST2Y") throw new Error("synthetic 2Y outage");
+      if (symbol === "^TNX") throw new Error("synthetic 10Y outage");
       const b = syntheticBars();
       if (symbol === "^VIX" || symbol === "^TNX") b.close = b.close.map(() => symbol === "^VIX" ? 15 : 4);
       return b;
@@ -192,12 +210,19 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     assert.match(updatedSrc, /\/\/ MANUAL：盈利增速预期，无免费源，人工维护/);
     assert.match(updatedSrc, /\/\/ AUTO：美股 2026-09-11 收盘（2026-09-12T09:00Z 抓取）/);
     assert.match(updatedSrc, /premiums: \{ \/\/ AUTO：场内溢价率/);
-    assert.equal(updated.SOURCE_META.tnx2.status, "retained"); assert.equal(updated.DEFAULT.tnx2, base.DEFAULT.tnx2);
+    assert.equal(updated.SOURCE_META.tnx.status, "retained"); assert.equal(updated.DEFAULT.tnx, base.DEFAULT.tnx);
     assert.equal(updated.SOURCE_META.fg.status, "ok");
     // CAPE must come from the `cape` series, not the lagging `pe` series (27.89 vs 41.09).
     assert.equal(updated.SOURCE_META.cape.status, "ok");
     assert.equal(updated.SOURCE_META.cape.asOf, "2026-09-11");
     assert.equal(updated.DEFAULT.cape, 41.09);
+    // 2Y comes from the official curve, not from a nonexistent Yahoo ticker.
+    assert.equal(updated.SOURCE_META.tnx2.status, "ok");
+    assert.equal(updated.SOURCE_META.tnx2.asOf, "2026-09-11");
+    assert.equal(updated.DEFAULT.tnx2, 3.55);
+    // The Sina cross-check is advisory: agreeing closes are recorded, not used to gate.
+    assert.equal(updated.SOURCE_META.crosscheck.status, "ok");
+    assert.equal(updated.SOURCE_META.crosscheck.asOf, "2026-09-11");
     assert.deepEqual(updated.POSITIONS.premiums["513880"], base.POSITIONS.premiums["513880"]);
     assert.equal(updated.SOURCE_META["premium:513880"].status, "retained");
     assert.deepEqual(updated.POSITIONS.hold, base.POSITIONS.hold); assert.deepEqual(updated.DCA_NDX, base.DCA_NDX);

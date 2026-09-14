@@ -875,8 +875,8 @@
 </main>
 
 <div class="footer">
-  <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.9</b> · 行情：Yahoo ^NDX / ^GSPC 官方指数（stooq 兜底） · 宏观：CNN恐贪 / Yahoo 美债 / Frankfurter 汇率 · 定投回测 Nasdaq日线(2016–2026) · 数据时间条含时区换算与快照说明<br>
-  本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值/期权数据：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · <a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market</a> (CC BY 4.0) · 最后更新于 <span id="footer-updated">--</span>
+  <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.9</b> · 行情：Yahoo ^NDX / ^GSPC（新浪 gb_$ndx / gb_$inx 交叉校验） · 美债：Yahoo 10Y / 美国财政部 2Y · 汇率：Frankfurter · 恐贪：CNN · 定投回测 Nasdaq日线(2016–2026) · 各源当前是否在有效期内见页内「数据有效性」面板<br>
+  本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值：<a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market · 美股编年史 (historyofmarket.com)</a>（CC BY 4.0）· 期权：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · 美债：<a href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve" target="_blank" rel="noopener" style="color:inherit">U.S. Department of the Treasury</a> · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
 <script src="data.js"></script>
@@ -1268,7 +1268,7 @@ function renderConds() {
     { name: "VIX（恐慌指数）> 25，恐慌升温", hit: D.vix > 25,           note: "VIX " + D.vix.toFixed(2) },
     { name: "Forward PE 估值分位 < 60，便宜", hit: D.pePct < 60,          note: "当前分位 " + D.pePct + "（贵过历史上 " + D.pePct + "% 的时间）" },
   ];
-  conds.forEach((c, i) => { c.hit = state.confirmations[i].hit; });
+  conds.forEach((c, i) => { c.hit = state.confirmations[i].hit; c.warning = state.confirmations[i].warning; });
   const confirmHit = state.count;
   let html = `
     <div class="trig-row" style="${qualified ? 'background:rgba(255,255,255,.02);border-radius:8px;padding:9px 8px;' : ''}">
@@ -1286,6 +1286,7 @@ function renderConds() {
         <div class="trig-info">
           <div class="t-title" style="font-size:12.5px;">${c.name}</div>
           <div class="t-desc">${c.note}</div>
+          ${c.warning ? '<div class="t-desc" style="color:var(--yellow)">输入不新鲜：' + esc(c.warning) + '</div>' : ''}
         </div>
         <span class="trig-state ${c.hit ? "st-on" : "st-off"}">${c.hit ? "满足" : "未满足"}</span>
       </div>`;
@@ -1305,7 +1306,8 @@ function renderTakeProfit() {
     return '<div class="trig-row"><div class="trig-band">' + t.band + '</div><div class="trig-info">' +
       '<div class="t-title">' + t.id + ' · ' + t.title + '</div><div class="t-desc">' + t.detail + '</div></div>' +
       '<div class="trig-right"><span class="trig-state ' + (active ? "tp-on" : "st-off") + '">' + label + '</span>' +
-      '<div class="trig-dist">' + (!state.healthy ? "仅展示规则，不生成动作结论" : t.hit ? "规则条件满足" : t.unmet) + '</div></div></div>';
+      '<div class="trig-dist">' + (!state.healthy ? "仅展示规则，不生成动作结论" : t.hit ? "规则条件满足" : t.unmet) +
+      (t.warning ? ' ｜ <span style="color:var(--yellow)">输入不新鲜：' + esc(t.warning) + '</span>' : '') + '</div></div></div>';
   }).join("");
 }
 
@@ -1354,8 +1356,10 @@ function renderStale() {
   $("stale-days").textContent = days;
 }
 
+/* Provider-supplied strings (a retained source's error, a cross-check mismatch) reach the DOM. */
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function renderSourceHealth() {
-  const keys = ["ndx", "spx", "vix", "fg", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth"];
+  const keys = ["ndx", "spx", "vix", "fg", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth", "crosscheck"];
   const all = keys.map(k => sourceHealth(k));
   $("source-summary").textContent = "数据有效性：" + all.filter(h => h.usable).length + "/" + all.length + " 项在有效期内；展开查看各自来源日期";
   const root = $("source-rows"); root.replaceChildren();

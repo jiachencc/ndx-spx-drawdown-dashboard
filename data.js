@@ -383,9 +383,11 @@ const SOURCE_POLICY = {
   vix: { label: "VIX", maxDays: 1 }, fg: { label: "恐贪", maxDays: 1 },
   tnx: { label: "10Y", maxDays: 1 }, tnx2: { label: "2Y", maxDays: 1 },
   fx: { label: "USD/CNY", maxDays: 2 },
-  peFwd: { label: "SPX Forward PE", maxDays: 7 }, peTtm: { label: "SPX TTM PE", maxDays: 7 },
-  pePct: { label: "SPX PE分位", maxDays: 7 }, cape: { label: "CAPE", maxDays: 7 },
-  ndxPeFwd: { label: "NDX Forward PE", maxDays: 7 }, ndxPePct: { label: "NDX PE分位", maxDays: 7 },
+  // 估值是周/月度序列，末点常滞后数周（2026-08-05 那次滞后约 40 天），门限按发布节奏给，不按日频卡
+  peFwd: { label: "SPX Forward PE", maxDays: 45 }, peTtm: { label: "SPX TTM PE", maxDays: 45 },
+  pePct: { label: "SPX PE分位", maxDays: 45 }, cape: { label: "CAPE", maxDays: 7 },
+  ndxPeFwd: { label: "NDX Forward PE", maxDays: 45 }, ndxPePct: { label: "NDX PE分位", maxDays: 45 },
+  crosscheck: { label: "交叉校验（新浪 vs Yahoo）", maxDays: 1 },
   putcall: { label: "Put/Call", maxDays: 2 }, epsGrowth: { label: "EPS预期（人工）", maxDays: 30 },
   etfNdx: { label: "159941 报价", maxDays: 1 }, etfSpx: { label: "513650 报价", maxDays: 1 },
   kr: { label: "513310 报价", maxDays: 1 }, n225: { label: "513880 报价", maxDays: 1 }, hkus: { label: "160644 报价", maxDays: 1 }
@@ -404,7 +406,7 @@ function sourceHealth(key, now = new Date(), meta = SOURCE_META) {
   while (d.getTime() < end) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) days++; }
   const status = m.status === "ok" && days <= policy.maxDays ? "ok" : m.status === "unverified" ? "unverified" : "stale";
   return { key, label: policy.label, usable: status === "ok", status, days, asOf: m.asOf, source: m.source || "未记录",
-    text: status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? "抓取失败，沿用旧值" : "超过有效期" };
+    text: status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? (m.error ? "抓取失败：" + m.error.slice(0, 48) : "抓取失败，沿用旧值") : "超过有效期" };
 }
 
 /* Single source for every decision number. Views must read these (or the state
@@ -426,34 +428,45 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   const dd = (d.ndx.close / d.ndx.ath - 1) * 100;
   const ytd = (d.ndx.close / d.ndx.prevYr - 1) * 100, distAth = -dd;
   const erp = 100 / d.peFwd - d.tnx;
-  const required = ["ndx", "spx", "vix", "fg", "peFwd", "pePct", "tnx"];
-  const invalid = required.map(k => sourceHealth(k, now, meta)).filter(h => !h.usable);
-  const numeric = [d.ndx.close, d.ndx.ath, d.ndx.prevYr, d.ndx.ma200, d.ndx.rsi, d.vix, d.fg, d.peFwd, d.pePct, d.tnx];
+  /* Core inputs decide whether a conclusion may be stated at all. Everything else is
+   * advisory: its staleness is disclosed beside the rule it feeds, but a permanently
+   * lagging valuation or sentiment feed must not turn the dashboard into a blank page. */
+  const core = ["ndx", "spx", "vix", "tnx"];
+  const advisory = ["fg", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "tnx2", "fx", "monthly"];
+  const health = Object.fromEntries([...core, ...advisory].map(k => [k, sourceHealth(k, now, meta)]));
+  const invalid = core.map(k => health[k]).filter(h => !h.usable);
+  const degraded = advisory.map(k => health[k]).filter(h => !h.usable);
+  const ruleInputs = keys => keys.map(k => health[k]).filter(h => h && !h.usable)
+    .map(h => h.label + " " + (h.asOf || "日期未知") + "（" + h.text + "）").join("；");
+  const numeric = [d.ndx.close, d.ndx.ath, d.ndx.prevYr, d.ndx.ma200, d.ndx.rsi, d.vix, d.peFwd, d.pePct, d.tnx];
   const healthy = !invalid.length && numeric.every(Number.isFinite) && d.ndx.close > 0 && d.ndx.ath > 0 && d.ndx.prevYr > 0 && d.peFwd > 0;
   const bands = [d.thresholds.t1, d.thresholds.t2, d.thresholds.t3, d.thresholds.t4];
   const level = bands.filter(t => dd <= t + 1e-9).length;
   const R = DECISION_RULES;
   const confirmations = [
-    { label: "NDX > MA200", hit: d.ndx.close > d.ndx.ma200, value: d.ndx.close, target: d.ndx.ma200 },
-    { label: "NDX RSI < " + R.rsiConfirm, hit: d.ndx.rsi < R.rsiConfirm, value: d.ndx.rsi, target: R.rsiConfirm },
-    { label: "VIX > " + R.vixConfirm, hit: d.vix > R.vixConfirm, value: d.vix, target: R.vixConfirm },
-    { label: "SPX PE分位 < " + R.peConfirm + "（跨市场确认）", hit: d.pePct < R.peConfirm, value: d.pePct, target: R.peConfirm }
+    { label: "NDX > MA200", inputs: ["ndx"], hit: d.ndx.close > d.ndx.ma200, value: d.ndx.close, target: d.ndx.ma200 },
+    { label: "NDX RSI < " + R.rsiConfirm, inputs: ["ndx"], hit: d.ndx.rsi < R.rsiConfirm, value: d.ndx.rsi, target: R.rsiConfirm },
+    { label: "VIX > " + R.vixConfirm, inputs: ["vix"], hit: d.vix > R.vixConfirm, value: d.vix, target: R.vixConfirm },
+    { label: "SPX PE分位 < " + R.peConfirm + "（跨市场确认）", inputs: ["pePct"], hit: d.pePct < R.peConfirm, value: d.pePct, target: R.peConfirm }
   ];
   const count = confirmations.filter(c => c.hit).length;
   // Band-specific prerequisites must also pass; generic confirmations cannot override them.
   const bandReady = level === 2 ? d.ndx.close > d.ndx.ma200 : level === 3 ? d.vix > R.bandVix : level === 4 ? erp > R.bandErp : false;
   const exits = [
-    { id: "T+1", band: "+" + R.t1Ytd + "% / 距高点", title: "停止大额定投", hit: (ytd >= R.t1Ytd - 1e-9 || distAth < R.t1NearHigh - 1e-9) && distAth <= R.t1PauseAbove + 1e-9,
+    { id: "T+1", inputs: ["ndx"], band: "+" + R.t1Ytd + "% / 距高点", title: "停止大额定投", hit: (ytd >= R.t1Ytd - 1e-9 || distAth < R.t1NearHigh - 1e-9) && distAth <= R.t1PauseAbove + 1e-9,
       detail: "YTD ≥" + R.t1Ytd + "% 或距高点 <" + R.t1NearHigh + "%；距高点 >" + R.t1PauseAbove + "% 时暂停此档（无持久状态，不模拟滞回）。", unmet: distAth > R.t1PauseAbove ? "距高点 >" + R.t1PauseAbove + "%，此档暂停" : "YTD 尚差 " + Math.max(0, R.t1Ytd - ytd).toFixed(2) + "pp；距高点须 <" + R.t1NearHigh + "%（当前 " + distAth.toFixed(2) + "%）" },
-    { id: "T+2", band: "+" + R.t2Ytd + "% / 恐贪", title: "兑现浮盈 15–20%", hit: ytd >= R.t2Ytd - 1e-9 || d.fg >= R.t2Fg,
+    { id: "T+2", inputs: ["ndx", "fg"], band: "+" + R.t2Ytd + "% / 恐贪", title: "兑现浮盈 15–20%", hit: ytd >= R.t2Ytd - 1e-9 || d.fg >= R.t2Fg,
       detail: "YTD ≥" + R.t2Ytd + "% 或恐贪 ≥" + R.t2Fg + "。规则阈值，历史有效性待独立回测。", unmet: "YTD 尚差 " + Math.max(0, R.t2Ytd - ytd).toFixed(2) + "pp；恐贪尚差 " + Math.max(0, R.t2Fg - d.fg).toFixed(1) + " 点" },
-    { id: "T+3", band: R.t3PePct + "分位 + RSI", title: "兑现至仓位下限", hit: d.pePct >= R.t3PePct && d.ndx.rsi >= R.t3Rsi,
+    { id: "T+3", inputs: ["pePct", "ndx"], band: R.t3PePct + "分位 + RSI", title: "兑现至仓位下限", hit: d.pePct >= R.t3PePct && d.ndx.rsi >= R.t3Rsi,
       detail: "SPX PE分位 ≥" + R.t3PePct + "% 且 NDX RSI ≥" + R.t3Rsi + "（跨市场组合规则）。", unmet: "PE分位 " + d.pePct + "/" + R.t3PePct + "；RSI " + d.ndx.rsi + "/" + R.t3Rsi + "；两项均须满足" },
-    { id: "T+4", band: "ERP < " + R.t4Erp, title: "降杠杆转防御", hit: erp < R.t4Erp,
+    { id: "T+4", inputs: ["peFwd", "tnx"], band: "ERP < " + R.t4Erp, title: "降杠杆转防御", hit: erp < R.t4Erp,
       detail: "SPX 盈利收益率差代理 <" + R.t4Erp + "；不是可兑现的超额收益。", unmet: "盈利收益率差 " + erp.toFixed(2) + "%，条件为 <" + R.t4Erp + "%" }
   ];
   const exit = exits.filter(x => x.hit).at(-1) || null;
   const entry = level < 1 ? "standby" : level < 2 ? "observe" : count >= R.entryMinConfirm && bandReady ? "eligible" : "unconfirmed";
-  return { dd, ytd, distAth, erp, rules: R, level, confirmations, count, bandReady, exits, exit, healthy, invalid, entry,
-    status: !healthy ? "数据未核验，暂停动作结论" : exit && entry === "eligible" ? "规则冲突，需人工复核" : exit ? exit.id + " 已触发" : entry === "eligible" ? "回撤档位与确认条件满足" : entry === "unconfirmed" ? "回撤已到档，确认不足" : entry === "observe" ? "关注区，仅观察" : "待机区，未到加仓档位" };
+  confirmations.forEach(c => { c.warning = ruleInputs(c.inputs); });
+  exits.forEach(x => { x.warning = ruleInputs(x.inputs); });
+  const base = !healthy ? "数据未核验，暂停动作结论" : exit && entry === "eligible" ? "规则冲突，需人工复核" : exit ? exit.id + " 已触发" : entry === "eligible" ? "回撤档位与确认条件满足" : entry === "unconfirmed" ? "回撤已到档，确认不足" : entry === "observe" ? "关注区，仅观察" : "待机区，未到加仓档位";
+  return { dd, ytd, distAth, erp, rules: R, level, confirmations, count, bandReady, exits, exit, healthy, invalid, entry, health, core, advisory, degraded,
+    status: base + (degraded.length ? "；降级输入：" + degraded.map(h => h.label).join("、") : "") };
 }
