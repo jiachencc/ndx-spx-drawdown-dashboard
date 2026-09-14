@@ -436,8 +436,10 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   const health = Object.fromEntries([...core, ...advisory].map(k => [k, sourceHealth(k, now, meta)]));
   const invalid = core.map(k => health[k]).filter(h => !h.usable);
   const degraded = advisory.map(k => health[k]).filter(h => !h.usable);
-  const ruleInputs = keys => keys.map(k => health[k]).filter(h => h && !h.usable)
-    .map(h => h.label + " " + (h.asOf || "日期未知") + "（" + h.text + "）").join("；");
+  // Flag an input when it is unusable, or merely older than the core data date: a source
+  // inside its publication tolerance (a 40-day-old valuation) must still not pass silently.
+  const ruleInputs = keys => keys.map(k => health[k]).filter(h => h && (!h.usable || (h.asOf && d.date && h.asOf < d.date)))
+    .map(h => h.label + " " + (h.asOf || "日期未知") + "（" + (h.usable ? "早于主数据 " + d.date : h.text) + "）").join("；");
   const numeric = [d.ndx.close, d.ndx.ath, d.ndx.prevYr, d.ndx.ma200, d.ndx.rsi, d.vix, d.peFwd, d.pePct, d.tnx];
   const healthy = !invalid.length && numeric.every(Number.isFinite) && d.ndx.close > 0 && d.ndx.ath > 0 && d.ndx.prevYr > 0 && d.peFwd > 0;
   const bands = [d.thresholds.t1, d.thresholds.t2, d.thresholds.t3, d.thresholds.t4];

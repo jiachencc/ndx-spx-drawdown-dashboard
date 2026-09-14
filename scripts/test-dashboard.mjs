@@ -91,6 +91,13 @@ test("an advisory input degrades its own rule instead of blanking the dashboard"
   assert.match(s.exits[1].warning, /恐贪/);
   assert.equal(s.exits[0].warning, "", "T+1 depends on NDX alone");
 });
+test("a valuation inside its tolerance but older than the core data is still flagged", () => {
+  // 40 天前的远期 PE 落在 45 天容差内，不该被当作"新鲜"而静默参与 T+4 的 ERP 判断。
+  const lagged = { ...meta, peFwd: { ...meta.peFwd, asOf: "2026-08-05" }, pePct: { ...meta.pePct, asOf: "2026-08-05" } };
+  const s = ctx.evaluateDecision(base.DEFAULT, now, lagged);
+  assert.equal(s.health.peFwd.usable, true, "inside the 45-day tolerance");
+  assert.match(s.exits[3].warning, /早于主数据/, "T+4 must disclose its lagging valuation");
+});
 test("freshness handles weekends, future dates and retained observations", () => {
   assert.equal(ctx.sourceHealth("ndx", now, meta).usable, true);
   assert.equal(ctx.sourceHealth("ndx", new Date("2026-09-16T22:00:00Z"), meta).usable, false);
