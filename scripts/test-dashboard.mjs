@@ -14,9 +14,12 @@ const positions = readFileSync(new URL("positions.html", root), "utf8");
 const index = readFileSync(new URL("index.html", root), "utf8");
 const ctx = vm.createContext({});
 vm.runInContext(data, ctx);
-const now = new Date("2026-09-12T09:00:00Z");
 const base = readModel(data);
-const meta = Object.fromEntries(["ndx", "spx", "vix", "fg", "peFwd", "pePct", "tnx"].map(k => [k, { asOf: "2026-09-11", source: "synthetic test", status: "ok" }]));
+/* 日期一律相对 data.js 的当前数据日推算：data.js 每天自动推进，写死日期会让断言在
+ * 下一次自动更新后失效——2026-09-15 的 CI 就是这样挂的（数据到了 09-14，测试仍按 09-11 断言）。 */
+const now = new Date(base.DEFAULT.date + "T09:00:00Z");
+const shift = n => new Date(Date.parse(base.DEFAULT.date + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+const meta = Object.fromEntries(["ndx", "spx", "vix", "fg", "peFwd", "pePct", "tnx"].map(k => [k, { asOf: base.DEFAULT.date, source: "synthetic test", status: "ok" }]));
 const decision = changes => {
   const d = structuredClone(base.DEFAULT);
   Object.assign(d, { fg: 50, pePct: 70, peFwd: 20, tnx: 4, vix: 15 });
@@ -98,16 +101,16 @@ test("an advisory input degrades its own rule instead of blanking the dashboard"
   assert.equal(s.exits[0].warning, "", "T+1 depends on NDX alone");
 });
 test("a valuation inside its tolerance but older than the core data is still flagged", () => {
-  // 40 天前的远期 PE 落在 45 天容差内，不该被当作"新鲜"而静默参与 T+4 的 ERP 判断。
-  const lagged = { ...meta, peFwd: { ...meta.peFwd, asOf: "2026-08-05" }, pePct: { ...meta.pePct, asOf: "2026-08-05" } };
+  // 早于主数据 10 天的远期 PE 仍落在 45 天容差内，不该被当作"新鲜"而静默参与 T+4 的 ERP 判断。
+  const lagged = { ...meta, peFwd: { ...meta.peFwd, asOf: shift(-10) }, pePct: { ...meta.pePct, asOf: shift(-10) } };
   const s = ctx.evaluateDecision(base.DEFAULT, now, lagged);
   assert.equal(s.health.peFwd.usable, true, "inside the 45-day tolerance");
   assert.match(s.exits[3].warning, /早于主数据/, "T+4 must disclose its lagging valuation");
 });
 test("freshness handles weekends, future dates and retained observations", () => {
   assert.equal(ctx.sourceHealth("ndx", now, meta).usable, true);
-  assert.equal(ctx.sourceHealth("ndx", new Date("2026-09-16T22:00:00Z"), meta).usable, false);
-  assert.equal(ctx.sourceHealth("ndx", now, { ndx: { ...meta.ndx, asOf: "2026-09-14" } }).usable, false);
+  assert.equal(ctx.sourceHealth("ndx", new Date(shift(7) + "T22:00:00Z"), meta).usable, false, "7 天后同一读数应过期");
+  assert.equal(ctx.sourceHealth("ndx", now, { ndx: { ...meta.ndx, asOf: shift(1) } }).usable, false, "来源日期在未来应视为未核验");
   assert.equal(ctx.sourceHealth("ndx", now, { ndx: { ...meta.ndx, status: "retained" } }).usable, false);
 });
 test("windowed XIRR uses opening market value, not historical cost", () => {
@@ -141,8 +144,8 @@ test("frozen DCA cutoff and non-current labels are explicit", () => {
 });
 test("invalid source date and date regression are rejected", () => {
   const r = createRecorder(meta, now);
-  assert.throws(() => r.success("ndx", null, "test")); assert.throws(() => r.success("ndx", "2026-09-10", "test"));
-  r.failure("ndx", "test", "failed"); assert.equal(r.meta.ndx.asOf, "2026-09-11"); assert.equal(r.meta.spx.status, "ok");
+  assert.throws(() => r.success("ndx", null, "test")); assert.throws(() => r.success("ndx", shift(-5), "test"));
+  r.failure("ndx", "test", "failed"); assert.equal(r.meta.ndx.asOf, meta.ndx.asOf); assert.equal(r.meta.spx.status, "ok");
 });
 test("fetch-only timestamps do not alter business identity", () => {
   const a = { ndx: { ...meta.ndx, fetchedAt: "a", error: "a" } }, b = { ndx: { ...meta.ndx, fetchedAt: "b", attemptedAt: "c" } };
@@ -225,7 +228,7 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     const updatedSrc = readFileSync(join(dir, "data.js"), "utf8"), updated = readModel(updatedSrc);
     // End-to-end: an automated update must not delete annotations or freeze the stamp comment.
     assert.match(updatedSrc, /\/\/ MANUAL：盈利增速预期，无免费源，人工维护/);
-    assert.match(updatedSrc, /\/\/ AUTO：美股 2026-09-11 收盘（2026-09-12T09:00Z 抓取）/);
+    assert.ok(updatedSrc.includes("// AUTO：美股 " + syntheticBars().dates.at(-1) + " 收盘（" + now.toISOString().slice(0, 16) + "Z 抓取）"), "stamp comment must be refreshed");
     assert.match(updatedSrc, /premiums: \{ \/\/ AUTO：场内溢价率/);
     assert.equal(updated.SOURCE_META.tnx.status, "retained"); assert.equal(updated.DEFAULT.tnx, base.DEFAULT.tnx);
     assert.equal(updated.SOURCE_META.fg.status, "ok");
@@ -243,7 +246,7 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     assert.deepEqual(updated.POSITIONS.premiums["513880"], base.POSITIONS.premiums["513880"]);
     assert.equal(updated.SOURCE_META["premium:513880"].status, "retained");
     assert.deepEqual(updated.POSITIONS.hold, base.POSITIONS.hold); assert.deepEqual(updated.DCA_NDX, base.DCA_NDX);
-    const second = await main({ root: fixtureRoot, now: new Date("2026-09-12T09:01:00Z"), seriesProvider: provider });
+    const second = await main({ root: fixtureRoot, now: new Date(Date.parse(now) + 60000), seriesProvider: provider });
     assert.equal(second.changed, false); assert.equal(readFileSync(join(dir, "data.js"), "utf8"), updatedSrc);
     badPrice = true;
     await main({ root: fixtureRoot, now, seriesProvider: provider });
