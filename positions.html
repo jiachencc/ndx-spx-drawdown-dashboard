@@ -111,11 +111,16 @@
   .alloc-seg b { font-family: var(--mono); font-feature-settings: "tnum"; }
 
   /* ===== 盈亏总览：左亏右盈发散条 ===== */
-  .pl-head { display: flex; justify-content: space-between; font-size: 10px; color: var(--tx3); margin-bottom: 6px; padding: 0 2px; }
-  /* 单行式：左=名称（+「/ 渠道」紧凑后缀），右=零轴发散条 + 金额标注贴条端。
-     名称块走普通文本流：短名一行、长名自动折到第二行，渠道紧随其后不留空档。 */
-  .pl-row { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 8px; width: 100%; padding: 4px 2px; background: transparent; border: 0; color: inherit; cursor: pointer; text-align: left; border-radius: 8px; font-family: var(--sans); }
+  /* 三列：名称 ｜ 零轴发散条 ｜ 金额+收益率（固定宽、右对齐）。
+     原来金额标注是绝对定位「贴在条末端外侧」的：条越长、留给标注的空间越少，
+     而条最长的正是不该被挤的巨额行——长数字直接冲出格子，和栏位、相邻行叠在一起。
+     改成独立列后互不侵占，条也能用满半程（原 18%/15% 是给贴端标注预留的空间）。 */
+  .pl-head { display: grid; grid-template-columns: minmax(88px, 128px) 1fr 84px; gap: 8px; font-size: 10px; color: var(--tx3); margin-bottom: 6px; padding: 0 2px; }
+  .pl-head .pl-mid { text-align: center; }
+  .pl-head span:last-child { text-align: right; }
+  .pl-row { display: grid; grid-template-columns: minmax(88px, 128px) 1fr 84px; align-items: center; gap: 8px; width: 100%; padding: 4px 2px; background: transparent; border: 0; color: inherit; cursor: pointer; text-align: left; border-radius: 8px; font-family: var(--sans); }
   .pl-row:hover .pl-nm { color: var(--blue); }
+  /* 名称块走普通文本流：短名一行、长名自动折到第二行，渠道/口径日期紧随其后不留空档 */
   .pl-name { display: block; font-size: 11.5px; font-weight: 600; line-height: 1.25; min-width: 0; overflow-wrap: break-word; }
   .pl-nm { display: inline; }
   .pl-zone { position: relative; display: block; height: 16px; min-width: 0; }
@@ -123,11 +128,10 @@
   .pl-bar { position: absolute; top: 4px; height: 8px; border-radius: 3px; }
   .pl-bar.gain { left: 50%; background: linear-gradient(90deg, rgba(45,212,167,.9), rgba(45,212,167,.5)); }
   .pl-bar.loss { right: 50%; background: linear-gradient(270deg, rgba(242,109,125,.9), rgba(242,109,125,.5)); }
-  /* 金额+收益率标注：贴条形末端外侧；单侧满程取 24%（窄屏 18%）以留出标注空间 */
-  .pl-lbl { position: absolute; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: 11px; font-weight: 700; white-space: nowrap; font-feature-settings: "tnum"; }
-  .pl-lbl.gain { color: var(--green); margin-left: 5px; }
-  .pl-lbl.loss { color: var(--red); margin-right: 5px; }
-  .pl-lbl i { font-style: normal; font-weight: 400; color: var(--tx3); margin-left: 4px; font-size: 10px; }
+  /* 金额 + 收益率：两行右对齐；金额用 .up/.down 着色，收益率弱化 */
+  .pl-val { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; line-height: 1.3; font-family: var(--mono); font-feature-settings: "tnum"; white-space: nowrap; }
+  .pl-val b { font-size: 11.5px; font-weight: 700; }
+  .pl-val i { font-style: normal; font-size: 10px; font-weight: 400; color: var(--tx3); }
   .pl-zero { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 9.5px; color: var(--tx3); font-family: var(--mono); }
   .card.pl-flash { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(91,163,255,.22); transition: box-shadow .3s, border-color .3s; }
 
@@ -432,13 +436,14 @@
     .sum-cell .s-val { font-size: 15px; }
   }
   /* 中窄屏（≤440px，含 411dp 机型）：只留金额，收益率后缀让位给条形，防标注溢出 */
-  @media (max-width: 440px) { .pl-lbl i { display: none; } }
+  /* 原窄屏（≤440px）会隐藏收益率以换取空间——那是标注挤在条端时的妥协；
+     改成独立列后金额与收益率同列两行，两者都留得住，故移除该规则。 */
   @media (max-width: 400px) {
     .sum-grid { grid-template-columns: repeat(2, 1fr); }
     .sum-cell { padding: 8px 4px; }
     .sum-cell .s-val { font-size: 13.5px; }
     .pl-name { font-size: 11px; }
-    .pl-head .pl-mid { display: none; }
+    .pl-head .pl-mid { font-size: 9.5px; }   /* 窄屏条区只剩 ~82px，图例缩一号才放得下 */
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
     .snap-line.item { grid-template-columns: 1fr 64px 72px; }
     .snap-group-title { grid-template-columns: 1fr 64px 72px; }
@@ -549,30 +554,41 @@ const $ = (id) => document.getElementById(id);
  * upd: 该基金截图同步时间（"YYYY-MM-DD HH:MM"，取截图状态栏时刻）——
  *      与 OTC.updated 同日显示绿「✓HH:MM」，否则琥珀「待更」；用于「已同步 X/8」进度 */
 const OTC = {
-  updated: "2026-09-12",
-  cash: 14486.90,  // 各渠道可用资金合计（含逆回购：基金账户 268 + 场内券商 14,218.90；09-10 卖出港美 2,500@1.867 回款 4,662.50 已到账）
+  updated: "2026-09-16",
+  cash: 8115.10,  // 各渠道可用资金合计 = 场内券商可用 7,847.10（平安 App 09-16 实读）+ 基金账户 268（09-12 读数）
+  // 券商可用已核对：14,218.90（09-11）− 49,088.70（09-14 买入）+ 35,000 银证转入 + 7,716.90（09-16 卖出）= 7,847.10 ✓
+  // ⚠ 基金账户 268 沿用 09-12：场外定投申购走银行/支付宝，未动用该余额（截图「待确认金额 0.00」）
   // costNav（成本净值）由持有收益率反推：close ÷ (1 + rate/100)，渲染时计算
   funds: [
-    { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "第三方平台", theme: "global", value: 22241.09, day: -321.17, pnl: -2258.91, rate: -9.22, upd: "2026-09-12 16:09",
+    { name: "广发全球精选股票(QDII)人民币F", code: "023402", channel: "广发基金", theme: "global", value: 21540.14, day: -97.34, pnl: -2959.86, rate: -12.08, upd: "2026-09-16 21:49",
       nav: { close: 6.2603, closeDate: "2026-09-10", hi: 7.6159, hiDate: "2026-06-22", lo: 4.7185 } },
-    { name: "广发纳指100ETF联接(QDII)F", code: "021778", channel: "第三方平台", theme: "ndx", value: 21684.89, day: -237.60, pnl: -545.11, rate: -2.47, upd: "2026-09-12 16:09",
+    { name: "广发纳指100ETF联接(QDII)F", code: "021778", channel: "广发基金", theme: "ndx", value: 21612.72, day: -151.09, pnl: -707.28, rate: -3.18, upd: "2026-09-16 21:49",
       nav: { close: 8.0195, closeDate: "2026-09-10", hi: 8.5656, hiDate: "2026-06-02", lo: 6.5266 } },
-    { name: "南方纳斯达克100指数(QDII)I", code: "021000", channel: "南方基金", theme: "ndx", value: 21407.37, day: -219.32, pnl: -192.63, rate: -0.90, upd: "2026-09-12 16:09",
-      nav: { close: 2.2604, closeDate: "2026-09-10", hi: 2.3925, hiDate: "2026-06-02", lo: 1.8431 } },
-    { name: "博时标普500ETF联接E", code: "018738", channel: "博时APP", theme: "spx", value: 14024.63, day: -79.12, pnl: 124.63, rate: 0.90, upd: "2026-09-12 16:10",
-      nav: { close: 5.5305, closeDate: "2026-09-10", hi: 5.6774, hiDate: "2026-08-13", lo: 4.7519 } },
-    /* 09-11 数据（截图于 09-12 16:08~16:17，周五收盘后）：8/8 全刷新 —— 广发（023402/021778，16:09）、
-   南方（021000，16:09）、博时直销（018738，16:10）、华安直销（040046/014978，16:10）、支付宝（007280/015884，16:17）。
-   净值为 09-10 官方值（摩根 09-11，因日股无时差），QDII 净值滞后 1 个交易日；
-   「日收益」为 09-10 净值在 09-11 入账的口径。场内券商（平安）持仓见 SNAPSHOTS 09-11 期。
-   upd = 截图同步时间（取截图状态栏时刻），供页面「已同步 X/8」徽章。 */
-    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 8785.67, day: -109.88, pnl: 38.86, rate: 0.44, upd: "2026-09-12 16:17",
-      nav: { close: 2.2149, closeDate: "2026-09-11", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
-    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4900.25, day: -104.62, pnl: -1399.75, rate: -22.22, upd: "2026-09-12 16:17",
-      nav: { close: 1.4426, closeDate: "2026-09-10", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
-    { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3479.43, day: -35.77, pnl: -20.57, rate: -0.62, upd: "2026-09-12 16:10",
+    { name: "南方纳斯达克100指数(QDII)I", code: "021000", channel: "南方基金", theme: "ndx", value: 21857.58, day: -143.38, pnl: -342.42, rate: -1.57, upd: "2026-09-16 21:49",
+      nav: { close: 2.2449, closeDate: "2026-09-16", hi: 2.3925, hiDate: "2026-06-02", lo: 1.8431 } },
+    { name: "博时标普500ETF联接E", code: "018738", channel: "博时APP", theme: "spx", value: 13996.48, day: -64.68, pnl: 161.40, rate: 1.16, upd: "2026-09-16 21:50",
+      nav: { close: 5.5194, closeDate: "2026-09-15", hi: 5.6774, hiDate: "2026-08-13", lo: 4.7519 } },
+    /* 09-16 数据（截图于 09-16 21:49~22:09 共 6 张）：8/8 全刷新 ——
+   广发（023402/021778，21:49「追求进取」页）、南方（021000，21:49 资产详情页）、
+   博时直销（018738，21:50 持有明细页）、华安直销（040046/014978，21:51「基金-直销」页）、
+   支付宝（007280 摩根，22:08；015884 中欧，22:09，均为资产详情页）。
+   净值为 09-16（南方 -0.66%、摩根 +0.27%）、09-15（博时 -0.46%、中欧 -1.74%，QDII 滞后 1 个交易日）；
+   华安与广发的截图页不含净值行，nav 沿用 09-10 —— 故这 4 只的 52 周位置仅供参考。
+   「日收益」取 App 当日读数：南方 -143.38、广发 -151.09/-97.34、华安 -24.98/-25.01、摩根 +26.90、中欧 -82.88；
+   博时该页只有「最新预估收益」-64.68（= 日涨跌 -0.46% × 金额），同口径记入。
+   逐张内部合计自洽（已核对）：华安 3,752.07+3,751.39=7,503.46、今日 -24.98-25.01=-49.99、持有 -47.93-48.61=-96.54；
+   广发 21,612.72+21,540.14=43,152.86、持仓收益 -707.28-2,959.86=-3,667.14、09-16 收益 -151.09-97.34=-248.43；
+   南方 21,857.58-22,200.00=-342.42（含在途申购 400）；博时 13,996.48-161.40=13,835.08 成本；
+   摩根 4,410.06×2.2368=9,864.42、4,410.06×2.2101=9,746.81 → +117.61；
+   中欧 3,396.82×1.8547=6,300.00 → 4,678.78-6,300.00=-1,621.22。
+   场外合计市值 101,053.58 / 浮盈亏 -5,448.31。upd = 截图同步时间（取状态栏时刻）。 */
+    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "第三方平台", theme: "n225", value: 9864.42, day: 26.90, pnl: 117.61, rate: 1.21, upd: "2026-09-16 22:08",
+      nav: { close: 2.2368, closeDate: "2026-09-16", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
+    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "第三方平台", theme: "hkus", value: 4678.78, day: -82.88, pnl: -1621.22, rate: -25.73, upd: "2026-09-16 22:09",
+      nav: { close: 1.3774, closeDate: "2026-09-15", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
+    { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 3752.07, day: -24.98, pnl: -47.93, rate: -1.33, upd: "2026-09-16 21:51",
       nav: { close: 8.0782, closeDate: "2026-09-10", hi: 8.6249, hiDate: "2026-06-02", lo: 6.5577 } },
-    { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3478.70, day: -35.81, pnl: -21.29, rate: -0.65, upd: "2026-09-12 16:10",
+    { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 3751.39, day: -25.01, pnl: -48.61, rate: -1.35, upd: "2026-09-16 21:51",
       nav: { close: 7.9108, closeDate: "2026-09-10", hi: 8.4510, hiDate: "2026-06-02", lo: 6.4277 } },
   ],
 };
@@ -693,6 +709,25 @@ const SNAPSHOTS = [
       "015884": { name: "中欧港股", qty: 3351, cost: 6300, val: 4900.25, pl: -1399.75 },
       "040046": { name: "华安纳指A", qty: 430, cost: 3500, val: 3479.43, pl: -20.57 },
       "014978": { name: "华安纳指C", qty: 439, cost: 3500, val: 3478.70, pl: -21.29 },
+    },
+  },
+  {
+    d: "2026-09-16", cash: 8115.10, pl: -13458.46, day: 2969.94, tag: "加仓",
+    note: "09-14 场内加仓四笔（纳指 13,000 / 标普 6,500 / 日经 5,000 / 港美 2,400，均据对账单），09-16 场内减仓两笔（港美 2,400@1.821、中韩 700@4.795）；场外 8/8 全刷新（截图 21:49~22:09，净值日 09-16 或 09-15，QDII 滞后一日）：摩根 +0.27%、中欧 −1.74% 领跌。当日 +2,969.94（场内 +3,532.40 为券商 App「当日参考盈亏」读数，场外 −562.46）。总资产 45.27 万（场内 34.35 万 + 场外 10.11 万 + 现金 0.81 万），浮亏扩大至 −1.35 万。场内市值/盈亏直接取平安 App 读数（现价×份数已逐只验证等于市值）；场外成本价与份额取支付宝/基金 App 读数。⚠ 现金 8,115.10 = 券商可用 7,847.10（截图实读）+ 基金账户 268（09-12 读数；期间定投走银行/支付宝，未动用该余额）。⚠ 含一笔银证转入（09-14 对账单，按脱敏约定不记金额），归因由 Δ累计投入 自动推导。⚠ 广发纳指F / 华安 A、C 三只的场外份额由成本÷成本净值反推（截图未含份额栏），非精确读数。",
+    items: {
+      "159941": { name: "纳指ETF广发", qty: 81100, cost: 128312.80, val: 132274.10, pl: 3961.30 },
+      "513650": { name: "标普500ETF南方", qty: 50500, cost: 98559.45, val: 101909.00, pl: 3349.55 },
+      "513310": { name: "中韩半导体ETF华泰", qty: 12600, cost: 69237.10, val: 60240.60, pl: -8996.50 },
+      "513880": { name: "日经225ETF华安", qty: 18900, cost: 40465.20, val: 39765.60, pl: -699.60 },
+      "160644": { name: "港美互联网LOF", qty: 5100, cost: 14917.10, val: 9292.20, pl: -5624.90 },
+      "023402": { name: "全球精选", qty: 3553, cost: 24500, val: 21540.14, pl: -2959.86 },
+      "021778": { name: "广发纳指F", qty: 2673.79, cost: 22320, val: 21612.72, pl: -707.28 },
+      "021000": { name: "南方纳指I", qty: 9558.37, cost: 22200, val: 21857.58, pl: -342.42 },
+      "018738": { name: "博时标普E", qty: 2535.87, cost: 13835.08, val: 13996.48, pl: 161.40 },
+      "007280": { name: "日本精选", qty: 4410.06, cost: 9746.81, val: 9864.42, pl: 117.61 },
+      "015884": { name: "中欧港股", qty: 3396.82, cost: 6300, val: 4678.78, pl: -1621.22 },
+      "040046": { name: "华安纳指A", qty: 466.86, cost: 3800, val: 3752.07, pl: -47.93 },
+      "014978": { name: "华安纳指C", qty: 476.63, cost: 3800, val: 3751.39, pl: -48.61 },
     },
   },
 ];
@@ -1049,7 +1084,10 @@ function renderImpl() {
   /* 持仓浮盈亏口径：剔现金——现金计入资产但无成本，混入会虚增盈亏（与快照 pl「不含现金」同口径） */
   const totalPl = totalVal - totalCost - OTC.cash;
   const totalR = totalCost ? totalPl / totalCost : 0;
-  const dayVals = OTC.funds.map((f) => (Number.isFinite(f.day) ? f.day : null));   // null = 未更新，不参与合计
+  /* 当日盈亏只合计「与本次快照同日」的读数：截图日早于快照日的基金，其 day 是旧日期的值，
+   * 混进来会把 09-11 的涨跌当成 09-16 的（原判定只看「有没有值」，漏了「值是哪天的」）。
+   * 累计浮盈亏（pnl）是持仓水平、不随日期失真，故仍全额合计，日期差异由各行的同步徽章披露。 */
+  const dayVals = OTC.funds.map((f) => (Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) === OTC.updated) ? f.day : null));
   const dayOtc = dayVals.filter((v) => v !== null).reduce((a, b) => a + b, 0);    // 当日：场外快照口径（场内为上一美股交易日，不混合）
   const dayMiss = dayVals.filter((v) => v === null).length;
   /* 场内当日盈亏（估）：Σ 市值 × chg/(100+chg)，chg 为当个交易日涨跌%（data.js AUTO/手工校对）；
@@ -1098,10 +1136,10 @@ function renderImpl() {
   plRows.sort((a, b) => b.pl - a.pl);
   $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · " + etfTag() + " · " + otcTag() + ")";
   const plMax = Math.max.apply(null, plRows.map((x) => Math.abs(x.pl)).concat([1]));
-  /* 单侧满程：常规屏 18% / 窄屏 15% —— 金额标注贴在条端外侧，需预留其横向空间（含收益率后缀） */
-  const plSpan = document.documentElement.clientWidth <= 400 ? 15 : 18;
+  const plSpan = 46;   // 单侧满程：金额标注已移出条区，条可用满半程（原 18%/15% 是为贴端标注预留的）
   $("pl-list").innerHTML =
-    '<div class="pl-head"><span>◀ 亏损</span><span class="pl-mid">条长 = 盈亏金额（元）</span><span>盈利 ▶</span></div>' +
+    /* 列头与数据行同一套网格：图例落在条区正上方（窄屏条区仅 ~82px，故只留方向、长说明进 tooltip） */
+    '<div class="pl-head"><span></span><span class="pl-mid" title="条长按盈亏金额的比例绘制；零轴居中，向左＝亏损、向右＝盈利">◀ 亏损　盈利 ▶</span><span></span></div>' +
     plRows.map((x) => {
       const gain = x.pl >= 0;
       const zero = Math.abs(x.pl) < 0.5;
@@ -1110,19 +1148,16 @@ function renderImpl() {
       const bar = zero
         ? '<span class="pl-zero">0</span>'
         : '<span class="pl-bar ' + (gain ? "gain" : "loss") + '" style="width:' + w + '%"></span>';
-      /* 标注贴条形末端（盈：条右端向右；亏：条左端向左）；零值行贴零轴右侧 */
-      const lblCls = gain || zero ? "gain" : "loss";
-      const lblPos = zero ? "left:calc(50% + 10px)" : gain ? "left:calc(50% + " + w + "%)" : "right:calc(50% + " + w + "%)";
+      /* 金额与收益率改走右侧独立列（原为绝对定位贴条端，长数字会冲出格子与相邻列重叠） */
       /* 有跳转目标才挂 data-sel；场外行无明细卡，点了不动作 */
       return '<button type="button" class="pl-row"' + (x.sel ? ' data-sel="' + x.sel + '" aria-label="定位 ' + esc(x.src) + ' ' + esc(x.name) + ' 持仓卡"' : ' aria-disabled="true"') + ">" +
         '<span class="pl-name">' +
           '<span class="pl-nm">' + esc(x.name) + '</span>' +
           '<span class="pl-src">' + esc(x.src) + (x.badge || "") + '</span>' +
         '</span>' +
-        '<span class="pl-zone"><span class="pl-axis"></span>' + bar +
-          '<span class="pl-lbl ' + lblCls + '" style="' + lblPos + '">' + amt + '<i>' + fmtPct(x.r) + '</i></span>' +
-        '</span>' +
-      '</button>';
+        '<span class="pl-zone"><span class="pl-axis"></span>' + bar + '</span>' +
+        '<span class="pl-val"><b class="' + cls(x.pl) + '">' + amt + '</b><i>' + fmtPct(x.r) + '</i></span>' +
+        '</button>';
     }).join("");
 
   /* ===== 场内持仓卡 ===== */
