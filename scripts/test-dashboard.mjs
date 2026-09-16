@@ -125,15 +125,20 @@ test("end-of-period deposits do not inflate approximate TWR", () => {
   approx(ctx.calcTWR([{ val: 100 }, { val: 165, flow: 55 }]), 0.1);
 });
 test("cost recovery uses the current price, not the original cost", () => {
-  const hold = positions.slice(positions.indexOf("function holdCardHtml"), positions.indexOf("function otcCardHtml"));
-  const otc = positions.slice(positions.indexOf("function otcCardHtml"));
-  const expr = src => src.match(/const backToCost = ([^;]+);/)[1];
-  approx(vm.runInNewContext(expr(hold), { p: { idxAtCost: 100 }, m: { close: 80 } }), 0.25);
-  approx(vm.runInNewContext(expr(otc), { r: -0.2 }), 0.25);
-  approx(vm.runInNewContext(expr(otc), { r: 0.25 }), -0.2);
+  /* 场外卡已随「场外基金明细」模块移除，全页只剩场内卡这一处口径：
+   * 必须是「成本/现价 − 1」；写成「−r」会把跌 20% 说成涨 20% 即可回本。 */
+  const hold = positions.slice(positions.indexOf("function holdCardHtml"), positions.indexOf("function esc(s)"));
+  const expr = hold.match(/const backToCost = ([^;]+);/)[1];
+  approx(vm.runInNewContext(expr, { p: { idxAtCost: 100 }, m: { close: 80 } }), 0.25);
+  approx(vm.runInNewContext(expr, { p: { idxAtCost: 100 }, m: { close: 125 } }), -0.2);
 });
-test("OTC rendering is restored with disjoint popup indexes", () => {
-  assert.match(positions, /id="otc-list"/); assert.match(positions, /otcCardHtml\(row, rows.length \+ i/);
+test("OTC detail cards are gone while each holding card carries its own trade log", () => {
+  assert.ok(!positions.includes('id="otc-list"') && !positions.includes("otcCardHtml"), "场外明细卡应已移除");
+  assert.match(positions, /posLogHtml\(p, r, pl\)/, "每只持仓卡应内嵌操作记录");
+  assert.match(positions, /<div class="log-list">/, "操作记录容器");
+  /* 场外总览行不再有明细卡可跳；若仍挂 sel，?debug 的定位校验会失败 */
+  const otcPush = positions.match(/otcRows\.forEach\(\(row\) => plRows\.push\(\{([^}]*)\}\)/)[1];
+  assert.ok(!/sel:/.test(otcPush), "场外总览行不应再挂跳转目标");
 });
 test("historical fixture residual is detected, not normalized away", () => {
   const fixture = 'const SNAPSHOTS = [\n{d:"2026-09-10",cash:0,items:{"000001":{val:200,cost:150,pl:49}}},\n{d:"2026-09-11",cash:0,items:{"000001":{val:200,cost:150,pl:48}}}\n];';

@@ -92,6 +92,13 @@
   .sum-cell .s-label { font-size: 10.5px; color: var(--tx3); margin-bottom: 4px; }
   .sum-cell .s-val { font-family: var(--mono); font-size: 17px; font-weight: 700; font-feature-settings: "tnum"; }
   .sum-cell .s-sub { font-family: var(--mono); font-size: 10.5px; margin-top: 3px; font-feature-settings: "tnum"; }
+  /* ===== 口径日期标签：所有模块统一标注「这个数字源自哪天」=====
+     etf=场内报价日（青）· 默认=场外快照日 · warn=日期缺失（不猜，直接标未记录） */
+  .asof-tag { display: inline-block; font-family: var(--mono); font-size: 9px; font-weight: 400; font-feature-settings: "tnum"; color: var(--tx3); background: rgba(148,163,184,.12); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; vertical-align: 1px; white-space: nowrap; }
+  body.light .asof-tag { background: rgba(15,23,42,.05); }
+  .asof-tag.etf { color: var(--cyan); border-color: rgba(70,201,240,.28); }
+  .asof-tag.warn { color: var(--yellow); border-color: rgba(247,193,78,.32); }
+  .sum-cell .s-asof { margin-top: 4px; line-height: 1.6; }   /* 汇总格底部的口径日期行 */
   .alloc-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; border: 1px solid var(--line-soft); margin-top: 10px; }
   .alloc-seg { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 8px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; font-feature-settings: "tnum"; border: 0; padding: 0; cursor: pointer; }
   .alloc-seg.ndx { background: linear-gradient(180deg, rgba(91,163,255,.85), rgba(91,163,255,.6)); }
@@ -127,8 +134,16 @@
   /* ===== 快照对比日志 ===== */
   .snap-item { padding: 10px 2px; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
   .snap-item:last-child { border-bottom: none; }
+  /* 快照对比折叠区：只摊开最新 N 期，更早的期数与基线折进来 */
+  .snap-more { border-bottom: 1px dashed var(--line-soft); }
+  .snap-more > summary { cursor: pointer; list-style: none; text-align: center; font-size: 11px; color: var(--blue); padding: 10px 2px; }
+  .snap-more > summary::-webkit-details-marker { display: none; }
+  .snap-more > summary::after { content: " ▾"; }
+  .snap-more[open] > summary::after { content: " ▴"; }
+  .snap-more[open] > summary { border-bottom: 1px dashed var(--line-soft); margin-bottom: 4px; }
+  .snap-more > summary b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .snap-more > .snap-item:last-child { border-bottom: none; }
   .snap-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; font-size: 12px; font-weight: 400; }   /* 后两项重置 h3 默认字重/字号 */
-  .snap-head .snap-delta { margin-left: auto; }   /* 变化额右对齐（原为内联 style） */
   .snap-date { font-family: var(--mono); font-size: 12.5px; font-weight: 700; font-feature-settings: "tnum"; }
   .snap-vs { font-size: 10.5px; color: var(--tx3); }
   /* 标签列固定宽 + 内容列自适应：多行之间的数值左边界对齐（原 flex-wrap 折行后锯齿错位） */
@@ -149,8 +164,6 @@
   .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: 10px; font-weight: 700; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
   .snap-group-title span:not(:first-child) { text-align: right; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
-  .snap-delta { font-family: var(--mono); font-size: 11px; font-weight: 700; font-feature-settings: "tnum"; }
-  .snap-delta.up { color: var(--green); } .snap-delta.down { color: var(--red); }
   .snap-tag { font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 6px; border: 1px solid; white-space: nowrap; }
   .snap-tag.add { color: var(--cyan); border-color: rgba(70,201,240,.35); background: rgba(70,201,240,.08); }
   .snap-tag.cut { color: var(--yellow); border-color: rgba(247,193,78,.35); background: rgba(247,193,78,.08); }
@@ -158,7 +171,22 @@
   .snap-tag.close { color: var(--red); border-color: rgba(242,109,125,.35); background: rgba(242,109,125,.08); }
   .snap-line.total { border-top: 1px dashed var(--line-soft); margin-top: 4px; padding-top: 6px; }
   /* 归因拆分小注（银证实锤 / 场外估）：单独占内容列，弱化，避免挤在同一行长句中 */
-  .snap-break { margin-left: 74px; font-size: 10.5px; color: var(--tx3); font-family: var(--mono); padding: 1px 0 0; }   /* 缩进量 = 标签列 66 + gap 8，与内容列左边界对齐 */
+  /* ===== 变化组成块：总资产 → 总变化 → 组成项（逐项解释）=====
+     原先把「变动 + 等式 + 累计浮盈亏区间 + 口径提醒」压在一行，信息没少但读不出层次。
+     现在每块只回答一个问题，纵向铺开：总资产多少 → 变了多少 → 谁造成的（逐项）→ 当天多少。 */
+  /* 组成项挂在「总变化」之下：整组缩进 + 左侧竖线，每行前缀箭头。
+     原来只靠一个「变化组成」标题行表示从属，而列表本身毫无缩进，关系读不出来。
+     只缩进标签+数值两列（右侧「?」列不动），? 在各行之间保持同一条竖线。 */
+  .snap-parts { margin-top: 5px; margin-left: 2px; padding-left: 13px; border-left: 2px solid var(--line-soft); }
+  .snap-parts .pn::before { content: "└→"; font-weight: 400; color: var(--tx3); margin-right: 4px; }
+  /* 标签列宽与 .snap-line 一致 → 数值左边界跨行对齐；「?」独立占行尾一列，
+     不放标签里：4 字的「单日盈亏」加按钮会超出 66px 标签列（窄屏 58px 更放不下）。 */
+  .snap-part { display: grid; grid-template-columns: 66px 1fr auto; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 12px; }
+  .snap-part .strat-hint { align-self: center; }
+  .snap-part .pn { font-weight: 600; color: var(--tx2); }
+  .snap-part .pv { font-family: var(--mono); font-size: 12px; font-weight: 700; font-feature-settings: "tnum"; }
+  /* 组成块与紧随其后的行（单日盈亏 / 当前浮亏）之间留分组间距 */
+  .snap-parts + .snap-line, .snap-parts + .snap-part { margin-top: 6px; }
   .snap-item.snap-sum { background: linear-gradient(135deg, rgba(91,163,255,.07), transparent 55%); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
   .snap-item.snap-sum + .snap-item { border-top: none; }
   /* 期次解读：左侧竖线 + 加大行高，长文本（含 ⚠ 强调）分块易读 */
@@ -307,23 +335,53 @@
   /* 场外卡口径小注 */
   .otc-note { font-size: 10.5px; color: var(--tx3); margin-top: 8px; line-height: 1.6; border-top: 1px dashed var(--line-soft); padding-top: 7px; }
 
-  /* ===== 操作日志 ===== */
+  /* ===== 流水条目（现嵌在各持仓卡的「操作记录」折叠区内） ===== */
   .log-item { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 9px; padding: 8px 2px; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
   .log-item:last-child { border-bottom: none; }
   .log-date { font-family: var(--mono); font-size: 11px; color: var(--tx3); font-feature-settings: "tnum"; }
   .log-sym { font-weight: 600; font-size: 12px; }
   .log-nums { font-family: var(--mono); font-size: 11px; color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
   .log-note { width: 100%; font-family: var(--sans); color: var(--tx3); font-size: 11px; line-height: 1.5; overflow-wrap: break-word; }
-  .log-toggle { margin-left: auto; font-size: 10.5px; color: var(--blue); background: none; border: none; cursor: pointer; font-family: var(--sans); padding: 2px 4px; white-space: nowrap; }
-  .log-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 2px 8px; }
-  .log-chip { font-size: 10.5px; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--sans); font-feature-settings: "tnum"; }
-  .log-chip.on { background: rgba(91,163,255,.12); color: var(--blue); border-color: rgba(91,163,255,.35); font-weight: 600; }
+  /* 配对角标：同一回路的买入行与卖出行同号（⇄①）；悬停给出配对双方的成交明细 */
+  .log-pair { font-family: var(--mono); font-size: 9.5px; font-weight: 700; border-radius: 5px; padding: 1px 5px; white-space: nowrap; cursor: help; }
+  .log-pair.sw { background: rgba(45,212,167,.14); color: var(--green); border: 1px solid rgba(45,212,167,.35); }
+  .log-pair.tr { background: rgba(148,163,184,.14); color: var(--tx2); border: 1px solid var(--line); }
+  .sw-no { color: var(--tx3); font-weight: 700; }
+  /* 卡内操作记录折叠区：summary 先回答「现在赚亏多少」，展开才看逐笔明细 */
+  .pos-log { margin-top: 10px; border-top: 1px dashed var(--line-soft); padding-top: 7px; }
+  .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: 11.5px; color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
+  .pos-log > summary::-webkit-details-marker { display: none; }
+  .pos-log > summary b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .pos-log > summary:hover { color: var(--tx); }
+  .pos-log > summary::after { content: "展开明细 ▾"; margin-left: auto; color: var(--blue); font-size: 10.5px; white-space: nowrap; }
+  .pos-log[open] > summary::after { content: "收起 ▴"; }
+  .pos-log .log-list { padding-top: 2px; }
+  /* ===== 波段回路（做T复盘）：卡内配对表与跨标的复盘共用同一行式 ===== */
+  .swing-row { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 9px; padding: 7px 2px; border-bottom: 1px dashed var(--line-soft); font-size: 11px; font-family: var(--mono); font-feature-settings: "tnum"; }
+  .swing-row > span { white-space: nowrap; }
+  .sw-date { color: var(--tx3); }
+  .sw-sym { font-family: var(--sans); color: var(--tx2); max-width: 8.5em; overflow: hidden; text-overflow: ellipsis; }
+  .sw-kind { font-family: var(--sans); font-size: 9.5px; font-weight: 700; border-radius: 5px; padding: 1px 6px; }
+  .sw-kind.sw { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
+  .sw-kind.rv { background: rgba(91,163,255,.14); color: var(--blue); border: 1px solid rgba(91,163,255,.35); }
+  .sw-kind.tr { background: var(--card2); color: var(--tx2); border: 1px solid var(--line); }
+  .sw-qty, .sw-px, .sw-days { color: var(--tx2); }
+  .sw-net { margin-left: auto; font-weight: 700; }
+  .swing-hint { font-family: var(--sans); font-size: 10.5px; color: var(--tx2); line-height: 1.75; background: var(--card2); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 9px; margin: 4px 0 6px; }
+  .swing-hint b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .sw-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 10px; }
+  .sw-kpi { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 6px; text-align: center; min-width: 0; }
+  .sw-kpi .sw-label { font-size: 10px; color: var(--tx3); margin-bottom: 3px; }
+  .sw-kpi .sw-val { font-family: var(--mono); font-size: 14px; font-weight: 700; font-feature-settings: "tnum"; }
+  .sw-kpi .sw-sub { font-family: var(--mono); font-size: 9.5px; color: var(--tx3); margin-top: 3px; line-height: 1.5; overflow-wrap: break-word; }
+  .sw-notes { font-family: var(--sans); font-size: 11px; color: var(--tx2); line-height: 1.8; border-top: 1px dashed var(--line-soft); padding-top: 8px; margin-bottom: 2px; }
+  .sw-notes b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  @media (max-width: 560px) { .sw-kpis { grid-template-columns: repeat(2, 1fr); } }
   .act-badge { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 6px; font-family: var(--sans); }
   .act-open { background: rgba(45,212,167,.12); color: var(--green); border: 1px solid rgba(45,212,167,.3); }
   .act-close { background: rgba(242,109,125,.12); color: var(--red); border: 1px solid rgba(242,109,125,.3); }
   .act-other { background: var(--card2); color: var(--tx2); border: 1px solid var(--line); }
-  .log-empty-note { font-size: 11px; color: var(--tx3); line-height: 1.7; padding: 10px 2px; border-top: 1px dashed var(--line-soft); margin-top: 6px; }
-  /* 周小计行（展开日志时按周聚合） */
+  /* 周小计行（展开卡内记录时按周聚合） */
   .log-week { font-family: var(--mono); font-size: 10.5px; color: var(--tx2); background: var(--card2); border: 1px dashed var(--line); border-radius: 8px; padding: 4px 10px; margin: 8px 0 2px; font-feature-settings: "tnum"; overflow-wrap: break-word; }
   .log-week:first-child { margin-top: 2px; }
   /* ?debug 自检面板（仅 ?debug 访问时注入） */
@@ -347,7 +405,7 @@
   .trend-sum { font-size: 10.5px; color: var(--tx2); text-align: center; padding: 5px 4px 2px; line-height: 1.7; border-top: 1px dashed var(--line-soft); margin-top: 4px; }
   .trend-sum b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
   /* 归因行的资金拆分小注（银证实锤 + 场外估） */
-  .snap-sub { font-size: 10px; color: var(--tx3); }
+  .snap-sub { font-size: 10px; color: var(--tx3); font-weight: 400; }   /* 小注嵌在加粗数值里时也不跟着加粗 */
   /* 资产走势：KPI 行 / 时间 chips / crosshair 读数条 / 图例开关 */
   .trend-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
   .trend-chips { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin: 0 2px 8px; }
@@ -385,7 +443,8 @@
     .snap-line.item { grid-template-columns: 1fr 64px 72px; }
     .snap-group-title { grid-template-columns: 1fr 64px 72px; }
     .snap-line.item .n .qty-tag { font-size: 9.5px; }
-    .snap-break { margin-left: 66px; }
+    .snap-part { grid-template-columns: 58px 1fr auto; }
+    .snap-parts { padding-left: 10px; }
   }
   /* 动效敏感用户：关闭所有动画 */
   @media (prefers-reduced-motion: reduce) {
@@ -395,7 +454,7 @@
   @media print {
     body { background: #fff !important; color: #111 !important; }
     body:not(.light) { --bg: #fff; --card: #fff; --card2: #f5f5f5; --line: #ccc; --line-soft: #ddd; --tx: #111; --tx2: #444; --tx3: #555; }
-    .theme-btn, .log-toggle, .strat-hint, .privacy, .log-chips, .buy-layer, #dbg-panel { display: none !important; }
+    .theme-btn, .strat-hint, .privacy, .buy-layer, #dbg-panel { display: none !important; }
     .card { break-inside: avoid; box-shadow: none; }
   }
 </style>
@@ -412,7 +471,7 @@ try {
   <header class="header">
     <div>
       <h1><span aria-hidden="true">💼</span> 全持仓水位</h1>
-      <div class="sub">场内 ETF + 场外基金 · 成本位置视角 · 操作日志</div>
+      <div class="sub">场内 ETF + 场外基金 · 成本位置视角 · 每只持仓自带操作记录</div>
     </div>
     <div class="meta">
       <a class="theme-btn" href="index.html">← 主看板</a>
@@ -426,13 +485,13 @@ try {
   </div>
 
   <div class="src-line">
-    <span class="src-tag manual">MANUAL</span> 场外仓位快照：<b id="otc-updated">--</b> 人工维护（买卖后更新）
+    <span class="src-tag manual" title="人工维护：买卖后更新">MANUAL</span> 场外快照 <b id="otc-updated">--</b>
     &nbsp;<span style="opacity:.4">|</span>&nbsp;
-    <span class="src-tag auto">AUTO</span> 场内行情/溢价：随主看板 data.js（<b id="pos-asof">--</b>）
+    <span class="src-tag auto" title="随主看板 data.js 自动抓取">AUTO</span> 场内行情 <b id="pos-asof">--</b>
     &nbsp;<span style="opacity:.4">|</span>&nbsp;
-    <span class="src-tag manual">SNAP</span> 场外净值：静态快照，各基金净值日见明细
-    <div id="pos-source-health" style="margin-top:8px;overflow-wrap:anywhere"></div>
-    <div id="reconciliation-warning" role="status" style="margin-top:8px;color:var(--red)"></div>
+    <span class="src-tag manual" title="静态快照：各基金净值日见卡片">SNAP</span> 场外净值
+    <div id="pos-source-health" role="status" style="margin-top:6px;overflow-wrap:anywhere"></div>
+    <div id="reconciliation-warning" role="status" style="margin-top:6px"></div>
   </div>
 
   <div class="card">
@@ -456,27 +515,27 @@ try {
     <div class="trend-sum" id="trend-sum"></div>
   </div>
 
-  <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
+  <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
   <div class="card" id="acct-card" style="padding:12px 14px;"></div>
 
   <h2 class="sec-title"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
   <div class="card" id="snap-list" style="padding:4px 14px;"></div>
 
-  <h2 class="sec-title"><span aria-hidden="true">📊</span> 场内持仓 <span class="cnt" id="etf-cnt"></span></h2>
+  <h2 class="sec-title"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
 
-  <h2 class="sec-title">场外基金明细 <span class="cnt" id="otc-cnt"></span></h2>
-  <div id="otc-list"></div>
-
-  <h2 class="sec-title"><span aria-hidden="true">🧾</span> 操作日志 <span style="font-size:10.5px;color:var(--tx3);font-weight:400">（新在上）</span><button type="button" id="log-toggle" class="log-toggle" aria-expanded="false"></button></h2>
-  <div class="log-chips" id="log-chips"></div>
-  <div class="card" id="log-list" style="padding:4px 12px;"></div>
+  <h2 class="sec-title"><span aria-hidden="true">🎯</span> 波段复盘 <span class="cnt" id="swing-cnt"></span></h2>
+  <div class="card" id="swing-card" style="padding:12px 14px;"></div>
 
 </main>
 
 <footer class="footer">
   场内市值（估）= ETF 场内报价 × 当前份数；来源未核验时仅为沿用读数｜场外市值与盈亏为 App 快照口径<br>
-  场外成本净值 = 最新净值 ÷（1 + 持有收益率）；场外按净值申赎、无溢价；多数场外份额 2026 年 4 月后成立，区间即成立以来<br>
+  各模块标题与卡片头部标注<b>口径日期</b>：<b>场内</b>＝该份报价的成交日（五只若不同则显示区间）｜<b>场外</b>＝App 截图快照日（净值日通常再早一天，逐只见「盈亏总览」行）<br>
+  场外成本净值 = 最新净值 ÷（1 + 持有收益率）；场外按净值申赎、无溢价；场外明细卡已并入「盈亏总览」，仅保留逐只盈亏与同步徽章<br>
+  做T 复盘：<b>顺T</b>＝先买后卖、<b>反T</b>＝先卖后买，收益同为（卖出价 − 买入价）× 配对份数 − 双边手续费；
+  间隔超过 <b>10 天</b>记「调仓」，不计入做T。配对规则与反T 开关见 <code>CONFIG.SWING_MATCH</code> / <code>SWING_REVERSE</code>；
+  单条流水可用 <code>tag: "反T"</code>（或 "顺T" / "调仓"）覆盖自动判定<br>
   本页为个人记录工具，不构成投资建议
 </footer>
 
@@ -660,20 +719,26 @@ themeBtn.addEventListener("click", () => {
   try { localStorage.setItem(THEME_KEY, savedTheme); } catch (e) {}
 });
 
-/* ---- 格式化 ---- */
-const fmtPct = (v, dp) => (v >= 0 ? "+" : "") + (v * 100).toFixed(dp === undefined ? 1 : dp) + "%";
-const fmtWan = (v) => (v / 10000).toFixed(1) + "万";
-const fmtN = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+/* ---- 格式化 ----
+ * 金额（元）全站统一：2 位小数 + 千分位，负号统一用「−」（U+2212，与数字等宽）。
+ * 起因：原先混用三种精度——「万」（1 位小数）、「元」（整数）、「元」（2 位小数），
+ * 同一笔钱在不同位置对不上，容易看错：
+ *   42.1万 → 42.1万    看不出 ↓715 的变动（1000 元步进把差额抹平了）
+ *   -1,721.71 显示成 -1,722，与旁边 +1,007 相加 ≠ 总变化 -714.65
+ * 所以展示一律精确到分，不再四舍五入。唯一例外是图表内的坐标轴刻度与线上标注，
+ * 仍用「万」——那是图形刻度不是账目，且 SVG 文字不换行，写成 421,479.57 会压住相邻点。
+ * 数量（份 / 笔 / 天）不是金额，用 fmtQty，别再与金额共用同一个函数。 */
+const fmtPct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(dp === undefined ? 1 : dp) + "%";   // 负号同样用「−」，与金额一致
 const fmtIdx = (v) => v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : (Number.isFinite(v) ? v.toFixed(2) : "--");
-const fmtNav = (v) => Number.isFinite(v) ? v.toFixed(4) : "--";   // 场外净值 4 位小数
 const cls = (v) => v >= 0 ? "up" : "down";
-const fmtAmt = (v) => (v >= 0 ? "+" : "-") + fmtN(Math.abs(v));   // 带符号金额（元）
-const fmtAmt2 = (v) => (v >= 0 ? "+" : "-") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // 带符号金额（元，2 位小数：快照当日/归因用）
-const fmtAbs2 = (v) => Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // 绝对值金额（2 位小数）
+const fmtAbs2 = (v) => Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // 金额 · 无符号 · 精确到分
+const fmtAmt = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);          // 金额 · 带符号 · 精确到分
+const fmtAmt2 = fmtAmt;                                           // 兼容旧名（曾另有实现，现已并入同一套）
+const fmtYuan = fmtAbs2;                                          // 兼容旧名「万」：资产/市值等大额也按元显示，不再换算成万
+const fmtQty = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });   // 数量 · 份 / 笔 / 天
 
 /* ---- 布局/展示常量 ---- */
 const CONFIG = {
-  LOG_PREVIEW: 3,
   TIER_LOW: 35,
   TIER_HIGH: 65,
   BUY_BIN: 2.5,
@@ -687,13 +752,19 @@ const CONFIG = {
   SNAP_PL_MIN: 50,   // 快照对比：盈亏变化 ≥ 此值（元）才显示
   SNAP_PCT_MIN: 1,   // 快照对比：占比变化 ≥ 此值（百分点）才显示
   SNAP_VAL_MIN: 100, // 快照对比：市值变化阈值（备用）——明细已改用 SNAP_PL_MIN 判定，此项保留供市值口径扩展
+  SNAP_KEEP: 3,      // 快照对比：只摊开最新 N 期，更早的期数折进折叠区（逐期卡很长，全铺开看不完）
+  SWING_MAX_DAYS: 10,   // 回路间隔 ≤ 此天数记「做T」（顺T/反T），超过记「调仓」——混在一起看不出做T有没有效
+  FEE_PER_SIDE: 5,      // 单边手续费默认值（元）：log.note 里记了「费 X」就用记录值，否则按此估算并在页面标 ≈
+  SWING_MATCH: "qty",   // 配对规则："qty" 同份额优先（默认，最贴做T心算）｜"near" 时间最近优先｜"oldest" 最早优先（近似券商 FIFO）
+  SWING_REVERSE: false, // 是否自动识别「反向做T（先卖后买）」。注意：顺T 配对不限窗口，卖腿通常会被更早的买腿吃光，
+                        // 所以只有当某次卖出「没有更早的买腿可配」时这个开关才会生效；要精确指定请用单条 tag: "反T"
 };
 const MARKET_NAMES = { ndx: "纳指100", spx: "标普500", kr: "中韩半导体", n225: "日经225", hkus: "港美互联网", global: "全球精选" };
-const MARKET_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日经", hkus: "港美" };   // 日志筛选（仅场内有流水）
+/* 原 MARKET_SHORT（日志筛选 chips 用）已随独立日志模块移除 */
 const MARKET_COLORS = { ndx: "var(--blue)", spx: "var(--purple)", kr: "var(--cyan)", n225: "var(--yellow)", hkus: "var(--green)", global: "var(--tx2)", cash: "var(--tx3)" };
 const ALLOC_NAMES = { ndx: "纳指100", spx: "标普500", kr: "中韩半导体", n225: "日本", hkus: "港股互联网", global: "全球精选", cash: "现金" };
 /* 场外卡的市场徽章文案（日本精选≠日经225，单独口径） */
-const OTC_BADGE = { ndx: "纳指100", spx: "标普500", n225: "日本精选", hkus: "港股互联网", global: "全球精选" };
+/* 原 OTC_BADGE（场外卡市场徽章）已随场外明细卡移除 */
 /* 基金全称中的合规噪声词（无信息量，仅拉长显示）：清洗后保留「公司+主题+份额级别」，可读且不占宽
    例：广发全球精选股票(QDII)人民币F → 广发全球精选F；中欧港股数字经济混合发起(QDII)A → 中欧港股数字经济A */
 const PL_NOISE = ["(QDII)", "人民币", "股票", "混合发起", "指数型", "发起式", "证券投资基金"];
@@ -703,9 +774,206 @@ const plDisplayName = (n) =>
   PL_ABBR.reduce((s, p) => s.split(p[0]).join(p[1]),
     PL_NOISE.reduce((s, w) => s.split(w).join(""), String(n || ""))).trim();
 
-let posInfos = [];   // 现价弹窗数据（场内+场外连续编号，对应 data-k）
+let posInfos = [];   // 现价弹窗数据（场内卡编号，对应 data-k）
 let costInfos = [];  // 成本位弹窗数据
 let symIdx = {};     // sym → idx（场内日志筛选）
+
+/* ================= 口径日期（各模块统一标注「这个数字源自哪天」） =================
+ * 场内：SOURCE_META 的核验日优先，缺失时退回 DEFAULT[k].priceDate（更新脚本写入的报价日）。
+ *       五只报价日可能不同（QDII 净值滞后/停牌），故按标的取值，全部不同时显示区间。
+ * 场外：OTC.updated = App 截图日；各基金净值日逐只列在卡片内（两者常差一天，不可混用）。
+ * 取不到日期时返回 null，由调用方显示「未记录」——不拿渲染时刻或今天冒充数据日期。 */
+const QUOTE_KEY = { ndx: "etfNdx", spx: "etfSpx", kr: "kr", n225: "n225", hkus: "hkus" };   // 持仓 idx → data.js 报价字段（模块级：卡片与总览行都要用）
+function mdOf(d) { return d ? String(d).slice(5, 10).replace("-", ".") : null; }
+/* 最新一期快照日期（走势图/快照对比标题标注用） */
+function snapAsOf() { return (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS[SNAPSHOTS.length - 1].d : null; }
+
+/* ================= 往返配对（做T复盘内核） =================
+ * 做T有两种手法，方向相反但收益公式相同——都是 (卖出价 − 买入价) × 配对份数 − 双边费用：
+ *   顺T（低买高卖）：买腿在前、卖腿在后
+ *   反T（高抛低吸）：卖腿在前、买腿在后 —— 卖的是底仓，回补后份数大致回原、摊薄成本下降
+ * 因此内核统一成「双腿往返」：按时间顺序，每条腿去找一条方向相反的未配对腿，份数取 min。
+ *
+ * 配对规则（CONFIG.SWING_MATCH）：
+ *   qty    同份额优先（默认）—— 卖 700 份先找买过 700 份的那一整笔，最贴做T心算
+ *   near   时间最近优先（同向队列按时间升序，取队尾即最近）
+ *   oldest 最早优先 —— 近似券商 FIFO，便于与账面对照
+ * 不做「按盈亏最优配对」：那会系统性挑出最好看的配法，把复盘收益算虚，比不配对更糟。
+ *
+ * 反T（CONFIG.SWING_REVERSE，默认关闭）：同一批份额只能属于一个往返。09-14 的买入究竟算
+ * 「09-10 那笔反T 的回补」还是「09-16 那笔顺T 的开腿」，单凭流水无法判定——所以默认沿用
+ * 单向（卖配更早的买）口径；需要时开全局开关，或只在单条流水上写 tag 单独指定。
+ *
+ * 条目标注（可选字段 tag，优先级高于自动判定）：
+ *   tag: "反T"   这笔腿是反T 的开腿（卖腿不再去配更早的买，等后面回补）
+ *   tag: "顺T"   这笔腿是顺T 的开腿（买腿不再去配更早的卖，等后面卖出）
+ *   tag: "调仓"  强制不参与配对（建仓/加仓/减仓/清仓，直接进调仓统计）
+ *
+ * 回路性质 kind：配对间隔 ≤ CONFIG.SWING_MAX_DAYS → swing（顺T）/ reverse（反T）；超过 → trim（调仓级）。 */
+function logFee(e) {
+  const m = String(e.note || "").match(/费\s*([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+}
+const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+function legMode(e) {
+  const t = String(e.tag || "");
+  if (/调仓|建仓|加仓|减仓|清仓/.test(t)) return "off";
+  if (/反T|反向/.test(t)) return "rev";
+  if (/顺T|正向/.test(t)) return "sw";
+  if (/^T$|做T|波段|回补/.test(t)) return "T";   // 只声明"这是做T腿"，方向交给自动判定
+  return "";
+}
+/* 返回 { rounds, openBuys, openSells }。openBuys/openSells 是没配上的腿——
+ * 它们才是真正的加仓 / 减仓，与「做T」是两回事，分开统计。 */
+function swingPair(entries) {
+  const seq = entries.map((e, i) => ({ e, i })).sort((a, b) => (a.e.d < b.e.d ? -1 : a.e.d > b.e.d ? 1 : 0));
+  const buys = [], sells = [], out = [];
+  const mk = (e, i) => ({ d: e.d, qty: e.qty, cost: e.cost, fee: logFee(e), i, mode: legMode(e) });
+  const choose = (legs, need) => {          // 同向队列按时间升序：队尾=最近，队首=最早
+    if (!legs.length) return -1;
+    if (CONFIG.SWING_MATCH === "qty") {
+      for (let k = legs.length - 1; k >= 0; k--) { if (Math.abs(legs[k].qty - need) < 1e-9) return k; }
+      return legs.length - 1;
+    }
+    return CONFIG.SWING_MATCH === "oldest" ? 0 : legs.length - 1;
+  };
+  seq.forEach(({ e, i }) => {
+    const isSell = isSellAct(e);
+    const leg = mk(e, i), opp = isSell ? buys : sells, home = isSell ? sells : buys;
+    if (leg.mode === "off") { home.push(leg); return; }                    // 打标为非T → 直接归调仓腿
+    /* 卖腿默认发起顺T配对；买腿默认不发起（反T 需全局开启，或该笔/在队卖腿被标为反T） */
+    let allow = isSell && leg.mode !== "rev";
+    if (!isSell) allow = CONFIG.SWING_REVERSE || leg.mode === "T"
+      || opp.some((l) => l.mode === "rev" || l.mode === "T");
+    if (allow) {
+      /* 一次成交往往要消化多条反向腿（卖 3,800 可能来自 4 个买入批次），所以循环配对直到用完 */
+      while (leg.qty > 1e-9) {
+        const k = choose(opp, leg.qty);
+        if (k < 0) break;
+        const lot = opp[k];
+        const sellLeg = isSell ? leg : lot, buyLeg = isSell ? lot : leg;
+        const q = Math.min(sellLeg.qty, buyLeg.qty);
+        out.push({
+          qty: q, bd: buyLeg.d, sd: sellLeg.d, bp: buyLeg.cost, sp: sellLeg.cost,
+          bi: buyLeg.i, si: sellLeg.i, reverse: buyLeg.d > sellLeg.d,
+          gross: (sellLeg.cost - buyLeg.cost) * q,
+          feeEst: buyLeg.fee === null || sellLeg.fee === null,
+          fee: (buyLeg.fee === null ? CONFIG.FEE_PER_SIDE : buyLeg.fee) * (q / buyLeg.qty)
+             + (sellLeg.fee === null ? CONFIG.FEE_PER_SIDE : sellLeg.fee) * (q / sellLeg.qty),
+          days: Math.abs(Math.round((Date.parse(sellLeg.d) - Date.parse(buyLeg.d)) / 86400000)),
+        });
+        sellLeg.qty -= q; buyLeg.qty -= q;
+        if (lot.qty <= 1e-9) opp.splice(k, 1);   // 反向腿用完即出队；新来的腿就地减量
+      }
+    }
+    /* 有余量才入队（未被消化的部分 + 未参与配对的腿），供后续配对 */
+    if (leg.qty > 1e-9) home.push(leg);
+  });
+  out.forEach((r) => {
+    r.net = r.gross - r.fee;
+    r.pct = r.bp ? r.sp / r.bp - 1 : 0;
+    r.kind = r.days <= CONFIG.SWING_MAX_DAYS ? (r.reverse ? "reverse" : "swing") : "trim";
+    r.swing = r.kind !== "trim";
+  });
+  return { rounds: out.sort((a, b) => (a.sd < b.sd ? 1 : a.sd > b.sd ? -1 : 0)), openBuys: buys, openSells: sells };
+}
+function swingRounds(entries) { return swingPair(entries).rounds; }
+/* 回路性质的中文名与配色类 */
+const KIND_LABEL = { swing: "顺T", reverse: "反T", trim: "调仓" };
+const kindCls = (k) => (k === "swing" ? "sw" : k === "reverse" ? "rv" : "tr");
+/* 回路编号角标：①②③…（超出 20 用 (n)） */
+const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+const roundMark = (n) => (n >= 1 && n <= 20 ? CIRCLED[n - 1] : "(" + n + ")");
+/* 全站回路（按需构建一次）。编号跨标的统一、按卖出日期正序 ①②③…
+ * —— 各卡内的 ⇄ 角标与「波段复盘」表用的是同一套编号，同一个回路在两处编号一致。 */
+let SWING_CACHE = null;
+function swingData() {
+  if (SWING_CACHE) return SWING_CACHE;
+  const close = {}, all = [], open = [];
+  (POSITIONS.hold || []).forEach((h) => {
+    const m = DEFAULT[QUOTE_KEY[h.idx] || h.idx] || {};
+    close[h.sym] = m.close;
+    const pr = swingPair((POSITIONS.log || []).filter((e) => e.sym === h.sym));
+    swingEvents(pr.rounds).forEach((x) => { x.sym = h.sym; all.push(x); });
+    /* 没配上的腿 = 真正的加仓 / 减仓，与做T分开统计 */
+    pr.openBuys.forEach((l) => open.push({ sym: h.sym, dir: "buy", qty: l.qty, cost: l.cost, d: l.d }));
+    pr.openSells.forEach((l) => open.push({ sym: h.sym, dir: "sell", qty: l.qty, cost: l.cost, d: l.d }));
+  });
+  all.slice().sort((a, b) => (a.d2 < b.d2 ? -1 : a.d2 > b.d2 ? 1 : 0)).forEach((x, n) => { x.no = n + 1; });   // 全站统一编号
+  all.sort((a, b) => (a.d2 < b.d2 ? 1 : a.d2 > b.d2 ? -1 : 0));   // 展示用：新在上（按了结腿日期）
+  const bySym = {};
+  all.forEach((x) => { (bySym[x.sym] = bySym[x.sym] || []).push(x); });
+  SWING_CACHE = { all, bySym, close, open };
+  return SWING_CACHE;
+}
+function swingStats(rounds) {
+  const n = rounds.length, net = rounds.reduce((a, r) => a + r.net, 0);
+  return { n, net, win: rounds.filter((r) => r.net > 0).length, avg: n ? net / n : 0,
+    days: n ? rounds.reduce((a, r) => a + r.days, 0) / n : 0 };
+}
+/* 「若一直持有到现在」：用当前报价重算这些回路份额的浮盈亏，作为做T的对照基准 */
+function holdToNow(rounds) { return rounds.reduce((a, r) => a + (r.close - r.bp) * r.qty, 0); }
+/* 把「批次对」聚合成「回路事件」：一次卖出 = 一个回路，即使它由多笔买入批次组成。
+ * 做T的心算单位是「这次卖出」而不是「这个批次」——一次卖 3,800 份若按批次拆成 4 条，
+ * 次数统计就会被读成「减仓 4 次」，而实际只卖了一次。批次构成挂在行 title 里可查。 */
+function swingEvents(rounds) {
+  const by = {};
+  rounds.forEach((x) => { (by[x.si] = by[x.si] || []).push(x); });
+  const q = (arr, f) => arr.reduce((a, x) => a + f(x) * x.qty, 0);
+  return Object.keys(by).map((si) => {
+    const rs = by[si], qty = rs.reduce((a, x) => a + x.qty, 0);
+    const lots = rs.map((x) => ({ bd: x.bd, bp: x.bp, qty: x.qty, days: x.days }))
+      .sort((a, b) => (a.bd < b.bd ? -1 : a.bd > b.bd ? 1 : 0));
+    return {
+      si: +si, bis: rs.map((x) => x.bi), lots,
+      bd: lots[0].bd, sd: rs[0].sd, qty, sp: rs[0].sp,
+      reverse: rs.every((x) => x.reverse),                          // 全部批次都是反向 → 反T
+      bp: qty ? q(rs, (x) => x.bp) / qty : 0,                       // 加权买入均价
+      days: qty ? Math.round(q(rs, (x) => x.days) / qty) : 0,       // 加权持有天数
+      gross: rs.reduce((a, x) => a + x.gross, 0), fee: rs.reduce((a, x) => a + x.fee, 0),
+      feeEst: rs.some((x) => x.feeEst)
+    };
+  }).map((e) => {
+    e.net = e.gross - e.fee;
+    e.pct = e.bp ? e.sp / e.bp - 1 : 0;
+    /* 任一批次跨过做T阈值就按调仓算，否则按方向记顺T/反T */
+    e.kind = e.days <= CONFIG.SWING_MAX_DAYS ? (e.reverse ? "reverse" : "swing") : "trim";
+    e.swing = e.kind !== "trim";
+    /* 时间顺序：顺T 买→卖；反T 卖→买。展示按 d1→d2 */
+    e.d1 = e.reverse ? e.sd : e.bd;
+    e.d2 = e.reverse ? e.bd : e.sd;
+    return e;
+  }).sort((a, b) => (a.d2 < b.d2 ? 1 : a.d2 > b.d2 ? -1 : 0));   // 新在上（按了结腿日期）
+}
+function quoteAsOfs() {
+  return ["etfNdx", "etfSpx", "kr", "n225", "hkus"].map((k) => {
+    const h = (typeof sourceHealth === "function") ? sourceHealth(k) : null;
+    return (h && (h.asOf || h.priceDate)) || (DEFAULT[k] && DEFAULT[k].priceDate) || null;
+  }).filter(Boolean).sort();
+}
+function etfAsOfText() {
+  const ds = quoteAsOfs();
+  if (!ds.length) return null;
+  const a = mdOf(ds[0]), b = mdOf(ds[ds.length - 1]);
+  return a === b ? a : a + "–" + b;
+}
+/* 场内报价日标签。short=true 省略「场内」前缀（所在格子/标题已表明来源，窄屏省横向空间）；
+ * suffix 可追加说明（如「 日涨跌」） */
+function etfTag(suffix, short) {
+  const t = etfAsOfText();
+  return '<span class="asof-tag ' + (t ? "etf" : "warn") + '">' + (short ? "" : "场内 ") + (t || "报价日未记录") + (suffix || "") + "</span>";
+}
+/* 场外快照（截图）日标签；short 同上 */
+function otcTag(suffix, short) {
+  const d = mdOf(OTC.updated);
+  return '<span class="asof-tag ' + (d ? "" : "warn") + '">' + (short ? "" : "场外 ") + (d || "快照日未记录") + (suffix || "") + "</span>";
+}
+/* 单只场内标的的报价日标签（盈亏总览行、持仓卡头用） */
+function etfRowTag(row) {
+  const h = (typeof sourceHealth === "function") ? sourceHealth(QUOTE_KEY[row.p.idx] || row.p.idx) : null;
+  const d = mdOf((h && h.asOf) || row.m.priceDate);
+  return d ? '<span class="asof-tag etf">' + d + "</span>" : '<span class="asof-tag warn">报价日未记录</span>';
+}
 
 function renderImpl() {
   closeIdxPop();
@@ -732,18 +1000,26 @@ function renderImpl() {
     return ' <span class="sync-stale" title="沿用 ' + md + ' 截图旧值，待更新">待更</span>';
   };
   const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) === OTC.updated).length;
-  $("otc-updated").innerHTML = (OTC.updated || "--") + freshBadge(OTC.updated) +
-    ' <span class="sync-cnt' + (syncCnt === OTC.funds.length ? " ok" : "") + '">· 截图已同步 ' + syncCnt + "/" + OTC.funds.length + '（非同净值日）</span>';
-  $("pos-asof").textContent = "来源日期按标的独立记录";
-  $("pos-source-health").textContent = ["etfNdx", "etfSpx", "kr", "n225", "hkus"].map(k => { const h = sourceHealth(k); return h.label + " " + (h.asOf || "日期未知") + "（" + h.text + "）"; }).join(" · ");
+  $("otc-updated").innerHTML = (mdOf(OTC.updated) || "--") + freshBadge(OTC.updated) +
+    ' <span class="sync-cnt' + (syncCnt === OTC.funds.length ? " ok" : "") + '" title="App 截图已同步 ' + syncCnt + "/" + OTC.funds.length + '（截图日与净值日非同一天属正常）">· 同步 ' + syncCnt + "/" + OTC.funds.length + "</span>";
+  /* 场内报价核验：五只同日同状态时并成一句（原为逐只罗列 5 段、占三行），明细挂 title；
+   * 仅当状态不一致或缺失时才展开逐只——正常情况不再把无关差异堆在首屏。 */
+  const qh = ["etfNdx", "etfSpx", "kr", "n225", "hkus"].map((k) => sourceHealth(k));
+  const qTexts = [...new Set(qh.map((h) => h.text))];
+  const qDetail = qh.map((h) => h.label + " " + (h.asOf || "无日期") + "（" + h.text + "）").join(" · ");
+  const qUniform = new Set(qh.map((h) => h.asOf || "无日期")).size === 1 && qTexts.length === 1;
+  $("pos-asof").innerHTML = (etfAsOfText() || "未核验") +
+    (qUniform ? ' <span class="' + (qh[0].usable ? "" : "warn") + '" title="' + esc(qDetail) + '">· ' + esc(qTexts[0]) + "</span>" : "");
+  $("pos-source-health").innerHTML = qUniform ? "" : '<span title="' + esc(qDetail) + '">⚠ ' + esc(qDetail) + "</span>";
   const residuals = SNAPSHOTS.flatMap(s => Object.entries(s.items || {}).filter(([, it]) => ![it.val, it.cost, it.pl].every(Number.isFinite) || Math.abs(it.val - it.cost - it.pl) > 1).map(([code, it]) => s.d + " / " + code + " 残差 " + (it.val - it.cost - it.pl).toFixed(2) + " 元"));
-  $("reconciliation-warning").textContent = residuals.length ? "历史对账未通过，归因及收益估算待复核：" + residuals.join("；") + "。未自动修正原始记录。" : "历史明细平账通过（不等于外部资金流已核实）。";
-  $("etf-cnt").textContent = "(" + (POSITIONS.hold || []).length + " 只)";
+  $("reconciliation-warning").innerHTML = residuals.length
+    ? '<span class="down">⚠ 历史对账未通过：' + esc(residuals.join("；")) + "（未自动修正原始记录）</span>"
+    : '<span class="up" title="仅校验明细平账（市值 ＝ 成本 ＋ 盈亏），不等于外部资金流已核实">✓ 历史明细平账通过</span>';
+  $("etf-cnt").innerHTML = "(" + (POSITIONS.hold || []).length + " 只 · " + etfTag("", true) + ")";
   posInfos = []; costInfos = [];
   (POSITIONS.hold || []).forEach((h) => { symIdx[h.sym] = h.idx; });
 
   /* ===== 场内行：市值/成本估算（口径统一为 ETF 自身场内价） ===== */
-  const QUOTE_KEY = { ndx: "etfNdx", spx: "etfSpx", kr: "kr", n225: "n225", hkus: "hkus" };
   const rows = (POSITIONS.hold || []).map((p) => {
     const m = DEFAULT[QUOTE_KEY[p.idx] || p.idx] || {};
     const r = m.close && p.idxAtCost ? m.close / p.idxAtCost - 1 : 0;
@@ -783,18 +1059,20 @@ function renderImpl() {
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   const plNums = rows.map((x) => x.valAmt - x.costAmt).concat(otcRows.map((x) => x.f.pnl));
   const winCnt = plNums.filter((v) => v > 0.5).length, lossCnt = plNums.filter((v) => v < -0.5).length;
+  /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
+  const mixTag = etfTag() + " " + otcTag();
   $("sum-grid").innerHTML =
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtWan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">持仓成本 ' + fmtWan(totalCost) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 累计浮盈亏（估）</div><div class="s-val ' + cls(totalPl) + '">' + fmtPct(totalR) + '</div><div class="s-sub ' + cls(totalPl) + '">' + fmtAmt(totalPl) + ' 元</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">⚖️</span> 盈 / 亏持仓</div><div class="s-val"><span class="up">' + winCnt + '</span><span style="color:var(--tx3);font-size:12px"> 盈 / </span><span class="down">' + lossCnt + '</span><span style="color:var(--tx3);font-size:12px"> 亏</span></div><div class="s-sub" style="color:var(--tx3)">共 ' + plNums.length + ' 项</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">🏦</span> 场内盈亏（估）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub ' + cls(etfPl) + '">' + fmtPct(etfCost ? etfPl / etfCost : 0) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📋</span> 场外盈亏（快照）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub ' + cls(otcPl) + '">' + fmtPct(otcCost ? otcPl / otcCost : 0) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">持仓成本 ' + fmtYuan(totalCost) + '</div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 累计浮盈亏（估）</div><div class="s-val ' + cls(totalPl) + '">' + fmtPct(totalR) + '</div><div class="s-sub ' + cls(totalPl) + '">' + fmtAmt(totalPl) + ' 元</div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">⚖️</span> 盈 / 亏持仓</div><div class="s-val"><span class="up">' + winCnt + '</span><span style="color:var(--tx3);font-size:12px"> 盈 / </span><span class="down">' + lossCnt + '</span><span style="color:var(--tx3);font-size:12px"> 亏</span></div><div class="s-sub" style="color:var(--tx3)">共 ' + plNums.length + ' 项</div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">🏦</span> 场内盈亏（估）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub ' + cls(etfPl) + '">' + fmtPct(etfCost ? etfPl / etfCost : 0) + '</div><div class="s-asof">' + etfTag("", true) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📋</span> 场外盈亏（快照）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub ' + cls(otcPl) + '">' + fmtPct(otcCost ? otcPl / otcCost : 0) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="场内为估值：当日涨跌幅 × 当前持仓推算（当日盘中若有买卖，与券商 App 会略有差异）；场外取 App「日收益」快照读数"><span aria-hidden="true">📉</span> 当日盈亏（估）</div><div class="s-val ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div>' +
       '<div class="s-sub" style="display:flex;flex-wrap:wrap;justify-content:center;gap:0 6px;color:var(--tx3)">' +
         '<span>场内 <b class="' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + "</b></span>" +
         '<span>＋ 场外 <b class="' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + "</b></span>" +
         (dayMiss ? '<span style="flex-basis:100%">' + dayMiss + " 只场外未更新</span>" : "") +
-      "</div></div>";
+      "</div><div class=\"s-asof\">" + etfTag(" 日涨跌") + " " + otcTag(" 入账") + "</div></div>";
 
   /* 组合占比：按市场聚合（场内估值 + 场外快照 + 现金），瘦条只显示短名+百分比，明细进 aria-label */
   const alloc = {};
@@ -806,18 +1084,19 @@ function renderImpl() {
   $("alloc-bar").innerHTML = Object.keys(alloc).map((k) => {
     const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
     const label = w >= 8 ? ALLOC_SHORT[k] + " " + w.toFixed(0) + "%" : w >= 3 ? w.toFixed(0) + "%" : "";
-    const tip = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtWan(alloc[k]) + "）";
+    const tip = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + "）";
     return '<button type="button" class="alloc-seg ' + k + '" style="width:' + w.toFixed(1) + '%"' +
       (w < 1 ? " tabindex=\"-1\"" : "") + ' data-tip="' + tip + '" aria-label="' + tip + '">' + label + "</button>";
   }).join("");
   $("alloc-bar").setAttribute("aria-label", "组合占比：" + Object.keys(alloc).map((k) =>
-    ALLOC_NAMES[k] + " " + (allocTotal ? (alloc[k] / allocTotal * 100).toFixed(1) : 0) + "%（" + fmtWan(alloc[k]) + "）").join("，"));
+    ALLOC_NAMES[k] + " " + (allocTotal ? (alloc[k] / allocTotal * 100).toFixed(1) : 0) + "%（" + fmtYuan(alloc[k]) + "）").join("，"));
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
-  rows.forEach((row) => plRows.push({ name: row.p.sym, src: "场内", pl: row.valAmt - row.costAmt, r: row.r, sel: ".card[data-sym='" + row.p.sym + "']" }));
-  otcRows.forEach((row) => plRows.push({ name: plDisplayName(row.f.name), src: row.f.channel, badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, sel: ".card[data-code='" + row.f.code + "']" }));
+  /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
+  rows.forEach((row) => plRows.push({ name: row.p.sym, src: "场内", badge: " " + etfRowTag(row), pl: row.valAmt - row.costAmt, r: row.r, sel: ".card[data-sym='" + row.p.sym + "']" }));
+  otcRows.forEach((row) => plRows.push({ name: plDisplayName(row.f.name), src: row.f.channel, badge: syncBadge(row.f), pl: row.f.pnl, r: row.r }));   // 场外明细卡已取消 → 不挂跳转目标
   plRows.sort((a, b) => b.pl - a.pl);
-  $("pl-cnt").textContent = "(" + plRows.length + " 项 · 按盈亏金额)";
+  $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · " + etfTag() + " · " + otcTag() + ")";
   const plMax = Math.max.apply(null, plRows.map((x) => Math.abs(x.pl)).concat([1]));
   /* 单侧满程：常规屏 18% / 窄屏 15% —— 金额标注贴在条端外侧，需预留其横向空间（含收益率后缀） */
   const plSpan = document.documentElement.clientWidth <= 400 ? 15 : 18;
@@ -827,14 +1106,15 @@ function renderImpl() {
       const gain = x.pl >= 0;
       const zero = Math.abs(x.pl) < 0.5;
       const w = (Math.abs(x.pl) / plMax * plSpan).toFixed(2);
-      const amt = zero ? "0" : (gain ? "+" : "-") + fmtN(Math.abs(x.pl));   // 零值行直接显示 0，避免 "-0"
+      const amt = zero ? "0" : fmtAmt(x.pl);   // 零值行直接显示 0，避免 "-0"
       const bar = zero
         ? '<span class="pl-zero">0</span>'
         : '<span class="pl-bar ' + (gain ? "gain" : "loss") + '" style="width:' + w + '%"></span>';
       /* 标注贴条形末端（盈：条右端向右；亏：条左端向左）；零值行贴零轴右侧 */
       const lblCls = gain || zero ? "gain" : "loss";
       const lblPos = zero ? "left:calc(50% + 10px)" : gain ? "left:calc(50% + " + w + "%)" : "right:calc(50% + " + w + "%)";
-      return '<button type="button" class="pl-row" data-sel="' + x.sel + '" aria-label="定位 ' + esc(x.src) + ' ' + esc(x.name) + ' 持仓卡">' +
+      /* 有跳转目标才挂 data-sel；场外行无明细卡，点了不动作 */
+      return '<button type="button" class="pl-row"' + (x.sel ? ' data-sel="' + x.sel + '" aria-label="定位 ' + esc(x.src) + ' ' + esc(x.name) + ' 持仓卡"' : ' aria-disabled="true"') + ">" +
         '<span class="pl-name">' +
           '<span class="pl-nm">' + esc(x.name) + '</span>' +
           '<span class="pl-src">' + esc(x.src) + (x.badge || "") + '</span>' +
@@ -847,8 +1127,8 @@ function renderImpl() {
 
   /* ===== 场内持仓卡 ===== */
   $("pos-list").innerHTML = rows.map((row, i) => holdCardHtml(row, i, { asOfUs, firstDate, totalVal })).join("");
-  $("otc-cnt").textContent = "(" + otcRows.length + " 只 · 净值日与截图日分别列示)";
-  $("otc-list").innerHTML = otcRows.map((row, i) => otcCardHtml(row, rows.length + i, { totalVal })).join("");
+  /* 场外明细卡已取消：8 只基金的净值/截图日仍逐只出现在上方「盈亏总览」行里，
+     市值与盈亏继续计入汇总、组合占比与走势，只是不再单独铺 8 张卡片 */
 
   positionLadderFills();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(positionLadderFills);
@@ -859,7 +1139,7 @@ function renderImpl() {
   renderTrend(totalVal, totalCost + OTC.cash);
   renderSnapLog();
   renderAcctStats();
-  renderLog();
+  renderSwing();
 }
 
 /* ================= 资产走势（快照各期 + 今日估算，双线 + 差值着色 + 归因柱） ================= */
@@ -1023,7 +1303,7 @@ function renderTrendKpis(pts) {
   let deepW = null;
   if (whole.length) { deepW = whole[0]; whole.forEach((p) => { if (p.pl < deepW.pl) deepW = p; }); }
   el.innerHTML =
-    '<div class="kpi"><div class="k-label">总资产' + (last.isToday ? "（估）" : "") + '</div><div class="k-val">' + fmtWan(last.val) + '</div><div class="k-sub ' + cls(dTotB) + '">' + (dTotB >= 0 ? "+" : "") + fmtPct(base.val ? dTotB / base.val : 0, 1) + ' 较基线</div></div>' +
+    '<div class="kpi"><div class="k-label">总资产' + (last.isToday ? "（估）" : "") + '</div><div class="k-val">' + fmtYuan(last.val) + '</div><div class="k-sub ' + cls(dTotB) + '">' + (dTotB >= 0 ? "+" : "") + fmtPct(base.val ? dTotB / base.val : 0, 1) + ' 较基线</div></div>' +
     '<div class="kpi"><div class="k-label">当前收益率</div><div class="k-val ' + cls(r1) + '">' + fmtPct(r1, 2) + '</div><div class="k-sub ' + cls(dRpp) + '">' + (dRpp >= 0 ? "+" : "") + dRpp.toFixed(2) + 'pp 较基线</div></div>' +
     '<div class="kpi"><div class="k-label" title="近似时间加权：按快照末端资金流假设计算；推导资金流依赖成本口径，非精确投资能力评价。缺少资金流时不计算。">TWR（近似）</div><div class="k-val ' + cls(twr) + '">' + (twr === null ? "—" : fmtPct(twr, 2)) + '</div><div class="k-sub" style="color:var(--tx3)">' + xTxt + '</div></div>' +
     (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : '');
@@ -1046,12 +1326,12 @@ function trendTipHtml(p) {
   const pl = p.val - p.cost;
   const rate = p.cost ? pl / p.cost : 0;
   let s = (p.isToday ? "今日估算" : +p.d.slice(5, 7) + "." + +p.d.slice(8, 10)) +
-    " · 资产 " + fmtWan(p.val) + " · 投入 " + fmtWan(p.cost) +
+    " · 资产 " + fmtYuan(p.val) + " · 投入 " + fmtYuan(p.cost) +
     '<br>浮盈亏 <b style="color:var(--' + (pl >= 0 ? "green" : "red") + ')">' + fmtAmt(pl) + " 元</b>" +
     '（<b style="color:var(--' + (rate >= 0 ? "green" : "red") + ')">' + fmtPct(rate, 2) + "</b>，÷累计投入含现金）";
   if (p.tag) s += "<br>事件：" + esc(p.tag);
   if (p.flow !== null && p.flow !== undefined && Math.abs(p.flow) >= 1) {
-    s += "<br>期间资金" + (p.flow > 0 ? "投入" : "取出") + " " + fmtN(Math.abs(p.flow)) + " 元";
+    s += "<br>期间资金" + (p.flow > 0 ? "投入" : "取出") + " " + fmtAbs2(p.flow) + " 元";
     const bn = (p.prevD && typeof flowsNet === "function") ? flowsNet(p.prevD, p.d) : null;
     if (bn !== null) s += '<br><span style="color:var(--tx3)">银证净 ' + fmtAmt2(bn) + " · 场外估 " + fmtAmt2(p.flow - bn) + "</span>";
   }
@@ -1075,7 +1355,7 @@ function renderTrend(todayVal, todayCost) {
   renderTrendChips(allPts);
   renderTrendViews();
   renderTrendKpis(pts);
-  $("trend-cnt").textContent = "(快照 " + snaps.length + " 期" + (pts.length && pts[pts.length - 1].isToday ? " + 今日" : "") + ")";
+  $("trend-cnt").innerHTML = "(快照 " + snaps.length + " 期" + (pts.length && pts[pts.length - 1].isToday ? " + 今日" : "") + " · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   if (!snaps.length) {   // 空态：教学态引导，而非空白
     $("trend-cnt").textContent = "";
     box.innerHTML = '<div class="trend-empty">还没有快照：发一张持仓 App 截图给维护者即可建立第 1 期基线。<br>建立后这里会自动生成「总资产 vs 累计投入」双线走势、收益率标注与资金归因柱。</div>';
@@ -1084,7 +1364,7 @@ function renderTrend(todayVal, todayCost) {
   }
   if (pts.length < 2) {  // 仅 1 期：基线态
     const p = allPts[0];
-    box.innerHTML = '<div class="trend-empty">基线已建立：总资产 <b>' + fmtWan(p.val) + "</b> · 收益率 <b>" + fmtPct(p.cost ? (p.val - p.cost) / p.cost : 0, 2) + "</b>。<br>下一期快照追加后，这里会自动生成双线走势、收益率标注与资金归因柱。</div>";
+    box.innerHTML = '<div class="trend-empty">基线已建立：总资产 <b>' + fmtYuan(p.val) + "</b> · 收益率 <b>" + fmtPct(p.cost ? (p.val - p.cost) / p.cost : 0, 2) + "</b>。<br>下一期快照追加后，这里会自动生成双线走势、收益率标注与资金归因柱。</div>";
     if ($("trend-sum")) $("trend-sum").innerHTML = "";
     return;
   }
@@ -1106,7 +1386,7 @@ function renderTrend(todayVal, todayCost) {
   trendLayout = { px, py, pts };   // crosshair 最近点计算用
   const yTicks = [yLo, (yLo + yHi) / 2, yHi];
   let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="资产走势：' +
-    pts.length + " 个数据点，总资产 " + fmtWan(pts[0].val) + " → " + fmtWan(pts[pts.length - 1].val) +
+    pts.length + " 个数据点，总资产 " + fmtYuan(pts[0].val) + " → " + fmtYuan(pts[pts.length - 1].val) +
     "，累计浮盈亏 " + fmtAmt(pts[pts.length - 1].val - pts[pts.length - 1].cost) + ' 元">';
   yTicks.forEach((tv) => {
     const y = Y(tv).toFixed(1);
@@ -1125,7 +1405,7 @@ function renderTrend(todayVal, todayCost) {
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (p.isToday ? 4.5 : 4) +
       '" style="' + (p.isToday ? "fill:var(--card);stroke:var(--blue)" : "fill:var(--blue);stroke:var(--card)") + ';stroke-width:2" tabindex="0" role="button" aria-label="' +
-      (p.isToday ? "今日估算" : p.d) + " 总资产 " + fmtWan(p.val) + '，点击查看详情"/>';
+      (p.isToday ? "今日估算" : p.d) + " 总资产 " + fmtYuan(p.val) + '，点击查看详情"/>';
     if (i % step === 0 || i === pts.length - 1)
       svg += '<text x="' + P(px[i]) + '" y="' + (H - 7) + '" text-anchor="middle" style="fill:var(--tx3);font:10px var(--mono)">' +
         (p.isToday ? "今日" : +p.d.slice(5, 7) + "." + +p.d.slice(8, 10)) + "</text>";
@@ -1144,7 +1424,7 @@ function renderTrend(todayVal, todayCost) {
       const isIn = /加仓|建仓|买入/.test(p.tag);
       svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 9).toFixed(1) + '" text-anchor="middle" style="fill:var(--' + (isIn ? "cyan" : "purple") + ');font:10px var(--mono)">' + (isIn ? "▲" : "▼") + esc(p.tag) + "</text>";
     } else if (i === 0 || i === pts.length - 1) {
-      svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 9).toFixed(1) + '" text-anchor="middle" style="fill:var(--cyan);font:10px var(--mono)">投入 ' + fmtWan(p.cost) + "</text>";
+      svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 9).toFixed(1) + '" text-anchor="middle" style="fill:var(--cyan);font:10px var(--mono)">投入 ' + (p.cost / 10000).toFixed(1) + "万" + "</text>";
     }
   });
   /* ===== 下方归因柱：每期净变化拆为「市值盈亏段 + 资金段」（恒等式 Δ总资产 = Δ浮盈亏 + 资金进出；今日估算不参与） ===== */
@@ -1183,7 +1463,7 @@ function renderTrend(todayVal, todayCost) {
     const r0 = rateOf(pts[0]), r1 = rateOf(pts[pts.length - 1]);
     const flowSum = pts.reduce((a, p) => a + (typeof p.flow === "number" ? p.flow : 0), 0);
     const pl0 = pts[0].val - pts[0].cost, pl1 = pts[pts.length - 1].val - pts[pts.length - 1].cost, dPl = pl1 - pl0;
-    $("trend-sum").innerHTML = "期间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 收益率 <b>" + fmtPct(r0, 2) + " → " + fmtPct(r1, 2) + "</b> · 浮盈亏 <b>" + fmtAmt(pl0) + " → " + fmtAmt(pl1) + "</b>（区间内" + (dPl >= 0 ? "改善 " : "恶化 ") + fmtN(Math.abs(dPl)) + " 元）";
+    $("trend-sum").innerHTML = "期间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 收益率 <b>" + fmtPct(r0, 2) + " → " + fmtPct(r1, 2) + "</b> · 浮盈亏 <b>" + fmtAmt(pl0) + " → " + fmtAmt(pl1) + "</b>（区间内" + (dPl >= 0 ? "改善 " : "恶化 ") + fmtAbs2(dPl) + " 元）";
   }
 }
 
@@ -1208,7 +1488,7 @@ function renderPnlView(box) {
   const P = (v) => v.toFixed(1);
   const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(p.pl));
   trendLayout = { px: px, py: py, pts: pts, mode: "pnl" };
-  if ($("trend-cnt")) $("trend-cnt").textContent = "(月度 " + pts.length + " 期 · " + pts[0].d.slice(5).replace("-", ".") + " 起)";
+  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(月度 " + pts.length + " 期 · " + pts[0].d.slice(5).replace("-", ".") + " 起 · 快照至 " + (mdOf(snapAsOf()) || "未记录") + ")";
   let deepI = 0;
   pts.forEach((p, i) => { if (p.pl < pts[deepI].pl) deepI = i; });
   const zeroY = Y(0), col = (v) => (v >= 0 ? "green" : "red");
@@ -1250,7 +1530,7 @@ function renderPnlView(box) {
   if ($("trend-readout")) $("trend-readout").textContent = "移动或滑动查看各期 · 点击数据点看详情";
   if ($("trend-sum")) $("trend-sum").innerHTML = "全程（场内账户口径，含已实现）· 最深浮亏 <b class=\"down\">" + fmtAmt(pts[deepI].pl) + "</b>（" +
     (+pts[deepI].d.slice(5, 7)) + "." + (+pts[deepI].d.slice(8, 10)) + "）· 当前 <b class=\"" + cls(pts[pts.length - 1].pl) + "\">" + fmtAmt(pts[pts.length - 1].pl) +
-    "</b> · 自最深回升 " + fmtN(pts[pts.length - 1].pl - pts[deepI].pl) + " 元";
+    "</b> · 自最深回升 " + fmtAbs2(pts[pts.length - 1].pl - pts[deepI].pl) + " 元";
 }
 /* 视图③：收益率（%）—— 组合 vs 基准。剔除规模影响，直接看效率与是否跑赢躺平 */
 function renderRateView(box, pts) {
@@ -1267,7 +1547,7 @@ function renderRateView(box, pts) {
   const P = (v) => v.toFixed(1);
   const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(rate(p)));
   trendLayout = { px: px, py: py, pts: pts, mode: "rate" };
-  if ($("trend-cnt")) $("trend-cnt").textContent = "(快照 " + pts.length + " 期 · 成本口径)";
+  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · 成本口径 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   const zeroY = Y(0);
   const bi = [];
   pts.forEach((p, i) => { const b = benchRateAt(p.d); if (b !== null) bi.push({ i: i, b: b }); });
@@ -1326,10 +1606,10 @@ function showXhair(i) {
     ro.innerHTML = '<b>' + dt + '</b> · 累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元";
   } else if (mode === "rate") {
     const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
-    ro.innerHTML = '<b>' + dt + '</b> · 收益率 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + '</b> · 资产 <b>' + fmtWan(p.val) + "</b>";
+    ro.innerHTML = '<b>' + dt + '</b> · 收益率 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + '</b> · 资产 <b>' + fmtYuan(p.val) + "</b>";
   } else {
     const pl = p.val - p.cost, rate = p.cost ? pl / p.cost : 0;
-    ro.innerHTML = '<b>' + dt + '</b> · 资产 <b>' + fmtWan(p.val) + '</b> · 投入 <b>' + fmtWan(p.cost) + '</b> · 收益率 <span class="' + cls(rate) + '">' + fmtPct(rate, 2) + "</span>";
+    ro.innerHTML = '<b>' + dt + '</b> · 资产 <b>' + fmtYuan(p.val) + '</b> · 投入 <b>' + fmtYuan(p.cost) + '</b> · 收益率 <span class="' + cls(rate) + '">' + fmtPct(rate, 2) + "</span>";
   }
 }
 function bindTrendCrosshair() {
@@ -1372,12 +1652,59 @@ function flowsNet(dFrom, dTo) {
   const rows = FLOWS.filter((f) => f.d > dFrom && f.d <= dTo);
   return rows.length ? rows.reduce((a, f) => a + f.amt, 0) : null;
 }
-/* 归因行的资金拆分小注：银证实锤 + 场外/口径差值估算 */
-function flowBreakHtml(flow, dFrom, dTo) {
-  const bn = flowsNet(dFrom, dTo);
-  if (bn === null || Math.abs(flow) < 1) return "";
-  const otc = flow - bn;
-  return '<div class="snap-break">银证净 ' + fmtAmt2(bn) + (Math.abs(otc) >= 1 ? " · 场外估 " + fmtAmt2(otc) : "") + "</div>";
+/* ===== 「?」口径说明：复用策略行已有的 .strat-hint + .strat-note 约定 =====
+ * 按钮嵌在标签里、说明块是该行的下一个兄弟，两者用 id 关联（不必相邻元素），
+ * 由全局委托处理器切换 .open。长解释默认收起——否则一条口径说明三四行灰字，
+ * 卡片会被撑得很长，真正要看的数字反而被淹没。 */
+let qSeq = 0;   // 说明块 id 序号；每次快照重渲染前复位，保证 id 唯一
+function qPair(txt, label) {
+  const id = "snap-q" + (++qSeq);
+  return {
+    btn: '<button type="button" class="strat-hint" data-note="' + id + '" aria-label="' + (label || "口径说明") + '" aria-expanded="false">?</button>',
+    note: '<div class="strat-note" id="' + id + '">' + txt + "</div>",
+  };
+}
+/* ===== 变化组成块（逐期对比与区间累计共用，保证口径、措辞、配色一致）=====
+ * 顺序：总资产 → 总变化 → 变化组成（涨跌 / 资金）。每行只有「名称 + 金额」，
+ * 解释收进行尾的「?」。这样卡片是一张可以横着扫的表，而不是一段要读的文字。 */
+function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays) {
+  const tp = snapTotal(prev), tc = snapTotal(cur);
+  const pctTot = tp ? dTot / tp * 100 : 0;
+  const parts = [];
+  /* ① 涨跌：市场波动（= 两期累计浮盈亏之差） */
+  const qPl = qPair(
+    "持仓自身的市场波动：两期之间市值与已实现盈亏的变化" + (spanDays > 1 ? "，跨度 " + spanDays + " 天（非单日）" : "") + "。" +
+    (typeof prev.pl === "number" && typeof cur.pl === "number"
+      ? "对应累计浮盈亏 " + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "，两个数之差就是本项。" : "") +
+    "买卖只是账户内转换（现金 ↔ 持仓），不影响本项。", "涨跌口径");
+  parts.push(
+    '<div class="snap-part"><span class="pn">涨跌</span><b class="pv ' + cls(dPl) + '">' + fmtAmt2(dPl) + "</b>" + qPl.btn + "</div>" + qPl.note);
+  /* ② 资金：账户外净流入（推导值；FLOWS 有手账时拆出银证实锤） */
+  const zero = Math.abs(flow) < 1;
+  const bn = flowsNet(prev.d, cur.d);             // 银证转账手账实锤；无记录期返回 null
+  const otc = bn === null ? null : flow - bn;     // 余额 = 场外通道净申购 + App 口径微调
+  const flowCls = zero ? "pv" : "pv " + (flow > 0 ? "info" : "warn");
+  const qFlow = qPair(
+    /* 正负分开措辞：为负时若还写「净流入」，和旁边的 −192 自相矛盾 */
+    (zero ? "本期没有从账户外进来的钱，总变化全部来自涨跌。" : "账户外净" + (flow > 0 ? "流入" : "流出") + "。") +
+    "银证转入、场外定投申购走银行 / 支付宝通道，不减少本页跟踪的现金，因此算外部资金" +
+    (bn === null ? "" : "（银证净 " + fmtAmt2(bn) + (otc !== null && Math.abs(otc) >= 1 ? " · 场外估 " + fmtAmt2(otc) + "（含定投申购与估值滞后）" : "") + "）") + "。" +
+    "买入/卖出只是账户内「现金 ↔ 持仓」的转换，不改变总资产，不计入本项。" +
+    "算法：资金 ＝ Δ总资产 − 涨跌；为负时通常含记账口径差（如卖出回款尚未计入现金），不代表真的取走了钱。", "资金口径");
+  parts.push(
+    '<div class="snap-part"><span class="pn">资金</span><b class="' + flowCls + '"' + (zero ? ' style="color:var(--tx3)"' : "") + ">" +
+      (zero ? "0" : fmtAmt(flow)) + "</b>" + qFlow.btn + "</div>" + qFlow.note);
+  /* 「总变化 ＝ 涨跌 ＋ 资金」这个等式收进「?」——原用「变化组成」标题行表示，
+   * 但列表本身没有缩进、从属关系读不出来；现在由 .snap-parts 的缩进 + 竖线表达。 */
+  const qTot = qPair("总变化 ＝ 涨跌 ＋ 资金。只有市场波动（涨跌）与账户外资金进出会改变总资产；" +
+    "买入/卖出、申购/赎回都只是账户内的转换（现金 ↔ 持仓），不计入其中。", "总变化口径");
+  return '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtYuan(tp) + " → <b>" + fmtYuan(tc) + "</b></span></div>" +
+    /* 总变化是父行，下面两项是它的组成部分；整行仍是「标签 | 数值 | ?」三列 */
+    '<div class="snap-part"><span class="pn">总变化</span>' +
+      '<span class="pv"><b class="' + cls(dTot) + '"><span aria-hidden="true">' + (dTot >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(dTot) +
+      '</b> <span class="snap-sub">（' + fmtPct(pctTot / 100, 2) + "）</span></span>" +
+      qTot.btn + "</div>" + qTot.note +
+    '<div class="snap-parts">' + parts.join("") + "</div>";
 }
 /* 区间 (prev.d, cur.d] 内的操作流水聚合（本期动作） */
 function snapActions(prev, cur) {
@@ -1389,8 +1716,8 @@ function snapActions(prev, cur) {
     else buy[e.sym] = (buy[e.sym] || 0) + e.qty;
   });
   const parts = [];
-  Object.keys(buy).forEach((s) => parts.push('<span class="snap-tag add">买入 ' + esc(s) + " " + fmtN(buy[s]) + ' 份</span>'));
-  sell.forEach((e) => parts.push('<span class="snap-tag close">卖出 ' + esc(e.sym) + " " + fmtN(e.qty) + ' 份</span>'));
+  Object.keys(buy).forEach((s) => parts.push('<span class="snap-tag add">买入 ' + esc(s) + " " + fmtQty(buy[s]) + ' 份</span>'));
+  sell.forEach((e) => parts.push('<span class="snap-tag close">卖出 ' + esc(e.sym) + " " + fmtQty(e.qty) + ' 份</span>'));
   return '<div class="snap-line acts"><span class="n">本期动作</span><span class="v">' + parts.join("") + "</span></div>";
 }
 const SNAP_TAG_CLS = { "加仓": "add", "减仓": "cut", "清仓": "close", "建仓": "open" };
@@ -1398,12 +1725,12 @@ const SNAP_TAG_CLS = { "加仓": "add", "减仓": "cut", "清仓": "close", "建
 const snapNoteHtml = (t) => esc(t).split("⚠").join('<b class="warn">⚠</b>');
 /* 快照明细行：「名称(+仓位小标签) | 本期盈亏 | 累计盈亏」——本位是盈亏，仓位仅作后缀提示 */
 const SNAP_TAG_TXT = { open: "建仓", close: "清仓", add: "加仓", cut: "减仓" };
-const snapSigned = (v) => '<span class="' + cls(v) + '">' + (v >= 0 ? "+" : "−") + fmtN(Math.abs(v)) + "</span>";
+const snapSigned = (v) => '<span class="' + cls(v) + '">' + (v >= 0 ? "+" : "−") + fmtAbs2(v) + "</span>";
 function snapItemRow(name, dq, dPlItem, plCum, tag) {
   let qt = "";
   if (tag) qt = '<span class="snap-tag ' + tag + '">' + SNAP_TAG_TXT[tag] + "</span>";
   else if (dq !== null && Math.abs(dq) >= 0.5)
-    qt = '<span class="qty-tag">' + (dq > 0 ? "+" : "−") + fmtN(Math.abs(dq)) + "份</span>";
+    qt = '<span class="qty-tag">' + (dq > 0 ? "+" : "−") + fmtQty(Math.abs(dq)) + "份</span>";
   return '<div class="snap-line item"><span class="n" title="' + esc(name) + '"><span class="nn">' + esc(name) + "</span>" + qt + "</span>" +
     '<span class="d">' + snapSigned(dPlItem) + '</span><span class="v">' + snapSigned(plCum) + "</span></div>";
 }
@@ -1442,23 +1769,20 @@ function snapPairHtml(prev, cur) {
     sumRow = '<div class="snap-line item snap-sum-row"><span class="n">合计 ' + codes.length + ' 只</span>' +
       '<span class="d">' + snapSigned(sD) + '</span><span class="v">' + snapSigned(sC) + "</span></div>";
   }
-  /* 当日盈亏：独立成行，标明「单日参考」口径，避免与两期变动混淆 */
-  const dayTxt = typeof cur.day === "number"
-    ? '<div class="snap-line day"><span class="n">单日盈亏</span><span class="v"><b class="' + (cur.day >= 0 ? "up" : "down") + '">' + fmtAmt2(cur.day) + '</b> <span class="snap-sub" title="该快照当日读数，与上方「总资产变动」不是同一口径（后者跨度可能多日）">当日 · 与上方不同口径</span></span></div>' : "";
-  /* 累计浮盈亏区间：弱化后缀，与「本期变化」主数字区分 */
-  const plTxt = (typeof prev.pl === "number" && typeof cur.pl === "number")
-    ? ' <span class="snap-sub" title="全组合累计浮盈亏（自建仓至该期，含已实现）：上期 → 本期，两者之差即左侧「收益」；与下方明细「合计 · 累计盈亏」为同一口径">（累计 ' + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "）</span>" : "";
-  const flowTxt = Math.abs(flow) < 1 ? "" :
-    ' ＋ 资金 <b class="' + (flow > 0 ? "info" : "warn") + '" title="外部新资金（银证转入 / 定投扣款）。为负时通常含记账口径差——如卖出回款尚未计入现金、定投扣款未同步，不代表真的取走了钱">' + (flow > 0 ? "+" : "−") + fmtN(Math.abs(flow)) + "</b>";
+  /* 单日盈亏：与「涨跌」口径不同（App 当日读数 vs 两期差），单列一行 + 「?」说明 */
+  const dayQ = typeof cur.day === "number" ? qPair(
+    "该快照当日的 App 读数，只有 1 天；与上方「涨跌」口径不同，数值接近但一般不等：" +
+    (spanDays > 1 ? "「涨跌」是跨 " + spanDays + " 天的累计" : "「涨跌」是两期收盘对比，含估值补齐与口径差") + "。", "单日盈亏口径") : null;
+  const dayTxt = dayQ
+    ? '<div class="snap-part"><span class="pn">单日盈亏</span><b class="pv ' + cls(cur.day) + '">' + fmtAmt2(cur.day) + "</b>" + dayQ.btn + "</div>" + dayQ.note
+    : "";
   const actsHtml = snapActions(prev, cur);
   return '<article class="snap-item" data-d="' + cur.d + '">' +
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（隔 " + spanDays + " 天）" : "") + "</span>" +
       (cur.tag ? '<span class="snap-tag ' + (SNAP_TAG_CLS[cur.tag] || "add") + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
-    '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtWan(tp) + " → <b>" + fmtWan(tc) + '</b> <span class="snap-delta ' + (dTot >= 0 ? "up" : "down") + '" title="本行：总资产变了多少；下行说明这些变动从哪来">变动 <span aria-hidden="true">' + (dTot >= 0 ? "↑" : "↓") + "</span>" + fmtN(Math.abs(dTot)) + "</span></div>" +
-    '<div class="snap-line attr"><span class="n">变化来源</span><span class="v">＝ 涨跌 <b class="' + (dPl >= 0 ? "up" : "down") + '" title="市场波动造成的盈亏（两期之间市值与已实现盈亏变化，含支付宝等补齐的多日累计），非单日">' + fmtAmt2(dPl) + "</b>" + flowTxt + plTxt + "</div>" +
+    snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays) +
     dayTxt +
-    flowBreakHtml(flow, prev.d, cur.d) +
     (actsHtml ? '<div class="snap-divider"></div>' + actsHtml : "") +
     (lines.length
       ? '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（间隔 ' + spanDays + ' 天）；上方「当日」才是单日口径">本期盈亏' + (spanDays > 1 ? "·" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' + lines.join("") + sumRow
@@ -1471,11 +1795,12 @@ function snapPairHtml(prev, cur) {
 function renderSnapLog() {
   const el = $("snap-list");
   const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
-  $("snap-cnt").textContent = "(" + snaps.length + " 份快照)";
+  $("snap-cnt").innerHTML = "(" + snaps.length + " 份快照 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   if (!snaps.length) {
     el.innerHTML = '<div class="snap-item"><div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无快照；发持仓截图解析后追加，自动生成对比。</span></div></div>';
     return;
   }
+  qSeq = 0;   // 「?」说明块 id 序号复位（每次重渲染都会重建这些节点）
   const html = [];
   /* 区间累计卡（基线 → 最新） */
   const a = snaps[0], b = snaps[snaps.length - 1];
@@ -1483,27 +1808,38 @@ function renderSnapLog() {
     const dTot = snapTotal(b) - snapTotal(a);
     const dPl = (typeof a.pl === "number" && typeof b.pl === "number") ? b.pl - a.pl : dTot - snapFlow(a, b);
     const flow = dTot - dPl;
-    const pct = snapTotal(a) ? dTot / snapTotal(a) * 100 : 0;
     const costHold = snapCost(b) - (typeof b.cash === "number" ? b.cash : 0);   // 持仓成本口径（剔现金，作浮亏%分母）
     const plNow = typeof b.pl === "number" ? b.pl : null;
     const plBase = (plNow !== null && typeof a.pl === "number") ? plNow - a.pl : null;
     html.push('<article class="snap-item snap-sum">' +
       '<h3 class="snap-head"><span class="snap-date">区间累计 ' + a.d.slice(5).replace("-", ".") + " → " + b.d.slice(5).replace("-", ".") + '</span>' +
-        '<span class="snap-delta ' + (dTot >= 0 ? "up" : "down") + '">' + fmtAmt2(dTot) + "（" + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%）</span></h3>" +
-      '<div class="snap-line attr"><span class="n">变化来源</span><span class="v">＝ 涨跌 <b class="' + (dPl >= 0 ? "up" : "down") + '" title="区间内市值与已实现盈亏变化（市场波动造成）">' + fmtAmt2(dPl) + "</b>" +
-        (Math.abs(flow) >= 1 ? ' ＋ 资金 <b class="' + (flow > 0 ? "info" : "warn") + '" title="外部新资金（银证转入 / 定投扣款），非收益">' + (flow > 0 ? "+" : "−") + fmtN(Math.abs(flow)) + "</b>" : "") + "</div>" +
-      flowBreakHtml(flow, a.d, b.d) +
-      (plNow !== null ? '<div class="snap-line"><span class="n">' + (plNow >= 0 ? "当前浮盈" : "当前浮亏") + '</span><span class="v"><b class="' + (plNow >= 0 ? "up" : "down") + '">' + fmtAmt2(plNow) + "</b>" +
-        ' <span class="snap-sub">（' + (costHold ? (plNow / costHold * 100).toFixed(2) : "--") + "%，持仓成本 " + fmtN(costHold) + "）</span>" +
-        (plBase !== null && Math.abs(plBase) >= 0.005 ? ' <span class="snap-delta ' + (plBase >= 0 ? "up" : "down") + '">较基线' + (plBase >= 0 ? "收窄 " : "扩大 ") + fmtAbs2(plBase) + "</span>" : "") + "</span></div>" : "") +
+        '<span class="snap-vs">基线起 ' + snaps.length + " 份快照</span></h3>" +
+      snapPartsHtml(a, b, dTot, dPl, flow, Math.max(1, Math.round((Date.parse(b.d) - Date.parse(a.d)) / 86400000))) +
+      (plNow !== null ? '<div class="snap-part"><span class="pn">' + (plNow >= 0 ? "当前浮盈" : "当前浮亏") + '</span><b class="pv ' + cls(plNow) + '">' + fmtAmt2(plNow) +
+        ' <span class="snap-sub">（' + (costHold ? fmtPct(plNow / costHold, 2) : "--") + " · 成本 " + fmtYuan(costHold) + '）</span>' +
+        /* 两段小注都要写在同一个网格单元内：漏在外面的那个会掉进行尾备用列，被右对齐到很远 */
+        (plBase !== null && Math.abs(plBase) >= 0.005
+          ? ' <span class="snap-sub">较基线（' + a.d.slice(5).replace("-", ".") + "）" + (plBase >= 0 ? "收窄 " : "扩大 ") + fmtAbs2(plBase) + "</span>"
+          : "") + "</b></div>" : "") +
       "</article>");
   }
-  for (let i = snaps.length - 1; i >= 1; i--) html.push(snapPairHtml(snaps[i - 1], snaps[i]));
+  const pairs = [];
+  for (let i = snaps.length - 1; i >= 1; i--) pairs.push(snapPairHtml(snaps[i - 1], snaps[i]));   // 新在上
   const base = snaps[0];
-  html.push('<article class="snap-item"><h3 class="snap-head"><time class="snap-date" datetime="' + base.d + '">' + base.d.slice(5).replace("-", ".") + "</time>" +
-    '<span class="snap-vs">基线快照 · ' + (base.items ? Object.keys(base.items).length + " 项明细 · " : "简快照 · ") + "总资产 " + fmtWan(snapTotal(base)) +
+  const baseHtml = '<article class="snap-item"><h3 class="snap-head"><time class="snap-date" datetime="' + base.d + '">' + base.d.slice(5).replace("-", ".") + "</time>" +
+    '<span class="snap-vs">基线快照 · ' + (base.items ? Object.keys(base.items).length + " 项明细 · " : "简快照 · ") + "总资产 " + fmtYuan(snapTotal(base)) +
     (typeof base.pl === "number" ? " · 浮盈亏 " + fmtAmt2(base.pl) : "") + "</span></h3>" +
-    '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">之后的快照将与它自动对比</span></div></article>');
+    '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">之后的快照将与它自动对比</span></div></article>';
+  /* 只摊开最新 N 期，其余折进折叠区——逐期卡每张都很长，全铺开会把页面顶到看不完。
+   * 区间累计卡（上方总结）始终保留，所以折叠不会遮住"整体怎么样了"。 */
+  const KEEP = CONFIG.SNAP_KEEP;
+  html.push(pairs.slice(0, KEEP).join(""));
+  if (pairs.length > KEEP) {
+    html.push('<details class="snap-more"><summary>展开更早 <b>' + (pairs.length - KEEP) + '</b> 期 + 基线快照</summary>' +
+      pairs.slice(KEEP).join("") + baseHtml + "</details>");
+  } else {
+    html.push(baseHtml);
+  }
   el.innerHTML = html.join("");
 }
 
@@ -1516,6 +1852,7 @@ function renderAcctStats() {
     el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无月度统计；每月初在 data.js 的 ACCT_STATS 补 App 读数。</span></div>';
     return;
   }
+  $("acct-cnt").innerHTML = "（场内券商 App 读数 " + (S.updated || "未记录") + " · 月度盈亏含已实现）";
   const W = el.clientWidth || 360, H = 128, mT = 16, mB = 18, mL = 10, mR = 10;
   const maxAbs = Math.max.apply(null, S.monthly.map((r) => Math.abs(r.pnl)).concat([1]));
   const half = (H - mT - mB - 22) / 2, y0 = mT + half, k = half / maxAbs;   // 底部预留 22px：满高柱的净额标注不再压月份标签
@@ -1526,18 +1863,90 @@ function renderAcctStats() {
     const cxx = mL + (W - mL - mR) / S.monthly.length * (i + 0.5);
     const h = Math.max(2, Math.abs(r.pnl) * k), col = r.pnl >= 0 ? "green" : "red";
     svg += '<rect x="' + (cxx - bw / 2).toFixed(1) + '" y="' + (r.pnl >= 0 ? y0 - h : y0).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" style="fill:var(--' + col + ')" opacity=".8"/>';
-    svg += '<text x="' + cxx.toFixed(1) + '" y="' + (r.pnl >= 0 ? y0 - h - 4 : y0 + h + 10).toFixed(1) + '" text-anchor="middle" style="fill:var(--' + col + ');font:700 10px var(--mono)">' + (r.pnl >= 0 ? "+" : "") + fmtN(r.pnl) + "</text>";
+    svg += '<text x="' + cxx.toFixed(1) + '" y="' + (r.pnl >= 0 ? y0 - h - 4 : y0 + h + 10).toFixed(1) + '" text-anchor="middle" style="fill:var(--' + col + ');font:700 10px var(--mono)">' + fmtAmt(r.pnl) + "</text>";
     svg += '<text x="' + cxx.toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" style="fill:var(--tx3);font:10px var(--mono)">' + r.m + (r.note || "") + "</text>";
   });
   svg += "</svg>";
   el.innerHTML = svg +
     '<div class="acct-stats">' +
       '<div class="kpi"><div class="k-label">账户累计盈亏</div><div class="k-val ' + cls(S.pnl) + '">' + fmtAmt2(S.pnl) + '</div><div class="k-sub ' + cls(S.pnl) + '">' + fmtPct(S.pnlPct / 100, 2) + " · " + S.since + ' 起</div></div>' +
-      '<div class="kpi"><div class="k-label">交易笔数</div><div class="k-val">' + S.trades + '</div><div class="k-sub" style="color:var(--tx3)">税费 ' + fmtN(S.fees) + " 元</div></div>" +
+      '<div class="kpi"><div class="k-label">交易笔数</div><div class="k-val">' + S.trades + '</div><div class="k-sub" style="color:var(--tx3)">税费 ' + fmtYuan(S.fees) + " 元</div></div>" +
       '<div class="kpi"><div class="k-label">平均仓位</div><div class="k-val">' + S.avgPos.toFixed(1) + '%</div><div class="k-sub" style="color:var(--tx3)">持股 ' + S.holdDays + " 天</div></div>" +
       '<div class="kpi"><div class="k-label">品种盈 / 亏</div><div class="k-val"><span class="up">' + S.win + '</span><span style="color:var(--tx3);font-size:12px"> / </span><span class="down">' + S.loss + '</span></div><div class="k-sub" style="color:var(--tx3)">App 口径</div></div>' +
     '</div>' +
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
+}
+
+/* ================= 波段复盘（跨标的） =================
+ * 单只标的回路样本太少（全部加起来也才个位数），合起来才看得出做T的期望值；
+ * 且必须把「波段」与「减仓」分开——混在一起会把超期持仓的亏损算到做T头上。 */
+function renderSwing() {
+  const el = $("swing-card");
+  if (!el) return;
+  const sd = swingData();
+  const all = sd.all.map((x) => Object.assign({}, x, { close: sd.close[x.sym] }));
+  const by = (k) => all.filter((x) => x.kind === k);
+  const SW = swingStats(by("swing")), RV = swingStats(by("reverse")), TR = swingStats(by("trim"));
+  $("swing-cnt").innerHTML = "(" + all.length + " 次往返 · " + etfTag("", true) + ")";
+  if (!all.length) {
+    el.innerHTML = '<div class="snap-line"><span class="v" style="color:var(--tx3)">暂无往返——做T复盘至少需要一次「卖出」。</span></div>';
+    return;
+  }
+  const Tn = SW.n + RV.n, Tnet = SW.net + RV.net;
+  const Tdays = Tn ? (SW.days * SW.n + RV.days * RV.n) / Tn : 0;
+  const tRounds = by("swing").concat(by("reverse"));
+  const holdAll = holdToNow(tRounds), edge = Tnet - holdAll;
+  /* 未配对的腿 = 真正的加仓 / 减仓，与做T分开统计 */
+  const ob = sd.open.filter((x) => x.dir === "buy"), os = sd.open.filter((x) => x.dir === "sell");
+  const sumQ = (a) => a.reduce((s, x) => s + x.qty, 0);
+  /* 反T 的降成本：卖出与回补份数相抵，净投入减少「价差×份数」，摊薄成本随之下降 */
+  const hold = {};
+  (POSITIONS.hold || []).forEach((h) => { hold[h.sym] = h.qty; });
+  const cutGross = by("reverse").reduce((s, x) => s + x.gross, 0);
+  const kpi = (label, val, sub, k) =>
+    '<div class="sw-kpi"><div class="sw-label">' + label + "</div>" +
+    '<div class="sw-val ' + (k || "") + '">' + val + "</div>" +
+    (sub ? '<div class="sw-sub">' + sub + "</div>" : "") + "</div>";
+  const sub = (s) => s.n ? "净 " + fmtAmt(s.net) + " · 胜 " + s.win + "/" + s.n + " · 均持 " + s.days.toFixed(1) + " 天" : "暂无";
+  let html = '<div class="sw-kpis">' +
+    kpi("顺T（低买高卖）", SW.n + " 次", sub(SW), SW.n ? cls(SW.net) : "") +
+    kpi("反T（高抛低吸）", RV.n + " 次", sub(RV), RV.n ? cls(RV.net) : "") +
+    kpi("做T 合计", fmtAmt(Tnet), Tn ? Tn + " 次 · 均持 " + Tdays.toFixed(1) + " 天" : "暂无", cls(Tnet)) +
+    kpi("择时优势", fmtAmt(edge), "做T净额 − 一直持有（" + fmtAmt(holdAll) + "）", cls(edge)) +
+    kpi("持仓 / 净减仓", fmtQty(sumQ(ob)) + " / " + fmtQty(sumQ(os)), "份 · 未配对腿 " + ob.length + " / " + os.length + " 笔") +
+  "</div>";
+  /* 结论行：全部由数据推出，不写死文案 */
+  const notes = [];
+  const judge = (s, name) => name + " " + s.n + " 次净 <b class=\"" + cls(s.net) + "\">" + fmtAmt(s.net) + "</b>（平均 " + fmtAmt(s.avg) + "/次）" +
+    (s.net > 0 ? "，是正期望" : "，是负期望——先看配对明细再决定是否继续") + (s.n < 5 ? "；样本仅 " + s.n + " 次，不足以定论" : "");
+  if (SW.n) notes.push(judge(SW, "顺T"));
+  if (RV.n) notes.push(judge(RV, "反T"));
+  if (RV.n) notes.push("反T 把卖出与回补份数相抵，净投入减少 <b>" + fmtAbs2(cutGross) + "</b> 元——等价于把摊薄成本往下拉（差额从挂单里省出来，不是账面浮盈）");
+  if (Tn) notes.push("这 " + Tn + " 次做T的份额若一直持有到今天，同期为 " + fmtAmt(holdAll) + "，做T" + (edge > 0 ? "胜出 <b>" + fmtAbs2(edge) + "</b> 元" : "反而少赚 <b>" + fmtAbs2(-edge) + "</b> 元"));
+  if (TR.n) notes.push("另有 " + TR.n + " 次间隔超过 " + CONFIG.SWING_MAX_DAYS + " 天的往返（调仓级，不计入做T），净 " + fmtAmt(TR.net) +
+    (TR.net < 0 && Math.abs(TR.net) > Math.abs(Tnet) ? "——金额上远大于做T，<b>优先管卖出纪律</b>" : ""));
+  if (ob.length + os.length) notes.push("未配对的 " + ob.length + " 笔买入 / " + os.length + " 笔卖出是真金白银的加减仓，不属于做T，已单独统计");
+  const feeEst = all.filter((x) => x.feeEst).length;
+  html += '<div class="sw-notes">' + notes.map((n) => "· " + n).join("<br>") +
+    (feeEst ? '<br><span style="color:var(--tx3)">· ' + feeEst + " 次往返的手续费按 <b>" + CONFIG.FEE_PER_SIDE + "</b> 元/边估算（备注未记「费 X」），净额前标 ≈</span>" : "") +
+  "</div>";
+  html += all.map((x) => '<div class="swing-row">' +
+      '<span class="sw-no" title="与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致">' + roundMark(x.no) + "</span>" +
+      '<span class="sw-date">' + mdOf(x.d1) + '→' + mdOf(x.d2) + "</span>" +
+      '<span class="sw-sym">' + esc(x.sym) + "</span>" +
+      '<span class="sw-kind ' + kindCls(x.kind) + '">' + KIND_LABEL[x.kind] + "</span>" +
+      '<span class="sw-qty">' + fmtQty(x.qty) + " 份</span>" +
+      '<span class="sw-px">买 ' + x.bp + " 卖 " + x.sp + "</span>" +
+      '<span class="' + cls(x.pct) + '">' + fmtPct(x.pct) + "</span>" +
+      '<span class="sw-days">' + x.days + " 天</span>" +
+      '<span class="sw-net ' + cls(x.net) + '">' + (x.feeEst ? "≈" : "") + fmtAmt(x.net) + "</span>" +
+    "</div>").join("");
+  html += '<div class="otc-note"><b>一次卖出 = 一个往返</b>：一次卖出若跨多笔买入批次，按加权买入均价合并为一条（批次构成见行悬停）。<br>' +
+    "<b>顺T</b>＝先买后卖（低买高卖）；<b>反T</b>＝先卖后买（高抛低吸，回补后摊薄成本下降）；间隔超过 " + CONFIG.SWING_MAX_DAYS +
+    " 天记「调仓」，不计入做T统计。净额 ＝（卖出价 − 买入价）× 配对份数 − 双边手续费，顺T 反T 同一公式。<br>" +
+    "配对规则 <b>" + CONFIG.SWING_MATCH + "</b>（qty 同份额优先 / near 时间最近 / oldest 最早）；反T 自动识别：" + (CONFIG.SWING_REVERSE ? "<b>已开启</b>" : "关闭（可在 log 条目写 tag: \"反T\" 单笔开启）") +
+    "。编号与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致。券商按 FIFO 结算，与这里的配对不同，差别只在「已实现 / 浮动」如何切分。</div>";
+  el.innerHTML = html;
 }
 
 /* ================= 场内持仓卡 ================= */
@@ -1560,23 +1969,34 @@ function holdCardHtml(row, i, ctx) {
   const ruleTxt = "跌 " + Math.abs(st.dip) + "% 加仓 / 涨 " + st.rally + "% 减仓";
   const quoteKey = ({ ndx: "etfNdx", spx: "etfSpx" })[p.idx] || p.idx;
   const health = sourceHealth(quoteKey);
+  /* 触发线依赖「当日涨跌」，而它来自报价日。报价超期时不再整句屏蔽——那会让卡片丢掉主要信息，
+   * 且长期挂着一句重复警告会被直接无视。改为照常给结论、旁边挂滞后角标，把判断依据摆到结论边上；
+   * 只有连报价日期都没有（无从判断是哪天的行情）时才阻断。 */
+  const lagTag = (health.asOf && !health.usable)
+    ? ' <span class="asof-tag warn" title="触发线按该报价日的收盘涨跌计算；已滞后 ' + health.days +
+      ' 个交易日，盘中请以券商实时价为准">' + mdOf(health.asOf) + ' · 滞后 ' + health.days + ' 日</span>'
+    : "";
   let strat;
-  if (!health.usable) {
-    strat = '<span class="warn">行情未核验或已过期，暂停日内动作结论</span>';
+  if (!health.asOf) {
+    strat = '<span class="warn">报价日期未核验，不生成日内结论（见顶部来源行）</span>';
   } else if (chg <= st.dip) {
-    strat = '<span class="up"><span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>';
+    strat = '<span class="up"><span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>' + lagTag;
   } else if (chg >= st.rally) {
-    strat = '<span class="warn"><span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>';
+    strat = '<span class="warn"><span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>' + lagTag;
   } else {
-    strat = '<span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（' + ruleTxt + '）';
+    strat = '<span aria-hidden="true">🎯</span> 今日 ' + fmtPct(chg / 100, 2) + ' · 未触发（' + ruleTxt + '）' + lagTag;
   }
   posInfos[i] = { close: m.close, chg, lo, hi, days: m.days };
   const tierWord = tier[1];
-  const advice = !health.usable ? "行情数据受限，此处仅展示历史成本位置，不生成操作建议。" : pct < CONFIG.TIER_LOW
+  const adviceBase = pct < CONFIG.TIER_LOW
     ? '成本处于区间较低位置，但区间位置本身不代表风险较低。'
     : pct <= CONFIG.TIER_HIGH
       ? '<span aria-hidden="true">🟡</span> 位置中性，按既定纪律执行：日内跌 ≥' + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
       : '<span aria-hidden="true">🔵</span> 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。';
+  /* 与触发线同一原则：报价日期有值就照常给建议，只在其后标明判断依据的日期与滞后天数 */
+  const advice = !health.asOf
+    ? "报价日期未核验，此处仅展示历史成本位置，不生成操作建议。"
+    : adviceBase + (health.usable ? "" : "（按 " + mdOf(health.asOf) + " 报价判定，滞后 " + health.days + " 个交易日）");
   const sumTxt = "成本位于" + tierWord + "（分位 " + pct + "%）";
   const cushionTxt = r >= 0
     ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
@@ -1598,7 +2018,7 @@ function holdCardHtml(row, i, ctx) {
     const op = (0.95 - 0.55 * age).toFixed(2);
     return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
-      ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtN(e.qty) + ' 份">' +
+      ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtQty(e.qty) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
   }).join("");
   /* 卖出标记：红空心圈，位置=成交价分位，大小∝份数；与买入点同处 buy-layer（颜色区分买/卖） */
@@ -1611,11 +2031,13 @@ function holdCardHtml(row, i, ctx) {
     const op = (0.95 - 0.35 * age).toFixed(2);   // 时间衰减幅度小于买入，保证卖出点始终可见
     return '<button type="button" class="sell-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + Math.abs(e.qty) + '"' +
-      ' aria-label="' + e.d + ' 卖出 ' + e.cost + ' 元 ' + fmtN(Math.abs(e.qty)) + ' 份">' +
+      ' aria-label="' + e.d + ' 卖出 ' + e.cost + ' 元 ' + fmtQty(Math.abs(e.qty)) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:3px"></i></button>';
   }).join("");
   /* 三点水位梯 */
-  const dateStr = health.asOf ? " (" + health.asOf.slice(5).replace("-", ".") + ")" : "（日期未核验）";
+  /* 现价口径日：核验日优先，缺失时退回脚本写入的 priceDate（即该报价的成交日）；两者都无才标未核验 */
+  const quoteDate = mdOf(health.asOf) || mdOf(m.priceDate);
+  const dateStr = quoteDate ? " (" + quoteDate + ")" : "（日期未核验）";
   const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
   const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
   const chipHigh = '<span class="lad-chip ' + (m.close >= hi ? "up" : "warn") + '">' + (m.close >= hi ? "▲" : "▼") + fmtPct(m.close / hi - 1) + ' 距高点</span>';
@@ -1623,7 +2045,7 @@ function holdCardHtml(row, i, ctx) {
   const dipTiers = (POSITIONS.strategy && POSITIONS.strategy.dipTiers) || CONFIG.DCA_DIP_TIERS;
   const curDd = r * 100;
   let chipDip = "";
-  if (health.usable && dipTiers && dipTiers.length) {
+  if (health.asOf && dipTiers && dipTiers.length) {   // 成本回撤档是「价位」判断，报价日有值即可用（日期见水位梯「现价」行）
     const reached = dipTiers.filter((x) => curDd <= x);   // 已跌破的档
     if (reached.length) {
       chipDip = '<span class="lad-chip warn">已达 −' + Math.abs(Math.min.apply(null, reached)) + '% 加仓档</span>';
@@ -1656,7 +2078,7 @@ function holdCardHtml(row, i, ctx) {
       : pv < 0 ? '<span class="prem-tag prem-disc">折价</span>' : "";
     const premHealth = sourceHealth("premium:" + p.code);
     premRow = '<div class="prem-row"><span>价格/滞后净值差（近似）</span>' +
-      '<b class="' + pc + '">' + (pv >= 0 ? "+" : "") + pv.toFixed(1) + '%</b>' + (premHealth.usable ? tag : '<span class="prem-note">' + esc(premHealth.text) + '</span>') +
+      '<b class="' + pc + '">' + (Number.isFinite(pv) ? fmtPct(pv / 100, 1) : "--") + '</b>' + (premHealth.usable ? tag : '<span class="prem-note">' + esc(premHealth.text) + '</span>') +
       '<span class="prem-note">价格日 ' + esc(prem.priceDate || "未知") + '</span>' +
       '<span class="prem-note">净值 ' + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") +
       (prem.navDate ? " (" + prem.navDate.slice(5).replace("-", ".") + ")" : "") + '</span>' +
@@ -1665,15 +2087,16 @@ function holdCardHtml(row, i, ctx) {
   return '<article class="card" data-sym="' + p.sym + '">' +
     '<div class="pos-head"><div class="pos-name">' + p.sym +
       '<span class="code">' + p.code + '</span>' +
-      '<span class="idx-badge ' + p.idx + '">' + idxName + '</span></div>' +
+      '<span class="idx-badge ' + p.idx + '">' + idxName + '</span>' +
+      '<span class="asof-tag ' + (quoteDate ? "etf" : "warn") + '">' + (quoteDate ? "报价 " + quoteDate : "报价日未记录") + '</span></div>' +
       (heldDays ? '<span class="held">持有 ' + heldDays + ' 天</span>' : '') +
     '</div>' +
     '<div class="stat-grid">' +
-      '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtN(p.qty) + ' 份</b></div>' +
+      '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtQty(p.qty) + ' 份</b></div>' +
       '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
     '</div>' +
     '<div class="kpi-row kpi3">' +
-      '<div class="kpi"><div class="k-label" title="市值与浮盈按场内现价估算（含溢价）；App 净值口径差≈场内溢价率">市值（估）</div><div class="k-val">' + fmtWan(valAmt) + '</div><div class="k-sub ' + cls(r) + '">浮盈 ' + fmtPct(r) + ' ' + (pl >= 0 ? "+" : "") + fmtWan(pl) + '</div></div>' +
+      '<div class="kpi"><div class="k-label" title="市值与浮盈按场内现价估算（含溢价）；App 净值口径差≈场内溢价率">市值（估）</div><div class="k-val">' + fmtYuan(valAmt) + '</div><div class="k-sub ' + cls(r) + '">浮盈 ' + fmtPct(r) + ' ' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + '</div></div>' +
       '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
       '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div></div>' +
     '</div>' +
@@ -1704,91 +2127,7 @@ function holdCardHtml(row, i, ctx) {
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
       '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>卡内市值/浮盈按<b>场内现价</b>（含溢价）估算，与 App 净值口径的差额 ≈ 本卡「场内溢价」行的溢价率。</div>' +
     '</div>' +
-  '</article>';
-}
-
-/* ================= 场外持仓卡 ================= */
-function otcCardHtml(row, k, ctx) {
-  const { f, n, costNav, r, shares, costAmt, valAmt } = row;
-  const { totalVal } = ctx;
-  const pl = f.pnl;
-  const pctOf = (v) => Math.max(0, Math.min(100, ((v - n.lo) / (n.hi - n.lo)) * 100));
-  const pct = Math.round(pctOf(costNav));
-  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
-  const backToCost = 1 / (1 + r) - 1;   // Required return uses current NAV as the denominator.
-  const nowPct = Math.round(pctOf(n.close));
-  const nowTier = nowPct < CONFIG.TIER_LOW ? "t-low" : nowPct <= CONFIG.TIER_HIGH ? "t-mid" : "t-high";
-  const dayCls = f.day > 0 ? "up" : f.day < 0 ? "down" : "";
-  /* 区间着色带（净值口径同场内）：最新净值↔成本净值间 = 浮盈(绿)/浮亏(红)；带内箭头从成本端指向现净值端 */
-  const segC = pctOf(costNav), segN = pctOf(n.close);
-  const segWv = Math.abs(segC - segN);
-  const seg = (Number.isFinite(costNav) && costNav > 0 && Number.isFinite(n.close) && segWv > 0.01)
-    ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + (segWv >= 4 && n.close !== costNav ? (n.close > costNav ? " s-r" : " s-l") : "") + '" style="left:' + Math.min(segC, segN) + '%;width:' + segWv + '%"></span>' : "";
-  /* 弹窗数据 */
-  posInfos[k] = { close: n.close, chg: null, lo: n.lo, hi: n.hi, days: null, nav4: true };
-  const tierWord = tier[1];
-  const advice = pct < CONFIG.TIER_LOW
-    ? '<span aria-hidden="true">🟢</span> 成本净值位置较低，安全垫厚，适合耐心持有。'
-    : pct <= CONFIG.TIER_HIGH
-      ? '<span aria-hidden="true">🟡</span> 位置中性，按既定计划执行申赎。'
-      : '<span aria-hidden="true">🔵</span> 成本净值偏高，注意控制加仓节奏；场外申赎按未知价成交，勿追短期涨幅。';
-  const sumTxt = "成本净值位于" + tierWord + "（分位 " + pct + "%）";
-  const cushionTxt = r >= 0
-    ? "浮盈垫：净值回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
-    : "当前浮亏，需涨 " + fmtPct(-r / (1 + r)) + " 回本";
-  costInfos[k] = { idxAtCost: costNav, gapCost: costNav / n.hi - 1, cost: costNav, qty: shares, r, pl, pct, sumTxt, cushionTxt, advice, nav4: true };
-  /* 三点水位梯（净值口径） */
-  const dateStr = n.closeDate ? " (" + n.closeDate.slice(5).replace("-", ".") + ")" : "";
-  const athStr = n.hiDate ? " (" + n.hiDate.slice(5).replace("-", ".") + ")" : "";
-  const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
-  const chipHigh = '<span class="lad-chip ' + (n.close >= n.hi ? "up" : "warn") + '">' + (n.close >= n.hi ? "▲" : "▼") + fmtPct(n.close / n.hi - 1) + ' 距高点</span>';
-  const ladRows = [
-    { k: "hi", name: "52周净值高" + athStr, v: n.hi, dot: "var(--yellow)", chips: "" },
-    { k: "now", name: "最新净值" + dateStr, v: n.close, dot: "var(--tx)", chips: chipCost + chipHigh },
-    { k: "cost", name: "成本净值", v: costNav, dot: "var(--cyan)", chips: "" },
-  ].sort((a, b) => b.v - a.v);
-  return '<article class="card" data-code="' + f.code + '">' +
-    '<div class="pos-head"><div class="pos-name">' + f.name +
-      '<span class="code">' + f.code + '</span>' +
-      '<span class="idx-badge ' + f.theme + '">' + (OTC_BADGE[f.theme] || f.theme) + '</span></div>' +
-      '<span class="held">' + esc(f.channel) + '</span>' +
-      '<div class="otc-note">净值日 ' + esc(n.closeDate || "未记录") + ' · 截图 ' + esc(f.upd || "未记录") + '；日收益为平台入账快照，非实时收益。</div>' +
-    '</div>' +
-    '<div class="stat-grid">' +
-      '<div class="row"><span style="color:var(--tx2)">份额（估）</span><b>' + (shares ? fmtN(shares) + ' 份' : '--') + '</b></div>' +
-      '<div class="row"><span style="color:var(--tx2)">投入成本（估）</span><b>' + fmtWan(costAmt) + '</b></div>' +
-    '</div>' +
-    '<div class="kpi-row">' +
-      '<div class="kpi"><div class="k-label">持有收益率</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + pl.toFixed(2) + '</div></div>' +
-      '<div class="kpi"><div class="k-label">市值（快照）</div><div class="k-val">' + fmtWan(valAmt) + '</div></div>' +
-      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(-r / (1 + r)).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
-      '<div class="kpi"><div class="k-label">当日</div><div class="k-val ' + dayCls + '">' + (Number.isFinite(f.day) ? (f.day > 0 ? "+" : "") + f.day.toFixed(2) : "—") + '</div><div class="k-sub" style="color:var(--tx3)">场外快照</div></div>' +
-    '</div>' +
-    '<div class="ladder">' +
-      ladRows.map((lr) =>
-        '<div class="lad-row">' +
-          '<span class="lad-dot ' + lr.k + '" style="background:' + lr.dot + '"></span>' +
-          '<span class="lad-name">' + lr.name + '</span>' +
-          '<b class="lad-val">' + fmtNav(lr.v) + '</b>' +
-          (lr.chips ? '<span class="lad-chips">' + lr.chips + '</span>' : '') +
-          '<span class="lad-track"><i class="tk-' + lr.k + '" style="width:' + pctOf(lr.v).toFixed(1) + '%"></i></span>' +
-        '</div>').join("") +
-      '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
-    '</div>' +
-    '<div class="bar-wrap">' +
-      '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span>' +
-        '<span>净值水位 <b>' + nowPct + '%</b><span class="pos-tier ' + nowTier + '">' + (nowPct < CONFIG.TIER_LOW ? "区间偏低" : nowPct <= CONFIG.TIER_HIGH ? "区间中位" : "区间偏高") + '</span></span></div>' +
-      '<div class="bar-track pops">' + seg +
-        '<span class="bar-end"></span>' +
-        '<button type="button" class="bar-marker cost" style="left:' + pctOf(costNav) + '%" data-k="' + k + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
-        '<button type="button" class="bar-marker now" style="left:' + pctOf(n.close) + '%" data-k="' + k + '" aria-label="查看净值位置解读" aria-expanded="false"></button>' +
-      '</div>' +
-      '<div class="bar-labels"><span>' + fmtNav(n.lo) + '</span><span>' + fmtNav(n.hi) + '</span></div>' +
-      '<div class="bar-legend"><span>52周净值区间</span><span><i style="background:var(--cyan);border-radius:50%"></i>成本</span><span><i style="background:var(--tx);border-radius:50%"></i>现净值</span><span><i style="background:var(--yellow);border-radius:2px"></i>高点</span></div>' +
-    '</div>' +
-    '<div class="otc-note">成本净值 = 最新净值 ÷（1 + 持有收益率），由收益率反推；场外按净值申赎、无溢价。' +
-      (f.code === "015884" ? '该基金累计收益含已实现部分，与持有收益率口径略有差异。' : '') +
-    '</div>' +
+    posLogHtml(p, r, pl) +
   '</article>';
 }
 
@@ -1807,10 +2146,9 @@ function positionLadderFills() {
   });
 }
 
-/* ---- 操作日志（场内流水） ---- */
-let logOpen = false;
-let logFilter = "all";
-function logItemHtml(e) {
+/* ---- 流水条目（现嵌在各持仓卡内，hideSym 时省略重复的标的名）
+ * pair：配对角标 HTML（同一回路的买入行与卖出行挂同一个编号，逐笔流水才看得出「哪一买对哪一卖」） ---- */
+function logItemHtml(e, hideSym, pair) {
   const a = String(e.act || "");
   const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
   const d = e.d ? e.d.slice(5).replace("-", ".") : "--";
@@ -1818,12 +2156,16 @@ function logItemHtml(e) {
   return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
     '<span class="log-date">' + d + '</span>' +
     '<span class="act-badge ' + c + '">' + e.act + '</span>' +
-    '<span class="log-sym">' + e.sym + '</span>' +
-    '<span class="log-nums">' + fmtN(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + ' 元</span>' +
+    (hideSym ? "" : '<span class="log-sym">' + e.sym + '</span>') +
+    '<span class="log-nums">' + fmtQty(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + ' 元</span>' +
+    (pair || "") +
     (e.note ? '<div class="log-note">' + e.note + '</div>' : '') +
   '</div>';
 }
-/* 周小计：ISO 周（周一起算），聚合当日筛选下的买卖笔数与金额、净投入 */
+/* 周小计：ISO 周（周一起算），聚合该周买卖笔数与金额、资金净额。
+ * 末尾一项是「资金净额」而非盈亏：同一周等量买入+卖出时它接近 0 甚至为负，
+ * 但那是「净收回资金」，方向与盈亏相反——曾把 +43 的价差显示成「净投 −43」造成误读。
+ * 用「净投入/净收回」正负措辞并去掉红绿着色，避免被当成亏赚。 */
 function weekOf(d) {
   const t = Date.parse(d + "T00:00:00Z");
   return new Date(t - (new Date(t).getUTCDay() + 6) % 7 * 86400000).toISOString().slice(0, 10);
@@ -1837,41 +2179,119 @@ function weekRowHtml(entries, wk) {
   const sAmt = sells.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
   const net = bAmt - sAmt;
   let parts = "周 " + mdFmt(wk) + "–" + mdFmt(we);
-  if (buys.length) parts += ' · 买 ' + buys.length + ' 笔 <b class="up">+' + fmtN(bAmt) + '</b>';
-  if (sells.length) parts += ' · 卖 ' + sells.length + ' 笔 <b class="down">−' + fmtN(sAmt) + '</b>';
-  if (buys.length && sells.length) parts += ' · 净投 <b class="' + cls(net) + '">' + fmtAmt(net) + '</b>';
-  return '<div class="log-week">' + parts + '</div>';
+  if (buys.length) parts += ' · 买 ' + buys.length + ' 笔 <b class="up">+' + fmtAbs2(bAmt) + '</b>';
+  if (sells.length) parts += ' · 卖 ' + sells.length + ' 笔 <b class="down">−' + fmtAbs2(sAmt) + '</b>';
+  if (buys.length && sells.length) parts += " · " + (net >= 0 ? "净投入 " : "净收回 ") + "<b>" + fmtAbs2(net) + "</b>";
+  return '<div class="log-week" title="周小计：买卖金额为该周成交额；末项是资金净额（买入额−卖出额），' +
+    '「净收回」表示卖出多于买入、钱在往回收，不是盈亏。已实现盈亏见各行（券商先进先出口径），与本项不是同一件事。">' + parts + '</div>';
 }
-function renderLog() {
-  const all = POSITIONS.log || [];
-  const log = all.filter((e) => logFilter === "all" || symIdx[e.sym] === logFilter);
-  const shown = logOpen ? log : log.slice(0, CONFIG.LOG_PREVIEW);
-  let html = "", wk = null;
-  shown.forEach((e) => {
-    const w = e.d ? weekOf(e.d) : "";
-    if (logOpen && w && w !== wk) { wk = w; html += weekRowHtml(log.filter((x) => x.d && weekOf(x.d) === w), w); }
-    html += logItemHtml(e);
-  });
-  $("log-list").innerHTML = html || '<div class="log-note" style="padding:12px 2px;text-align:center">暂无日志</div>';
-  const btn = $("log-toggle");
-  if (log.length > CONFIG.LOG_PREVIEW) {
-    btn.style.display = "";
-    btn.textContent = logOpen ? "收起 ▴" : "展开全部 " + log.length + " 条 ▾";
-    btn.setAttribute("aria-expanded", logOpen ? "true" : "false");
-  } else {
-    btn.style.display = "none";
+/* ================= 卡内操作记录（原独立「操作日志」模块并入持仓卡） =================
+ * 每只场内标的在自己的卡里给出它自己的全部流水，按周分组（沿用 weekRowHtml 小计）。
+ * 折叠区默认收起：summary 先回答「这笔仓位现在赚亏多少」，展开才看逐笔明细。 */
+/* 单条回路行：日期区间 / 类别 / 份数 / 买→卖 / 价差% / 持有 / 净额
+ * 一次卖出由多笔买入批次组成时，买入价与持有天数为加权值，批次构成挂在行悬停里 */
+function swingRowHtml(x) {
+  const tip = x.lots && x.lots.length > 1
+    ? "由 " + x.lots.map((l) => mdOf(l.bd) + " 买 " + fmtQty(l.qty) + " 份 @" + l.bp).join("　+　") + " 组成（买入价/持有天数为此加权值）"
+    : "";
+  return '<div class="swing-row"' + (tip ? ' title="' + esc(tip) + '"' : "") + '>' +
+    '<span class="sw-date">' + mdOf(x.d1) + '→' + mdOf(x.d2) + '</span>' +
+    '<span class="sw-kind ' + kindCls(x.kind) + '">' + KIND_LABEL[x.kind] + '</span>' +
+    '<span class="sw-qty">' + fmtQty(x.qty) + ' 份</span>' +
+    '<span class="sw-px">买 ' + x.bp + ' 卖 ' + x.sp + '</span>' +
+    '<span class="' + cls(x.pct) + '">' + fmtPct(x.pct) + '</span>' +
+    '<span class="sw-days">' + x.days + ' 天</span>' +
+    '<span class="sw-net ' + cls(x.net) + '">' + (x.feeEst ? "≈" : "") + fmtAmt(x.net) + '</span>' +
+  '</div>';
+}
+/* 卡内操作记录：两段折叠区。
+ * ① 波段回路——做T的复盘单位（配对表 + 回补提示 + 费用门槛）
+ * ② 逐笔流水——原始记录，按周分组（沿用 weekRowHtml 小计）
+ * 注意：这里不显示该标的的浮盈——卡头 KPI 已有，避免同一数字出现两次（曾因此误把摊薄口径当重复计数）。 */
+function posLogHtml(p, r, pl) {
+  const entries = (POSITIONS.log || []).filter((e) => e.sym === p.sym);
+  if (!entries.length) return "";
+  /* 用全站统一编号的回路事件（与波段复盘表同一套号；已按新在上排好序） */
+  const rounds = swingData().bySym[p.sym] || [];
+  const kindOf = (k) => rounds.filter((x) => x.kind === k);
+  const S1 = swingStats(kindOf("swing")), S2 = swingStats(kindOf("reverse")), S3 = swingStats(kindOf("trim"));
+  const m = DEFAULT[QUOTE_KEY[p.idx] || p.idx] || {};
+  const close = m.close;
+  let out = "";
+
+  /* ① 波段回路 */
+  if (rounds.length) {
+    const lastSell = entries.slice().sort((a, b) => (a.d < b.d ? 1 : -1)).find(isSellAct);
+    const fee2 = CONFIG.FEE_PER_SIDE * 2;
+    let hint = "";
+    if (lastSell && Number.isFinite(close)) {
+      const gap = lastSell.cost - close;                       // >0 = 现价已低于上次卖出价，回补划算
+      const save = gap * lastSell.qty;
+      hint = '<div class="swing-hint">最近卖出 <b>' + lastSell.cost + '</b>（' + mdOf(lastSell.d) + ' · ' + fmtQty(lastSell.qty) + ' 份）· 现价 <b>' + close + '</b>' +
+        (gap > 0
+          ? ' · <span class="up">已回落 ' + (gap / lastSell.cost * 100).toFixed(2) + '%</span> → 回补可省 <b>' + fmtAbs2(save) + '</b> 元（扣双边费净 <b class="' + cls(save - fee2) + '">' + fmtAmt(save - fee2) + '</b>）'
+          : ' · <span class="down">已高出 ' + (-gap / lastSell.cost * 100).toFixed(2) + '%</span>，现价位回补不划算') +
+      '</div>';
+    }
+    hint += '<div class="swing-hint">做T门槛：双边费 <b>' + fee2.toFixed(2) + '</b> 元 → 按 ' + fmtQty(lastSell ? lastSell.qty : 0) + ' 份操作需价差 ≥ <b>' +
+      (fee2 / (lastSell ? lastSell.qty : 1)).toFixed(4) + '</b> 元/份' +
+      (Number.isFinite(close) && lastSell ? '（约 ' + (fee2 / lastSell.qty / close * 100).toFixed(2) + '%）' : '') +
+      '；低于此数本趟必亏</div>';
+    if (S2.n) {
+      /* 反T 降成本：卖出与回补份数相抵，净投入减少「价差×份数」，摊薄成本随之下降 */
+      const cut = kindOf("reverse").reduce((s, x) => s + x.gross, 0);
+      hint += '<div class="swing-hint">反T 降成本：卖出与回补份数相抵，净投入减少 <b>' + fmtAbs2(cut) + '</b> 元 → 摊薄成本约 <b>−' +
+        (p.qty ? (cut / p.qty).toFixed(3) : "0") + '</b> 元/份（现持 ' + fmtQty(p.qty) + ' 份）</div>';
+    }
+    out += '<details class="pos-log">' +
+      '<summary>往返 <b>' + rounds.length + '</b> 次' +
+        (S1.n ? ' · 顺T <b>' + S1.n + '</b> 净 <b class="' + cls(S1.net) + '">' + fmtAmt(S1.net) + '</b>' : "") +
+        (S2.n ? ' · 反T <b>' + S2.n + '</b> 净 <b class="' + cls(S2.net) + '">' + fmtAmt(S2.net) + '</b>' : "") +
+        (S3.n ? ' · 调仓 <b>' + S3.n + '</b> 净 <b class="' + cls(S3.net) + '">' + fmtAmt(S3.net) + '</b>' : "") +
+      '</summary>' +
+      '<div class="log-list">' + hint + rounds.map(swingRowHtml).join("") +
+        '<div class="otc-note"><b>一次卖出 = 一个往返</b>（一次卖多笔买入批次时合并为一条，批次构成见行悬停）。' +
+        '<b>顺T</b>＝先买后卖（低买高卖）；<b>反T</b>＝先卖后买（高抛低吸，回补后摊薄成本下降）；间隔超过 ' + CONFIG.SWING_MAX_DAYS + ' 天记「调仓」。<br>' +
+        '配对规则 <b>' + CONFIG.SWING_MATCH + '</b>（qty 同份额优先 / near 时间最近 / oldest 最早）；反T 自动识别：' +
+        (CONFIG.SWING_REVERSE ? "<b>已开启</b>" : '关闭（可在 log 条目写 tag: "反T" 单笔开启）') +
+        '。编号见下方「逐笔流水」行尾的 ⇄ 角标——两侧同号即为一对。</div>' +
+      '</div>' +
+    '</details>';
   }
-  $("log-chips").innerHTML = [["all", "全部"]].concat(Object.keys(MARKET_SHORT).map((k) => [k, MARKET_SHORT[k]])).map(([k, label]) => {
-    const n = k === "all" ? all.length : all.filter((e) => symIdx[e.sym] === k).length;
-    return '<button type="button" class="log-chip' + (logFilter === k ? " on" : "") + '" data-f="' + k + '" aria-pressed="' + (logFilter === k) + '">' + label + ' ' + n + '</button>';
-  }).join("") +
-  '<div class="log-empty-note" style="width:100%">场外基金暂无分笔流水（仅有 ' + OTC.updated + ' 仓位快照）；有买卖时在此补录。</div>';
+
+  /* ② 逐笔流水 */
+  const sells = entries.filter(isSellAct);
+  const bAmt = entries.filter((e) => !isSellAct(e)).reduce((a, e) => a + e.qty * (e.cost || 0), 0);
+  const sAmt = sells.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
+  /* 配对角标：把回路回挂到具体的买/卖条目上——同一个回路在两行显示同一个编号，逐笔流水才看得出配对 */
+  const byIdx = {};
+  rounds.forEach((x) => { x.bis.concat([x.si]).forEach((i) => { (byIdx[i] = byIdx[i] || []).push(x); }); });
+  const pairBadge = (i) => {
+    const rs = byIdx[i];
+    if (!rs) return "";
+    const tip = rs.map((x) => "配对" + roundMark(x.no) + "：" + mdOf(x.bd) + " 买 " + x.bp + " → " + mdOf(x.sd) + " 卖 " + x.sp +
+      "　" + fmtQty(x.qty) + " 份 · 持有 " + x.days + " 天 · 净 " + (x.feeEst ? "≈" : "") + fmtAmt(x.net)).join("\n");
+    return '<span class="log-pair ' + (rs.every((x) => x.swing) ? "sw" : "tr") + '" title="' + esc(tip) + '">⇄' +
+      rs.map((x) => roundMark(x.no)).join("") + "</span>";
+  };
+  let html = "", wk = null;
+  entries.map((e, i) => ({ e, i })).sort((a, b) => (a.e.d < b.e.d ? 1 : a.e.d > b.e.d ? -1 : 0)).forEach(({ e, i }) => {
+    const w = e.d ? weekOf(e.d) : "";
+    if (w && w !== wk) { wk = w; html += weekRowHtml(entries.filter((x) => x.d && weekOf(x.d) === w), w); }
+    html += logItemHtml(e, true, pairBadge(i));
+  });
+  out += '<details class="pos-log">' +
+    '<summary title="买卖额为累计成交金额（含已卖出部分）">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
+      (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") +
+    '</summary>' +
+    '<div class="log-list">' + html + '</div>' +
+  '</details>';
+  return out;
 }
-$("log-toggle").addEventListener("click", () => { logOpen = !logOpen; renderLog(); });
 /* 盈亏总览行 → 跳转对应持仓卡并高亮 */
 $("pl-list").addEventListener("click", (e) => {
   const btn = e.target.closest(".pl-row");
-  if (!btn) return;
+  if (!btn || !btn.dataset.sel) return;   // 场外行无明细卡，不跳转
   const card = document.querySelector(btn.dataset.sel);
   if (!card) return;
   card.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1879,13 +2299,6 @@ $("pl-list").addEventListener("click", (e) => {
   void card.offsetWidth;
   card.classList.add("pl-flash");
   setTimeout(() => card.classList.remove("pl-flash"), 1600);
-});
-$("log-chips").addEventListener("click", (e) => {
-  const btn = e.target.closest(".log-chip");
-  if (!btn || btn.dataset.f === logFilter) return;
-  logFilter = btn.dataset.f;
-  logOpen = false;
-  renderLog();
 });
 /* 日志条目 → 绿点联动（仅场内卡有绿点） */
 function flashBuyMark(item) {
@@ -1899,11 +2312,11 @@ function flashBuyMark(item) {
   mk.classList.add("flash");
   setTimeout(() => mk.classList.remove("flash"), 1600);
 }
-$("log-list").addEventListener("click", (e) => {
+$("pos-list").addEventListener("click", (e) => {
   const item = e.target.closest(".log-item.linkable");
   if (item) flashBuyMark(item);
 });
-$("log-list").addEventListener("keydown", (e) => {
+$("pos-list").addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const item = e.target.closest(".log-item.linkable");
   if (!item) return;
@@ -1959,7 +2372,7 @@ document.addEventListener("click", (e) => {
   lastBuyMark = mk;
   buyTip.textContent = (mk.classList.contains("sell-mark") ? "卖出 " : "买入 ") +
     (mk.dataset.d || "--").slice(5).replace("-", ".").replace(/^0/, "") + " · " +
-    (+mk.dataset.c).toFixed(3) + " 元 · " + fmtN(+mk.dataset.q) + " 份";
+    (+mk.dataset.c).toFixed(3) + " 元 · " + fmtQty(+mk.dataset.q) + " 份";
   buyTip.style.whiteSpace = "nowrap"; buyTip.style.maxWidth = ""; buyTip.style.textAlign = "";
   buyTip.style.display = "block";
   const r = mk.getBoundingClientRect();
@@ -1986,7 +2399,7 @@ function closeIdxPop() {
   }
 }
 function nowPopHtml(info) {
-  const fmt = info.nav4 ? fmtNav : fmtIdx;
+  const fmt = fmtIdx;   // 原「场外净值 4 位小数」分支随场外明细卡一并移除
   const hiTxt = info.nav4 ? "距 52 周净值高" : "距历史高点";
   return '<div class="ip-title"><span aria-hidden="true">📍</span> ' + (info.nav4 ? "最新净值 " : "现价 ") + fmt(info.close) + '</div>' +
     '<div class="ip-row"><span>距 52 周' + (info.nav4 ? "净值" : "") + '低（下跌缓冲）</span><b>' + fmtPct(info.close / info.lo - 1) + '</b></div>' +
@@ -1994,8 +2407,8 @@ function nowPopHtml(info) {
 }
 function costPopHtml(info) {
   const costTxt = info.nav4
-    ? info.cost.toFixed(4) + ' · ' + fmtN(info.qty) + ' 份（估）'
-    : info.cost.toFixed(3) + ' 元 · ' + fmtN(info.qty) + ' 份';
+    ? info.cost.toFixed(4) + ' · ' + fmtQty(info.qty) + ' 份（估）'
+    : info.cost.toFixed(3) + ' 元 · ' + fmtQty(info.qty) + ' 份';
   return '<div class="ip-title"><span aria-hidden="true">🏷️</span> ' + (info.nav4 ? "成本净值 " : "成本位 ") + (info.nav4 ? info.idxAtCost.toFixed(4) : fmtIdx(info.idxAtCost)) + '</div>' +
     '<div class="ip-row"><span>现价较成本</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
     '<div class="ip-row"><span>成本距高点</span><b>' + fmtPct(info.gapCost) + '</b></div>' +
@@ -2055,14 +2468,15 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closeIdxPop(); buyTip.style.display = "none"; lastBuyMark = null; }
 });
 
-/* ---- 策略行「?」提示 ---- */
+/* ---- 「?」提示（策略行与快照「变化组成」共用同一套交互） ---- */
 document.addEventListener("click", (e) => {
   const btn = e.target.closest(".strat-hint");
-  document.querySelectorAll(".strat-note.open").forEach((n) => {
-    if (!btn || n !== btn.nextElementSibling) n.classList.remove("open");
-  });
-  if (btn) {
-    const note = btn.nextElementSibling;
+  /* 说明块通常是按钮的下一个兄弟；快照行的按钮嵌在标签里，故支持 data-note 指定 id */
+  const note = btn ? (btn.dataset.note ? document.getElementById(btn.dataset.note) : btn.nextElementSibling) : null;
+  document.querySelectorAll(".strat-note.open").forEach((n) => { if (n !== note) n.classList.remove("open"); });
+  /* 同步复位其它按钮的 aria-expanded：页面上一处只能展开一个，读屏状态也须一致 */
+  document.querySelectorAll('.strat-hint[aria-expanded="true"]').forEach((b) => { if (b !== btn) b.setAttribute("aria-expanded", "false"); });
+  if (btn && note) {
     const open = note.classList.toggle("open");
     btn.setAttribute("aria-expanded", open ? "true" : "false");
   }
@@ -2139,7 +2553,7 @@ bindTrendCrosshair();
     (POSITIONS.hold || []).forEach((h) => {
       const net = (POSITIONS.log || []).filter((e) => e.sym === h.sym)
         .reduce((a, e) => a + (isSellAct(e.act) ? -e.qty : e.qty), 0);
-      if (net !== h.qty) bad.push(h.sym + "：流水 " + fmtN(net) + " ≠ 持有 " + fmtN(h.qty));
+      if (net !== h.qty) bad.push(h.sym + "：流水 " + fmtQty(net) + " ≠ 持有 " + fmtQty(h.qty));
     });
     return bad.length ? bad.join("；") : true;
   });
@@ -2154,7 +2568,19 @@ bindTrendCrosshair();
     const s = SNAPSHOTS[SNAPSHOTS.length - 1];
     if (!s.items) return true;
     const bad = (POSITIONS.hold || []).filter((h) => s.items[h.code] && (s.items[h.code].qty || 0) !== h.qty)
-      .map((h) => h.sym + "：快照 " + fmtN(s.items[h.code].qty) + " ≠ 持有 " + fmtN(h.qty));
+      .map((h) => h.sym + "：快照 " + fmtQty(s.items[h.code].qty) + " ≠ 持有 " + fmtQty(h.qty));
+    return bad.length ? bad.join("；") : true;
+  });
+  chk("波段回路数 = 卖出笔数，且份数合计一致", () => {
+    const bad = (POSITIONS.hold || []).map((h) => {
+      const es = (POSITIONS.log || []).filter((x) => x.sym === h.sym);
+      const sells = es.filter(isSellAct);
+      const ev = swingEvents(swingRounds(es));
+      const sq = sells.reduce((a, x) => a + x.qty, 0), eq = ev.reduce((a, x) => a + x.qty, 0);
+      if (ev.length !== sells.length) return h.sym + "：回路 " + ev.length + " ≠ 卖出 " + sells.length + " 笔";
+      if (Math.abs(sq - eq) > 1e-6) return h.sym + "：回路份数 " + fmtQty(eq) + " ≠ 卖出 " + fmtQty(sq);
+      return null;
+    }).filter(Boolean);
     return bad.length ? bad.join("；") : true;
   });
   chk("全部总览行均有持仓明细目标", () => {
@@ -2186,7 +2612,7 @@ bindTrendCrosshair();
       const dPl = c.pl - p.pl;
       const flow = snapFlow(p, c);
       if (Math.abs(dTot - dPl - flow) > 1)
-        bad.push(p.d.slice(5) + "→" + c.d.slice(5) + "：Δ总资产 " + fmtN(dTot) + " ≠ Δ浮盈亏 " + fmtN(dPl) + " + 资金进出 " + fmtN(flow) + "（检查 flow 记录值）");
+        bad.push(p.d.slice(5) + "→" + c.d.slice(5) + "：Δ总资产 " + fmtAbs2(dTot) + " ≠ Δ浮盈亏 " + fmtAbs2(dPl) + " + 资金进出 " + fmtAbs2(flow) + "（检查 flow 记录值）");
     }
     return bad.length ? bad.join("；") : true;
   });
@@ -2202,7 +2628,7 @@ bindTrendCrosshair();
         dPl += ((c.items[k] && c.items[k].pl) || 0) - ((p.items[k] && p.items[k].pl) || 0);
       });
       if (Math.abs((dTot - flow) - dPl) > 1)
-        bad.push(p.d.slice(5) + "→" + c.d.slice(5) + "：市值变化 " + fmtN(dTot - flow) + " ≠ Σ盈亏变化 " + fmtN(dPl));
+        bad.push(p.d.slice(5) + "→" + c.d.slice(5) + "：市值变化 " + fmtAbs2(dTot - flow) + " ≠ Σ盈亏变化 " + fmtAbs2(dPl));
     }
     return bad.length ? bad.join("；") : true;
   });
