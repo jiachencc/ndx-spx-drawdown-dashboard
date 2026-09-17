@@ -183,7 +183,23 @@
 
   <div class="sec" id="sec-intro"></div>
   <div class="sec" id="sec-now"></div>
+  <div class="sec" id="sec-plan"></div>
   <div class="sec" id="sec-summary"></div>
+
+  <div class="sec">
+    <div class="sec-title">近三次的共性 <span class="mute" style="font-weight:400">2004–06 · 2015–18 · 2022–23，样本只有 3，当参考不当规律</span></div>
+    <div class="card">
+      <div class="glossary">
+        <div><b>期间不亏但颠簸</b><span>9 个「期间收益」里 8 个为正（+5.3%~+69.2%），但期间最大回撤 −7.7%~−40.4%——终点不亏，过程要能扛 15%~30% 的水。</span></div>
+        <div><b>结束后 12 个月全涨</b><span>9/9 为正（+12.3%~+62.8%）。跌得深的弹得更高：费半三次都是期间回撤最深、12 个月反弹最强（−40.4% → +38.0%）。</span></div>
+        <div><b>头 3 个月是分岔口</b><span>约 1/3 概率先探底 5%~14%（2022 三指数全负，即「−9.4%」那一次）。确定性在 6~12 月维度（三次全部为正），不在头 3 个月。</span></div>
+        <div><b>高点多在周期后段</b><span>「快加完了」的预期提前推高行情，末次加息落地后常歇一段（2022 标普开盘即高点是特例）。</span></div>
+        <div><b>回撤位置无规律</b><span>三次的最深回撤分别在周期早段/中段/末端，位置不可预判；回本普遍要 3 个月~1 年——任何时点买入都要做好这个预算。</span></div>
+        <div><b>定投赢在过程</b><span>XIRR 只比一次性高 2~3 个点（且部分是算法效应），但最深浮亏几乎减半（一次性扛 −22.8%~−40.4%，定投 −14.4%~−24.4%）——买的是「拿得住」。</span></div>
+      </div>
+      <div class="note">三条反面：① 样本只有 3 次，统计上是轶事不是定律；② 「结束后 12 个月」看不见更远的尾部——2004 周期结束后一年 +18%，之后 2008 腰斩，2018 那次 +27.9% 之后是 2020-03 熔断；③ 三次的起点利率都 ≤1%，2026 这次从 3.75% 起步（见上方「少数派」卡），规律外推要打折。</div>
+    </div>
+  </div>
 
   <div class="sec">
     <div class="sec-title">历次周期总览 <span class="mute" style="font-weight:400">首次加息前一日 → 末次加息日收盘</span></div>
@@ -209,6 +225,7 @@
   <footer id="footer"></footer>
 </div>
 
+<script src="../data.js" onerror="window.__NO_MAIN_DATA=1"></script>
 <script src="data/cycles.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -299,6 +316,39 @@ if (now) {
     + '样本仅 2 次，不足以推断 2026。<span class="mute">「3% 以上」是本页口径，非公认分类</span></div>'
     + '</div>';
 }
+
+/* ── 当前周期部署参考：把主看板的档位/确认/溢价变成执行清单 ──
+   金额按 50w 未进场资金设计（PLAN 常量可改）；依赖 ../data.js，独立部署时整卡隐藏。 */
+const PLAN = { total: 500000, basePct: 0.6, accelPct: 0.3, months: 20 };
+function renderPlan() {
+  if (typeof DEFAULT === "undefined" || window.__NO_MAIN_DATA) { $("sec-plan").innerHTML = ""; return; }
+  const d = DEFAULT, R = DECISION_RULES;
+  const w = d.ndx, dd = (w.close / w.ath - 1) * 100;
+  const bands = [d.thresholds.t1, d.thresholds.t2, d.thresholds.t3, d.thresholds.t4];
+  const level = bands.filter(t => dd <= t + 1e-9).length;
+  const conf = [[w.close > w.ma200, "NDX>MA200"], [w.rsi < R.rsiConfirm, "RSI<" + R.rsiConfirm], [d.vix > R.vixConfirm, "VIX>" + R.vixConfirm], [d.pePct < R.peConfirm, "PE分位<" + R.peConfirm]];
+  const confN = conf.filter(c => c[0]).length;
+  const fmtW = v => (v / 10000).toFixed(1).replace(/\.0$/, "") + "w";
+  const mrow = (t, v, cls, sub) => '<div class="mrow"><span>' + t + '</span><b class="' + (cls || "") + '">' + v + (sub ? "<em>" + sub + "</em>" : "") + "</b></div>";
+  const accel = PLAN.total * PLAN.accelPct, per = accel / 3;
+  const bandRows = [["−15%（t2）", dd <= bands[1] + 1e-9], ["−25%（t3）", dd <= bands[2] + 1e-9], ["−35%（t4）", dd <= bands[3] + 1e-9]]
+    .map(([lab, hit]) => mrow("档 " + lab, "投 " + fmtW(per), hit ? "up" : "", hit ? "已到档 ✓ 执行" : "未触发")).join("");
+  const prem = Object.entries((typeof POSITIONS !== "undefined" && POSITIONS.premiums) || {})
+    .map(([code, v]) => code + " " + (v.pct >= 0 ? "+" : "") + v.pct.toFixed(1) + "%").join(" · ");
+  const confTxt = conf.filter(c => c[0]).map(c => c[1]).join("、") || "无";
+  $("sec-plan").innerHTML = '<div class="sec-title">当前周期部署参考 <span class="mute" style="font-weight:400">按未进场 ' + fmtW(PLAN.total) + ' 设计 · 规则化执行，非投资建议</span></div>'
+    + '<div class="card">'
+    + '<div class="mcard-h">市场状态 <span>' + d.date + ' · 档位 ' + level + '/4 · 入场确认 ' + confN + '/4（' + confTxt + '）</span></div>'
+    + mrow("A · 底仓（时间分散）", fmtW(PLAN.total * PLAN.basePct) + " ＝ " + fmtW(PLAN.total * PLAN.basePct / PLAN.months) + "/月 × " + PLAN.months + " 个月", "", "固定日期机械执行；周期超 30 个月未结束则降速至 1w/月")
+    + '<div class="mcard-h" style="margin-top:8px">B · 档位加速 ' + fmtW(accel) + '（挂在主看板回撤档位，每档一份）</div>'
+    + bandRows
+    + mrow("C · 预备队", fmtW(PLAN.total * (1 - PLAN.basePct - PLAN.accelPct)), "", "末次加息后头 3 个月回撤 ≥10% → 按月度里程碑分两次打完；周期超长则顺延")
+    + mrow("止盈沿用主看板规则", "YTD ≥" + R.t1Ytd + "% 停大额加仓 · ≥" + R.t2Ytd + "% 兑现 15–20%", "", "本页 T+1/T+2 规则原样适用")
+    + (prem ? '<div class="note">场内加仓先看溢价（净值滞后一天口径）：<b>' + prem + "</b> —— 溢价明显为正时等回落再买，别「赢指数亏溢价」。</div>" : "")
+    + '<div class="note"><b>依据与边界</b>：近三次周期「期间不亏但回撤 −7.7%~−40.4%」「结束后 12 个月 9/9 为正」「头 3 个月 1/3 先探底」→ 底仓保证在场、档位加速覆盖深蹲、预备队留分岔口。样本 3~5；本轮起点利率 3.75% 高于历史三次的 ≤1%，规律外推要打折。</div>'
+    + "</div>";
+}
+renderPlan();
 
 /* ── 汇总规律 ── */
 $('sec-summary').innerHTML = '<div class="sec-title">历史规律 <span class="mute" style="font-weight:400">只统计已结束的周期</span></div>'
