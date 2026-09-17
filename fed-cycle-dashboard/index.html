@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>美联储加息周期 × 三大指数 · 回测看板</title>
+<!-- 与持仓看板共用同一份内嵌字体（JetBrains Mono，base64 零外链），保证两处数字字形一致 -->
+<link rel="stylesheet" href="font.css">
+<style>
+  /* 配色/字号沿用持仓看板的令牌体系，两处看板观感一致 */
+  :root {
+    --bg:#0a0d13; --bg-grad:#0e1526; --card:#121826; --card2:#1a2234;
+    --line:#232e44; --line-soft:#1c2538;
+    --tx:#e2e9f5; --tx2:#8fa0ba;
+    /* --tx3 原来 #6f7f99，在深底上只有 4.37:1，低于 WCAG AA 的 4.5 —— 而所有小字都用它。
+       提到 #7e8ea9 → 5.34:1 达标，同时仍比 --tx2 低 20%，层级没被抹平。 */
+    --tx3:#7e8ea9;
+    --up:#2dd4a7; --down:#f26d7d; --warn:#f7c14e;
+    --spx:#5ba3ff; --ndx:#46c9f0; --sox:#ba8fff;
+    --up-bg:rgba(45,212,167,.12); --down-bg:rgba(242,109,125,.12);
+    --warn-bg:rgba(247,193,78,.10); --blue-bg:rgba(91,163,255,.12);
+    --mono:"JetBrains Mono","SF Mono","Cascadia Code",Consolas,"Courier New",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei","Noto Sans SC",sans-serif;
+    /* 字号：按手机重排，六档分别对应 Android Material 的 caption / label / body 层级。
+       换算依据：本机（iQOO 15，1440×3168，屏宽约 72mm）在常见 DPR 下，
+       1 个 CSS 像素 ≈ 0.15~0.18mm，故 11px 只有约 1.9mm —— 中文偏小，
+       最小一档提到 12px（≈2.1mm），其余同比上移。 */
+    --fs-hero:22px; --fs-lg:17px; --fs-md:15px; --fs-sm:14px; --fs-xs:13px; --fs-xxs:12px;
+    /* 手机页面左右留白：比桌面稍窄，给内容多留几像素 */
+    --pad:10px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(1200px 600px at 85% -10%, rgba(91,163,255,.06), transparent 60%),var(--bg);color:var(--tx);font-family:var(--sans);font-size:var(--fs-md);line-height:1.65;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;text-rendering:optimizeLegibility;
+       padding:0 max(var(--pad),env(safe-area-inset-left)) calc(28px + env(safe-area-inset-bottom,0px)) max(var(--pad),env(safe-area-inset-right))}
+  .wrap{max-width:960px;margin:0 auto}
+  /* 宽表只给大屏；手机上换成卡片（横滑表格在手机上是反模式） */
+  .mob-only{display:none}
+  /* 卡片式数据行：手机上「标签 …… 数值」一行读下来，不用横向滑动 */
+  .mcard{background:var(--card);border:1px solid var(--line-soft);border-radius:12px;padding:11px 12px;margin-bottom:8px}
+  .mcard-h{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-size:var(--fs-sm);font-weight:600;margin-bottom:7px}
+  .mcard-h i{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .mcard-h span{font-size:var(--fs-xxs);color:var(--tx3);font-weight:400;font-family:var(--mono)}
+  .mrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:4px 0;font-size:var(--fs-xs);border-bottom:1px solid var(--line-soft)}
+  .mrow:last-child{border-bottom:0}
+  .mrow>span{color:var(--tx3);flex-shrink:0}
+  .mrow>b{font-family:var(--mono);font-weight:700;text-align:right}
+  .mrow>b em{font-style:normal;color:var(--tx3);font-weight:400;font-size:var(--fs-xxs);margin-left:4px}
+  /* 卡片套在卡片里时，内层退化成"带分隔线的分组"，避免双重边框和双重留白 */
+  .card .mcard{background:none;border:0;border-radius:0;padding:0 0 8px;margin:0 0 9px;border-bottom:1px dashed var(--line-soft)}
+  .card .mcard:last-child{border-bottom:0;padding-bottom:0;margin-bottom:0}
+  @media (max-width:560px){
+    .mob-only{display:block}
+    .desk-only{display:none}
+    .sec{margin-top:20px}
+    .card{padding:11px 10px 9px}
+    .intro{padding:10px}
+    .lead{padding:8px 9px}
+  }
+  /* 320px 这类极窄屏：压缩横条两侧的固定列宽，「当前周期」的数字降一档，
+     否则「28,945.06」这种 9 位的等宽数字会把三格撑破（等宽字不会自动换行） */
+  @media (max-width:340px){
+    .brow{grid-template-columns:72px 1fr 60px}
+    .now-grid .k-val{font-size:var(--fs-xs)}   /* 等宽数字不换行，320px 下必须降档 */
+    .now-grid{gap:6px}
+    .glossary div{grid-template-columns:84px 1fr}
+  }
+  header{padding:max(20px,env(safe-area-inset-top)) 2px 12px}   /* 顶部避开打孔/状态栏 */
+  /* 返回主看板的链接：与主看板的 .theme-btn 观感一致，触摸高度 36px */
+  .navlink{display:inline-flex;align-items:center;gap:5px;min-height:36px;font-size:var(--fs-xs);color:var(--tx2);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:0 13px;background:var(--card2);margin-bottom:10px}
+  h1{font-size:var(--fs-hero);font-weight:700;letter-spacing:.3px}
+  .sub{font-size:var(--fs-xs);color:var(--tx3);margin-top:4px;line-height:1.7}
+  .sec{margin-top:18px}
+  .sec-title{font-size:var(--fs-sm);color:var(--tx2);font-weight:600;margin:0 2px 8px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:12px 12px 10px}
+  .num{font-family:var(--mono);font-feature-settings:"tnum"}
+  .up{color:var(--up)} .down{color:var(--down)} .warn{color:var(--warn)} .mute{color:var(--tx3)}
+
+  /* 当前周期 */
+  .now{border-color:rgba(247,193,78,.35);background:linear-gradient(135deg,var(--warn-bg),transparent 60%),var(--card)}
+  .now-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .now-h b{font-size:var(--fs-lg)}
+  .pill{font-size:var(--fs-xxs);padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--tx3)}
+  .pill.hot{color:var(--warn);border-color:rgba(247,193,78,.4);background:var(--warn-bg)}
+  .now-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .now-grid>div{background:var(--card2);border:1px solid var(--line-soft);border-radius:10px;padding:8px 6px;text-align:center;min-width:0}
+  .k-label{font-size:var(--fs-xxs);color:var(--tx3);margin-bottom:3px}
+  .k-val{font-family:var(--mono);font-size:var(--fs-md);font-weight:700}
+  .k-sub{font-size:var(--fs-xxs);color:var(--tx3);margin-top:3px;font-family:var(--mono)}
+  .note{font-size:var(--fs-xs);color:var(--tx3);margin-top:9px;line-height:1.75;padding-top:8px;border-top:1px dashed var(--line-soft)}
+
+  /* 总览表 */
+  .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+  .tbl th,.tbl td{padding:7px 4px;text-align:right;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+  .tbl th:first-child,.tbl td:first-child{text-align:left;white-space:normal}
+  .tbl th{font-size:var(--fs-xxs);color:var(--tx3);font-weight:400}
+  .tbl td{font-family:var(--mono);font-feature-settings:"tnum"}
+  .tbl tr:last-child td{border-bottom:0}
+  .tbl .cyc{font-family:var(--sans);position:sticky;left:0;background:var(--card);z-index:1}   /* 手机横滑时周期列钉住 */
+  .tbl .cyc b{display:block;font-size:var(--fs-xs);color:var(--tx)}
+  .tbl .cyc span{font-size:var(--fs-xxs);color:var(--tx3)}
+  .tbl .dd{display:block;font-size:var(--fs-xxs);color:var(--tx3)}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* 曲线 */
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:0 2px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .chips::-webkit-scrollbar{display:none}
+  /* 手指点按目标：高度提到 36px（原来约 24px，手机上偏小、容易点错） */
+  .chip{flex-shrink:0;display:inline-flex;align-items:center;min-height:36px;font-size:var(--fs-xs);padding:0 14px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--tx2);cursor:pointer;font-family:var(--mono)}
+  .chip.on{background:var(--blue-bg);color:var(--spx);border-color:rgba(91,163,255,.35);font-weight:600}
+  .chart{margin-top:2px}
+  .chart+.chart{border-top:1px dashed var(--line-soft);margin-top:14px;padding-top:12px}
+  .chart-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+  .chart-h b{font-size:var(--fs-sm)}
+  .chart-h span{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono)}
+  svg{display:block;width:100%;height:auto}
+  .legend{display:flex;gap:10px 14px;flex-wrap:wrap;justify-content:center;font-size:var(--fs-xxs);color:var(--tx3);padding:9px 2px 2px}
+  .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+
+  /* ── 周期详情卡：先结论 → 再对比 → 后细节 ── */
+  .cycles{display:grid;gap:10px}
+  .cyc-card{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:14px 12px 12px}
+  .cyc-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .cyc-head h3{font-size:var(--fs-md);font-weight:700}
+  .cyc-meta{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);margin-top:3px;line-height:1.8}
+  .cyc-why{font-size:var(--fs-xs);color:var(--tx3);margin-top:5px;line-height:1.7}
+  /* 一句话结论：用左侧色条把它和数字区分开，一眼知道先看这句 */
+  .lead{font-size:var(--fs-sm);color:var(--tx);background:var(--card2);border-left:3px solid var(--spx);border-radius:0 8px 8px 0;padding:8px 10px;margin:10px 0 2px;line-height:1.75}
+  .blk{margin-top:12px}
+  .blk-h{font-size:var(--fs-xxs);color:var(--tx2);font-weight:600;margin-bottom:6px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+  .blk-h em{font-style:normal;color:var(--tx3);font-weight:400}
+  /* 横条对比：中间竖线是 0%，向左＝跌、向右＝涨，条长按本卡最大值缩放 */
+  /* 标签列 82px：13px 字号下「费城半导体」6 字 = 78px 正好放得下；数值列 66px 容纳 +120.9% */
+  .brow{display:grid;grid-template-columns:82px 1fr 66px;gap:8px;align-items:center;padding:4px 0;font-size:var(--fs-xs)}
+  .brow .nm{display:flex;align-items:center;gap:5px;color:var(--tx2)}
+  .brow .nm i{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .track{position:relative;height:13px;background:var(--line-soft);border-radius:3px}
+  .track .zero{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
+  .track .bar{position:absolute;top:2px;bottom:2px;border-radius:3px;opacity:.85}
+  .brow .val{text-align:right;font-family:var(--mono);font-weight:700;font-size:var(--fs-sm)}
+  .under{font-size:var(--fs-xxs);color:var(--tx3);margin-top:5px;line-height:1.7;font-family:var(--mono)}
+  .kvs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .kv{background:var(--card2);border:1px solid var(--line-soft);border-radius:9px;padding:7px 5px;text-align:center;min-width:0}
+  .kv .t{font-size:var(--fs-xxs);color:var(--tx3);margin-bottom:2px}
+  .kv .v{font-family:var(--mono);font-size:var(--fs-sm);font-weight:700}
+  /* 术语表 */
+  .glossary{display:grid;gap:0}
+  .glossary div{display:grid;grid-template-columns:92px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:var(--fs-xs);line-height:1.75}
+  .glossary div:last-child{border-bottom:0}
+  .glossary b{color:var(--tx2);font-weight:600}
+  .glossary span{color:var(--tx3)}
+  .intro{background:var(--card2);border:1px solid var(--line-soft);border-radius:12px;padding:11px 12px;font-size:var(--fs-sm);line-height:1.85;color:var(--tx2)}
+  .intro b{color:var(--tx)}
+  .rows{display:grid;gap:6px}
+  .row{display:grid;grid-template-columns:62px 1fr;gap:8px;align-items:baseline;background:var(--card2);border:1px solid var(--line-soft);border-radius:9px;padding:7px 8px}
+  .row .nm{font-size:var(--fs-xs);display:flex;align-items:center;gap:5px}
+  .row .nm i{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .row .vals{font-size:var(--fs-xs);font-family:var(--mono);line-height:1.9;text-align:right}
+  .row .vals b{font-size:var(--fs-sm)}
+  .row .vals em{font-style:normal;color:var(--tx3);font-size:var(--fs-xxs)}
+  footer{margin-top:26px;font-size:var(--fs-xs);color:var(--tx3);line-height:1.9;border-top:1px solid var(--line-soft);padding-top:12px}
+  footer b{color:var(--tx2)}
+  footer a{color:var(--spx);text-decoration:none}
+  @media (max-width:420px){ .tbl{font-size:var(--fs-xs)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="navlink" href="../index.html"><span aria-hidden="true">←</span> 回撤看板</a>
+    <h1>美联储加息周期 × 三大指数</h1>
+    <div class="sub" id="head-sub"></div>
+  </header>
+
+  <div class="sec" id="sec-intro"></div>
+  <div class="sec" id="sec-now"></div>
+  <div class="sec" id="sec-summary"></div>
+
+  <div class="sec">
+    <div class="sec-title">历次周期总览 <span class="mute" style="font-weight:400">涨跌幅＝首次加息前一日收盘 → 末次加息日收盘</span></div>
+    <div class="card scroll" id="sec-table"></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">走势对比 <span class="mute" style="font-weight:400">把每次加息的第一天对齐到 T+0，看谁走得远、谁跌得深</span></div>
+    <div class="card">
+      <div class="chips" id="view-chips"></div>
+      <div id="charts"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">周期详情</div>
+    <div class="cycles" id="sec-cycles"></div>
+  </div>
+
+  <div class="sec" id="sec-glossary"></div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script src="data/cycles.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
+const IDX = [['spx', '标普500', 'var(--spx)'], ['ndx', '纳指100', 'var(--ndx)'], ['sox', '费城半导体', 'var(--sox)']];
+const pct = (v, dp) => {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  if (v === 0) return '0.0%';                                   // 零不带正负号
+  const d = dp === undefined ? (Math.abs(v) < 0.1 ? 2 : 1) : dp;  // 极小值多给一位，否则 0.02% 会显示成 +0.0%
+  return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d) + '%';   // 负号用排版减号，与金额一致
+};
+const cls = (v) => (v === null || v === undefined ? '' : v > 0 ? 'up' : 'down');
+/* 手机版的一行「标签 …… 数值」（宽表在手机上要横滑，换成这个读起来顺） */
+const mRow = (t, v, c, sub) => '<div class="mrow"><span>' + t + '</span><b class="' + (c || '') + '">' + v + (sub ? '<em>' + sub + '</em>' : '') + '</b></div>';
+const dot = (color) => '<i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + color + ';margin-right:5px"></i>';
+const md = (d) => (d ? d.slice(5).replace('-', '.') : '');
+
+/* ── 头部 ── */
+$('head-sub').innerHTML = '数据截至 ' + META.fetchedAt + ' · 共 ' + CYCLES.length + ' 个加息周期（1994 起，其中 2026 进行中）'
+  + '<br>三个指数均为日线收盘口径；标普500 数据源 ' + META.source.spx.name + '（CC BY 4.0），纳指100 / 费半 取自 Nasdaq 官方 API。';
+
+/* ── 导语：给第一次打开的人 ── */
+$('sec-intro').innerHTML = '<div class="intro">'
+  + '<b>怎么看这一页</b><br>'
+  + '① 先看下面的「当前周期」：2026-09-16 美联储刚加了第一次息，加息当天三个指数怎么走。<br>'
+  + '② 再看「历史规律」：过去几次加息周期里，美股到底是涨还是跌。<br>'
+  + '③ 最后是「周期详情」：每次加息一张卡，<b>第一句就是结论</b>，数字在后面。<br>'
+  + '<span class="warn">一句话记住</span>：这一页讲的是「过去发生过什么」，不是「接下来会怎样」。'
+  + '历史上加息周期只有 4~5 次样本，每次的经济背景都不一样，别当预测用。'
+  + '</div>';
+
+/* ── 术语表 ── */
+$('sec-glossary').innerHTML = '<div class="sec-title">术语表 <span class="mute" style="font-weight:400">看不懂的词都在这</span></div>'
+  + '<div class="card"><div class="glossary">'
+  + [['加息周期', '美联储连续上调利率的一段时间。本页从「第一次加息」算到「最后一次加息」。'],
+     ['基点', '利率单位，1 个基点 = 0.01%。加 25 个基点就是加 0.25%。'],
+     ['加息期间涨跌', '从「第一次加息的前一天收盘」算到「最后一次加息那天收盘」，这段时间里指数的涨跌。'],
+     ['期间最多跌', '这段时间里，从最高点往下最多跌了多少（也叫「最大回撤」）。'],
+     ['加息后一年', '从最后一次加息那天起往后 12 个月。这时利率已经不涨了。'],
+     ['年化收益率', '把每笔钱投入时间的长短都算进去之后，「相当于每年赚多少」。只有用它才能把「一次投完」和「分月投」放在一起比。'],
+     ['定投', '每月固定一天投入同样金额，摊平买入成本。'],
+     ['个百分点（pp）', '两个百分比相减的单位。+19.5% 和 +10.0% 相差 9.5 个百分点。']]
+    .map(([t, d]) => '<div><b>' + t + '</b><span>' + d + '</span></div>').join('')
+  + '</div></div>';
+
+/* ── 当前周期 ── */
+const now = CYCLES.find((c) => c.ongoing);
+if (now) {
+  /* 加息后已过几个交易日：以纳指（数据最新）的 T+N 曲线长度为准 */
+  const tN = now.idx.ndx ? now.idx.ndx.curve.length - 1 : 0;
+  /* 优先用最新报价：历史接口有一天延迟，报价能补上加息当日的收盘 */
+  const cells = IDX.map(([k, label]) => {
+    const q = META.quotes && META.quotes[k];
+    if (q) return '<div><div class="k-label">' + label + '</div>'
+      + '<div class="k-val ' + cls(q.chgPct) + '">' + pct(q.chgPct, 2) + '</div>'
+      + '<div class="k-sub">' + q.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div></div>';
+    const x = now.idx[k];
+    return '<div><div class="k-label">' + label + '</div>'
+      + (x ? '<div class="k-val ' + cls(x.ret) + '">' + pct(x.ret, 2) + '</div><div class="k-sub">' + x.dataTo + ' 收 ' + x.end.c.toLocaleString('en-US') + '</div>'
+           : '<div class="k-val mute">—</div><div class="k-sub">暂无数据</div>')
+      + '</div>';
+  }).join('');
+  const hist = IDX.map(([k, label]) => {
+    const s = SUMMARY[k];
+    return label + ' 中位 ' + pct(s.m12Med) + '（' + s.m12Up + '/' + s.m12N + ' 上涨）';
+  }).join(' · ');
+  $('sec-now').innerHTML = '<div class="card now">'
+    + '<div class="now-h"><b>2026-09-16 加息 25bp</b><span class="pill hot">进行中 · T+' + tN + (tN === 0 ? '（加息当日）' : '') + '</span>'
+    + '<span class="pill">' + now.rate + '</span><span class="pill">第 1 次</span></div>'
+    + '<div class="note" style="border:0;padding-top:7px;margin-top:5px">' + now.why
+    + '　<span class="mute">下方为加息当日各指数涨跌（最新报价口径）</span></div>'
+    + '<div class="now-grid">' + cells + '</div>'
+    + '<div class="note"><b>历史上首次加息之后 12 个月：</b>' + hist + '<br>'
+    + '<span class="warn">注意</span>：这是"加息后一年"的历史中位数，不是预测；样本只有 4~5 次，且每次的估值起点、通胀路径都不同。</div>'
+    + '</div>';
+
+  /* 本次的起点在历史上属于少数派 —— 这个结论完全来自本页的周期表，不是外部说法 */
+  const hiStart = CYCLES.filter((c) => c.id !== '2026' && parseFloat(c.rate) >= 3);
+  const loStart = CYCLES.filter((c) => c.id !== '2026' && parseFloat(c.rate) < 3);
+  $('sec-now').innerHTML += '<div class="card" style="margin-top:10px">'
+    + '<div class="now-h"><b>这次的起点，在历史上是少数派</b></div>'
+    + '<div class="note" style="border:0;padding-top:6px">'
+    + '本次起点 <b>3.75%</b>。历次加息周期里，只有 <b>' + hiStart.map((c) => c.id + '（' + c.rate.split(' → ')[0] + '）').join(' 与 ')
+    + '</b> 也站在 3% 以上；其余 ' + loStart.length + ' 次（' + loStart.map((c) => c.id).join(' / ') + '）都是从 0~1% 起步。'
+    + '</div><div class="rows">'
+    + hiStart.map((c) => {
+        const a = c.idx.spx, b = c.idx.ndx;
+        return '<div class="row"><div class="nm"><i style="background:' + (c.id === '1994' ? 'var(--spx)' : 'var(--down)') + '"></i>' + c.id + ' 起点 ' + c.rate.split(' → ')[0] + '</div><div class="vals">'
+          + '<b class="' + cls(a.ret) + '">' + pct(a.ret) + '</b> <em>标普加息段</em>'
+          + '　<b class="' + cls(b ? b.mo.m12 : null) + '">' + pct(b ? b.mo.m12 : null) + '</b> <em>纳指加息后 12 月</em></div></div>';
+      }).join('')
+    + '</div><div class="note">两次先例的结局<b>完全相反</b>：1994 是软着陆，1999 是科网泡沫顶（纳指末次加息后 12 个月 −47.9%）。'
+    + '样本量 2，不足以用它推断 2026。<span class="mute">（"起点 3% 以上"是我按本页周期表分的组，不是公认分类。）</span></div>'
+    + '</div>';
+}
+
+/* ── 汇总规律 ── */
+$('sec-summary').innerHTML = '<div class="sec-title">历史规律 <span class="mute" style="font-weight:400">只统计已结束的周期</span></div>'
+  + '<div class="card">'
+  /* 手机：每个指数一张小卡 */
+  + '<div class="mob-only">' + IDX.map(([k, label, color]) => {
+      const s = SUMMARY[k];
+      return '<div class="mcard"><div class="mcard-h">' + dot(color) + label + '<span>' + s.n + ' 次</span></div>'
+        + mRow('加息期间上涨', s.upCount + '/' + s.n + ' 次')
+        + mRow('典型涨跌', pct(s.retMed), cls(s.retMed))
+        + mRow('最好 / 最差', pct(s.retMax) + ' / ' + pct(s.retMin))
+        + mRow('期间最多跌', pct(s.ddMed), 'down')
+        + mRow('加息后一年', pct(s.m12Med), cls(s.m12Med), s.m12Up + '/' + s.m12N + ' 上涨')
+        + '</div>';
+    }).join('') + '</div>'
+  + '<div class="desk-only scroll"><table class="tbl">'
+  + '<tr><th>指数</th><th>统计次数</th><th>加息期间上涨</th><th>典型涨跌</th><th>最好~最差</th><th>期间最多跌</th><th>加息后一年</th></tr>'
+  + IDX.map(([k, label]) => {
+      const s = SUMMARY[k];
+      return '<tr><td>' + label + '</td><td>' + s.n + ' 次</td><td>' + s.upCount + '/' + s.n + '</td>'
+        + '<td class="' + cls(s.retMed) + '">' + pct(s.retMed) + '</td>'
+        + '<td class="mute">' + pct(s.retMin) + ' ~ ' + pct(s.retMax) + '</td>'
+        + '<td class="down">' + pct(s.ddMed) + '</td>'
+        + '<td class="' + cls(s.m12Med) + '">' + pct(s.m12Med) + ' <span class="mute">(' + s.m12Up + '/' + s.m12N + ')</span></td></tr>';
+    }).join('')
+  + '</table></div><div class="note">「期间最多跌」是按<b>每天的收盘价</b>算的，比按月算更深——也更接近你真的持仓时会看到的数字。'
+  + '费城半导体只有 1994-05 之后的数据（更早的是占位值，已剔除），所以那边样本少一次。</div></div>'
+  /* ── 定投 vs 一次性 ── */
+  + '<div class="sec-title">定投 vs 一次性 <span class="mute" style="font-weight:400">同窗口：首次加息日 → 加息后 12 个月</span></div>'
+  + '<div class="card">'
+  + '<div class="mob-only">' + IDX.map(([k, label, color]) => {
+      const s = SUMMARY[k];
+      const win = s.dcaWins >= s.pairedN / 2;
+      return '<div class="mcard"><div class="mcard-h">' + dot(color) + label + '<span>' + s.pairedN + ' 次对比</span></div>'
+        + mRow('定投 年化', pct(s.dcaXirrMed), cls(s.dcaXirrMed))
+        + mRow('一次性 年化', pct(s.lumpXirrMed), cls(s.lumpXirrMed))
+        + mRow('定投赢的次数', s.dcaWins + '/' + s.pairedN + ' 次', win ? 'up' : '')
+        + mRow('定投期间最多亏', pct(s.dcaWorstMed), 'down')
+        + '</div>';
+    }).join('') + '</div>'
+  + '<div class="desk-only scroll"><table class="tbl">'
+  + '<tr><th>指数</th><th>定投 年化</th><th>一次性 年化</th><th>定投赢</th><th>定投期间最多亏</th></tr>'
+  + IDX.map(([k, label]) => {
+      const s = SUMMARY[k];
+      return '<tr><td>' + label + '</td>'
+        + '<td class="' + cls(s.dcaXirrMed) + '">' + pct(s.dcaXirrMed) + '</td>'
+        + '<td class="' + cls(s.lumpXirrMed) + '">' + pct(s.lumpXirrMed) + '</td>'
+        + '<td>' + s.dcaWins + '/' + s.pairedN + '</td>'
+        + '<td class="down">' + pct(s.dcaWorstMed) + '</td></tr>';
+    }).join('')
+  + '</table></div>'
+  + '<div class="note"><b>为什么比的是「年化收益率」</b>：如果直接比「最后赚了多少 ÷ 一共投了多少」，对定投不公平——'
+  + '第一笔钱放了一整年，最后一笔才放一个月，却按同一个分母算。年化收益率把每笔钱投入的时间都算进去，两者才可比。<br>'
+  + '<b>定投真正的好处不在收益率，在过程好受</b>：期间账户最多亏 '
+  + IDX.map(([k, label]) => label + ' ' + pct(SUMMARY[k].dcaWorstMed)).join(' / ')
+  + '，而一次性买入要扛指数本身 ' + IDX.map(([k]) => pct(SUMMARY[k].ddMed)).join(' / ') + ' 的下挫，差不多是一倍。<br>'
+  + '另外注意：定投的年化略高，有一部分是「初期投得少、年化被放大」的算法效应。所以这表最有说服力的是最后一列，不是前两列。</div></div>';
+
+/* ── 总览表 ── */
+$('sec-table').innerHTML = '<div class="mob-only">' + CYCLES.map((c) => '<div class="mcard">'
+    + '<div class="mcard-h">' + c.name + '<span>' + c.hikes + ' 次 · ' + c.rate + '</span></div>'
+    + IDX.map(([k, label, color]) => {
+        const x = c.idx[k];
+        return '<div class="mrow"><span>' + dot(color) + label + '</span><b class="' + (x ? cls(x.ret) : '') + '">'
+          + (x ? pct(x.ret) + '<em>最多跌 ' + pct(x.dd) + '</em>' : '—<em>无数据</em>') + '</b></div>';
+      }).join('')
+    + '</div>').join('') + '</div>'
+  + '<div class="desk-only scroll"><table class="tbl">'
+  + '<tr><th>周期</th><th>标普500</th><th>纳指100</th><th>费城半导体</th></tr>'
+  + CYCLES.map((c) => {
+      return '<tr><td class="cyc"><b>' + c.name + '</b><span>' + md(c.first) + (c.last ? '→' + md(c.last) : '→进行中') + ' · ' + c.hikes + ' 次 · ' + c.rate + '</span></td>'
+        + IDX.map(([k]) => {
+            const x = c.idx[k];
+            if (!x) return '<td class="mute">—<span class="dd">无数据</span></td>';
+            return '<td class="' + cls(x.ret) + '">' + pct(x.ret) + '<span class="dd">期间最多跌 ' + pct(x.dd) + '</span></td>';
+          }).join('')
+        + '</tr>';
+    }).join('')
+  + '</table></div>';
+
+/* ── T+N 曲线 ──
+ * 按容器实际像素绘制（1 单位 = 1 像素），文字才是恒定 10px；
+ * 若用固定 viewBox 缩放，宽屏下字会被放大成糊状。 */
+const PALETTE = ['#5ba3ff', '#46c9f0', '#ba8fff', '#f7c14e', '#2dd4a7', '#f26d7d'];
+function chartBox(el, seriesList, yMin, yMax, xMax, opts) {
+  /* 手机上把图放高一点（宽约 316~368px，高 158 更接近 2:1，比扁图好读）；
+     左侧留 42px 给 "+120%" 这类 11px 的刻度文字 */
+  const W = el.clientWidth || 340, H = opts.h || (W < 560 ? 162 : 136);
+  const mL = 46, mR = 8, mT = 10, mB = 20;
+  const px = (n) => mL + (n / (xMax || 1)) * (W - mL - mR);
+  const py = (v) => mT + (yMax - v) / ((yMax - yMin) || 1) * (H - mT - mB);
+  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + (opts.title || '走势') + '">';
+  [yMax, (yMax + yMin) / 2, yMin].forEach((t) => {
+    svg += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
+      + '<text x="' + (mL - 5) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:12px var(--mono)">' + (t > 0 ? '+' : '') + t.toFixed(0) + '%</text>';
+  });
+  if (yMin < 0 && yMax > 0)
+    svg += '<line x1="' + mL + '" y1="' + py(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(0).toFixed(1) + '" stroke="var(--tx3)" stroke-width="1.2"/>';
+  /* 横轴按「半年」打点（≈126 个交易日），整年处直接写成年份 —— 交易日数字难对上年份 */
+  for (let n = 0; n <= xMax; n += 126) {
+    const isYear = n > 0 && n % 252 === 0;
+    svg += '<text x="' + px(n).toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" fill="var(--tx3)" style="font:12px var(--mono)">'
+      + (n === 0 ? 'T+0' : isYear ? (n / 252) + '年' : 'T+' + n) + '</text>';
+  }
+  seriesList.forEach((s) => {
+    if (!s.pts || !s.pts.length) return;
+    svg += '<polyline points="' + s.pts.map((p) => px(p.n).toFixed(1) + ',' + py(p.v).toFixed(1)).join(' ') + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.strong ? 2 : 1.3) + '" stroke-linejoin="round" opacity="' + (s.alpha || 1) + '"/>';
+  });
+  svg += '</svg>';
+  return svg;
+}
+let view = 'all';
+function renderCharts() {
+  const done = CYCLES.filter((c) => !c.ongoing);
+  const box = $('charts');
+  if (view === 'all') {
+    /* 每个指数一张图，叠加全部已结束周期 —— 看"同一个指数在历次加息中的路径差异" */
+    const xMax = Math.max.apply(null, done.map((c) => Math.max.apply(null, IDX.map(([k]) => (c.idx[k] ? c.idx[k].curve.length : 0)))));
+    box.innerHTML = IDX.map(([k, label, color]) => {
+      const all = done.map((c) => c.idx[k]).filter(Boolean);
+      const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
+      const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
+      const series = done.map((c, i) => { const x = c.idx[k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85 } : null; }).filter(Boolean);
+      return '<div class="chart"><div class="chart-h"><b style="color:' + color + '">' + label + '</b><span>' + all.length + ' 个周期叠加 · 横轴 T+0 ~ T+' + xMax + ' 交易日</span></div>'
+        + '<div class="cbox" data-idx="' + k + '"></div></div>';
+    }).join('');
+    $('legend').innerHTML = done.map((c, i) => '<span><i style="border-color:' + PALETTE[i % PALETTE.length] + '"></i>' + c.id + '</span>').join('')
+      + '<span class="mute">同色＝同一周期</span>';
+    $$('.cbox').forEach((el) => {
+      const k = el.dataset.idx;
+      const all = done.map((c) => c.idx[k]).filter(Boolean);
+      const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
+      const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
+      el._draw = { k, yMin, yMax, xMax };
+    });
+  } else {
+    const c = CYCLES.find((x) => x.id === view);
+    const all = IDX.map(([k]) => c.idx[k]).filter(Boolean);
+    const xMax = Math.max.apply(null, all.map((x) => x.curve.length));
+    const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
+    const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
+    box.innerHTML = '<div class="chart"><div class="chart-h"><b>' + c.name + '</b><span>' + c.first + (c.last ? ' → ' + c.last : ' → 进行中') + ' · 共 ' + xMax + ' 个交易日</span></div><div class="cbox" data-cyc="' + c.id + '"></div></div>';
+    $('legend').innerHTML = IDX.map(([k, label, color]) => { const x = c.idx[k]; return x ? '<span><i style="border-color:' + color + '"></i>' + label + ' ' + pct(x.ret) + '</span>' : '<span class="mute">' + label + ' 无数据</span>'; }).join('');
+    const el = $('charts').querySelector('.cbox');
+    el._draw = { cyc: c.id, yMin, yMax, xMax };
+  }
+  drawCharts();
+}
+function drawCharts() {
+  const done = CYCLES.filter((c) => !c.ongoing);
+  $$('.cbox').forEach((el) => {
+    const d = el._draw; if (!d) return;
+    if (d.k) {
+      const series = done.map((c, i) => { const x = c.idx[d.k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85 } : null; }).filter(Boolean);
+      el.innerHTML = chartBox(el, series, d.yMin, d.yMax, d.xMax, { xStep: 120, title: d.k });
+    } else {
+      const c = CYCLES.find((x) => x.id === d.cyc);
+      const series = IDX.map(([k, label, color]) => { const x = c.idx[k]; return x ? { pts: x.curve, color, strong: true } : null; }).filter(Boolean);
+      el.innerHTML = chartBox(el, series, d.yMin, d.yMax, d.xMax, { xStep: Math.max(20, Math.round(d.xMax / 6)), title: c.name });
+    }
+  });
+}
+$('view-chips').innerHTML = '<button class="chip on" data-v="all">全部叠加</button>' + CYCLES.map((c) => '<button class="chip" data-v="' + c.id + '">' + c.id + (c.ongoing ? '（进行中）' : '') + '</button>').join('');
+$('view-chips').addEventListener('click', (e) => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  view = b.dataset.v;
+  Array.prototype.forEach.call($('view-chips').children, (x) => x.classList.toggle('on', x === b));
+  renderCharts();
+});
+renderCharts();
+/* 宽度变化后重绘（图表按像素绘制，不能用 CSS 缩放） */
+let rt = null;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawCharts, 150); });
+
+/* ── 周期详情 ──
+ * 每张卡按「先结论 → 再对比 → 后细节」三层排，回答三个问题：
+ *   ① 加息期间涨了还是跌了  ② 期间最深跌多少  ③ 加息之后一年呢
+ * 结论句由数据自动生成（不是手写），避免卡片里堆一屏数字却抓不到重点。 */
+function plainLead(c) {
+  if (c.ongoing) return '刚加了第一次（' + c.rate + '），行情还没走出趋势。历史上真正的观察窗口是之后 6~12 个月，见上方「历史规律」。';
+  const a = IDX.map(([k, label]) => ({ label, x: c.idx[k] })).filter((o) => o.x);
+  if (!a.length) return '这个周期暂时没有可用的指数日线数据。';
+  const many = a.length >= 3;
+  const upN = a.filter((o) => o.x.ret > 0).length;
+  const best = a.slice().sort((p, q) => q.x.ret - p.x.ret)[0];
+  const dd = a.slice().sort((p, q) => p.x.dd - q.x.dd)[0];
+  const posts = a.filter((o) => o.x.mo.m12 !== null);
+  const down = posts.filter((o) => o.x.mo.m12 < 0);
+  const s = [];
+  s.push(upN === a.length
+    ? '加息期间' + (many ? '三个指数' : '指数') + '都在涨，' + best.label + '涨得最多（' + pct(best.x.ret) + '）'
+    : upN === 0
+      ? '加息期间' + (many ? '三个指数' : '指数') + '都在跌'
+      : '加息期间有涨有跌：' + best.label + '涨得最多（' + pct(best.x.ret) + '）');
+  s.push('但途中最多跌过 ' + Math.abs(dd.x.dd).toFixed(0) + '%（' + dd.label + '）');
+  if (down.length) s.push('⚠ 加息结束一年后反而大跌：' + down.map((o) => o.label + ' ' + pct(o.x.mo.m12)).join('、'));
+  else if (posts.length) s.push('加息结束后一年仍在涨');
+  return s.join('；') + '。';
+}
+$('sec-cycles').innerHTML = CYCLES.slice().reverse().map((c) => {
+  const a = IDX.map(([k, label, color]) => ({ label, color, x: c.idx[k] })).filter((o) => o.x);
+  /* 横条：中线是 0%，向左跌向右涨；长度按本卡最大值缩放，数值永远直接写出来 */
+  const maxAbs = Math.max.apply(null, a.map((o) => Math.abs(o.x.ret)).concat([1]));
+  const bars = a.map((o) => {
+    const v = o.x.ret, w = Math.abs(v) / maxAbs * 50;
+    const st = v >= 0 ? 'left:50%;width:' + w.toFixed(1) + '%' : 'left:' + (50 - w).toFixed(1) + '%;width:' + w.toFixed(1) + '%';
+    return '<div class="brow"><div class="nm"><i style="background:' + o.color + '"></i>' + o.label + '</div>'
+      + '<div class="track"><span class="zero"></span><span class="bar" style="' + st + ';background:' + o.color + '"></span></div>'
+      + '<div class="val ' + cls(v) + '">' + pct(v) + '</div></div>';
+  }).join('');
+  const mo = a.filter((o) => o.x.mo.m12 !== null);
+  const postBlk = mo.length
+    ? '<div class="kvs">' + mo.map((o) => '<div class="kv"><div class="t">' + o.label + '</div>'
+        + '<div class="v ' + cls(o.x.mo.m12) + '">' + pct(o.x.mo.m12) + '</div>'
+        + '<div class="s">3 个月 ' + pct(o.x.mo.m3) + '　6 个月 ' + pct(o.x.mo.m6) + '</div></div>').join('') + '</div>'
+    : '<div class="under">这个周期还没走完，暂时没有"加息后一年"的数据。</div>';
+  const dca = a.filter((o) => o.x.dca && o.x.dca.post && o.x.lump && o.x.lump.post);
+  const dcaBlk = dca.length
+    ? '<div class="blk"><div class="blk-h">如果当时按月定投 <em>同样的钱：分月投 vs 第一天一次投</em></div>'
+      + '<div class="kvs">' + dca.map((o) => {
+          const d = o.x.dca.post.xirr * 100, l = o.x.lump.post.xirr * 100, diff = d - l;
+          return '<div class="kv"><div class="t">' + o.label + '</div>'
+            + '<div class="v ' + cls(diff) + '">' + (diff >= 0 ? '定投高 ' : '一次性高 ') + Math.abs(diff).toFixed(1) + ' 个点</div>'
+            + '<div class="s">定投 ' + pct(d) + '　一次性 ' + pct(l) + '</div></div>';
+        }).join('') + '</div>'
+      + '<div class="under">比的是<b>年化收益率</b>（把每笔钱投入时间的长短也算进去，所以两者可比）。'
+      + '期间最深浮亏：定投 ' + dca.map((o) => pct(o.x.dca.seg.worst)).join(' / ')
+      + '，而一次性买入要扛指数本身 ' + dca.map((o) => pct(o.x.dd)).join(' / ') + ' 的下挫。</div></div>'
+    : '';
+  return '<div class="cyc-card">'
+    + '<div class="cyc-head"><h3>' + c.name + '</h3>'
+      + (c.ongoing ? '<span class="pill hot">进行中</span>' : '') + (c.tag ? '<span class="pill">' + c.tag + '</span>' : '') + '</div>'
+    + '<div class="cyc-meta">' + c.first + (c.last ? ' → ' + c.last : ' → 进行中') + '　加息 ' + c.hikes + ' 次　利率 ' + c.rate
+      + (c.idx.spx && c.idx.spx.days ? '　历时 ' + c.idx.spx.days + ' 个交易日' : '') + '</div>'
+    + '<div class="cyc-why">' + c.why + '</div>'
+    + '<div class="lead">' + plainLead(c) + '</div>'
+    + '<div class="blk"><div class="blk-h">加息期间涨跌 <em>从加息前一天算到末次加息</em></div>' + bars
+      + (a.length ? '<div class="under">期间最多跌过：' + a.map((o) => o.label + ' ' + pct(o.x.dd)).join('　·　') + '</div>' : '') + '</div>'
+    + '<div class="blk"><div class="blk-h">加息结束之后一年 <em>从末次加息那天起算</em></div>' + postBlk + '</div>'
+    + dcaBlk
+    + '</div>';
+}).join('');
+
+/* ── 页脚：来源与口径 ── */
+$('footer').innerHTML = '<b>数据来源</b><br>'
+  + '· 标普500 日线：<a href="' + META.source.spx.url + '" target="_blank" rel="noopener">' + META.source.spx.name + '</a>（' + META.source.spx.license + ' 授权，需署名）· 由本页抓取于 ' + META.fetchedAt + '<br>'
+  + '· 纳指100 / 费城半导体 日线：' + META.source.ndx.name + ' 官方接口（' + META.source.ndx.url + '）<br>'
+  + '<b>口径与已知问题</b><br>'
+  + '· 当前周期卡的涨跌用新浪财经<b>最新报价</b>（补历史接口的一日延迟）；其余所有数字一律来自历史日线序列<br>'
+  + '· 基准日＝首次加息日的<b>前一个交易日</b>收盘；加息段＝基准日 → 末次加息日（进行中的周期取最新交易日）<br>'
+  + '· 最大回撤为区间内<b>日线收盘</b>口径；盘中口径会更深<br>'
+  + '· <b>定投</b>＝从首次加息日起，每月<b>首个交易日</b>投入固定金额；<b>XIRR</b>＝资金加权年化收益率；"定投最深浮亏"＝期间账户浮亏 ÷ 累计投入的最大值<br>'
+  + '· "回到基准"统计到最深点之后，窗口放宽至<b>加息后 12 个月</b>（只看加息段内会把小跌误记成"未回本"）<br>'
+  + '· 纳指100 日线自 1996-06-06 起，故 1994 周期无数据；费半 1990-01～1994-05-03 为恒值占位数据，已剔除，故 1994 周期亦无数据<br>'
+  + '· 标普500 数据源目前更新至 ' + META.fetchedAt + '，与纳指/费半的最新日期可能相差 1 个交易日<br>'
+  + '· 页面字体与持仓看板共用同一份内嵌 JetBrains Mono（font.css），完全离线可用<br>'
+  + '· 加息周期日期为公开历史事实（2026 周期来自 2026-09-16 FOMC 决议：上调 25bp 至 3.75%–4.00%）<br>'
+  + '<b>免责</b>：历史统计不构成对未来走势的预测，也不构成投资建议。'
+  + '<div id="env-line" class="mute" style="font-size:var(--fs-xxs);margin-top:9px"></div>';
+/* 本机排版环境读数：方便确认手机上报的 CSS 视口宽度（CSS 宽 = 物理宽 ÷ 设备像素比） */
+function paintEnv() {
+  const el = $('env-line');
+  if (!el || typeof window === 'undefined') return;
+  const w = window.innerWidth, dpr = window.devicePixelRatio || 1;
+  el.textContent = '本段仅用于核对排版，可忽略：本机视口 ' + w + ' CSS px（设备像素比 ' + dpr.toFixed(2)
+    + '，物理约 ' + Math.round(w * dpr) + ' px）→ 当前使用' + (w <= 560 ? '手机卡片版' : '桌面表格版');
+}
+paintEnv();
+window.addEventListener('resize', paintEnv);
+</script>
+</body>
+</html>
