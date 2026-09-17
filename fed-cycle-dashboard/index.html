@@ -114,6 +114,10 @@
   .chart-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}
   .chart-h b{font-size:var(--fs-sm)}
   .chart-h span{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);letter-spacing:.3px}
+  /* 图表交互：touch-action:none 让横向拖动归图表（不触发页面滚动），读数条常驻占位防跳动 */
+  .cbox{touch-action:none;cursor:crosshair}
+  .chart-readout{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);font-feature-settings:"tnum";text-align:center;min-height:18px;margin-top:4px;line-height:1.55}
+  .chart-readout b{color:var(--tx2);font-weight:600}
   svg{display:block;width:100%;height:auto}
   .legend{display:flex;gap:10px 14px;flex-wrap:wrap;justify-content:center;font-size:var(--fs-xxs);color:var(--tx3);padding:8px 2px 2px}
   .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
@@ -238,7 +242,7 @@ $('sec-glossary').innerHTML = '<div class="sec-title">术语表 <span class="mut
      ['基点', '利率单位，1 个基点 = 0.01%。加 25 个基点就是加 0.25%。'],
      ['加息期间涨跌', '从「第一次加息的前一天收盘」算到「最后一次加息那天收盘」，这段时间里指数的涨跌。'],
      ['期间最多跌', '从最高点往下最多跌了多少（即「最大回撤」）。'],
-     ['加息后一年', '从最后一次加息那天起往后 12 个月。这时利率已经不涨了。'],
+     ['加息后一年', '从最后一次加息那天起往后 12 个月，此时利率已经不再上调。各月度数字（1/3/6/9/12 个月）都是<b>到该时点为止的累计涨跌</b>（相对末次加息日收盘），不是那个月单月的涨跌。'],
      ['年化收益率', '把每笔钱的投入时间算进去，折算成「相当于每年赚多少」；只有它能公平比较定投与一次投完。'],
      ['定投', '每月固定一天投入同样金额，摊平买入成本。'],
      ['个百分点（pp）', '两个百分比相减的单位。+19.5% 和 +10.0% 相差 9.5 个百分点。']]
@@ -378,11 +382,15 @@ $('sec-table').innerHTML = '<div class="mob-only">' + CYCLES.map((c) => '<div cl
  * 按容器实际像素绘制（1 单位 = 1 像素），文字才是恒定 10px；
  * 若用固定 viewBox 缩放，宽屏下字会被放大成糊状。 */
 const PALETTE = ['#5ba3ff', '#46c9f0', '#ba8fff', '#f7c14e', '#2dd4a7', '#f26d7d'];
+/* 叠加视图的里程碑：从首次加息（T+0）起算的月度点，超过一年后每半年一条 */
+const T0_MARKS = (xMax) => [[21, "1月"], [63, "3月"], [126, "6月"], [189, "9月"], [252, "12月"]]
+  .concat(Array.from({ length: Math.max(0, Math.floor((xMax - 252) / 126)) }, (_, i) => [(18 + i * 6) * 21, (18 + i * 6) + "月"]))
+  .filter(m => m[0] <= xMax);
 function chartBox(el, seriesList, yMin, yMax, xMax, opts) {
   /* 手机上把图放高一点（宽约 316~368px，高 158 更接近 2:1，比扁图好读）；
      左侧留 42px 给 "+120%" 这类 11px 的刻度文字 */
   const W = el.clientWidth || 340, H = opts.h || (W < 560 ? 162 : 136);
-  const mL = 46, mR = 8, mT = 10, mB = 20;
+  const mL = 46, mR = 8, mT = 10, mB = 30;   /* mB=30：x 轴标签行与 Y 轴最低刻度分层，左下角不再叠字 */
   const px = (n) => mL + (n / (xMax || 1)) * (W - mL - mR);
   const py = (v) => mT + (yMax - v) / ((yMax - yMin) || 1) * (H - mT - mB);
   let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + (opts.title || '走势') + '">';
@@ -392,17 +400,43 @@ function chartBox(el, seriesList, yMin, yMax, xMax, opts) {
   });
   if (yMin < 0 && yMax > 0)
     svg += '<line x1="' + mL + '" y1="' + py(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(0).toFixed(1) + '" stroke="var(--tx3)" stroke-width="1.2"/>';
-  /* 横轴按「半年」打点（≈126 个交易日），整年处直接写成年份 —— 交易日数字难对上年份 */
-  for (let n = 0; n <= xMax; n += 126) {
-    const isYear = n > 0 && n % 252 === 0;
-    svg += '<text x="' + px(n).toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" fill="var(--tx3)" style="font:12px var(--mono)">'
-      + (n === 0 ? 'T+0' : isYear ? (n / 252) + '年' : 'T+' + n) + '</text>';
+  /* 横轴：T+0（首次加息）。叠加视图里程碑从 T+0 起算；单周期视图由 opts.marks/split
+     传入「末次加息分界 + 结束后 1/3/6/9/12 月」（口径与 kv 数字同源）。
+     标签两行交错放置，行内放不下就省文字（竖线与吸附读数仍在）。 */
+  svg += '<text x="' + (mL + 3) + '" y="' + (H - 5) + '" text-anchor="start" fill="var(--tx3)" style="font:12px var(--mono)">T+0</text>';
+  const wLab = (lab) => [...lab].reduce((w2, c2) => w2 + (/[\u4e00-\u9fa5]/.test(c2) ? 12 : 7.2), 0);
+  const rowsRight = [mL + 35, mL - 2];   /* 每行最右占位：row0 顶开 T+0 文字（至 mL+32），row1 可从轴起 */
+  const place = (n, lab) => {
+    const x = px(n), half = wLab(lab) / 2;
+    for (let r = 0; r < 2; r++) {
+      if (x - half >= rowsRight[r]) {
+        rowsRight[r] = x + half;
+        svg += '<text x="' + x.toFixed(1) + '" y="' + (H - 5 - r * 13) + '" text-anchor="middle" fill="var(--tx3)" style="font:12px var(--mono)">' + lab + '</text>';
+        return;
+      }
+    }
+  };
+  (opts.marks || T0_MARKS(xMax)).forEach(([n, lab]) => {
+    const mx = px(n).toFixed(1);
+    svg += '<line x1="' + mx + '" y1="' + mT + '" x2="' + mx + '" y2="' + (H - mB) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>';
+    place(n, lab);
+  });
+  if (opts.split !== undefined && opts.split !== null) {
+    const sx = px(opts.split).toFixed(1);
+    svg += '<line x1="' + sx + '" y1="' + mT + '" x2="' + sx + '" y2="' + (H - mB) + '" stroke="var(--warn)" stroke-width="1.2" opacity=".85"/>'
+      + '<text x="' + sx + '" y="' + (mT + 9) + '" text-anchor="middle" fill="var(--warn)" style="font:12px var(--mono)">末次加息</text>';
   }
   seriesList.forEach((s) => {
     if (!s.pts || !s.pts.length) return;
     svg += '<polyline points="' + s.pts.map((p) => px(p.n).toFixed(1) + ',' + py(p.v).toFixed(1)).join(' ') + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.strong ? 2 : 1.3) + '" stroke-linejoin="round" opacity="' + (s.alpha || 1) + '"/>';
   });
+  /* 十字线 + 各序列吸附圆点（默认隐藏，pointer 事件驱动；几何参数存 el._geo 供换算） */
+  svg += '<line class="xh" x1="' + mL + '" y1="' + mT + '" x2="' + mL + '" y2="' + (H - mB) + '" stroke="var(--tx3)" stroke-width="1" style="display:none"/>';
+  seriesList.forEach((s, i) => {
+    svg += '<circle class="xhd" data-i="' + i + '" r="3.5" fill="' + s.color + '" stroke="var(--bg)" stroke-width="1.5" style="display:none"/>';
+  });
   svg += '</svg>';
+  el._geo = { W, H, mL, mR, mT, mB, xMax, yMin, yMax };
   return svg;
 }
 let view = 'all';
@@ -417,8 +451,8 @@ function renderCharts() {
       const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
       const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
       const series = done.map((c, i) => { const x = c.idx[k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85 } : null; }).filter(Boolean);
-      return '<div class="chart"><div class="chart-h"><b style="color:' + color + '">' + label + '</b><span>' + all.length + ' 个周期叠加 · 横轴 T+0 ~ T+' + xMax + ' 交易日</span></div>'
-        + '<div class="cbox" data-idx="' + k + '"></div></div>';
+      return '<div class="chart"><div class="chart-h"><b style="color:' + color + '">' + label + '</b><span>' + all.length + ' 个周期叠加</span></div>'
+        + '<div class="cbox" data-idx="' + k + '"></div><div class="chart-readout">拖动曲线，读同一时点各周期的涨跌 · 竖线＝1/3/6/9/12 月</div></div>';
     }).join('');
     $('legend').innerHTML = done.map((c, i) => '<span><i style="border-color:' + PALETTE[i % PALETTE.length] + '"></i>' + c.id + '</span>').join('')
       + '<span class="mute">同色＝同一周期</span>';
@@ -431,14 +465,19 @@ function renderCharts() {
     });
   } else {
     const c = CYCLES.find((x) => x.id === view);
-    const all = IDX.map(([k]) => c.idx[k]).filter(Boolean);
-    const xMax = Math.max.apply(null, all.map((x) => x.curve.length));
-    const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
+    const raw = IDX.map(([k]) => c.idx[k]).filter(Boolean);
+    /* 全程序列：加息期间（T+0 起）＋ 结束后 12 个月（post 接在末次加息日之后） */
+    const all = raw.map((x) => ({ pts: x.curve.concat((x.post || []).slice(1).map((p) => ({ n: x.curve.length + p.n, v: p.v, d: p.d }))) }));
+    const xMax = Math.max.apply(null, all.map((s) => s.pts[s.pts.length - 1].n));
+    const vs = all.flatMap((s) => s.pts.map((p) => p.v)).concat([0]);
     const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
-    box.innerHTML = '<div class="chart"><div class="chart-h"><b>' + c.name + '</b><span>' + c.first + (c.last ? ' → ' + c.last : ' → 进行中') + ' · 共 ' + xMax + ' 个交易日</span></div><div class="cbox" data-cyc="' + c.id + '"></div></div>';
-    $('legend').innerHTML = IDX.map(([k, label, color]) => { const x = c.idx[k]; return x ? '<span><i style="border-color:' + color + '"></i>' + label + ' ' + pct(x.ret) + '</span>' : '<span class="mute">' + label + ' 无数据</span>'; }).join('');
+    box.innerHTML = '<div class="chart"><div class="chart-h"><b>' + c.name + '</b><span>' + c.first + (c.last ? ' → ' + c.last : ' → 进行中') + ' · 全程＝加息期间＋结束后 12 个月</span></div><div class="cbox" data-cyc="' + c.id + '"></div><div class="chart-readout">拖动曲线 · 分界线左＝加息期间，右＝结束后（1/3/6/9/12 月自动吸附）</div></div>';
+    $('legend').innerHTML = IDX.map(([k, label, color]) => { const x = c.idx[k]; return x ? '<span><i style="border-color:' + color + '"></i>' + label + ' 加息期间 ' + pct(x.ret) + '</span>' : '<span class="mute">' + label + ' 无数据</span>'; }).join('');
     const el = $('charts').querySelector('.cbox');
-    el._draw = { cyc: c.id, yMin, yMax, xMax };
+    const m0 = raw[0].marks && Object.keys(raw[0].marks).length ? raw[0] : null;
+    el._draw = { cyc: c.id, yMin, yMax, xMax,
+      marks: m0 ? Object.entries(m0.marks).map(([m, i]) => [m0.curve.length - 1 + i, m + "月"]) : null,
+      split: m0 ? m0.curve.length - 1 : null };
   }
   drawCharts();
 }
@@ -447,12 +486,17 @@ function drawCharts() {
   $$('.cbox').forEach((el) => {
     const d = el._draw; if (!d) return;
     if (d.k) {
-      const series = done.map((c, i) => { const x = c.idx[d.k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85 } : null; }).filter(Boolean);
+      const series = done.map((c, i) => { const x = c.idx[d.k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85, label: c.id } : null; }).filter(Boolean);
       el.innerHTML = chartBox(el, series, d.yMin, d.yMax, d.xMax, { xStep: 120, title: d.k });
+      el._labels = series; el._mode = "all";
     } else {
       const c = CYCLES.find((x) => x.id === d.cyc);
-      const series = IDX.map(([k, label, color]) => { const x = c.idx[k]; return x ? { pts: x.curve, color, strong: true } : null; }).filter(Boolean);
-      el.innerHTML = chartBox(el, series, d.yMin, d.yMax, d.xMax, { xStep: Math.max(20, Math.round(d.xMax / 6)), title: c.name });
+      const series = IDX.map(([k, label, color]) => {
+        const x = c.idx[k]; if (!x) return null;
+        return { pts: x.curve.concat((x.post || []).slice(1).map((p) => ({ n: x.curve.length + p.n, v: p.v, d: p.d }))), color, strong: true, label };
+      }).filter(Boolean);
+      el.innerHTML = chartBox(el, series, d.yMin, d.yMax, d.xMax, { xStep: Math.max(20, Math.round(d.xMax / 6)), title: c.name, marks: d.marks, split: d.split });
+      el._labels = series; el._mode = "cyc"; el._marks = d.marks; el._split = d.split;
     }
   });
 }
@@ -464,6 +508,41 @@ $('view-chips').addEventListener('click', (e) => {
   renderCharts();
 });
 renderCharts();
+/* 十字线读数：拖动/移动按最近交易日取值，里程碑 ≤4 个交易日内自动吸附。
+   单周期视图分两段表述：分界线左＝加息期间（T+N），右＝结束后（N 交易日 / 吸附到整月）。 */
+function chartScrub(e) {
+  const el = e.target.closest ? e.target.closest(".cbox") : null;
+  if (!el || !el._geo || !el._labels) return;
+  const g = el._geo, ro = el.parentElement.querySelector(".chart-readout");
+  const rect = el.getBoundingClientRect();
+  let n = Math.round((e.clientX - rect.left - g.mL) / ((g.W - g.mL - g.mR) || 1) * g.xMax);
+  n = Math.max(0, Math.min(g.xMax, n));
+  const marks = el._marks || T0_MARKS(g.xMax);
+  const ms = marks.find(([m]) => Math.abs(m - n) <= 4);
+  let t = n, head;
+  if (el._mode === "cyc" && el._split !== null && el._split !== undefined) {
+    if (ms) { t = ms[0]; head = "<b>结束后 " + ms[1] + "</b>"; }
+    else if (Math.abs(n - el._split) <= 4) { t = el._split; head = "<b>末次加息日</b>"; }
+    else if (n <= el._split) head = "加息期间 <b>T+" + n + "</b>（≈" + (n / 21).toFixed(1) + " 个月）";
+    else head = "<b>结束后 T+" + (n - el._split) + "</b>（≈" + ((n - el._split) / 21).toFixed(1) + " 个月）";
+  } else if (ms) { t = ms[0]; head = "<b>T+" + t + "</b>（" + ms[1] + "）"; }
+  else head = "<b>T+" + n + "</b>（≈" + (n / 21).toFixed(1) + " 个月）";
+  const x = g.mL + t / g.xMax * (g.W - g.mL - g.mR);
+  const line = el.querySelector(".xh");
+  if (line) { line.style.display = ""; line.setAttribute("x1", x.toFixed(1)); line.setAttribute("x2", x.toFixed(1)); }
+  const parts = el._labels.map((s) => {
+    const p = s.pts[t], dot = el.querySelector('.xhd[data-i="' + el._labels.indexOf(s) + '"]');
+    if (dot) {
+      if (p) { dot.style.display = ""; dot.setAttribute("cx", x.toFixed(1)); dot.setAttribute("cy", (g.mT + (g.yMax - p.v) / ((g.yMax - g.yMin) || 1) * (g.H - g.mT - g.mB)).toFixed(1)); }
+      else dot.style.display = "none";
+    }
+    return p ? '<b style="color:' + s.color + '">' + s.label + "</b> " + pct(p.v) : null;
+  }).filter(Boolean);
+  const date = el._mode === "cyc" && el._labels[0] && el._labels[0].pts[t] ? " · " + el._labels[0].pts[t].d.slice(5).replace("-", ".") : "";
+  if (ro) ro.innerHTML = head + date + (parts.length ? "　" + parts.join(" · ") : "");
+}
+$("charts").addEventListener("pointerdown", chartScrub);
+$("charts").addEventListener("pointermove", chartScrub);
 /* 宽度变化后重绘（图表按像素绘制，不能用 CSS 缩放） */
 let rt = null;
 window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawCharts, 150); });
@@ -507,7 +586,7 @@ $('sec-cycles').innerHTML = CYCLES.slice().reverse().map((c) => {
   const postBlk = mo.length
     ? '<div class="kvs">' + mo.map((o) => '<div class="kv"><div class="t">' + o.label + '</div>'
         + '<div class="v ' + cls(o.x.mo.m12) + '">' + pct(o.x.mo.m12) + '</div>'
-        + '<div class="s">3个月 ' + pct(o.x.mo.m3) + '<br>6个月 ' + pct(o.x.mo.m6) + '</div></div>').join('') + '</div>'
+        + '<div class="s">3个月末 ' + pct(o.x.mo.m3) + '<br>6个月末 ' + pct(o.x.mo.m6) + '</div></div>').join('') + '</div>'
     : '<div class="under">这个周期还没走完，暂时没有"加息后一年"的数据。</div>';
   const dca = a.filter((o) => o.x.dca && o.x.dca.post && o.x.lump && o.x.lump.post);
   const dcaBlk = dca.length

@@ -99,9 +99,19 @@ for (const c of CYCLES) {
     /* T+N 曲线：以基准日为 T-1，首次加息日为 T+0；不足 540 个交易日的周期到区间末为止 */
     const curve = all.slice(1).map((p, i) => ({ n: i, v: r1((p.c / base.c - 1) * 100), d: p.d }));
     const mo = {};
-    for (const m of [3, 6, 12]) {
+    for (const m of [1, 3, 6, 9, 12]) {
       const t = lastAt(A, addMonths(end.d, m));
       mo['m' + m] = t && t.d > end.d ? r1((t.c / end.c - 1) * 100) : null;
+    }
+    /* 结束后 12 个月的每日曲线（v 相对末次加息日收盘，n 为交易日序号，0＝末次加息日）
+       + 月度里程碑索引 marks[m]（日历月命中日在 post 里的位置）——与 mo 同源同值，页面图上
+       的 1/3/6/9/12 月竖线与吸附读数都从这里取，保证图与数字永远对得上。 */
+    const postWin = A.filter((p) => p.d > end.d && p.d <= addMonths(end.d, 12));
+    const post = [{ n: 0, v: 0, d: end.d }, ...postWin.map((p, i) => ({ n: i + 1, v: r1((p.c / end.c - 1) * 100), d: p.d }))];
+    const marks = {};
+    for (const m of [1, 3, 6, 9, 12]) {
+      const t = lastAt(A, addMonths(end.d, m));
+      if (t && t.d > end.d) { const i = post.findIndex((p) => p.d === t.d); if (i >= 0) marks[m] = i; }
     }
     /* T+N 的 N：all[0] 是基准日（T−1），首次加息日才是 T+0，故要减 1 */
     const hiDays = all.findIndex((p) => p.d === hi.d) - 1;
@@ -111,7 +121,7 @@ for (const c of CYCLES) {
       ret: r1((end.c / base.c - 1) * 100),
       dd: r1(dd * 100), ddAt, ddDays: ddI, recover,
       hi: { d: hi.d, c: hi.c, days: hiDays }, lo: { d: lo.d, c: lo.c },
-      days: seg.length, mo, curve, dataTo: end.d,
+      days: seg.length, mo, curve, post, marks, dataTo: end.d,
       /* 定投 vs 一次性：窗口都取【首次加息日 → 区间末】，两者同窗口才可比 */
       dca: { seg: dcaRun(A, c.first, end.d), post: postEnd && postEnd.d > end.d ? dcaRun(A, c.first, postEnd.d) : null },
       lump: { seg: lumpRun(A, c.first, end.d), post: postEnd && postEnd.d > end.d ? lumpRun(A, c.first, postEnd.d) : null },
