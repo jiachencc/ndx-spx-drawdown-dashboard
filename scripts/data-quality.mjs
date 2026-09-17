@@ -46,9 +46,9 @@ export function validateModel(m) {
     if (!(q.close > 0 && q.ath >= q.close && q.low52 > 0 && q.low52 <= q.close && q.ma50 > 0 && q.ma200 > 0 && q.prevYr > 0)) errors.push(key + ": invalid price range");
     if (q.rsi < 0 || q.rsi > 100 || q.days < 0 || q.ddYtd > 0 || !isDate(q.athDate)) errors.push(key + ": invalid indicators");
   }
-  for (const key of ["vix", "fg", "tnx", "tnx2", "fx", "putcall", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "epsGrowth"]) finite(d?.[key], key);
+  for (const key of ["vix", "tnx", "tnx2", "fx", "putcall", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "epsGrowth"]) finite(d?.[key], key);
   for (const key of ["vix", "fx", "putcall", "peFwd", "peTtm", "ndxPeFwd", "cape"]) if (!(d[key] > 0)) errors.push(key + ": must be positive");
-  for (const key of ["fg", "pePct", "ndxPePct"]) if (!(d[key] >= 0 && d[key] <= 100)) errors.push(key + ": outside 0..100");
+  for (const key of ["pePct", "ndxPePct"]) if (!(d[key] >= 0 && d[key] <= 100)) errors.push(key + ": outside 0..100");
   const th = Object.values(d?.thresholds || {});
   if (th.length !== 4 || !th.every((x, i) => Number.isFinite(x) && x < 0 && x > -100 && (!i || x < th[i - 1]))) errors.push("threshold ordering invalid");
   for (const key of ["etfNdx", "etfSpx", "kr", "n225", "hkus"]) {

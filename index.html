@@ -564,7 +564,6 @@
     <div class="sig-kpis" id="sig-kpis">
       <span class="sk"><span class="sk-l">NDX 回撤</span><b id="sk-dd">--</b></span>
       <span class="sk"><span class="sk-l">Fwd ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><b id="sk-erp">--</b></span>
-      <span class="sk"><span class="sk-l">恐贪</span><b id="sk-fg">--</b></span>
       <span class="sk"><span class="sk-l">止盈档位</span><b id="sk-tp">--</b></span>
     </div>
   </div>
@@ -747,11 +746,6 @@
       <div class="m-marks"><span>贪婪 &lt;15</span><span>正常 15-30</span><span>恐慌 &gt;30</span></div>
     </div>
     <div class="meter">
-      <div class="m-head"><span class="m-label">恐惧贪婪指数 (CNN)<button class="hint-i" type="button" aria-label="查看释义" data-h="fg">?</button></span><span class="m-val" id="sent-fg">--</span></div>
-      <div class="m-bar"><div class="m-fill" id="sent-fgb" style="width:0%;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));"></div></div>
-      <div class="m-marks"><span>0 恐惧</span><span>50</span><span>100 贪婪</span></div>
-    </div>
-    <div class="meter">
       <div class="m-head"><span class="m-label">10Y 美债 (TNX)<button class="hint-i" type="button" aria-label="查看释义" data-h="tnx">?</button></span><span class="m-val" id="sent-tnx">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-tnxb" style="width:0%;background:var(--yellow);"></div></div>
       <div class="m-marks"><span>0%</span><span>2.75%</span><span>5.5%</span></div>
@@ -878,7 +872,7 @@
 </main>
 
 <div class="footer">
-  <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.9</b> · 行情：Yahoo ^NDX / ^GSPC（新浪 gb_$ndx / gb_$inx 交叉校验） · 美债：Yahoo 10Y / 美国财政部 2Y · 汇率：Frankfurter · 恐贪：CNN · 定投回测 Nasdaq日线(2016–2026) · 各源当前是否在有效期内见页内「数据有效性」面板<br>
+  <span aria-hidden="true">📡</span> 美股指数回撤决策看板 <b>v6.9</b> · 行情：Yahoo ^NDX / ^GSPC（新浪 gb_$ndx / gb_$inx 交叉校验） · 美债：Yahoo 10Y / 美国财政部 2Y · 汇率：Frankfurter · 定投回测 Nasdaq日线(2016–2026) · 各源当前是否在有效期内见页内「数据有效性」面板<br>
   本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值：<a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market · 美股编年史 (historyofmarket.com)</a>（CC BY 4.0）· 期权：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · 美债：<a href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve" target="_blank" rel="noopener" style="color:inherit">U.S. Department of the Treasury</a> · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
@@ -904,7 +898,6 @@ const priceAt = (idx, dd) => idx.ath * (1 + dd/100);
 const RULES = {
   pePct: { hi: 80, mid: 60, dir: "hi", op: ">" },
   vix:   { hi: 30, mid: 20, dir: "hi", op: ">" },
-  fg:    { hi: 55, mid: 45, dir: "hi", op: ">=" },
   erp:   { hi: DECISION_RULES.t4Erp, mid: 2,  dir: "lo", op: "<" },   // hi 与 T+4 同源
   eps:   { hi: 0,  mid: 3,  dir: "lo", op: "<" }
 };
@@ -1054,9 +1047,6 @@ function renderAll() {
   $("sent-vix").style.color = bandColor(D.vix, RULES.vix);
   $("sent-vixb").style.width = Math.min(100, D.vix/40*100) + "%";
   $("sent-vixb").style.background = D.vix > 30 ? "var(--red)" : "var(--green)";
-  $("sent-fg").textContent = D.fg + " " + (D.fg>=75?"极度贪婪":(D.fg>=55?"贪婪":(D.fg>=45?"中性":(D.fg>=25?"恐惧":"极度恐惧"))));
-  $("sent-fg").style.color = bandColor(D.fg, RULES.fg);
-  $("sent-fgb").style.width = D.fg + "%";
   $("sent-tnx").textContent = D.tnx.toFixed(2) + "%";
   $("sent-tnxb").style.width = Math.min(100, D.tnx/5.5*100) + "%";
   /* 2Y + curve */
@@ -1072,10 +1062,9 @@ function renderAll() {
   $("sent-pcb").style.background = pc > 1.1 ? "var(--green)" : (pc < 0.7 ? "var(--red)" : "var(--yellow)");
   /* 情绪注释（派生） */
   const vixState = D.vix > 30 ? "恐慌区" : (D.vix > 20 ? "警惕区" : (D.vix > 15 ? "正常区" : "低位"));
-  const fgState = D.fg >= 75 ? "极度贪婪" : (D.fg >= 55 ? "贪婪" : (D.fg >= 45 ? "中性" : (D.fg >= 25 ? "恐惧" : "极度恐惧")));
   $("note-sent").innerHTML =
-    "VIX " + D.vix.toFixed(2) + " " + vixState + " + 恐贪 " + D.fg + " " + fgState +
-    " → <b>市场情绪" + (D.fg >= 55 ? "仍偏乐观" : (D.fg >= 45 ? "中性观望" : "转防御")) + "</b>；收益率曲线" +
+    "VIX " + D.vix.toFixed(2) + " " + vixState +
+    " → <b>市场情绪" + (D.vix > 30 ? "转防御" : (D.vix > 20 ? "偏谨慎" : "平稳")) + "</b>；收益率曲线" +
     (D.tnx2 >= D.tnx ? "倒挂 🔴" : "正斜率") + "、Put/Call " + pc.toFixed(2) + " " + (pc > 1.1 ? "防御" : (pc < 0.7 ? "贪婪" : "中性")) +
     " → " + (D.tnx2 < D.tnx && pc >= 0.7 && D.vix < 30 ? "无系统性风险信号" : "存在风险信号，注意控制加仓节奏") + "。";
 
@@ -1338,8 +1327,6 @@ function renderBanner(ndxDD) {
   const erpF = state.erp;
   $("sk-erp").textContent = pct(erpF);
   $("sk-erp").style.color = bandColor(erpF, RULES.erp);
-  $("sk-fg").textContent = D.fg;
-  $("sk-fg").style.color = D.fg >= state.rules.t2Fg ? "var(--red)" : (D.fg >= RULES.fg.hi ? "var(--yellow)" : "var(--green)");
   const ytd = ytdOf(D.ndx);
   const distAth = -ndxDD;
   $("sk-tp").textContent = !state.healthy ? "暂不评估" : state.exit ? state.exit.id + " 已触发" : "未触发";
@@ -1364,7 +1351,7 @@ function renderStale() {
 /* Provider-supplied strings (a retained source's error, a cross-check mismatch) reach the DOM. */
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function renderSourceHealth() {
-  const keys = ["ndx", "spx", "vix", "fg", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth", "crosscheck"];
+  const keys = ["ndx", "spx", "vix", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth", "crosscheck"];
   const all = keys.map(k => sourceHealth(k));
   const ok = all.filter(h => h.usable), bad = all.filter(h => !h.usable);
   $("source-summary").textContent = "数据有效性 " + ok.length + "/" + all.length + " 在有效期"
@@ -1397,7 +1384,7 @@ function renderSourceHealth() {
   if (!evaluateDecision(D).healthy) {
     ["note-trend", "note-val", "note-sent"].forEach(id => { $(id).textContent = "输入日期或口径未核验，仅展示沿用指标；暂停市场状态与操作判断，详见来源明细。"; });
   }
-  const fields = { "ndx-close": ["ndx"], "spx-close": ["spx"], "sent-vix": ["vix", "fg", "tnx", "tnx2", "putcall"], "val-pe": ["peFwd", "peTtm", "pePct", "cape", "ndxPeFwd", "ndxPePct", "epsGrowth"], "fx-num": ["fx"] };
+  const fields = { "ndx-close": ["ndx"], "spx-close": ["spx"], "sent-vix": ["vix", "tnx", "tnx2", "putcall"], "val-pe": ["peFwd", "peTtm", "pePct", "cape", "ndxPeFwd", "ndxPePct", "epsGrowth"], "fx-num": ["fx"] };
   Object.entries(fields).forEach(([id, ks]) => {
     const card = $(id)?.closest(".card"); if (!card) return;
     let note = card.querySelector(".source-health-note");
@@ -1493,7 +1480,6 @@ const HINTS = {
   erpttm:   { name: "TTM ERP", plain: "用<b>真实盈利</b>算的风险补偿。现在是负数，意味着“股不如债”。", pro: "(1 ÷ TTM PE − 10Y 美债收益率) ×100。" },
   eps:      { name: "EPS增速", plain: "公司赚钱能力的<b>增速预期</b>。+8% = 市场预计盈利还能涨 8%，基本面还在向上。", pro: "每股盈利（EPS）预测同比增速；26E = 2026 财年预期。" },
   vix:      { name: "VIX",     plain: "市场的<b>恐慌指数</b>：15 = 风平浪静，30+ = 人心惶惶，40+ = 踩踏风险。越恐慌反而常接近底部。", pro: "标普 500 期权隐含波动率，衡量未来 30 天预期波幅。" },
-  fg:       { name: "恐贪指数", plain: "市场情绪表：<b>＞75 贪婪</b>（警惕过热）、<b>＜25 恐惧</b>（常是机会区）。72 = 偏贪婪，追高要小心。", pro: "CNN Fear & Greed，0–100，综合波动率、涨跌广度等 7 项指标。" },
   tnx:      { name: "10Y美债", plain: "<b>“无风险利率”</b>，是股票的竞争对手收益率。它越高，股票显得越贵，资金越容易被吸去债市。", pro: "10 年期美国国债收益率（TNX），常作估值贴现率基准。" },
   curve:    { name: "收益率曲线", plain: "短期（2年）与长期（10年）利率之差。<b>倒挂（2Y＞10Y）</b>= 市场押注衰退，历史预警信号。", pro: "2Y − 10Y 利差；持续倒挂通常领先经济衰退 12–18 个月。" },
   putcall:  { name: "Put/Call", plain: "看跌的人 vs 看涨的人谁更活跃。<b>＞1.1</b> 大众防御（逆向看机会）、<b>＜0.7</b> 大众贪婪（逆向要谨慎）。", pro: "看跌期权成交量 ÷ 看涨期权成交量。" },
@@ -1617,7 +1603,7 @@ function renderAsOf() {
     ? "交易中（美东" + meridiem + " " + etTime + "）"
     : "已收盘";
   const m = $("asof-macro");
-  const unknown = ["vix", "fg", "tnx", "tnx2", "fx"].map(k => sourceHealth(k)).filter(h => !h.usable);
+  const unknown = ["vix", "tnx", "tnx2", "fx"].map(k => sourceHealth(k)).filter(h => !h.usable);
   m.textContent = unknown.length ? "部分宏观读数未核验或已过期：" + unknown.map(h => h.label).join("、") : "宏观各项日期见下方来源明细";
   m.style.display = "";
 }

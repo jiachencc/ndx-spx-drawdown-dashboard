@@ -19,10 +19,10 @@ const base = readModel(data);
  * 下一次自动更新后失效——2026-09-15 的 CI 就是这样挂的（数据到了 09-14，测试仍按 09-11 断言）。 */
 const now = new Date(base.DEFAULT.date + "T09:00:00Z");
 const shift = n => new Date(Date.parse(base.DEFAULT.date + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
-const meta = Object.fromEntries(["ndx", "spx", "vix", "fg", "peFwd", "pePct", "tnx"].map(k => [k, { asOf: base.DEFAULT.date, source: "synthetic test", status: "ok" }]));
+const meta = Object.fromEntries(["ndx", "spx", "vix", "peFwd", "pePct", "tnx"].map(k => [k, { asOf: base.DEFAULT.date, source: "synthetic test", status: "ok" }]));
 const decision = changes => {
   const d = structuredClone(base.DEFAULT);
-  Object.assign(d, { fg: 50, pePct: 70, peFwd: 20, tnx: 4, vix: 15 });
+  Object.assign(d, { pePct: 70, peFwd: 20, tnx: 4, vix: 15 });
   d.ndx = { ...d.ndx, prevYr: 100, close: 116, ath: 126, ma200: 105, rsi: 50, ...changes?.ndx };
   Object.assign(d, Object.fromEntries(Object.entries(changes || {}).filter(([k]) => k !== "ndx")));
   return ctx.evaluateDecision(d, now, meta);
@@ -56,9 +56,8 @@ test("T+2 is not masked by T+1", () => {
   const s = decision({ ndx: { close: 123, ath: 130 } }); assert.equal(s.exit.id, "T+2");
   assert.equal(s.exits[0].hit, true); assert.equal(s.exits[1].hit, true);
 });
-test("T+2 threshold and sentiment boundaries", () => {
+test("T+2 threshold (YTD-only after CNN Fear&Greed retirement)", () => {
   for (const [close, hit] of [[121.999, false], [122, true], [122.001, true]]) assert.equal(decision({ ndx: { close, ath: 130 } }).exits[1].hit, hit);
-  for (const [fg, hit] of [[84.999, false], [85, true], [85.001, true]]) assert.equal(decision({ fg }).exits[1].hit, hit);
 });
 test("AND exit reports each criterion, with T+4 taking precedence", () => {
   assert.equal(decision({ pePct: 95, ndx: { rsi: 50 } }).exits[2].hit, false);
@@ -90,14 +89,14 @@ test("banner carries a plain-language explanation, not a restatement of the stat
   assert.notEqual(s.plain, s.status);
 });
 test("an advisory input degrades its own rule instead of blanking the dashboard", () => {
-  // 恐贪抓不到（CNN 反爬）不应让整页失去结论，但 T+2 必须显式标出这一点。
-  const partial = { ...meta }; delete partial.fg;
+  // PE 分位（低频源）缺失不应让整页失去结论，但 T+3 必须显式标出这一点。
+  const partial = { ...meta }; delete partial.pePct;
   const s = ctx.evaluateDecision(base.DEFAULT, now, partial);
   assert.equal(s.healthy, true);
   assert.equal(s.invalid.length, 0);
-  assert.ok(s.degraded.some(h => h.key === "fg"), "fg must be reported as degraded");
+  assert.ok(s.degraded.some(h => h.key === "pePct"), "pePct must be reported as degraded");
   assert.match(s.status, /降级输入/);
-  assert.match(s.exits[1].warning, /恐贪/);
+  assert.match(s.exits[2].warning, /PE分位|PE 分位|SPX PE/);
   assert.equal(s.exits[0].warning, "", "T+1 depends on NDX alone");
 });
 test("a valuation inside its tolerance but older than the core data is still flagged", () => {
@@ -203,12 +202,11 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     writeFileSync(join(dir, "positions.html"), positions.replace(/^const SNAPSHOTS = \[[\s\S]*?^\];/m, minimalSnapshots));
     globalThis.fetch = async url => {
       calls++; const u = String(url);
-      if (u.includes("dataviz.cnn")) return new Response(JSON.stringify({ fear_and_greed: { score: 50, timestamp: "2026-09-11T20:00:00Z" } }));
       if (u.includes("frankfurter")) return new Response(JSON.stringify({ date: "2026-09-11", rates: { CNY: 7 } }));
       if (u.includes("historyofmarket")) return new Response(JSON.stringify(u.includes("/sp500/pe.json")
         ? { updated: "2026-09-11", pe: [{ date: "2026-03-01", value: 27.89 }], cape: [{ date: "2026-09-04", value: 40 }, { date: "2026-09-11", value: 41.09 }] }
         : { current: { forward: 20, trailing: 25, date: "2026-09-11" }, forward: [{ date: "2026-09-04", value: 19 }, { date: "2026-09-11", value: 20 }] }));
-      if (u.includes("cboe")) return new Response('"tradeDate":"2026-09-11","name":"TOTAL PUT/CALL RATIO","value":"0.9"');
+      if (u.includes("cboe")) return new Response('\\"selectedDate\\":\\"2026-09-11\\",\\"name\\":\\"TOTAL PUT/CALL RATIO\\",\\"value\\":\\"0.9\\"');   // 新版 RSC 页面：转义引号 + selectedDate
       if (u.includes("ifzq")) {
         const sym = new URL(u).searchParams.get("param").split(",")[0];
         if (sym.includes("513880")) return new Response("unavailable", { status: 404 });
@@ -236,7 +234,6 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     assert.ok(updatedSrc.includes("// AUTO：美股 " + syntheticBars().dates.at(-1) + " 收盘（" + now.toISOString().slice(0, 16) + "Z 抓取）"), "stamp comment must be refreshed");
     assert.match(updatedSrc, /premiums: \{ \/\/ AUTO：场内溢价率/);
     assert.equal(updated.SOURCE_META.tnx.status, "retained"); assert.equal(updated.DEFAULT.tnx, base.DEFAULT.tnx);
-    assert.equal(updated.SOURCE_META.fg.status, "ok");
     // CAPE must come from the `cape` series, not the lagging `pe` series (27.89 vs 41.09).
     assert.equal(updated.SOURCE_META.cape.status, "ok");
     assert.equal(updated.SOURCE_META.cape.asOf, "2026-09-11");

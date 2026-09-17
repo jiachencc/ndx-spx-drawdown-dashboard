@@ -87,7 +87,7 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     if (!Number.isFinite(value)) throw new Error(key + ": non-finite value");
     const positive = ["vix", "fx", "putcall", "peFwd", "peTtm", "ndxPeFwd", "cape"].includes(key);
     if (positive && value <= 0) throw new Error(key + ": nonpositive");
-    if (["fg", "pePct", "ndxPePct"].includes(key) && (value < 0 || value > 100)) throw new Error(key + ": outside range");
+    if (["pePct", "ndxPePct"].includes(key) && (value < 0 || value > 100)) throw new Error(key + ": outside range");
     rec.success(key, asOf, source, extra); d[key] = value;
   }
   async function attempt(keys, provider, task) {
@@ -166,11 +166,6 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
       const [mm, dd, yyyy] = row[0].trim().split("/");
       accept("tnx2", rounded(+row[col], 3), yyyy + "-" + mm + "-" + dd, "US Treasury par yield curve (US government work)");
     }),
-    attempt(["fg"], "CNN Fear & Greed", async () => {
-      const j = await json("https://production-dataviz.cnn.com/api/data/v1/fearandgreed/grapher/12mo.json");
-      const g = j.fear_and_greed || j.fearAndGreed;
-      accept("fg", Math.round(g?.score), sourceDate(g?.timestamp || g?.date), "CNN Fear & Greed");
-    }),
     attempt(["fx"], "Frankfurter", async () => {
       const j = await json("https://api.frankfurter.app/latest?from=USD&to=CNY");
       accept("fx", rounded(j.rates?.CNY, 4), sourceDate(j.date), "Frankfurter");
@@ -205,7 +200,8 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   await attempt(["putcall"], "CBOE", async () => {
     const text = (await (await get("https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone")).text()).replaceAll('\\"', '"');
     const match = text.match(/"name":"TOTAL PUT\/CALL RATIO","value":"([\d.]+)"/);
-    const date = text.match(/"(?:tradeDate|trade_date)":"(\d{4}-\d{2}-\d{2})"/);
+    // CBOE 页面改版（Next.js RSC）：日期字段由 tradeDate 改为 selectedDate，两个都认，防再改版。
+    const date = text.match(/"(?:tradeDate|trade_date|selectedDate)":"(\d{4}-\d{2}-\d{2})"/);
     if (!match || !date) throw new Error("dated TOTAL PUT/CALL observation unavailable");
     accept("putcall", +match[1], date[1], "CBOE total put/call");
   });

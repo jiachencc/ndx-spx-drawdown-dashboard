@@ -12,7 +12,6 @@ const DEFAULT = {
   ndx:   { close: 28945.06, ath: 30762.2, athDate: "2026-06-03", days: 72, chg: 0.02, ma50: 29173.75, ma200: 27188.71, rsi: 44.7, low52: 22841.42, high52: 30762.2, prevYr: 25249.849609375, ddYtd: -11.8 },
   spx:   { close: 7551.81, ath: 7816.7, athDate: "2026-08-13", days: 23, chg: -0.45, ma50: 7612, ma200: 7174.92, rsi: 39.6, low52: 6316.91, high52: 7816.7, prevYr: 6845.5, ddYtd: -9.1 },
   vix: 17.71,
-  fg: 56,
   tnx: 5.006,
   tnx2: 4.74,
   putcall: 0.83, // AUTO：CBOE 全品类总 Put/Call
@@ -238,13 +237,6 @@ const SOURCE_META = {
     "fetchedAt": "2026-09-16T23:52:43.356Z",
     "status": "ok"
   },
-  "fg": {
-    "asOf": null,
-    "source": "CNN Fear & Greed",
-    "status": "retained",
-    "attemptedAt": "2026-09-16T23:52:43.356Z",
-    "error": "fetch failed"
-  },
   "vix": {
     "asOf": "2026-09-16",
     "source": "Yahoo ^VIX",
@@ -398,7 +390,7 @@ const SOURCE_META = {
  * Limits are explicit publication-lag tolerances, not claims of real-time availability. */
 const SOURCE_POLICY = {
   ndx: { label: "NDX", maxDays: 1 }, spx: { label: "SPX", maxDays: 1 }, monthly: { label: "月度涨跌幅", maxDays: 1 },
-  vix: { label: "VIX", maxDays: 1 }, fg: { label: "恐贪", maxDays: 1 },
+  vix: { label: "VIX", maxDays: 1 },
   tnx: { label: "10Y", maxDays: 1 }, tnx2: { label: "2Y", maxDays: 1 },
   fx: { label: "USD/CNY", maxDays: 2 },
   // 估值是周/月度序列，末点常滞后数周（2026-08-05 那次滞后约 40 天），门限按发布节奏给，不按日频卡
@@ -435,7 +427,7 @@ const DECISION_RULES = {
   rsiConfirm: 35, vixConfirm: 25, peConfirm: 60,
   bandVix: 30, bandErp: 5,
   t1Ytd: 18, t1NearHigh: 8, t1PauseAbove: 10,
-  t2Ytd: 22, t2Fg: 85,
+  t2Ytd: 22,
   t3PePct: 90, t3Rsi: 75,
   t4Erp: 0
 };
@@ -450,7 +442,7 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
    * advisory: its staleness is disclosed beside the rule it feeds, but a permanently
    * lagging valuation or sentiment feed must not turn the dashboard into a blank page. */
   const core = ["ndx", "spx", "vix", "tnx"];
-  const advisory = ["fg", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "tnx2", "fx", "monthly"];
+  const advisory = ["peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "tnx2", "fx", "monthly"];
   const health = Object.fromEntries([...core, ...advisory].map(k => [k, sourceHealth(k, now, meta)]));
   const invalid = core.map(k => health[k]).filter(h => !h.usable);
   const degraded = advisory.map(k => health[k]).filter(h => !h.usable);
@@ -475,8 +467,8 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   const exits = [
     { id: "T+1", inputs: ["ndx"], band: "+" + R.t1Ytd + "% / 距高点", title: "停止大额定投", plain: "意思：今年涨得够多、或已经很贴近历史高点，规则建议先停下大笔加仓。注意是「停止加仓」，不是卖出。", hit: (ytd >= R.t1Ytd - 1e-9 || distAth < R.t1NearHigh - 1e-9) && distAth <= R.t1PauseAbove + 1e-9,
       detail: "YTD ≥" + R.t1Ytd + "% 或距高点 <" + R.t1NearHigh + "%；距高点 >" + R.t1PauseAbove + "% 时暂停此档（无持久状态，不模拟滞回）。", unmet: distAth > R.t1PauseAbove ? "距高点 >" + R.t1PauseAbove + "%，此档暂停" : "YTD 尚差 " + Math.max(0, R.t1Ytd - ytd).toFixed(2) + "pp；距高点须 <" + R.t1NearHigh + "%（当前 " + distAth.toFixed(2) + "%）" },
-    { id: "T+2", inputs: ["ndx", "fg"], band: "+" + R.t2Ytd + "% / 恐贪", title: "兑现浮盈 15–20%", plain: "意思：涨幅或市场情绪到了高位，规则建议分批卖出、先把一部分浮盈落袋（约 15–20%）。", hit: ytd >= R.t2Ytd - 1e-9 || d.fg >= R.t2Fg,
-      detail: "YTD ≥" + R.t2Ytd + "% 或恐贪 ≥" + R.t2Fg + "。规则阈值，历史有效性待独立回测。", unmet: "YTD 尚差 " + Math.max(0, R.t2Ytd - ytd).toFixed(2) + "pp；恐贪尚差 " + Math.max(0, R.t2Fg - d.fg).toFixed(1) + " 点" },
+    { id: "T+2", inputs: ["ndx"], band: "+" + R.t2Ytd + "%", title: "兑现浮盈 15–20%", plain: "意思：涨幅到了高位，规则建议分批卖出、先把一部分浮盈落袋（约 15–20%）。", hit: ytd >= R.t2Ytd - 1e-9,
+      detail: "YTD ≥" + R.t2Ytd + "%。规则阈值，历史有效性待独立回测。（原「或恐贪 ≥85」臂随 CNN 恐贪源停更一并移除。）", unmet: "YTD 尚差 " + Math.max(0, R.t2Ytd - ytd).toFixed(2) + "pp" },
     { id: "T+3", inputs: ["pePct", "ndx"], band: R.t3PePct + "分位 + RSI", title: "兑现至仓位下限", plain: "意思：估值已经极端贵、动能也过热，规则建议卖到事先设好的仓位下限。", hit: d.pePct >= R.t3PePct && d.ndx.rsi >= R.t3Rsi,
       detail: "SPX PE分位 ≥" + R.t3PePct + "% 且 NDX RSI ≥" + R.t3Rsi + "（跨市场组合规则）。", unmet: "PE分位 " + d.pePct + "/" + R.t3PePct + "；RSI " + d.ndx.rsi + "/" + R.t3Rsi + "；两项均须满足" },
     { id: "T+4", inputs: ["peFwd", "tnx"], band: "ERP < " + R.t4Erp, title: "降杠杆转防御", plain: "意思：股票的隐含收益率（1÷远期PE）已经低于国债利率——承担了股票风险却拿不到额外补偿，所以规则建议降低风险敞口。它跟赚没赚钱无关，也不是止盈。", hit: erp < R.t4Erp,
