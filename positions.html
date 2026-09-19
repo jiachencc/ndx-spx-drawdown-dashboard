@@ -30,7 +30,7 @@
      * 原因是这两套配色是同一件事的两种约定：
      * 现在用「绿涨红跌」（欧美习惯）。若要改成 A 股习惯的「红涨绿跌」，
      * 只需把下面 --up / --down 两行取值对调——全页涨跌配色（含走势图填充、
-     * 归因柱、所有 .up/.down 数字）会一起跟着走，不必再逐个文件去找。
+     * 所有 .up/.down 数字）会一起跟着走，不必再逐个文件去找。
      * 注意：分类色（建仓/平仓标签、市场色、同步状态）不走这两个令牌，它们
      * 不是涨跌，翻转约定时不该跟着变。 */
     --up: var(--green);
@@ -494,25 +494,57 @@
   .snap-sub { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }   /* 小注嵌在加粗数值里时也不跟着加粗 */
   /* 资产走势：KPI 行 / 时间 chips / crosshair 读数条 / 图例开关 */
   .trend-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 10px; }
-  /* chips：视图切换 + 时间范围排在一条可横滑的带子上（原为自动换行，窄屏会折 2~3 行） */
+  /* chips：视图切换 + 时间范围 —— **一律折行显示，全部标签直接可见**。
+     原为一条可横滑的带子（nowrap + overflow-x）：手机宽度下「回撤 / 区间统计 / 全部」被切在屏幕外，
+     得左右滑动才找得到；折行最多两行，用一点高度换「一个标签都不用找」。 */
   .trend-chips { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin: 0 2px 8px; }
-  .trend-bar { display: flex; align-items: center; gap: 10px; margin: 0 2px 8px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .trend-bar::-webkit-scrollbar { display: none; }
-  .trend-bar .trend-chips { margin: 0; flex-wrap: nowrap; flex-shrink: 0; justify-content: flex-start; }
-  .trend-bar .trend-chips + .trend-chips { padding-left: 10px; border-left: 1px solid var(--line-soft); }   /* 两组之间一条细分隔线 */
+  .trend-bar { display: flex; align-items: center; gap: 6px 10px; margin: 0 2px 8px; flex-wrap: wrap; }
+  .trend-bar .trend-chips { margin: 0; flex-wrap: wrap; justify-content: flex-start; }
+  /* margin-left:auto 让「时间范围」组靠右：与视图组同行时贴右端，折到第二行时也是右端，
+     不会孤零零挂在行首；左侧那条细线就是两组的分隔。 */
+  .trend-bar .trend-chips + .trend-chips { margin-left: auto; padding-left: 10px; border-left: 1px solid var(--line-soft); }
   .tchip { font-size: var(--fs-xs); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); }
   .tchip.on { background: var(--accent-bg); color: var(--blue); border-color: var(--accent-line); font-weight: 600; }
   .tchip:disabled { opacity: .35; cursor: default; }
-  /* 时间档被隐藏时的行内说明（窄屏会换行，不影响 chips 横滑） */
-  .trend-chips .tchip-note { font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.5; align-self: center; }
-  /* min-height 按「金额」视图的两行读数预留，切视图时不跳动 */
-  .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 4px 6px; margin-bottom: 6px;
- background: var(--card2); border: 1px dashed var(--line-soft); border-radius: 8px; min-height: 36px; line-height: 1.6; }
+
+  /* 读数条：金额视图 = 三列网格（左对齐 → 每个数占固定格子，滑动时位数变化不会让整行左右抖动）；
+     其余视图沿用单行居中。min-height 统一按金额视图预留，切视图时下方图表不跳动。
+     .live = 正在看某一期（滑动 / 悬停），边框点亮，用以区别「默认显示最新一期」。 */
+  .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 6px 8px; margin-bottom: 6px;
+ background: var(--card2); border: 1px solid var(--line-soft); border-radius: 8px; min-height: 78px; line-height: 1.6; display: flex; flex-direction: column; justify-content: center; }
+  .trend-readout.live { border-color: var(--accent-line); }
   .trend-readout b { color: var(--tx); }
-  /* 区间统计（点两个数据点后出现）；:empty 让未选中时整行不占位 */
-  .trend-range { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 4px 6px; line-height: 1.6; }
-  .trend-range:empty { display: none; }
-  .trend-range b { color: var(--tx); }
+  /* ↓ 金额视图的三层结构：状态头 / 三列主数 / 归因等式 */
+  .trend-readout.ro-rich { text-align: left; }
+  .ro-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-bottom: 5px; font-size: var(--fs-xxs); color: var(--tx3); }
+  .ro-date { color: var(--tx); font-weight: 700; white-space: nowrap; }
+  .ro-badge { padding: 0 5px; border-radius: 999px; border: 1px solid var(--line-soft); white-space: nowrap; }
+  .ro-badge.snap { color: var(--up); }
+  .ro-badge.est { color: var(--info); }
+  .ro-pos { margin-left: auto; white-space: nowrap; }
+  /* 三列主数：**标签与数值同一行**（原先标签另起一行，被读成「标签折行」）。
+     每个「标签 数值」是原子单元，窄屏整块换行，绝不把标签和数字拆开。 */
+  .ro-grid { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .ro-cell { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; white-space: nowrap; }
+  .ro-k { font-size: var(--fs-xxs); color: var(--tx3); }
+  .ro-v { color: var(--tx); font-weight: 700; white-space: nowrap; }
+  .ro-v.up { color: var(--up); } .ro-v.down { color: var(--down); }
+  .ro-sub { font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; }
+  .ro-attr { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 3px; margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); color: var(--tx3); }
+  .ro-attr b { color: var(--tx); }
+  .ro-attr b.up { color: var(--up); } .ro-attr b.down { color: var(--down); } .ro-attr b.info { color: var(--info); }
+  /* 归因行：一组「原子单元」（标签＋数值＋方向词），单元内绝不折行，折行只发生在单元之间 */
+  .ro-attr .nb { white-space: nowrap; }
+  .ro-attr .ro-op { color: var(--tx3); }
+  /* 方向词的颜色：.ro-attr 自身设了灰色，会盖掉全局 .up/.down/.info，故显式覆盖 */
+  .ro-attr .ro-w.up { color: var(--up); }
+  .ro-attr .ro-w.down { color: var(--down); }
+  .ro-attr .ro-w.info { color: var(--info); }
+  /* 区间统计读数：并入读数条（原为图表上方独立一行，白占一行高度） */
+  .ro-sel { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.7; }
+  .ro-sel b { color: var(--tx); font-weight: 700; }
+  .ro-sel b.up { color: var(--up); } .ro-sel b.down { color: var(--down); }
+  .ro-sel .nb { white-space: nowrap; }
   .trend-dot.sel { stroke: var(--warn); stroke-width: 4; }
   #trend-box { touch-action: pan-y; }   /* 纵向滚动留给页面，横向滑动供 crosshair 吸附 */
   .lg-toggle { background: none; border: none; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 0; }
@@ -640,9 +672,8 @@ try {
       <div class="trend-chips" id="trend-chips"></div>
     </div>
     <div class="trend-readout" id="trend-readout">移动或滑动查看各期 · 点击数据点看详情</div>
-    <div class="trend-range" id="trend-range"></div>
     <div id="trend-box"></div>
-    <div class="trend-legend"><span title="蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）"><i></i>总资产</span><button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button><span title="下方每根柱把该期「总资产变化」拆成两段：市值盈亏（绿盈 / 红亏）＋ 资金进出（青色）。逐期金额见上方读数条">归因：<i class="sq" style="background:var(--down)"></i>亏 <i class="sq" style="background:var(--up)"></i>盈 <i class="sq" style="background:var(--info)"></i>资金</span></div>
+    <div class="trend-legend"><span title="蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）"><i></i>总资产</span><button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button></div>
   </div>
 
   <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
@@ -1346,7 +1377,7 @@ function renderImpl() {
   renderSwing();
 }
 
-/* ================= 资产走势（快照各期 + 今日估算，双线 + 差值着色 + 归因柱） ================= */
+/* ================= 资产走势（快照各期 + 今日估算，双线 + 差值着色） ================= */
 let trendCtx = null;      // { v: 今日总资产, c: 今日总成本 }（resize 重绘用）
 let trendPts = [];        // 气泡/crosshair 数据（当前区间过滤后）
 let trendRange = "all";   // 时间范围：all/1m/3m/6m/1y（快照日期过滤，非重采样）
@@ -1354,6 +1385,7 @@ let trendShowCost = true; // 投入线开关（localStorage 持久化）
 let trendLayout = null;   // { px, py, pts }（crosshair 最近点计算用）
 let trendSelOn = false;   // 「区间统计」模式：点两个数据点选一段
 let trendSel = [];        // 选中点在当前 trendPts 里的下标（最多 2 个，升序）
+let trendHoverI = -1;     // 最近一次悬停的点的下标（-1＝指针不在图上）；区间统计刷新读数条时用它保持原位
 const TREND_RANGES = [["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
 /* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准）
  *           dd 回撤（资金流调整后的单位净值口径，剔除转入/转出造成的假回撤） */
@@ -1370,26 +1402,32 @@ function renderTrendViews() {
     '<button type="button" class="tchip' + (trendSelOn ? " on" : "") + '" data-sel="1" title="打开后点两个数据点，量这一段的收益 / 回撤 / 净值">区间统计</button>';
 }
 /* ---- 区间统计：点两个数据点 → 算这一段的浮盈亏变化、区间最大回撤、区间净值 ----
- * 回撤用与「回撤」视图同一套资金流调整净值链（trendNav），只取区间内的点（区间起点归一）。 */
-function paintTrendSel() {
-  const box = $("trend-box"), el = $("trend-range");
-  if (box) box.querySelectorAll(".trend-dot").forEach((d) => d.classList.toggle("sel", trendSel.indexOf(+d.dataset.i) >= 0));
-  if (!el) return;
-  const pts = trendPts;
-  if (!trendSelOn) { el.innerHTML = ""; return; }
-  if (trendSel.length < 2) {
-    el.innerHTML = '<span class="warn">点两个数据点选区间</span>' + (trendSel.length ? "（已选 1 个）" : "");
-    return;
-  }
-  const i0 = trendSel[0], i1 = trendSel[1], a = pts[i0], b = pts[i1];
-  if (!a || !b) { el.innerHTML = ""; return; }
+ * 回撤用与「回撤」视图同一套资金流调整净值链（trendNav），只取区间内的点（区间起点归一）。
+ * 读数**并入上方读数条**（.ro-sel 块），不再另占图表上方一行——由 showXhair 统一拼进去。 */
+function trendRangeHtml() {
+  if (!trendSelOn) return "";
+  if (trendSel.length < 2)
+    return '<div class="ro-sel"><span class="warn">点图上两个数据点选区间</span>' + (trendSel.length ? "（已选 1 个）" : "") + "</div>";
+  const pts = trendPts, i0 = trendSel[0], i1 = trendSel[1], a = pts[i0], b = pts[i1];
+  if (!a || !b) return "";
   const seg = trendNav(pts.slice(i0, i1 + 1));
   const days = Math.round((Date.parse(b.d) - Date.parse(a.d)) / 86400000);
   const plA = a.val - a.cost, plB = b.val - b.cost, dPl = plB - plA;
   const navEnd = seg.nav[seg.nav.length - 1];
-  el.innerHTML = '<b>' + mdOf(a.d) + " → " + mdOf(b.d) + "</b>（" + days + " 天）· 浮盈亏 " + fmtAmt(plA) + " → <b>" + fmtAmt(plB) +
-    "</b>（" + (dPl >= 0 ? "+" : "−") + fmtAbs2(dPl) + "）· 区间最大回撤 <b class=\"down\">" + fmtPct(seg.dd[seg.deepI], 2) +
-    "</b> · 区间净值 <b>" + navEnd.toFixed(4) + "</b>（" + fmtPct(navEnd - 1, 2) + "，已剔除资金进出）";
+  /* 措辞精简：框内可用宽度只有 ~326px，原来「区间净值…（…，已剔除资金进出）」那种长句会折三四行；
+     口径说明挪进 title（悬停可见），不占版面。 */
+  /* 每段包成原子单元（.nb）：折行只发生在「·」处，不会把「浮盈亏」和它的数字拆到两行 */
+  return '<div class="ro-sel" title="区间回撤与净值均按资金流调整口径（逐期剔除转入/转出），与「最大浮亏」的 App 口径不同">' +
+    '<span class="nb"><b>' + mdOf(a.d) + " → " + mdOf(b.d) + "</b>（" + days + " 天）</span> · " +
+    '<span class="nb">浮盈亏 <b class="' + cls(dPl) + '">' + fmtAmt(dPl) + "</b>（" + fmtAmt(plA) + " → " + fmtAmt(plB) + "）</span> · " +
+    '<span class="nb">最大回撤 <b class="down">' + fmtPct(seg.dd[seg.deepI], 2) + "</b></span> · " +
+    '<span class="nb">净值 <b>' + navEnd.toFixed(4) + "</b>（" + fmtPct(navEnd - 1, 2) + "）</span></div>";
+}
+function paintTrendSel() {
+  const box = $("trend-box");
+  if (box) box.querySelectorAll(".trend-dot").forEach((d) => d.classList.toggle("sel", trendSel.indexOf(+d.dataset.i) >= 0));
+  /* 读数条是唯一展示位：重画它即可（逐期读数与区间块都在里面），并保持在原来悬停的那一期 */
+  showXhair(trendHoverI);
 }
 function selectTrendPoint(i) {
   if (trendSel.length >= 2) trendSel = [];                                   // 第三次点击：重新开始选
@@ -1523,12 +1561,14 @@ function renderTrendChips(allPts) {
     return f.length >= 2 && f.map((p) => p.d).join(",") !== baseSig;
   });
   const spanDays = (allPts.length > 1) ? Math.round((Date.parse(lastD) - Date.parse(allPts[0].d)) / 86400000) : 0;
+  /* 被隐藏的档位（跨度不足、筛出的点与「全部」同一批）只写进「全部」的悬停说明，不占版面 */
+  const hidden = TREND_RANGES.filter(([k]) => !usable.some(([u]) => u === k)).map(([, l]) => l).join(" / ");
   el.innerHTML = usable.map(([k, label]) =>
-    '<button type="button" class="tchip' + (trendRange === k ? " on" : "") + '" data-r="' + k + '">' + label + "</button>"
-  ).join("") +
-    (usable.length < TREND_RANGES.length
-      ? '<span class="tchip-note">快照跨度仅 ' + spanDays + " 天，" + TREND_RANGES.filter(([k]) => !usable.some(([u]) => u === k)).map(([, l]) => l).join(" / ") + "与「全部」所见相同，暂不显示（历史攒够会自动出现）</span>"
-      : "");
+    '<button type="button" class="tchip' + (trendRange === k ? " on" : "") + '" data-r="' + k + '"' +
+      (k === "all" && hidden
+        ? ' title="快照跨度 ' + spanDays + " 天：" + hidden + "与「全部」所见相同，暂不显示；历史攒够会自动出现" + '"'
+        : "") + ">" + label + "</button>"
+  ).join("");
 }
 /* KPI 行：区间尾值为当前态，对比全量基线；极值取区间内最深浮亏 */
 function renderTrendKpis(pts) {
@@ -1548,8 +1588,9 @@ function renderTrendKpis(pts) {
   if (twr === null && ddN) twr = ddN.nav[ddN.nav.length - 1] - 1;
   const cf = trendCashflows(pts);
   const xirr = cf ? calcXIRR(cf.cfs) : null;
+  /* 文案要短：手机 2 列 KPI 格只有 ~127px，「现金流不完整，暂不计算 XIRR」会折行并顶高整行 */
   const xTxt = (xirr === null || !cf || cf.days < 90)
-    ? (!cf ? "现金流不完整，暂不计算 XIRR" : "XIRR " + Math.round(cf.days) + " 天 · 暂不年化")
+    ? (!cf ? "XIRR 缺现金流" : "XIRR " + Math.round(cf.days) + " 天 · 暂不年化")
     : "XIRR " + fmtPct(xirr, 1) + " 年化";
   /* 最大浮亏取全程（场内口径，来自 ACCT_STATS.monthly），补足快照期仅 12 天的盲区 */
   const whole = buildPnlPts();
@@ -1717,20 +1758,23 @@ function renderTrend(todayVal, todayCost) {
   $("trend-cnt").innerHTML = "(快照 " + snaps.length + " 期" + (pts.length && pts[pts.length - 1].isToday ? " + 今日" : "") + " · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   if (!snaps.length) {   // 空态：教学态引导，而非空白
     $("trend-cnt").textContent = "";
-    box.innerHTML = '<div class="trend-empty">还没有快照：发一张持仓 App 截图给维护者即可建立第 1 期基线。<br>建立后这里会自动生成「总资产 vs 累计投入」双线走势、收益率标注与资金归因柱。</div>';
+    box.innerHTML = '<div class="trend-empty">还没有快照：发一张持仓 App 截图给维护者即可建立第 1 期基线。<br>建立后这里会自动生成「总资产 vs 累计投入」双线走势与收益率标注。</div>';
     if ($("trend-sum")) $("trend-sum").innerHTML = "";
     return;
   }
   if (pts.length < 2) {  // 仅 1 期：基线态
     const p = allPts[0];
-    box.innerHTML = '<div class="trend-empty">基线已建立：总资产 <b>' + fmtYuan(p.val) + "</b> · 收益率 <b>" + fmtPct(p.cost ? (p.val - p.cost) / p.cost : 0, 2) + "</b>。<br>下一期快照追加后，这里会自动生成双线走势、收益率标注与资金归因柱。</div>";
+    box.innerHTML = '<div class="trend-empty">基线已建立：总资产 <b>' + fmtYuan(p.val) + "</b> · 收益率 <b>" + fmtPct(p.cost ? (p.val - p.cost) / p.cost : 0, 2) + "</b>。<br>下一期快照追加后，这里会自动生成双线走势与收益率标注。</div>";
     if ($("trend-sum")) $("trend-sum").innerHTML = "";
     return;
   }
   if (trendView === "pnl") { renderPnlView(box); return; }
   if (trendView === "rate") { renderRateView(box, pts); return; }
   if (trendView === "dd") { renderDdView(box, pts); return; }
-  const W = box.clientWidth || 320, H1 = 168, H = H1 + 86, mL = 42, mR = 12, mT = 16, mB = 22;   // 双线区固定 H1，追加的 86px 为下方归因柱区
+  /* 2026-09-19 撤掉下方归因柱区：共用一把尺时资金柱（最大 3.7 万）吃满 26px、市场柱最高只有 5.2px，
+     12 根里 6 根 < 2px，形状读不出信息；逐期市场/资金数值在「快照对比」逐期卡与读数条里都有。
+     省下的 86px 全部让给曲线（168 → 254px，纵向分辨率 +51%）。 */
+  const W = box.clientWidth || 320, H1 = 254, H = H1, mL = 42, mR = 12, mT = 16, mB = 22;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs);
   const span = t1 - t0 || 1;
@@ -1740,7 +1784,7 @@ function renderTrend(todayVal, todayCost) {
   let yLo = Math.min.apply(null, allV), yHi = Math.max.apply(null, allV);
   const pad = (yHi - yLo) * 0.12 || yHi * 0.02;
   yLo -= pad; yHi += pad;
-  const Y = (v) => mT + (yHi - v) / (yHi - yLo || 1) * (H1 - mT - mB);   // 双线区只用 H1，避免归因区挤占纵向比例
+  const Y = (v) => mT + (yHi - v) / (yHi - yLo || 1) * (H1 - mT - mB);   // 双线区占满整张图（H1 = H）
   const P = (v) => v.toFixed(1);
   const px = pts.map(X), py = pts.map((p) => Y(p.val)), cy = pts.map((p) => Y(p.cost));
   trendLayout = { px, py, pts };   // crosshair 最近点计算用
@@ -1767,16 +1811,15 @@ function renderTrend(todayVal, todayCost) {
       (p.isToday ? "今日估算" : p.d) + " 总资产 " + fmtYuan(p.val) + '，点击查看详情"/>';
   });
   svg += trendXTicks(pts, px, P, mT, H1 - mB, H - 7);   // 月份刻度替代逐点日期
-  /* ===== 常显标注：按优先级放置，放不下就省（原为「每点必画」）=====
-   * 实测：这张图要画 30 个文字元素（收益率×10、净额×9、投入/事件×2、日期×6、金额×3），
-   * 而手机绘图区只有 336px、点间距 37px —— 一个净额标注就要 60px，是间距的 1.6 倍，
-   * 于是必然层层压字。现在每条「行」各自做一次占位检查：放不下就跳过，
-   * 数字不会丢——触摸读数条可逐期看（且默认就显示最新一期）。 */
+  /* ===== 常显标注：只标「关键点」，其余交给读数条 =====
+   * 原先按优先级逐点标注、放不下就跳过：实测手机绘图区仅 308px、点间距 25.7px，
+   * 一个「−1.9%」标注就要 35px（1.4 倍间距），逐点标注必然层层压字。
+   * 现只标 首 / 尾 / 最深 / 最高 四点的收益率（＋起点的投入读数与买卖事件标记）。
+   * 数字都不会丢——读数条逐期可查（默认即最新一期，含「浮盈亏」与归因占比）。 */
   const rateOf = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
-  const gap = pts.length > 1 ? (W - mL - mR) / (pts.length - 1) : 999;
   let deepI = 0, hiI = 0;
   pts.forEach((p, i) => { if (rateOf(p) < rateOf(pts[deepI])) deepI = i; if (p.val > pts[hiI].val) hiI = i; });
-  const rows = { rate: [], cost: [], netUp: [], netDn: [] };   // 互不相干的「行」，各自独立占位（净额按零轴上下分两侧）
+  const rows = { rate: [], cost: [] };   // 互不相干的「行」，各自独立占位
   const tw = (s, size) => [...s].reduce((n, c) => n + (/[\u4e00-\u9fa5\uff00-\uffef▲▼]/.test(c) ? size : size * 0.6), 0);
   /* 放得下就登记并返回 true；放不下返回 false 且不登记 */
   const place = (row, x, s, size) => {
@@ -1788,52 +1831,25 @@ function renderTrend(todayVal, todayCost) {
   /* 优先级：首尾 > 最深/最高点 > 事件点 > 其余；同优先级按下标，保证渲染稳定可复现 */
   const pr = (i) => (i === 0 || i === pts.length - 1 ? 100 : i === deepI || i === hiI ? 90 : pts[i].tag ? 80 : 10);
   const order = pts.map((_, i) => i).sort((a, b) => pr(b) - pr(a) || a - b);
-  /* 行 ①：资产线上方 —— 每点收益率 */
+  /* 行 ①：资产线上方 —— 只标关键点（首/尾/最深/最高）的收益率 */
+  const KEY_PT = [0, pts.length - 1, deepI, hiI];
   order.forEach((i) => {
+    if (KEY_PT.indexOf(i) < 0) return;
     const t = fmtPct(rateOf(pts[i]));
     if (place("rate", px[i], t, 10))
       svg += '<text x="' + P(px[i]) + '" y="' + Math.max(9, py[i] - 7) + '" text-anchor="middle" style="fill:var(--' + (pts[i].val - pts[i].cost >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + t + "</text>";
   });
-  /* 行 ②：投入线上方 —— 首尾的投入读数 + 各期买卖事件标记 */
+  /* 行 ②：投入线上方 —— 起点投入读数 + 各期买卖事件标记
+   * （末点的「投入 xx万」不再标：读数条默认就显示它，且常与末点收益率标注抢同一行） */
   if (trendShowCost) order.forEach((i) => {
     const p = pts[i], isIn = p.tag ? /加仓|建仓|买入/.test(p.tag) : false;
-    if (!p.tag && i !== 0 && i !== pts.length - 1) return;
+    if (!p.tag && i !== 0) return;
     const t = p.tag ? (isIn ? "▲" : "▼") + p.tag : "投入 " + (p.cost / 10000).toFixed(1) + "万";
     if (place("cost", px[i], t, 10))
       svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 9).toFixed(1) + '" text-anchor="middle" style="fill:var(--' + (p.tag ? (isIn ? "cyan" : "purple") : "cyan") + ');font:var(--fs-xxs) var(--mono)">' + esc(t) + "</text>";
   });
-  /* ===== 下方归因柱：每期净变化拆为「市值盈亏段 + 资金段」（恒等式 Δ总资产 = Δ浮盈亏 + 资金进出；今日估算不参与） ===== */
-  const y0 = H1 + 18 + 26;   // 归因区零轴
-  svg += '<line x1="' + mL + '" y1="' + y0 + '" x2="' + (W - mR) + '" y2="' + y0 + '" style="stroke:var(--line)"/>' +
-    '<text x="' + (mL - 6) + '" y="' + (y0 + 3.5) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">0</text>';
-  const segs = [];
-  for (let i = 1; i < pts.length - (pts[pts.length - 1].isToday ? 1 : 0); i++) {
-    const dTot = pts[i].val - pts[i - 1].val;
-    const flow = typeof pts[i].flow === "number" ? pts[i].flow : 0;
-    segs.push({ i, dTot, dPl: dTot - flow, flow });
-  }
-  const kA = 26 / Math.max.apply(null, segs.map((s) => Math.max(Math.abs(s.dPl), Math.abs(s.flow))).concat([1]));
-  const bw = Math.min(26, gap * 0.45);
-  const netLbls = [];
-  segs.forEach((s) => {
-    const cxm = px[s.i];
-    let yUp = y0, yDn = y0;
-    [[s.dPl, s.dPl >= 0 ? "up" : "down"], [s.flow, "info"]].forEach(([v, col]) => {
-      if (!v || Math.abs(v) < 1) return;
-      const h = Math.max(2, Math.abs(v) * kA);
-      if (v > 0) { yUp -= h; svg += '<rect x="' + (cxm - bw / 2).toFixed(1) + '" y="' + yUp.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" style="fill:var(--' + col + ')" opacity=".78"/>'; }
-      else { svg += '<rect x="' + (cxm - bw / 2).toFixed(1) + '" y="' + yDn.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" style="fill:var(--' + col + ')" opacity=".78"/>'; yDn += h; }
-    });
-    netLbls.push({ x: cxm, y: s.dTot >= 0 ? yUp - 4 : yDn + 11, t: fmtAmt2(s.dTot), abs: Math.abs(s.dTot), up: s.dTot >= 0 });
-  });
-  /* 行 ③：柱端净额 —— 按金额从大到小放置（大额优先看清），放不下的省掉。
-   * 正负分属零轴上下两侧，各占一行，互不干扰；逐期金额在触摸读数条里都能查。 */
-  netLbls.slice().sort((a, b) => b.abs - a.abs).forEach((l) => {
-    if (place(l.up ? "netUp" : "netDn", l.x, l.t, 10))
-      svg += '<text x="' + l.x.toFixed(1) + '" y="' + l.y.toFixed(1) + '" text-anchor="middle" style="fill:var(--tx2);font:var(--fs-xxs) var(--mono)">' + l.t + "</text>";
-  });
   /* crosshair 吸附元素（pointermove 经 showXhair 更新） */
-  svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (y0 - 4) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
+  svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
     '<circle class="xhair-dot" cx="0" cy="0" r="5.5" style="display:none;fill:var(--card);stroke:var(--blue);stroke-width:2.5"/>';
   svg += "</svg>";
   box.innerHTML = svg;
@@ -1998,10 +2014,15 @@ function showXhair(i) {
      读数条本来就该默认显示最新数据——这样图上因放不下而省掉的标注，随时能在这里查到。 */
   const k = (i < 0 || i > last) ? last : i;
   const hover = i >= 0;
+  trendHoverI = i;   // 记住悬停位置：区间统计刷新读数条时据此还原（-1＝指针不在图上）
   if (line) { line.style.display = hover ? "" : "none"; if (hover) { line.setAttribute("x1", L.px[k].toFixed(1)); line.setAttribute("x2", L.px[k].toFixed(1)); } }
   if (dot) { dot.style.display = hover ? "" : "none"; if (hover) { dot.setAttribute("cx", L.px[k].toFixed(1)); dot.setAttribute("cy", L.py[k].toFixed(1)); } }
   const p = L.pts[k], dt = p.isToday ? "今日估算" : p.d.slice(5).replace("-", ".");
   const mode = L.mode || "amount";
+  /* 金额视图用三列网格排版（更高），其余视图仍是单行；
+     .live 让「正在看某期」与「默认显示最新一期」在视觉上分得开 */
+  ro.classList.toggle("ro-rich", mode === "amount");
+  ro.classList.toggle("live", hover);
   if (mode === "pnl") {   // 盈亏全程视图：点数据为 { d, pl }
     ro.innerHTML = '<b>' + dt + '</b> · 累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元";
   } else if (mode === "rate") {
@@ -2013,17 +2034,54 @@ function showXhair(i) {
     ro.innerHTML = '<b>' + dt + '</b> · 回撤 <b class="' + (N.dd[k] < -0.0005 ? "down" : "up") + '">' + fmtPct(N.dd[k], 2) +
       '</b> · 单位净值 <b>' + N.nav[k].toFixed(4) + "</b>" + (N.dd[k] >= -0.0005 ? "（处在峰值）" : "");
   } else {
-    /* 金额视图：把「本期净额」及其归因拆解也放进读数条——
-     * 图上不再逐柱写金额（窄屏写不下会压字），完整数字改由这里承载。 */
+    /* 金额视图：三层结构（状态头 / 三列主数 / 归因等式）——
+     * ① 三列网格替代一行文字流：原先居中排版，滑动时数字位数一变就整行左右抖动，
+     *    网格里每个数占固定格子，只有内容变、位置不变。
+     * ② 补「浮盈亏」：它就是图上蓝实线与青虚线之间的竖直间距，是本视图的核心几何量，
+     *    原先只给比率，得自己心算「资产 − 投入」，现直接给出。
+     * ③ 归因：一行纯数字等式「较上期 ＝ 市场 ＋ 资金」，每项带方向词（盈 / 亏 / 转入 / 转出）；今日估算没有资金流数据，不拆。 */
     const pl = p.val - p.cost, rate = p.cost ? pl / p.cost : 0;
     const prev = k > 0 ? L.pts[k - 1] : null;
     const net = prev ? p.val - prev.val : null;
     const flow = typeof p.flow === "number" ? p.flow : null;
-    ro.innerHTML = '<b>' + dt + '</b> · 资产 <b>' + fmtYuan(p.val) + '</b> · 投入 <b>' + fmtYuan(p.cost) + '</b>' +
-      '<br>收益率 <span class="' + cls(rate) + '">' + fmtPct(rate, 2) + "</span>" +
-      (net === null ? "" : ' · 较上期 <b class="' + cls(net) + '">' + fmtAmt(net) + "</b>" +
-        (flow === null ? "" : "（涨跌 " + fmtAmt(net - flow) + " · 资金 " + fmtAmt(flow) + "）"));
+    const flat = net !== null && Math.abs(net) < 1;   // 不足 1 元：显示层会截断成「+0」，改说「持平」
+    /* 归因行：只写数字，不做条形 ——「较上期 ＝ 市场 ＋ 资金」，每个数带方向词。
+     * 盈亏由三处同时表达：正负号、颜色（市场红绿；资金青＝非盈亏）、方向词（盈/亏/转入/转出）。
+     * 每个「标签＋数值＋方向词」是一个原子单元（.nb），因此折行只可能落在 ＝ / ＋ 处，不会把标签和数字拆开。 */
+    const mkt = net === null ? 0 : net - flow;
+    const attrB = (v, c) => '<b' + (c ? ' class="' + c + '"' : "") + ">" + fmtAmt(v) + "</b>";
+    /* 「标签 数值（小注）」全部同一行，且整格 nowrap：窄屏整格换行，不会拆开标签与数字 */
+    const cell = (label, val, sub, c) => '<div class="ro-cell"><span class="ro-k">' + label + '</span>' +
+      '<span class="ro-v' + (c ? " " + c : "") + '">' + val + (sub || "") + "</span></div>";
+    ro.innerHTML =
+      '<div class="ro-head"><span class="ro-date">' + (p.isToday ? "今日" : dt) + "</span>" +
+        (p.isToday
+          ? '<span class="ro-badge est" title="盘中估值、尚未收盘：场内按最新场内价、场外按各基金 App 最新净值，再加现金。与最后一期快照同日时自动省略。">盘中估 · 未收盘</span>'
+          : '<span class="ro-badge snap" title="收盘快照：券商与各基金 App 的当日读数，可与「快照对比」逐项核对">收盘快照</span>') +
+        '<span class="ro-pos">第 ' + (k + 1) + "/" + L.pts.length + " 期</span></div>" +
+      '<div class="ro-grid">' +
+        cell("资产", fmtYuan(p.val)) + cell("投入", fmtYuan(p.cost)) +
+        cell(pl >= 0 ? "浮盈" : "浮亏", fmtAmt(pl), '<span class="ro-sub">（' + fmtPct(rate, 2) + "）</span>", cls(pl)) +
+      "</div>" +
+      (net === null ? "" :
+        '<div class="ro-attr"><span class="nb"><span class="ro-k">较上期</span>' +
+        /* flat：不足 1 元（显示层按元截断会写成「+0」，故改说「持平」并注明缘由） */
+        (flat
+          ? '<b title="与上一期不足 1 元（金额在显示层按元截断）；今日估算与最新快照同日取数时即为此情形">持平</b>'
+          : attrB(net, cls(net))) + "</span>" +
+        /* flow 为 null（今日估算）时没有资金流数据，不拆归因 */
+        (flow === null ? "" :
+          '<span class="nb ro-op">＝</span>' +
+          '<span class="nb"><span class="ro-k">市场</span>' + attrB(mkt, cls(mkt)) +
+            '<span class="ro-w ' + cls(mkt) + '">' + (mkt >= 0 ? "盈" : "亏") + "</span></span>" +
+          '<span class="nb ro-op">＋</span>' +
+          '<span class="nb"><span class="ro-k">资金</span>' + attrB(flow, "info") +
+            '<span class="ro-w info">' + (Math.abs(flow) < 1 ? "无进出" : flow >= 0 ? "转入" : "转出") + "</span></span>") +
+        "</div>");
   }
+  /* 区间统计读数并入同一个框（原来占图表上方独立一行） */
+  const rsel = trendRangeHtml();
+  if (rsel) ro.innerHTML += rsel;
 }
 function bindTrendCrosshair() {
   const box = $("trend-box");
