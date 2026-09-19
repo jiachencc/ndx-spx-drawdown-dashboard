@@ -514,6 +514,15 @@
   .acct-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
   .acct-stats .k-label { line-height: 1.4; }
   @media (max-width: 480px) { .acct-stats { grid-template-columns: repeat(2, 1fr); } }
+  /* 相对基准：一行结论（跑赢/跑输多少 pp）+ 月度差值 chips，与 .lad-chip 同一套视觉语言 */
+  .bench-row { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-sm); }
+  .bench-row .bench-l { font-weight: 600; color: var(--tx2); white-space: nowrap; }
+  .bench-row b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .bench-row .bench-sub { margin-left: auto; font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; }
+  .bench-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .bench-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 6px; white-space: nowrap; font-feature-settings: "tnum"; }
+  .bench-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
+  .bench-chip.down { color: var(--down); border-color: var(--down-line); background: var(--down-bg); }
   .trend-dot { cursor: pointer; }
   .footer { text-align: center; font-size: var(--fs-xs); color: var(--tx3); margin: 20px auto 0; max-width: 720px; line-height: 1.8; }
 
@@ -2203,7 +2212,31 @@ function renderAcctStats() {
     el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无月度统计；每月初在 data.js 的 ACCT_STATS 补 App 读数。</span></div>';
     return;
   }
-  $("acct-cnt").innerHTML = "（场内券商 App 读数 " + (S.updated || "未记录") + " · 月度盈亏含已实现）";
+  /* 读数新鲜度：与最新快照日比，超过 7 天标琥珀「待更 N 天」——这块是手工抄的，
+     曾静默过期 9 天（09-09 的读数配 09-18 的行情），徽标避免再发生。 */
+  const acctRef = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS[SNAPSHOTS.length - 1].d : (typeof OTC !== "undefined" ? OTC.updated : null);
+  const acctStale = acctRef && S.updated ? Math.round((Date.parse(acctRef) - Date.parse(S.updated)) / 86400000) : null;
+  $("acct-cnt").innerHTML = "（场内券商 App 读数 " + (S.updated || "未记录") +
+    (acctStale !== null && acctStale > 7 ? ' <span class="sync-stale" title="这块是手工抄的 App 读数，已落后最新快照 ' + acctStale + ' 天；交易笔数 / 税费可用流水核对，其余需按 App 补更">待更 ' + acctStale + " 天</span>" : "") +
+    " · 月度盈亏含已实现）";
+  /* 相对基准：券商对账单每行右侧的「上证」涨跌——只看自己的绝对收益（−11.61%）判断不了好坏。
+     pp ＝ 百分点（账户收益率 − 基准涨跌），正数＝跑赢。 */
+  function benchHtml() {
+    const B = typeof S.benchYtd === "number" ? S.benchYtd : null;
+    if (B === null || typeof S.pnlPct !== "number") return "";
+    const diff = S.pnlPct - B, bn = S.benchName || "基准";
+    const chips = (S.monthly || []).filter((r) => typeof r.pct === "number" && typeof r.bench === "number")
+      .map((r) => { const d = r.pct - r.bench; return '<span class="bench-chip ' + (d >= 0 ? "up" : "down") + '">' + r.m + " " + (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(2) + "pp</span>"; }).join("");
+    return '<div class="bench-row"><span class="bench-l">相对' + bn + "</span>" +
+        '<b class="' + (diff >= 0 ? "up" : "down") + '">' + (diff >= 0 ? "+" : "−") + Math.abs(diff).toFixed(2) + "pp</b>" +
+        '<span class="bench-sub">你 ' + fmtPct(S.pnlPct / 100, 2) + " · " + bn + " " + fmtPct(B / 100, 2) + "</span>" +
+        '<button type="button" class="strat-hint" data-note="acct-bench-q" aria-label="基准口径" aria-expanded="false">?</button></div>' +
+      '<div class="strat-note" id="acct-bench-q">基准取券商对账单每行右侧的「' + bn + "」涨跌（App 原样给出，本页未换算）。"
+        + "pp 是<b>百分点</b>：账户收益率 − 基准涨跌，正数＝跑赢。<br>"
+        + "⚠ 这只是个现成参照物：你的持仓 2/3 是美股（纳指 + 标普），<b>上证不是合适基准</b>；"
+        + "真正该比的是纳指 / 标普同期涨跌，那需要另补数据。</div>" +
+      (chips ? '<div class="bench-chips">' + chips + "</div>" : "");
+  }
   const W = el.clientWidth || 360, H = 128, mT = 16, mB = 18, mL = 10, mR = 10;
   const maxAbs = Math.max.apply(null, S.monthly.map((r) => Math.abs(r.pnl)).concat([1]));
   const half = (H - mT - mB - 22) / 2, y0 = mT + half, k = half / maxAbs;   // 底部预留 22px：满高柱的净额标注不再压月份标签
@@ -2225,6 +2258,7 @@ function renderAcctStats() {
       '<div class="kpi"><div class="k-label">平均仓位</div><div class="k-val">' + S.avgPos.toFixed(1) + '%</div><div class="k-sub" style="color:var(--tx3)">持股 ' + S.holdDays + " 天</div></div>" +
       '<div class="kpi"><div class="k-label">盈 / 亏持仓</div><div class="k-val"><span class="up">' + S.win + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> / </span><span class="down">' + S.loss + '</span></div><div class="k-sub" style="color:var(--tx3)">App 口径</div></div>' +
     '</div>' +
+    benchHtml() +
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
 }
 
@@ -2990,6 +3024,16 @@ bindTrendCrosshair();
       Date.parse(OTC.updated) - Date.parse(f.nav.closeDate) > 7 * 86400000)
       .map((f) => plDisplayName(f.name) + "（" + (f.nav ? f.nav.closeDate : "无净值") + "）");
     return bad.length ? "净值过期：" + bad.join("、") : true;
+  });
+  chk("场内账户统计自洽（月度合计 = 累计盈亏；基准字段完整）", () => {
+    if (typeof ACCT_STATS === "undefined") return "无 ACCT_STATS";
+    const bad = [];
+    const ms = (ACCT_STATS.monthly || []).reduce((a, r) => a + r.pnl, 0);
+    if (Math.abs(ms - ACCT_STATS.pnl) > 0.5) bad.push("月度合计 " + ms.toFixed(2) + " ≠ 累计 " + ACCT_STATS.pnl);
+    const miss = (ACCT_STATS.monthly || []).filter((r) => !Number.isFinite(r.pct) || !Number.isFinite(r.bench));
+    if (!Number.isFinite(ACCT_STATS.benchYtd)) bad.push("缺 benchYtd");
+    if (miss.length) bad.push(miss.map((r) => r.m).join("/") + " 缺收益率或基准");
+    return bad.length ? bad.join("；") : true;
   });
 
   const pass = R.filter((x) => x.ok).length;
