@@ -1912,28 +1912,34 @@ function renderRateView(box, pts) {
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
-  const rs = pts.map(rate).concat([0]);
+  /* 组合线用 TWR 净值口径（剔除转入/转出）——只有和被对比的指数同口径，算出的超额才成立：
+     成本口径 (val−cost)/cost 是「钱加权」，09-16 那种大额转入会把它压低/抬高，
+     拿它去比指数会得出错误的超额（实测偏差约 0.7pp）。 */
+  const navT = pts.length >= 2 ? trendNav(pts).nav : null;
+  const ser = navT ? navT.map((v) => v - 1) : pts.map(rate);   // 相对起点的累计收益率
+  /* BENCH 有缺口时（首个基准日不是首期），把组合线也平移到该点归零，保证两条线同起点 */
+  const firstBench = pts.findIndex((p) => benchRateAt(p.d) !== null);
+  if (firstBench > 0 && navT) { const s0 = ser[firstBench]; ser.forEach((v, i) => { ser[i] = v - s0; }); }
+  const rs = ser.concat([0]);
   let lo = Math.min.apply(null, rs), hi = Math.max.apply(null, rs);
   const pad = (hi - lo) * 0.18 || 0.01;
   lo -= pad; hi += pad;
   const Y = (v) => mT + (hi - v) / (hi - lo || 1) * (H - mT - mB);
   const P = (v) => v.toFixed(1);
-  const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(rate(p)));
+  const px = pts.map((_, i) => X(i)), py = pts.map((_, i) => Y(ser[i]));
   trendLayout = { px: px, py: py, pts: pts, mode: "rate" };
-  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · 成本口径 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
+  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · TWR 口径 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   const zeroY = Y(0);
-  /* 基准线：把 NDX 同期涨幅「锚定」在组合线的起点值上，两条线从同一处出发——
-     差值即相对纳指的超额收益。若基准从 0% 起画（而组合起点是 −1.87%），两条线的
-     间距会把「入市前就亏的 1.87%」也算成超额，看不出真实相对表现。 */
+  /* 基准线：同样「相对起点」的收益率，起点取第一个有基准的日期 —— 与组合线零点是同一个点 */
   const bi = [];
-  let b0 = null, bAnchor = 0;
+  let b0 = null;
   pts.forEach((p, i) => {
     const b = benchRateAt(p.d);
     if (b === null) return;
-    if (b0 === null) { b0 = b; bAnchor = rate(p); }
-    bi.push({ i: i, b: bAnchor + (1 + b) / (1 + b0) - 1 });
+    if (b0 === null) b0 = b;
+    bi.push({ i: i, b: (1 + b) / (1 + b0) - 1 });
   });
-  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="收益率走势：当前 ' + fmtPct(rate(pts[pts.length - 1]), 2) + '">';
+  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="净值走势（TWR）：当前 ' + fmtPct(ser[ser.length - 1], 2) + '">';
   [hi, (hi + lo) / 2, lo].forEach((tv) => {
     const y = Y(tv).toFixed(1);
     svg += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
@@ -1944,10 +1950,10 @@ function renderRateView(box, pts) {
     svg += '<polyline points="' + bi.map((o) => P(px[o.i]) + "," + P(Y(o.b))).join(" ") + '" fill="none" style="stroke:var(--tx3);stroke-width:1.5" stroke-dasharray="5 4"/>';
   svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
   pts.forEach((p, i) => {
-    const r = rate(p);
+    const r = ser[i];
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="3.8"' +
       ' style="fill:var(--blue);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
-      p.d + " 收益率 " + fmtPct(r, 2) + '"/>';
+      p.d + " 净值口径收益率 " + fmtPct(r, 2) + '"/>';
     if (i === 0 || i === pts.length - 1)
       svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + (r >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + fmtPct(r, 2) + "</text>";
   });
@@ -1957,9 +1963,9 @@ function renderRateView(box, pts) {
   svg += "</svg>";
   box.innerHTML = svg;
   showXhair(pts.length - 1);   // 读数条默认显示最新一期
-  const last = rate(pts[pts.length - 1]);
+  const last = ser[ser.length - 1];
   /* 结论行：「当前收益率」KPI 行已有，这里只留基准对比（本视图独有） */
-  let sum = "成本口径 · 全账户";
+  let sum = "资金流调整口径（TWR）· 全账户";
   if (bi.length >= 2) {
     const lb = bi[bi.length - 1].b;
     sum += " · 灰虚线＝同期纳指（<b>与组合同起点</b>）<b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
@@ -1987,8 +1993,9 @@ function showXhair(i) {
   if (mode === "pnl") {   // 盈亏全程视图：点数据为 { d, pl }
     ro.innerHTML = '<b>' + dt + '</b> · 累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元";
   } else if (mode === "rate") {
+    const N = trendNav(L.pts), tw = N.nav[k] - 1;
     const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
-    ro.innerHTML = '<b>' + dt + '</b> · 收益率 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + '</b> · 资产 <b>' + fmtYuan(p.val) + "</b>";
+    ro.innerHTML = '<b>' + dt + '</b> · 净值口径（TWR）<b class="' + cls(tw) + '">' + fmtPct(tw, 2) + '</b> · 成本口径 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + "</b>";
   } else if (mode === "dd") {
     const N = trendNav(L.pts);
     ro.innerHTML = '<b>' + dt + '</b> · 回撤 <b class="' + (N.dd[k] < -0.0005 ? "down" : "up") + '">' + fmtPct(N.dd[k], 2) +
