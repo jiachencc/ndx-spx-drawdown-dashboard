@@ -206,6 +206,7 @@
   .snap-more > summary b { font-family: var(--mono); font-feature-settings: "tnum"; }
   .snap-more > .snap-item:last-child { border-bottom: none; }
   .snap-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; font-size: var(--fs-sm); font-weight: 400; }   /* 后两项重置 h3 默认字重/字号 */
+  .snap-head .snap-tag { margin-left: auto; }   /* 事件标签推到行尾：卡头左侧固定是「日期 + vs」，右侧固定是标签 */
   .snap-date { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; font-feature-settings: "tnum"; }
   .snap-vs { font-size: var(--fs-xs); color: var(--tx3); }
   /* 标签列固定宽 + 内容列自适应：多行之间的数值左边界对齐（原 flex-wrap 折行后锯齿错位） */
@@ -224,14 +225,19 @@
   .snap-line.item .n .snap-src::before { content: "/ "; }
   .snap-line.item .d { font-family: var(--mono); font-size: var(--fs-xs); text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
   .snap-line.item .v { text-align: right; }
-  .snap-line.item.snap-sum-row { border-top: 1px dashed var(--line-soft); margin-top: 3px; padding-top: 5px; font-weight: 600; }   /* 明细合计：与「变化来源」对账 */
-  /* 快照卡内分组：细分隔线 + 组标题（兼作明细列头：本期盈亏 / 累计盈亏） */
-  .snap-divider { border-top: 1px dashed var(--line-soft); margin: 6px 0 4px; }
-  .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: var(--fs-xxs); font-weight: 700; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
+  /* ===== 快照卡版式规范（全卡一致 · 2026-09-19 整理）=====
+   * ① 标签列统一 66px（≤400px 收 58px）——金额行的左边界跨行对齐；
+   * ② 小节标题 = .snap-sec：自带 1px 实线上边框，取代原先「空虚线行 + 三列小字标题」两套写法；
+   * ③ 从属一律「缩进 + 左 2px 竖线」（.snap-parts / .snap-tbl），层级不再靠堆虚线表达；
+   * ④ 明细区三级：列头（400 淡）/ 分组头（700 + 实线）/ 合计（700 + 实线）。 */
+  .snap-sec { margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--line); font-size: var(--fs-xxs); font-weight: 700; color: var(--tx3); letter-spacing: .06em; }
+  .snap-sec .n { font-size: var(--fs-xxs); font-weight: 700; color: var(--tx3); letter-spacing: .06em; }   /* 「场内动作」这类行式小节标题 */
+  .snap-line.item.snap-sum-row { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; font-weight: 700; }   /* 明细合计：与「变化来源」对账 */
+  .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
   .snap-group-title span:not(:first-child) { text-align: right; }
-  /* 场内 / 场外分组头：与明细同列（横向对齐可直读），右侧两个小计。
-     分组的理由是数据节奏不同——场内是券商收盘一次到位，场外 QDII 逐只滞后一天。 */
-  .snap-group { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; align-items: baseline; margin-top: 6px; padding-top: 5px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); font-weight: 700; color: var(--tx2); }
+  /* 场内 / 场外分组头：与明细同列（横向对齐可直读），右侧两个小计。实线上边框 + 更亮的文字，
+     与「组员」明细行（暗、无边框）分开；分组的理由是数据节奏不同——场内券商收盘一次到位，场外 QDII 逐只滞后一天。 */
+  .snap-group { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; align-items: baseline; margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); font-size: var(--fs-xxs); font-weight: 700; color: var(--tx); }
   .snap-group span:not(:first-child) { text-align: right; font-family: var(--mono); font-feature-settings: "tnum"; }
   .snap-group em { font-style: normal; font-weight: 400; color: var(--tx3); }
   /* 分组默认折叠：明细行较长，场内 / 场外两组全铺开会把逐期卡顶得很长。
@@ -247,7 +253,7 @@
   .snap-tag.cut { color: var(--yellow); border-color: var(--warn-line); background: var(--warn-bg); }
   .snap-tag.open { color: var(--green); border-color: var(--up-line); background: var(--up-bg); }
   .snap-tag.close { color: var(--red); border-color: var(--down-line); background: var(--down-bg); }
-  .snap-line.total { border-top: 1px dashed var(--line-soft); margin-top: 4px; padding-top: 6px; }
+  .snap-line.total { border-top: 1px solid var(--line-soft); margin-top: 4px; padding-top: 6px; }   /* 卡头与正文的分界：实线（轻），与「区块分界」同一体系；虚线只留给卡片之间 */
   /* 归因拆分小注（银证实锤 / 场外估）：单独占内容列，弱化，避免挤在同一行长句中 */
   /* ===== 变化组成块：总资产 → 总变化 → 组成项（逐项解释）=====
      原先把「变动 + 等式 + 累计浮盈亏区间 + 口径提醒」压在一行，信息没少但读不出层次。
@@ -255,12 +261,13 @@
   /* 组成项挂在「总变化」之下：整组缩进 + 左侧竖线，每行前缀箭头。
      原来只靠一个「变化组成」标题行表示从属，而列表本身毫无缩进，关系读不出来。
      只缩进标签+数值两列（右侧「?」列不动），? 在各行之间保持同一条竖线。 */
-  .snap-parts { margin-top: 5px; margin-left: 2px; padding-left: 13px; border-left: 2px solid var(--line-soft); }
+  .snap-parts, .snap-tbl { margin-top: 5px; margin-left: 2px; padding-left: 13px; border-left: 2px solid var(--line-soft); }
   /* 原在此用「└→」/「└」前缀表示从属；块本身已有缩进 + 左侧竖线（引用块样式），
      前缀属重复，已删除——顺带把标签列从 70px 收回 66px，数值列更宽。 */
-  /* 标签列宽与 .snap-line 一致 → 数值左边界跨行对齐；「?」独立占行尾一列，
-     不放标签里：4 字的「当日盈亏」加按钮会超出 66px 标签列（窄屏 58px 更放不下）。 */
-  .snap-part { display: grid; grid-template-columns: 58px 1fr auto; align-items: baseline; gap: 8px; padding: 2px 0; font-size: var(--fs-sm); }
+  /* 标签列宽与 .snap-line 一致（66px；窄屏统一 58px）→ 数值左边界跨行对齐。
+     原为 58px，与 .snap-line 的 66px 差 8px，同一张卡里金额左边界就不成一条线。
+     「?」独立占行尾一列，不放标签里：4 字的「当日盈亏」加按钮会超出 66px 标签列。 */
+  .snap-part { display: grid; grid-template-columns: 66px 1fr auto; align-items: baseline; gap: 8px; padding: 2px 0; font-size: var(--fs-sm); }
   .snap-part .strat-hint { align-self: center; }
   /* nowrap：标签一律单行（最长 4 字「本期盈亏」＝48px，列宽 58px 留 10px 余量），
      宁可让数值列窄一点也不折行——折行后整块表格的纵向对齐全乱。 */
@@ -273,8 +280,21 @@
   .snap-parts .snap-subblock { margin-left: 5px; white-space: nowrap; }
   .snap-item.snap-sum { background: linear-gradient(135deg, var(--accent-bg), transparent 55%); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
   .snap-item.snap-sum + .snap-item { border-top: none; }
-  /* 期次解读：左侧竖线 + 加大行高，长文本（含 ⚠ 强调）分块易读 */
-  .snap-note { font-size: var(--fs-xs); line-height: 1.75; color: var(--tx3); margin-top: 7px; padding: 5px 0 5px 9px; border-left: 2px solid var(--line); min-width: 0; overflow-wrap: break-word; }
+  /* 期次解读：默认折叠成一行 —— 各期备注平均 328 字，最新一期 942 字（≈48 行），
+     首屏摊开 3 期就要多滚约 2000px。折叠行带「首段截断 + ⚠ 计数 + 全文字数」，
+     所以收起时也能看出这期有没有口径警示、体量多大；点开才是全文。 */
+  .snap-note-wrap { margin-top: 7px; border-left: 2px solid var(--line); padding-left: 9px; min-width: 0; }
+  .snap-note-wrap > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 5px; font-size: var(--fs-xs); line-height: 1.75; color: var(--tx3); min-width: 0; }
+  .snap-note-wrap > summary::-webkit-details-marker { display: none; }
+  .snap-note-wrap > summary .snap-note-key { flex: 0 0 auto; color: var(--tx2); font-weight: 600; }
+  .snap-note-wrap > summary .snap-note-meta { flex: 0 0 auto; white-space: nowrap; }
+  .snap-note-wrap > summary .snap-note-meta::after { content: " ▾"; }
+  .snap-note-wrap[open] > summary .snap-note-meta::after { content: " ▴"; }
+  /* 折叠态只留首段截断（一行省略号）；展开后隐去，免得与全文开头重复 */
+  .snap-note-wrap > summary .snap-note-preview { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .snap-note-wrap[open] > summary .snap-note-preview { display: none; }
+  /* 期次解读全文：竖线 + 缩进已由折叠容器提供，这里只管字号行高（含 ⚠ 强调） */
+  .snap-note { font-size: var(--fs-xs); line-height: 1.75; color: var(--tx3); margin-top: 3px; min-width: 0; overflow-wrap: break-word; }
   .snap-note .warn { color: var(--yellow); }
 
   /* ===== 区块标题 ===== */
@@ -630,11 +650,12 @@
     .pl-nm { font-size: var(--fs-sm); }   /* 更窄的机型各收一号，行高更紧凑 */
     .pl-amt { font-size: var(--fs-md); }
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
+    .snap-part { grid-template-columns: 58px 1fr auto; }   /* 与 .snap-line 同步收窄，保持一致 */
     .snap-line.item { grid-template-columns: 1fr 64px 72px; }
     .snap-group-title { grid-template-columns: 1fr 64px 72px; }
     .snap-group { grid-template-columns: 1fr 64px 72px; }
     .snap-line.item .n .qty-tag { font-size: var(--fs-xxs); }
-    .snap-parts { padding-left: 10px; }   /* 标签列已统一 58px，此处不再重复定义 */
+    .snap-parts, .snap-tbl { padding-left: 10px; }   /* 标签列已统一 58px，此处不再重复定义 */
   }
   /* 动效敏感用户：关闭所有动画 */
   @media (prefers-reduced-motion: reduce) {
@@ -708,21 +729,24 @@ try {
     <div class="trend-legend" id="trend-legend"></div>
   </div>
 
-  <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
-  <div class="card" id="acct-card" style="padding:12px 14px;"></div>
-
-  <h2 class="sec-title"><span aria-hidden="true">🏁</span> 清仓历史 <span class="cnt" id="closed-cnt"></span></h2>
-  <div class="card" id="closed-card" style="padding:12px 14px;"></div>
-
-
+  <!-- 板块顺序：① 现状（盈亏总览 / 本金与收益）→ ② 过程（资产走势 / 快照对比）→ ③ 场内明细（账户统计 / 持仓与操作 / 波段复盘）→ ④ 归档（清仓历史）。
+       清仓历史发生在首份快照之前、不计入本金与收益，属留档，放最后以免打断主线；
+       原来它在「场内账户统计」与「快照对比」之间，把两块场内内容隔开了，现归拢相邻。
+       「快照对比」紧接「资产走势」：走势是一条线，快照是这条线逐期的账，两者同一件事的两种粒度。 -->
   <h2 class="sec-title"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
   <div class="card" id="snap-list" style="padding:4px 14px;"></div>
+
+  <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
+  <div class="card" id="acct-card" style="padding:12px 14px;"></div>
 
   <h2 class="sec-title"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
 
   <h2 class="sec-title"><span aria-hidden="true">🎯</span> 波段复盘 <span class="cnt" id="swing-cnt"></span></h2>
   <div class="card" id="swing-card" style="padding:12px 14px;"></div>
+
+  <h2 class="sec-title"><span aria-hidden="true">🏁</span> 清仓历史 <span class="cnt" id="closed-cnt"></span></h2>
+  <div class="card" id="closed-card" style="padding:12px 14px;"></div>
 
 </main>
 
@@ -2442,7 +2466,7 @@ function snapActions(prev, cur) {
   const parts = [];
   Object.keys(buy).forEach((s) => parts.push('<span class="snap-tag add">买入 ' + esc(s) + " " + fmtQty(buy[s]) + ' 份</span>'));
   sell.forEach((e) => parts.push('<span class="snap-tag close">卖出 ' + esc(e.sym) + " " + fmtQty(e.qty) + ' 份</span>'));
-  return '<div class="snap-line acts"><span class="n" title="只含场内（券商）买卖；场外定投申购不产生本页流水，体现在持仓成本变化上">场内动作</span><span class="v">' + parts.join("") + "</span></div>";
+  return '<div class="snap-line acts snap-sec"><span class="n" title="只含场内（券商）买卖；场外定投申购不产生本页流水，体现在持仓成本变化上">场内动作</span><span class="v">' + parts.join("") + "</span></div>";
 }
 /* 事件标签：单一来源（中文 → 配色 class），文案即 key。
    原来 CLS（中文→class）与 TXT（class→中文）是两张互逆的表，只改一张就会标签与配色错位。 */
@@ -2451,6 +2475,19 @@ const snapTagCls = (txt) => SNAP_TAGS[txt] || "add";
 const SNAP_TAG_TXT = Object.keys(SNAP_TAGS).reduce((m, k) => { m[SNAP_TAGS[k]] = k; return m; }, {});
 /* 期次解读文本：⚠ 标记着色强调（内容原样，仅加语义包裹） */
 const snapNoteHtml = (t) => esc(t).split("⚠").join('<b class="warn">⚠</b>');
+/* 期次解读（备注）默认折叠成一行：全文平均 328 字、最新一期 942 字（≈48 行），摊开把卡片撑长十几倍。
+   折叠行带「首段截断 + ⚠ 计数 + 全文字数」——收起时也能看出这期有没有口径警示、体量多大。 */
+function snapNoteBlock(t) {
+  const flat = String(t).replace(/\s*\n\s*/g, " ").trim();
+  const warns = (flat.match(/⚠/g) || []).length;
+  const head = flat.slice(0, 38) + (flat.length > 38 ? "…" : "");
+  return '<details class="snap-note-wrap"><summary title="期次解读：本期的口径、动作与警示。点开看全文">' +
+    '<span class="snap-note-key">期次解读</span>' +
+    '<span class="snap-note-preview">' + esc(head) + "</span>" +
+    '<span class="snap-note-meta">' + (warns ? "⚠ " + warns + " · " : "") + flat.length + " 字" + "</span>" +
+    "</summary>" +
+    '<div class="snap-note">' + snapNoteHtml(t) + "</div></details>";
+}
 /* 快照明细行：「名称(+仓位小标签) | 市场盈亏 | 累计盈亏」——本位是盈亏，仓位仅作后缀提示 */
 const snapSigned = (v) => '<span class="' + cls(v) + '">' + (v >= 0 ? "+" : "−") + fmtAbs2(v) + "</span>";
 /* ===== 持仓来源标签（全页统一口径，唯一取值处）=====
@@ -2540,11 +2577,15 @@ function snapPairHtml(prev, cur) {
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（跨 " + spanDays + " 天）" : "") + "</span>" +
       (cur.tag ? '<span class="snap-tag ' + snapTagCls(cur.tag) + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
     snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, sub, { trio: true }) +
-    (actsHtml ? '<div class="snap-divider"></div>' + actsHtml : "") +
+    (actsHtml || "") +
     (lines.length
-      ? '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（跨 ' + spanDays + ' 天，含休市）">市场盈亏' + (spanDays > 1 ? "·跨" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' + lines.join("") + sumRow
+      ? '<div class="snap-sec">持仓变化</div><div class="snap-tbl">' +
+        /* 列头只标两个数字列（区块名已由上方小节标题给出）；整块缩进在同一条竖线下，
+           场内 / 场外分组头、合计行都与明细同列宽 → 纵向读得出「组 vs 组员 vs 合计」。 */
+        '<div class="snap-group-title"><span></span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（跨 ' + spanDays + ' 天，含休市）">市场盈亏' + (spanDays > 1 ? "·跨" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' +
+        lines.join("") + sumRow + "</div>"
       : "") +
-    (cur.note ? '<div class="snap-note">' + snapNoteHtml(cur.note) + "</div>" : "") +
+    (cur.note ? snapNoteBlock(cur.note) : "") +
   "</article>";
 }
 /* ===== 清仓历史（已全部卖出的基金，仅留档）=====
