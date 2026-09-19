@@ -593,6 +593,9 @@ try {
   <h2 class="sec-title"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
   <div class="card" id="pl-list" style="padding:12px 14px;"></div>
 
+  <h2 class="sec-title"><span aria-hidden="true">💰</span> 本金与收益 <span class="cnt" id="prin-cnt"></span></h2>
+  <div class="card" id="principal-card" style="padding:12px 14px;"></div>
+
   <h2 class="sec-title"><span aria-hidden="true">📈</span> 资产走势 <span class="cnt" id="trend-cnt"></span></h2>
   <div class="card trend-card">
     <div class="trend-kpis" id="trend-kpis"></div>
@@ -1296,6 +1299,7 @@ function renderImpl() {
      直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，
      把浮亏显示成浮盈（差值填充因此变绿）。修复后 today.val − cost ≡ totalPl。 */
   renderTrend(totalVal, totalCost + OTC.cash);
+  renderPrincipal();
   renderSnapLog();
   renderAcctStats();
   renderSwing();
@@ -2092,6 +2096,55 @@ function snapPairHtml(prev, cur) {
     (cur.note ? '<div class="snap-note">' + snapNoteHtml(cur.note) + "</div>" : "") +
   "</article>";
 }
+/* ===== 本金与收益（一眼看清「投了多少 → 现在多少 → 赚亏多少」）=====
+ * 本金 ＝ 外部净转入，由快照推导：总资产 − 累计浮盈亏（≡ Σ持仓成本 + 现金）。
+ *   买入/卖出、申购/赎回、手续费、税费都只是账户内的「现金 ↔ 持仓」转换，不改变本金；
+ *   只有从银行 / 支付宝真转进来、或转出提现，本金才会变 —— 所以它是唯一不受交易噪声影响的数。
+ * 累计收益 ＝ 当前总资产 − 本金，含「已卖出的兑现盈亏」与「还没卖的账面浮动」，
+ *   与走势图上两条线之间的竖直间距是同一个数（快照的 pl 字段）。
+ * 已卖出 ＝ 券商流水逐笔「实现盈亏」之和 − 卖出费；余额归入「未卖出」（含买入费与摊薄口径微差）。 */
+function renderPrincipal() {
+  const box = $("principal-card");
+  if (!box) return;
+  const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
+  if (!snaps.length) {
+    box.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">还没有快照，无法推算本金</span></div>';
+    return;
+  }
+  const cur = snaps[snaps.length - 1];
+  const total = snapTotal(cur);
+  const principal = snapCost(cur);                                  // 累计投入（含现金）
+  const pnl = typeof cur.pl === "number" ? cur.pl : total - principal;
+  const sells = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || []).filter(isSellAct);
+  const realized = sells.reduce((a, e) => a + (typeof e.realized === "number" ? e.realized : 0), 0);
+  const feeOf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
+  const cashed = realized - sells.reduce((a, e) => a + feeOf(e), 0); // 已卖出兑现（含卖出费）
+  const held = pnl - cashed;                                        // 未卖出（账面浮动）
+  const rate = principal ? pnl / principal * 100 : 0;
+  const cnt = $("prin-cnt");
+  if (cnt) cnt.textContent = "（截至 " + mdOf(cur.d) + " · 本金＝外部净转入）";
+  const qBtn = '<button type="button" class="strat-hint" data-note="prin-q" aria-label="本金与收益口径" aria-expanded="false">?</button>';
+  const qNote = '<div class="strat-note" id="prin-q">'
+    + "<b>本金</b> ＝ 外部净转入（银行 / 支付宝 → 账户），由快照推导：总资产 − 累计浮盈亏。"
+    + "买卖、申赎、手续费、税费都只是账户内的「现金 ↔ 持仓」转换，<b>不改变本金</b>；只有真从外面转进 / 转出才会让它变。<br>"
+    + "<b>累计收益</b> ＝ 当前总资产 − 本金，既含已卖出的兑现盈亏，也含还没卖的账面浮动——"
+    + "与走势图上「总资产 / 累计投入」两条线之间的竖直间距是同一个数。<br>"
+    + "<b>已卖出</b>取券商流水的「实现盈亏」减去卖出费；余额归入「未卖出」，其中含买入费与摊薄成本口径的微差（±10 元内）。"
+    + "股数、买卖、税费都不会污染本金这一行，所以「本金有没有变」＝ 有没有真金白银转进来。</div>";
+  box.innerHTML =
+    '<div class="snap-part"><span class="pn">本金</span><span class="pv">' + fmtYuan(principal) +
+      '<span class="snap-sub snap-subblock">外部净转入</span></span></div>' +
+    '<div class="snap-part"><span class="pn">总资产</span><span class="pv">' + fmtYuan(total) + "</span>" + qBtn + "</div>" + qNote +
+    '<div class="snap-parts">' +
+      '<div class="snap-part"><span class="pn">累计收益</span><span class="pv"><b class="' + cls(pnl) + '">' + fmtAmt2(pnl) +
+        '</b> <span class="snap-sub">（' + fmtPct(rate / 100, 2) + "）</span></span></div>" +
+      '<div class="snap-part"><span class="pn">已卖出</span><span class="pv"><b class="' + cls(cashed) + '">' + fmtAmt2(cashed) +
+        '</b><span class="snap-sub snap-subblock">' + sells.length + " 笔兑现，含卖出费</span></span></div>" +
+      '<div class="snap-part"><span class="pn">未卖出</span><span class="pv"><b class="' + cls(held) + '">' + fmtAmt2(held) +
+        '</b><span class="snap-sub snap-subblock">还拿着的账面浮动</span></span></div>' +
+    "</div>";
+}
+
 function renderSnapLog() {
   const el = $("snap-list");
   const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
