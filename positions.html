@@ -493,7 +493,7 @@
   /* 归因行的资金拆分小注（银证实锤 + 场外估） */
   .snap-sub { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }   /* 小注嵌在加粗数值里时也不跟着加粗 */
   /* 资产走势：KPI 行 / 时间 chips / crosshair 读数条 / 图例开关 */
-  .trend-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .trend-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 10px; }
   /* chips：视图切换 + 时间范围排在一条可横滑的带子上（原为自动换行，窄屏会折 2~3 行） */
   .trend-chips { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin: 0 2px 8px; }
   .trend-bar { display: flex; align-items: center; gap: 10px; margin: 0 2px 8px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -1344,10 +1344,11 @@ let trendRange = "all";   // 时间范围：all/1m/3m/6m/1y（快照日期过滤
 let trendShowCost = true; // 投入线开关（localStorage 持久化）
 let trendLayout = null;   // { px, py, pts }（crosshair 最近点计算用）
 const TREND_RANGES = [["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
-/* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准） */
+/* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准）
+ *           dd 回撤（资金流调整后的单位净值口径，剔除转入/转出造成的假回撤） */
 let trendView = "amount";
 try { trendView = localStorage.getItem("trendView") || "amount"; } catch (err) { /* 隐私模式下忽略 */ }
-const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"]];
+const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"], ["dd", "回撤"]];
 function renderTrendViews() {
   const el = $("trend-views");
   if (!el) return;
@@ -1486,8 +1487,13 @@ function renderTrendKpis(pts) {
   const last = pts[pts.length - 1], base = pts[0];
   const r1 = rate(last), r0 = rate(base), dRpp = (r1 - r0) * 100;
   const dTotB = last.val - base.val;
-  /* TWR：剔除资金进出后的投资能力收益；XIRR：资金分批进出的真实年化（跨度 <90 天年化失真，改显天数） */
-  const twr = calcTWR(pts);
+  /* TWR：剔除资金进出后的投资能力收益；XIRR：资金分批进出的真实年化（跨度 <90 天年化失真，改显天数）
+   * ⚠ calcTWR 遇到 flow 为 null（今日估算点）会整条链返回 null——过去因此常显「—」。
+   *   这里退回用 trendNav 的净值链（它把未知资金流按 0 处理，当日无申赎时正是如此），
+   *   两者是同一套公式：TWR ≡ nav[末期] − 1。 */
+  const ddN = pts.length >= 2 ? trendNav(pts) : null;
+  let twr = calcTWR(pts);
+  if (twr === null && ddN) twr = ddN.nav[ddN.nav.length - 1] - 1;
   const cf = trendCashflows(pts);
   const xirr = cf ? calcXIRR(cf.cfs) : null;
   const xTxt = (xirr === null || !cf || cf.days < 90)
@@ -1501,6 +1507,7 @@ function renderTrendKpis(pts) {
     '<div class="kpi"><div class="k-label">总资产' + (last.isToday ? "（估）" : "") + '</div><div class="k-val">' + fmtYuan(last.val) + '</div><div class="k-sub ' + cls(dTotB) + '">' + fmtPct(base.val ? dTotB / base.val : 0, 1) + ' 较基线</div></div>' +
     '<div class="kpi"><div class="k-label">当前收益率</div><div class="k-val ' + cls(r1) + '">' + fmtPct(r1, 2) + '</div><div class="k-sub ' + cls(dRpp) + '">' + (dRpp >= 0 ? "+" : "−") + Math.abs(dRpp).toFixed(2) + 'pp 较基线</div></div>' +
     '<div class="kpi"><div class="k-label" title="近似时间加权：按快照末端资金流假设计算；推导资金流依赖成本口径，非精确投资能力评价。缺少资金流时不计算。">TWR（近似）</div><div class="k-val ' + cls(twr) + '">' + (twr === null ? "—" : fmtPct(twr, 2)) + '</div><div class="k-sub" style="color:var(--tx3)">' + xTxt + '</div></div>' +
+    (ddN ? '<div class="kpi"><div class="k-label" title="资金流调整后的单位净值回撤（按 TWR 方式逐期剔除转入/转出，避免把转账造成的资产跳变当成回撤）；区间口径，随上方时间范围变化。">最大回撤（区间）</div><div class="k-val down">' + fmtPct(ddN.dd[ddN.deepI], 2) + '</div><div class="k-sub" style="color:var(--tx3)">' + mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复") + '</div></div>' : "") +
     (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : '');
 }
 /* 相邻两点间：总资产线与投入线围成的区域，浮盈绿/浮亏红（交叉时按交点拆分） */
@@ -1539,6 +1546,111 @@ function pnlTipHtml(p) {
   return p.d.slice(5).replace("-", ".") + ' 账户累计盈亏 <b style="color:var(--' + (p.pl >= 0 ? "up" : "down") + ')">' + fmtAmt(p.pl) + " 元</b>" +
     '<br><span style="color:var(--tx3)">场内账户口径（含已实现）</span>';
 }
+/* ---- X 轴刻度：月份刻度 + 月度分界竖线（三个视图共用） ----
+ * 三处横轴都是按时间线性的（X = mL + (t−t0)/span×宽），所以知道分界与末点即可推算任意点日期；
+ * 精确到日的日期在触摸读数条、下方快照卡里都能查到，不必在图上重复。
+ * 原实现每 3 点打一个「MM.DD」（5~6 个标签），而这张图在手机上共 30 个文字元素，日期属于噪声。 */
+function trendXTicks(pts, px, P, yTop, yBot, yLbl) {
+  const gs = [];
+  pts.forEach((p, i) => {
+    const m = String(p.d).slice(0, 7), last = gs[gs.length - 1];
+    if (!last || last.m !== m) gs.push({ m: m, i0: i, i1: i }); else last.i1 = i;
+  });
+  const xLast = px[px.length - 1];
+  /* 只有末点确实是「今日估算」时才会额外画「今日」，所以避让也只在那种情况下生效——
+     否则（如「盈亏全程」视图的月度点）会把最后一个月度标签也一起吞掉。 */
+  const willToday = pts.length > 0 && !!pts[pts.length - 1].isToday;
+  let s = "";
+  gs.forEach((g, k) => {
+    if (k > 0) {
+      const xb = P((px[g.i0 - 1] + px[g.i0]) / 2);
+      s += '<line x1="' + xb + '" y1="' + yTop + '" x2="' + xb + '" y2="' + yBot + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
+    }
+    const xc = (px[g.i0] + px[g.i1]) / 2;
+    if (willToday && Math.abs(xc - xLast) < 24) return;   // 与「今日」标签挤在一起就省掉
+    s += '<text x="' + P(xc) + '" y="' + yLbl + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (+g.m.slice(5, 7)) + "月</text>";
+  });
+  if (willToday)
+    s += '<text x="' + P(xLast) + '" y="' + yLbl + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">今日</text>';
+  return s;
+}
+/* ---- 资金流调整后的单位净值链（回撤视图与最大回撤 KPI 共用）----
+ * ⚠ 不能拿「总资产」直接算回撤：资产会因转入/转出跳变（如 09-16 转入 3.7 万），
+ *   那种「回撤」是转账造成的假信号。按 TWR 方式逐期剔除资金流：
+ *   nav[i] = nav[i-1] × (val[i] − flow[i]) / val[i-1]，再算 nav 相对历史峰值的回撤。 */
+function trendNav(pts) {
+  const nav = [1], dd = [];
+  let pk = 1;
+  for (let i = 0; i < pts.length; i++) {
+    if (i > 0) {
+      const v0 = pts[i - 1].val, f = Number.isFinite(pts[i].flow) ? pts[i].flow : 0;
+      nav.push(v0 ? nav[i - 1] * (pts[i].val - f) / v0 : nav[i - 1]);
+    }
+    pk = Math.max(pk, nav[i]);
+    dd.push(nav[i] / pk - 1);
+  }
+  let deepI = 0;
+  dd.forEach((v, i) => { if (v < dd[deepI]) deepI = i; });
+  /* 最深点之前的那次峰值（回撤起点），用于标注「从哪天开始跌」 */
+  let peakI = 0;
+  for (let i = 0; i <= deepI; i++) if (nav[i] >= nav[peakI]) peakI = i;
+  /* 修复：最深点之后是否回到过前高 */
+  let recI = -1;
+  for (let i = deepI + 1; i < nav.length; i++) if (nav[i] >= nav[peakI]) { recI = i; break; }
+  return { nav: nav, dd: dd, deepI: deepI, peakI: peakI, recI: recI };
+}
+/* ---- 视图④：回撤 ----
+ * 纵轴 0 在顶、最深在底；面积铺 down 色，一眼看出「泡在水里有多深」。
+ * 标注三件事：最深回撤（值 + 日期）、从哪次峰值开始跌、是否已修复。 */
+function renderDdView(box, pts) {
+  if (!pts || pts.length < 2) { box.innerHTML = '<div class="trend-empty">数据不足，无法计算回撤（至少需要 2 期）。</div>'; return; }
+  const N = trendNav(pts);
+  const dd = N.dd, deepI = N.deepI, peakI = N.peakI, recI = N.recI;
+  const W = box.clientWidth || 320, H = 178, mL = 46, mR = 12, mT = 20, mB = 24;
+  const xs = pts.map((p) => Date.parse(p.d));
+  const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
+  const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
+  const P = (v) => v.toFixed(1);
+  const px = pts.map((_, i) => X(i));
+  const loV = Math.min.apply(null, dd.concat([0]));
+  const pad = Math.abs(loV) * 0.18 || 0.004;
+  const yBot = loV - pad, Y = (v) => mT + (0 - v) / (0 - yBot || 1) * (H - mT - mB);
+  const py = dd.map(Y), zeroY = Y(0);
+  trendLayout = { px: px, py: py, pts: pts, mode: "dd" };
+  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · 资金流调整口径 · 最深 " + fmtPct(dd[deepI], 2) + ")";
+  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="回撤走势：最深 ' +
+    fmtPct(dd[deepI], 2) + "（" + pts[deepI].d + "）" + (recI >= 0 ? "，已于 " + pts[recI].d + " 修复" : "，尚未修复") + '">';
+  [0, yBot / 2, yBot].forEach((tv) => {
+    const y = Y(tv);
+    svg += '<line x1="' + mL + '" y1="' + y.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + y.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
+      '<text x="' + (mL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (tv * 100).toFixed(1) + "%</text>";
+  });
+  svg += '<polygon points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + " " + P(px[px.length - 1]) + "," + P(zeroY) + " " + P(px[0]) + "," + P(zeroY) + '" style="fill:var(--down)" opacity=".14"/>' +
+    '<line x1="' + P(px[peakI]) + '" y1="' + P(zeroY) + '" x2="' + P(px[deepI]) + '" y2="' + P(py[deepI]) + '" style="stroke:var(--down);stroke-width:1" stroke-dasharray="3 3" opacity=".7"/>' +
+    '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--down);stroke-width:2"/>' +
+    '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
+  pts.forEach((p, i) => {
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? 5 : 3.6) +
+      '" style="fill:var(--down);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
+      p.d + " 回撤 " + fmtPct(dd[i], 2) + '"/>';
+  });
+  /* 最深点标注：文字宽度限制在绘图区内，避免贴边被裁 */
+  const lbl = "最深 " + fmtPct(dd[deepI], 2), lw = [...lbl].length * 6.2 + 6;
+  const lx = Math.min(Math.max(px[deepI], mL + lw / 2), W - mR - lw / 2);
+  svg += '<text x="' + P(lx) + '" y="' + P(Math.min(H - mB - 2, py[deepI] + 13)) + '" text-anchor="middle" style="fill:var(--down);font:700 var(--fs-xxs) var(--mono)">' + lbl + "</text>";
+  svg += trendXTicks(pts, px, P, mT, H - mB, H - 7);
+  svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
+    '<circle class="xhair-dot" cx="0" cy="0" r="5.5" style="display:none;fill:var(--card);stroke:var(--blue);stroke-width:2.5"/>';
+  svg += "</svg>";
+  box.innerHTML = svg;
+  showXhair(pts.length - 1);
+  if ($("trend-sum"))
+    $("trend-sum").innerHTML = "最深回撤 <b class=\"down\">" + fmtPct(dd[deepI], 2) + "</b>（" + mdOf(pts[peakI].d) + " 峰值 → " + mdOf(pts[deepI].d) +
+      " 谷底）· " + (recI >= 0
+        ? "已于 <b class=\"up\">" + mdOf(pts[recI].d) + "</b> 修复"
+        : "<b class=\"warn\">尚未修复</b>，当前 " + fmtPct(dd[dd.length - 1], 2)) +
+      ' · <span style="color:var(--tx3)">口径：按 TWR 方式逐期剔除转入/转出后再算回撤，与「最大浮亏」（场内 App 口径）不同</span>';
+}
 function renderTrend(todayVal, todayCost) {
   const box = $("trend-box");
   if (!box) return;
@@ -1565,6 +1677,7 @@ function renderTrend(todayVal, todayCost) {
   }
   if (trendView === "pnl") { renderPnlView(box); return; }
   if (trendView === "rate") { renderRateView(box, pts); return; }
+  if (trendView === "dd") { renderDdView(box, pts); return; }
   const W = box.clientWidth || 320, H1 = 168, H = H1 + 86, mL = 42, mR = 12, mT = 16, mB = 22;   // 双线区固定 H1，追加的 86px 为下方归因柱区
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs);
@@ -1596,15 +1709,12 @@ function renderTrend(todayVal, todayCost) {
   }
   svg += '<polyline points="' + py.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
     '" fill="none" style="stroke:var(--blue)" stroke-width="2"/>';
-  const step = pts.length > 6 ? Math.ceil((pts.length - 1) / 5) : 1;
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (p.isToday ? 4.5 : 4) +
       '" style="' + (p.isToday ? "fill:var(--card);stroke:var(--blue)" : "fill:var(--blue);stroke:var(--card)") + ';stroke-width:2" tabindex="0" role="button" aria-label="' +
       (p.isToday ? "今日估算" : p.d) + " 总资产 " + fmtYuan(p.val) + '，点击查看详情"/>';
-    if (i % step === 0 || i === pts.length - 1)
-      svg += '<text x="' + P(px[i]) + '" y="' + (H - 7) + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' +
-        (p.isToday ? "今日" : +p.d.slice(5, 7) + "." + +p.d.slice(8, 10)) + "</text>";
   });
+  svg += trendXTicks(pts, px, P, mT, H1 - mB, H - 7);   // 月份刻度替代逐点日期
   /* ===== 常显标注：按优先级放置，放不下就省（原为「每点必画」）=====
    * 实测：这张图要画 30 个文字元素（收益率×10、净额×9、投入/事件×2、日期×6、金额×3），
    * 而手机绘图区只有 336px、点间距 37px —— 一个净额标注就要 60px，是间距的 1.6 倍，
@@ -1740,8 +1850,8 @@ function renderPnlView(box) {
       p.d + " 账户累计盈亏 " + fmtAmt(p.pl) + ' 元"/>';
     if (i === 0 || i === pts.length - 1 || i === deepI)
       svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + col(p.pl) + ');font:700 var(--fs-xxs) var(--mono)">' + fmtAmt(p.pl) + "</text>";
-    svg += '<text x="' + P(px[i]) + '" y="' + (H - 7) + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (+p.d.slice(5, 7)) + "." + (+p.d.slice(8, 10)) + "</text>";
   });
+  svg += trendXTicks(pts, px, P, mT, H - mB, H - 7);   // 月份刻度（月度点：6月/7月/8月/9月）
   /* crosshair 吸附元素（与「金额」视图同款：pointermove 经 showXhair 更新） */
   svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
     '<circle class="xhair-dot" cx="0" cy="0" r="5.5" style="display:none;fill:var(--card);stroke:var(--blue);stroke-width:2.5"/>';
@@ -1791,8 +1901,8 @@ function renderRateView(box, pts) {
       p.d + " 收益率 " + fmtPct(r, 2) + '"/>';
     if (i === 0 || i === pts.length - 1)
       svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + (r >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + fmtPct(r, 2) + "</text>";
-    svg += '<text x="' + P(px[i]) + '" y="' + (H - 7) + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (+p.d.slice(5, 7)) + "." + (+p.d.slice(8, 10)) + "</text>";
   });
+  svg += trendXTicks(pts, px, P, mT, H - mB, H - 7);   // 月份刻度替代逐点日期
   svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
     '<circle class="xhair-dot" cx="0" cy="0" r="5.5" style="display:none;fill:var(--card);stroke:var(--blue);stroke-width:2.5"/>';
   svg += "</svg>";
@@ -1830,6 +1940,10 @@ function showXhair(i) {
   } else if (mode === "rate") {
     const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
     ro.innerHTML = '<b>' + dt + '</b> · 收益率 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + '</b> · 资产 <b>' + fmtYuan(p.val) + "</b>";
+  } else if (mode === "dd") {
+    const N = trendNav(L.pts);
+    ro.innerHTML = '<b>' + dt + '</b> · 回撤 <b class="' + (N.dd[k] < -0.0005 ? "down" : "up") + '">' + fmtPct(N.dd[k], 2) +
+      '</b> · 单位净值 <b>' + N.nav[k].toFixed(4) + "</b>" + (N.dd[k] >= -0.0005 ? "（处在峰值）" : "");
   } else {
     /* 金额视图：把「本期净额」及其归因拆解也放进读数条——
      * 图上不再逐柱写金额（窄屏写不下会压字），完整数字改由这里承载。 */
