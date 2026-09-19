@@ -503,6 +503,8 @@
   .tchip { font-size: var(--fs-xs); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); }
   .tchip.on { background: var(--accent-bg); color: var(--blue); border-color: var(--accent-line); font-weight: 600; }
   .tchip:disabled { opacity: .35; cursor: default; }
+  /* 时间档被隐藏时的行内说明（窄屏会换行，不影响 chips 横滑） */
+  .trend-chips .tchip-note { font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.5; align-self: center; }
   /* min-height 按「金额」视图的两行读数预留，切视图时不跳动 */
   .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 4px 6px; margin-bottom: 6px;
  background: var(--card2); border: 1px dashed var(--line-soft); border-radius: 8px; min-height: 36px; line-height: 1.6; }
@@ -1504,19 +1506,29 @@ function filterTrendPts(all) {
   const f = all.filter((p) => p.d >= cut);
   return f.length >= 2 ? f : all;
 }
+/* 时间范围 chips：**只渲染真能改变画面的档位**。
+ * 快照是事件驱动的（不定期发截图），历史跨度常常短于任一档阈值 —— 此时各档筛出的点集
+ * 与「全部」完全相同，按钮点下去画面纹丝不动（2026-09-19 实测：跨度 22 天，5 档都是同一批 13 期）。
+ * 所以：与「全部」同一批的档位直接不渲染（灰按钮同样会让人以为是坏的），
+ * 并把这层原因写成行内小字；等历史攒够，档位会自己出现，无需改代码。 */
 function renderTrendChips(allPts) {
   const el = $("trend-chips");
   if (!el) return;
   const lastD = allPts.length ? allPts[allPts.length - 1].d : null;
-  el.innerHTML = TREND_RANGES.map(([k, label]) => {
-    let ok = k === "all";
-    if (!ok && lastD) {
-      const cut = new Date(Date.parse(lastD + "T00:00:00Z") - RANGE_DAYS[k] * 86400000).toISOString().slice(0, 10);
-      ok = allPts.filter((p) => p.d >= cut).length >= 2;
-    }
-    return '<button type="button" class="tchip' + (trendRange === k ? " on" : "") + '"' +
-      (ok ? ' data-r="' + k + '"' : " disabled aria-disabled=\"true\"") + ">" + label + "</button>";
-  }).join("");
+  const baseSig = allPts.map((p) => p.d).join(",");
+  const usable = TREND_RANGES.filter(([k]) => {
+    if (k === "all" || !lastD) return true;
+    const cut = new Date(Date.parse(lastD + "T00:00:00Z") - RANGE_DAYS[k] * 86400000).toISOString().slice(0, 10);
+    const f = allPts.filter((p) => p.d >= cut);
+    return f.length >= 2 && f.map((p) => p.d).join(",") !== baseSig;
+  });
+  const spanDays = (allPts.length > 1) ? Math.round((Date.parse(lastD) - Date.parse(allPts[0].d)) / 86400000) : 0;
+  el.innerHTML = usable.map(([k, label]) =>
+    '<button type="button" class="tchip' + (trendRange === k ? " on" : "") + '" data-r="' + k + '">' + label + "</button>"
+  ).join("") +
+    (usable.length < TREND_RANGES.length
+      ? '<span class="tchip-note">快照跨度仅 ' + spanDays + " 天，" + TREND_RANGES.filter(([k]) => !usable.some(([u]) => u === k)).map(([, l]) => l).join(" / ") + "与「全部」所见相同，暂不显示（历史攒够会自动出现）</span>"
+      : "");
 }
 /* KPI 行：区间尾值为当前态，对比全量基线；极值取区间内最深浮亏 */
 function renderTrendKpis(pts) {
