@@ -234,6 +234,13 @@
   .snap-group { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; align-items: baseline; margin-top: 6px; padding-top: 5px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); font-weight: 700; color: var(--tx2); }
   .snap-group span:not(:first-child) { text-align: right; font-family: var(--mono); font-feature-settings: "tnum"; }
   .snap-group em { font-style: normal; font-weight: 400; color: var(--tx3); }
+  /* 分组默认折叠：明细行较长，场内 / 场外两组全铺开会把逐期卡顶得很长。
+     summary 复用 .snap-group 的三列 grid（小计仍与明细列对齐），
+     箭头只加在首列文案末尾——加在容器上会多占一列、破坏对齐。 */
+  .snap-grp > summary { cursor: pointer; list-style: none; }
+  .snap-grp > summary::-webkit-details-marker { display: none; }
+  .snap-grp > summary span:first-child::after { content: " ▾"; font-weight: 400; color: var(--tx3); }
+  .snap-grp[open] > summary span:first-child::after { content: " ▴"; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
   .snap-tag { font-size: var(--fs-xxs); font-weight: 700; border-radius: 5px; padding: 1px 6px; border: 1px solid; white-space: nowrap; }
   .snap-tag.add { color: var(--cyan); border-color: var(--info-line); background: var(--info-bg); }
@@ -479,48 +486,71 @@
   #trend-box { width: 100%; min-width: 0; }
   #trend-box svg { display: block; }
   .trend-empty { font-size: var(--fs-xs); color: var(--tx3); text-align: center; padding: 24px 8px; line-height: 1.7; }
+  /* 图例：内容**随视图变化**（见 renderTrendLegend）。
+     原先图例写死在 HTML 里、永远是「总资产 / 累计投入」——切到收益率/回撤/盈亏全程时
+     图上的线根本不是这两条，属于误导。现由 JS 按 trendView 生成。
+     线型语言（四个视图共用）：主序列＝实线 2px｜参考序列＝虚线 2px｜成本＝虚线 1.5px｜负向＝实线 2px。 */
   .trend-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; font-size: var(--fs-xs); color: var(--tx3); padding: 7px 4px 4px; }
   .trend-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--blue); vertical-align: middle; margin-right: 4px; border-radius: 2px; }
   .trend-legend i.cost { border-top-style: dashed; border-top-color: var(--cyan); }
+  .trend-legend i.base { border-top-color: var(--tx2); border-top-style: dashed; }
+  .trend-legend i.dn { border-top-color: var(--down); }
   .trend-legend .tdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--blue); background: var(--card); vertical-align: middle; margin-right: 4px; }
   .trend-legend .sq { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
   /* 结论行：紧跟 KPI 行、与它同属一块（不再是个独立分节）。
      只写 KPI 里没有的区间结论——「当前收益率」「最深浮亏」这类 KPI 已有的数，
-     原来在两处各说一遍，现在只留一处。为空时整行不占位。 */
+     原来在两处各说一遍，现在只留一处。为空时整行不占位。
+     ⚠ 口径说明（「按 TWR 方式逐期剔除转入/转出…」）原先混在结论句里，420px 下折成
+     2~3 行灰字，把结论本身淹掉了。现收进 ⓘ：默认只显示 1 行结论，点 ⓘ 才展开口径。 */
   .trend-sum { font-size: var(--fs-xs); color: var(--tx2); text-align: center; padding: 0 4px 2px; line-height: 1.6; margin: -6px 0 10px; }
   .trend-sum:empty { display: none; }
   .trend-sum b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .trend-sum .sum-info { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 5px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--tx3); font: 700 var(--fs-xxs)/1 var(--mono); vertical-align: 1px; cursor: pointer; }
+  .trend-sum .sum-info[aria-expanded="true"] { border-color: var(--accent-line); background: var(--accent-bg); color: var(--blue); }
+  .trend-sum .sum-note { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: var(--card2); border: 1px solid var(--line-soft); color: var(--tx3); font-size: var(--fs-xxs); line-height: 1.7; text-align: left; }
+  .trend-sum .sum-note[hidden] { display: none; }
   /* 归因行的资金拆分小注（银证实锤 + 场外估） */
   .snap-sub { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }   /* 小注嵌在加粗数值里时也不跟着加粗 */
   /* 资产走势：KPI 行 / 时间 chips / crosshair 读数条 / 图例开关 */
-  .trend-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 10px; }
+  /* KPI 行 2×2（恒为 4 项，见 renderTrendKpis）。
+     原先 5 项 + 窄屏改 2 列：第 5 项「最大浮亏」在 420px 下占第三行左半边、右侧悬空，
+     既不齐也不平衡。已精简为 4 项（TWR 并入「当前收益率」的次行说明），任何宽度都正好 2×2。 */
+  .trend-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+  .trend-kpis .k-val { font-size: var(--fs-lg); }   /* 2 列下每格 ~172px，主数值升一档建立层级 */
+  .trend-kpis .k-label, .trend-kpis .k-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* chips：视图切换 + 时间范围 —— **一律折行显示，全部标签直接可见**。
      原为一条可横滑的带子（nowrap + overflow-x）：手机宽度下「回撤 / 区间统计 / 全部」被切在屏幕外，
      得左右滑动才找得到；折行最多两行，用一点高度换「一个标签都不用找」。 */
-  .trend-chips { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin: 0 2px 8px; }
-  .trend-bar { display: flex; align-items: center; gap: 6px 10px; margin: 0 2px 8px; flex-wrap: wrap; }
-  .trend-bar .trend-chips { margin: 0; flex-wrap: wrap; justify-content: flex-start; }
-  /* margin-left:auto 让「时间范围」组靠右：与视图组同行时贴右端，折到第二行时也是右端，
-     不会孤零零挂在行首；左侧那条细线就是两组的分隔。 */
-  .trend-bar .trend-chips + .trend-chips { margin-left: auto; padding-left: 10px; border-left: 1px solid var(--line-soft); }
-  .tchip { font-size: var(--fs-xs); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); }
+  .trend-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 2px 8px; }
+  .trend-bar { display: flex; align-items: center; gap: 6px 8px; margin: 0 2px 8px; flex-wrap: wrap; }
+  .trend-bar .trend-chips { margin: 0; flex-wrap: wrap; }
+  /* 时间范围组**紧跟**视图组自然顺排（不再 margin-left:auto 顶到最右）。
+     原因：auto 边距 + 10px 左内边距 + 1px 分隔线共占 11px，420px 实测「全部」正好被挤出第一行，
+     孤零零占掉第二行右端。去掉后六个 chip 一行放得下（含 20px 余量），真挤不下时也是左对齐折行。 */
+  .trend-bar .trend-chips + .trend-chips { margin-left: 8px; }
+  .tchip { font-size: var(--fs-xs); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); white-space: nowrap; }
   .tchip.on { background: var(--accent-bg); color: var(--blue); border-color: var(--accent-line); font-weight: 600; }
   .tchip:disabled { opacity: .35; cursor: default; }
 
-  /* 读数条：金额视图 = 三列网格（左对齐 → 每个数占固定格子，滑动时位数变化不会让整行左右抖动）；
-     其余视图沿用单行居中。min-height 统一按金额视图预留，切视图时下方图表不跳动。
+  /* 读数条：金额视图 = 三层结构（状态头 / 三列主数 / 归因等式），左对齐、预留 78px 高度；
+     其余三个视图是单行居中，高度**自适应**——原先无条件预留 78px，单行时白留约 46px 空白。
      .live = 正在看某一期（滑动 / 悬停），边框点亮，用以区别「默认显示最新一期」。 */
   .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 6px 8px; margin-bottom: 6px;
- background: var(--card2); border: 1px solid var(--line-soft); border-radius: 8px; min-height: 78px; line-height: 1.6; display: flex; flex-direction: column; justify-content: center; }
+ background: var(--card2); border: 1px solid var(--line-soft); border-radius: 8px; line-height: 1.6; display: flex; flex-direction: column; justify-content: center; }
   .trend-readout.live { border-color: var(--accent-line); }
   .trend-readout b { color: var(--tx); }
   /* ↓ 金额视图的三层结构：状态头 / 三列主数 / 归因等式 */
-  .trend-readout.ro-rich { text-align: left; }
+  .trend-readout.ro-rich { text-align: left; min-height: 78px; }
+  /* 单行读数（盈亏全程 / 收益率 / 回撤）：整行一个 flex item（见 roLine 注释），
+     段内 .nb 不拆 → 折行只落在段之间，不会把「成本口径」与它的数字拆到两行。 */
+  .trend-readout .ro-line { display: block; }
+  .trend-readout .nb { white-space: nowrap; }
   .ro-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-bottom: 5px; font-size: var(--fs-xxs); color: var(--tx3); }
   .ro-date { color: var(--tx); font-weight: 700; white-space: nowrap; }
   .ro-badge { padding: 0 5px; border-radius: 999px; border: 1px solid var(--line-soft); white-space: nowrap; }
   .ro-badge.snap { color: var(--up); }
   .ro-badge.est { color: var(--info); }
+  .ro-badge.evt { color: var(--purple); border-color: var(--purple-line); }   /* 该期事件标签（加仓/减仓…）*/
   .ro-pos { margin-left: auto; white-space: nowrap; }
   /* 三列主数：**标签与数值同一行**（原先标签另起一行，被读成「标签折行」）。
      每个「标签 数值」是原子单元，窄屏整块换行，绝不把标签和数字拆开。 */
@@ -549,7 +579,6 @@
   #trend-box { touch-action: pan-y; }   /* 纵向滚动留给页面，横向滑动供 crosshair 吸附 */
   .lg-toggle { background: none; border: none; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 0; }
   .lg-toggle:not(.on) { opacity: .4; text-decoration: line-through; }
-  @media (max-width: 480px) { .trend-kpis { grid-template-columns: repeat(2, 1fr); } }
   /* 场内账户统计卡：月度盈亏柱 + 交易统计 KPI */
   .acct-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
   .acct-stats .k-label { line-height: 1.4; }
@@ -673,7 +702,7 @@ try {
     </div>
     <div class="trend-readout" id="trend-readout">移动或滑动查看各期 · 点击数据点看详情</div>
     <div id="trend-box"></div>
-    <div class="trend-legend"><span title="蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）"><i></i>总资产</span><button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button></div>
+    <div class="trend-legend" id="trend-legend"></div>
   </div>
 
   <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
@@ -986,11 +1015,12 @@ const CONFIG = {
   PREM_WARN: 3,
   PREM_HIGH: 8,
   DCA_DIP_TIERS: [-15, -25],   // 成本回撤加仓档（%，负数=较成本跌的深度）：现价跌破档位即提示「已达/距 X% 档」（POSITIONS.strategy.dipTiers 可覆盖）
-  SNAP_PCT_MIN: 1,   // 快照对比：占比变化 ≥ 此值（百分点）才显示（仓位小标签）
-  SNAP_VAL_MIN: 100, // 快照对比：市值变化阈值（备用，保留供市值口径扩展）
-  /* 原 SNAP_PL_MIN（明细盈亏阈值 50 元）已取消：快照明细改为全量展示——
+  /* 快照明细已改全量展示（原 SNAP_PL_MIN / SNAP_PCT_MIN / SNAP_VAL_MIN 阈值全部取消）：
      阈值会让小额变动「小计里算了它、清单里找不到它」，持有收益也无处可看。 */
   SNAP_KEEP: 3,      // 快照对比：只摊开最新 N 期，更早的期数折进折叠区（逐期卡很长，全铺开看不完）
+  SNAP_COST_EPS: 0.5,   // 成本变动去噪（元）：小于此值的逐只 diff 不列为「申购去向」（App 读数分位误差）
+  SNAP_SUM_EPS: 0.5,    // 溯源对账容差（元）：Δ持仓成本＋Δ现金 与 资金 之差在此内视为相等
+  SNAP_NAV_FRESH_DAYS: 3, // 场外净值日「新鲜」窗口（天）：超出则不列入本卡净值日范围，避免把沿用旧值读成数据停在未来
   SWING_MAX_DAYS: 10,   // 回路间隔 ≤ 此天数记「做T」（顺T/反T），超过记「调仓」——混在一起看不出做T有没有效
   FEE_PER_SIDE: 5,      // 单边手续费默认值（元）：log.note 里记了「费 X」就用记录值，否则按此估算并在页面标 ≈
   SWING_MATCH: "qty",   // 配对规则："qty" 同份额优先（默认，最贴做T心算）｜"near" 时间最近优先｜"oldest" 最早优先（近似券商 FIFO）
@@ -1372,9 +1402,11 @@ function renderImpl() {
   renderTrend(totalVal, totalCost + OTC.cash);
   renderPrincipal();
   renderClosed();
-  renderSnapLog();
-  renderAcctStats();
-  renderSwing();
+  /* 逐卡兜底：原先整页共用一个 try/catch，renderSnapLog 抛异常会连累后面两张卡，
+     且兜底只写 pos-list，快照区静默空白、看不出是坏了还是没数据。 */
+  safeCard("snap-list", "快照对比", renderSnapLog);
+  safeCard("acct-card", "场内账户统计", renderAcctStats);
+  safeCard("swing-card", "波段复盘", renderSwing);
 }
 
 /* ================= 资产走势（快照各期 + 今日估算，双线 + 差值着色） ================= */
@@ -1400,6 +1432,40 @@ function renderTrendViews() {
   ).join("") +
     /* 区间统计：与视图并列的开关（不是视图）——打开后点两个数据点即可量一段 */
     '<button type="button" class="tchip' + (trendSelOn ? " on" : "") + '" data-sel="1" title="打开后点两个数据点，量这一段的收益 / 回撤 / 净值">区间统计</button>';
+}
+/* ---- 图例：**按当前视图生成**（原先写死在 HTML 里，四个视图共用一句「总资产 / 累计投入」，
+ *   切到收益率/回撤/盈亏全程时图上的线根本不是这两条，属于误导）。
+ *   线型语言与四张图一致：主序列＝实线 2px｜参考序列＝虚线 2px｜成本＝虚线 1.5px｜负向＝实线 2px。
+ *   「累计投入」开关只在金额视图存在，故 lg-cost 按钮也由这里产出（事件用委托绑定）。 */
+function renderTrendLegend() {
+  const el = $("trend-legend");
+  if (!el) return;
+  const item = (cls, label, tip) => '<span title="' + tip + '"><i class="' + cls + '"></i>' + label + "</span>";
+  let html;
+  if (trendView === "pnl") {
+    html = item("", "账户累计盈亏", "蓝色实线＝场内账户累计盈亏（含已实现）；零轴以上为盈、以下为亏，面积按正负分色");
+  } else if (trendView === "rate") {
+    html = item("", "组合（TWR）", "蓝色实线＝资金流调整后的组合累计收益率（逐期剔除转入/转出），与基准同口径、同起点") +
+      item("base", "同期纳指", "灰色虚线＝同期纳指涨跌，已归一到与组合同一起点；两线间距即超额收益");
+  } else if (trendView === "dd") {
+    html = item("dn", "回撤", "红色实线＋面积＝资金流调整后单位净值相对历史峰值的回撤（0 在顶，越深越亏）；圆点为各期快照");
+  } else {
+    html = item("", "总资产", "蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）") +
+      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>';
+  }
+  el.innerHTML = html;
+  syncCostBtn();
+}
+/* ---- 结论行：结论（1 行）+ 可选 ⓘ 口径说明 ----
+ * 口径说明原先混在结论句里，420px 下折成 2~3 行灰字，把结论本身淹掉。
+ * 现默认只显示结论，点 ⓘ 才展开口径（按钮事件在初始化处一次性委托绑定）。 */
+function setTrendSum(line, note) {
+  const el = $("trend-sum");
+  if (!el) return;
+  if (!line) { el.innerHTML = ""; return; }
+  el.innerHTML = "<span>" + line + "</span>" +
+    (note ? '<button type="button" class="sum-info" aria-expanded="false" aria-label="口径说明" title="点击查看口径说明">i</button>' +
+            '<div class="sum-note" hidden>' + note + "</div>" : "");
 }
 /* ---- 区间统计：点两个数据点 → 算这一段的浮盈亏变化、区间最大回撤、区间净值 ----
  * 回撤用与「回撤」视图同一套资金流调整净值链（trendNav），只取区间内的点（区间起点归一）。
@@ -1570,14 +1636,16 @@ function renderTrendChips(allPts) {
         : "") + ">" + label + "</button>"
   ).join("");
 }
-/* KPI 行：区间尾值为当前态，对比全量基线；极值取区间内最深浮亏 */
+/* KPI 行：恒为 **4 项**（2×2），区间尾值为当前态、对比全量基线；极值取区间内最深浮亏。
+ * 原先 5 项，窄屏 2 列时第 5 项独自占第三行左半边、右侧悬空。TWR 已并入「当前收益率」的次行，
+ * XIRR 说明挪进该格的 title —— 两者都是「收益率的另一种口径」，本就不该各占一格。 */
 function renderTrendKpis(pts) {
   const el = $("trend-kpis");
   if (!el) return;
   if (pts.length < 2) { el.innerHTML = ""; return; }
   const rate = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
   const last = pts[pts.length - 1], base = pts[0];
-  const r1 = rate(last), r0 = rate(base), dRpp = (r1 - r0) * 100;
+  const r1 = rate(last);
   const dTotB = last.val - base.val;
   /* TWR：剔除资金进出后的投资能力收益；XIRR：资金分批进出的真实年化（跨度 <90 天年化失真，改显天数）
    * ⚠ calcTWR 遇到 flow 为 null（今日估算点）会整条链返回 null——过去因此常显「—」。
@@ -1588,20 +1656,22 @@ function renderTrendKpis(pts) {
   if (twr === null && ddN) twr = ddN.nav[ddN.nav.length - 1] - 1;
   const cf = trendCashflows(pts);
   const xirr = cf ? calcXIRR(cf.cfs) : null;
-  /* 文案要短：手机 2 列 KPI 格只有 ~127px，「现金流不完整，暂不计算 XIRR」会折行并顶高整行 */
+  /* XIRR 文案要短：手机 2 列 KPI 格只有 ~172px，长句会折行并顶高整行 */
   const xTxt = (xirr === null || !cf || cf.days < 90)
     ? (!cf ? "XIRR 缺现金流" : "XIRR " + Math.round(cf.days) + " 天 · 暂不年化")
     : "XIRR " + fmtPct(xirr, 1) + " 年化";
+  const rateTip = "当前收益率＝浮盈亏 ÷ 累计投入（成本口径，与 App 一致）。" +
+    "TWR 为近似时间加权：按快照末端资金流逐期剔除转入/转出后算净值，反映投资能力本身；推导资金流依赖成本口径，非精确评价。" +
+    xTxt + "。";
   /* 最大浮亏取全程（场内口径，来自 ACCT_STATS.monthly），补足快照期仅 12 天的盲区 */
   const whole = buildPnlPts();
   let deepW = null;
   if (whole.length) { deepW = whole[0]; whole.forEach((p) => { if (p.pl < deepW.pl) deepW = p; }); }
   el.innerHTML =
     '<div class="kpi"><div class="k-label">总资产' + (last.isToday ? "（估）" : "") + '</div><div class="k-val">' + fmtYuan(last.val) + '</div><div class="k-sub ' + cls(dTotB) + '">' + fmtPct(base.val ? dTotB / base.val : 0, 1) + ' 较基线</div></div>' +
-    '<div class="kpi"><div class="k-label">当前收益率</div><div class="k-val ' + cls(r1) + '">' + fmtPct(r1, 2) + '</div><div class="k-sub ' + cls(dRpp) + '">' + (dRpp >= 0 ? "+" : "−") + Math.abs(dRpp).toFixed(2) + 'pp 较基线</div></div>' +
-    '<div class="kpi"><div class="k-label" title="近似时间加权：按快照末端资金流假设计算；推导资金流依赖成本口径，非精确投资能力评价。缺少资金流时不计算。">TWR（近似）</div><div class="k-val ' + cls(twr) + '">' + (twr === null ? "—" : fmtPct(twr, 2)) + '</div><div class="k-sub" style="color:var(--tx3)">' + xTxt + '</div></div>' +
+    '<div class="kpi"><div class="k-label">当前收益率</div><div class="k-val ' + cls(r1) + '">' + fmtPct(r1, 2) + '</div><div class="k-sub" title="' + rateTip + '">TWR <span class="' + cls(twr) + '">' + (twr === null ? "—" : fmtPct(twr, 2)) + '</span></div></div>' +
     (ddN ? '<div class="kpi"><div class="k-label" title="资金流调整后的单位净值回撤（按 TWR 方式逐期剔除转入/转出，避免把转账造成的资产跳变当成回撤）；区间口径，随上方时间范围变化。">最大回撤（区间）</div><div class="k-val down">' + fmtPct(ddN.dd[ddN.deepI], 2) + '</div><div class="k-sub" style="color:var(--tx3)">' + mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复") + '</div></div>' : "") +
-    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : '');
+    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
 }
 /* 相邻两点间：总资产线与投入线围成的区域，浮盈绿/浮亏红（交叉时按交点拆分） */
 function trendSegFill(x1, v1, c1, x2, v2, c2) {
@@ -1719,9 +1789,12 @@ function renderDdView(box, pts) {
       '<text x="' + (mL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (tv * 100).toFixed(1) + "%</text>";
   });
   svg += '<polygon points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + " " + P(px[px.length - 1]) + "," + P(zeroY) + " " + P(px[0]) + "," + P(zeroY) + '" style="fill:var(--down)" opacity=".14"/>' +
-    '<line x1="' + P(px[peakI]) + '" y1="' + P(zeroY) + '" x2="' + P(px[deepI]) + '" y2="' + P(py[deepI]) + '" style="stroke:var(--down);stroke-width:1" stroke-dasharray="3 3" opacity=".7"/>' +
     '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--down);stroke-width:2"/>' +
     '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
+  /* 峰值点加一圈空心环（替代原先「峰值→谷底」的斜向虚线：那条线横穿填充区，
+     读起来像水印，且起点日期在结论行里已有，不必在图上再画一条线）。 */
+  if (peakI !== deepI)
+    svg += '<circle cx="' + P(px[peakI]) + '" cy="' + P(py[peakI]) + '" r="6" style="fill:none;stroke:var(--down);stroke-width:1.5" opacity=".6"/>';
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? 5 : 3.6) +
       '" style="fill:var(--down);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
@@ -1737,12 +1810,13 @@ function renderDdView(box, pts) {
   svg += "</svg>";
   box.innerHTML = svg;
   showXhair(pts.length - 1);
-  if ($("trend-sum"))
-    $("trend-sum").innerHTML = "最深回撤 <b class=\"down\">" + fmtPct(dd[deepI], 2) + "</b>（" + mdOf(pts[peakI].d) + " 峰值 → " + mdOf(pts[deepI].d) +
-      " 谷底）· " + (recI >= 0
-        ? "已于 <b class=\"up\">" + mdOf(pts[recI].d) + "</b> 修复"
-        : "<b class=\"warn\">尚未修复</b>，当前 " + fmtPct(dd[dd.length - 1], 2)) +
-      ' · <span style="color:var(--tx3)">口径：按 TWR 方式逐期剔除转入/转出后再算回撤，与「最大浮亏」（场内 App 口径）不同</span>';
+  setTrendSum("最深回撤 <b class=\"down\">" + fmtPct(dd[deepI], 2) + "</b>（" + mdOf(pts[peakI].d) + " 峰值 → " + mdOf(pts[deepI].d) +
+    " 谷底）· " + (recI >= 0
+      ? "已于 <b class=\"up\">" + mdOf(pts[recI].d) + "</b> 修复"
+      : "<b class=\"warn\">尚未修复</b>，当前 " + fmtPct(dd[dd.length - 1], 2)),
+    "口径：资金流调整后的单位净值回撤 —— 按 TWR 方式逐期剔除转入/转出后再算（避免把转账造成的资产跳变当成回撤），" +
+    "起点净值归一为 1。与 KPI 的「最大浮亏」（场内 App 累计浮亏口径）不是同一个数。" +
+    "区间随上方「时间范围」变化；「已修复」指最深点之后净值是否回到过该次峰值。");
 }
 function renderTrend(todayVal, todayCost) {
   const box = $("trend-box");
@@ -1754,18 +1828,19 @@ function renderTrend(todayVal, todayCost) {
   trendPts = pts;
   renderTrendChips(allPts);
   renderTrendViews();
+  renderTrendLegend();
   renderTrendKpis(pts);
   $("trend-cnt").innerHTML = "(快照 " + snaps.length + " 期" + (pts.length && pts[pts.length - 1].isToday ? " + 今日" : "") + " · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   if (!snaps.length) {   // 空态：教学态引导，而非空白
     $("trend-cnt").textContent = "";
     box.innerHTML = '<div class="trend-empty">还没有快照：发一张持仓 App 截图给维护者即可建立第 1 期基线。<br>建立后这里会自动生成「总资产 vs 累计投入」双线走势与收益率标注。</div>';
-    if ($("trend-sum")) $("trend-sum").innerHTML = "";
+    setTrendSum("");
     return;
   }
   if (pts.length < 2) {  // 仅 1 期：基线态
     const p = allPts[0];
     box.innerHTML = '<div class="trend-empty">基线已建立：总资产 <b>' + fmtYuan(p.val) + "</b> · 收益率 <b>" + fmtPct(p.cost ? (p.val - p.cost) / p.cost : 0, 2) + "</b>。<br>下一期快照追加后，这里会自动生成双线走势与收益率标注。</div>";
-    if ($("trend-sum")) $("trend-sum").innerHTML = "";
+    setTrendSum("");
     return;
   }
   if (trendView === "pnl") { renderPnlView(box); return; }
@@ -1839,14 +1914,20 @@ function renderTrend(todayVal, todayCost) {
     if (place("rate", px[i], t, 10))
       svg += '<text x="' + P(px[i]) + '" y="' + Math.max(9, py[i] - 7) + '" text-anchor="middle" style="fill:var(--' + (pts[i].val - pts[i].cost >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + t + "</text>";
   });
-  /* 行 ②：投入线上方 —— 起点投入读数 + 各期买卖事件标记
-   * （末点的「投入 xx万」不再标：读数条默认就显示它，且常与末点收益率标注抢同一行） */
+  /* 行 ②：投入线附近 —— 起点投入读数 + 事件**只画小三角**，不再标事件词。
+   * 原先把「▲加仓 / ▼减仓」整词标在投入线上：420px 下 5 个标签挤成一排、还压住曲线本身。
+   * 事件词改由读数条里的徽章承担（滑到该期即可看到），图面留给曲线。 */
   if (trendShowCost) order.forEach((i) => {
-    const p = pts[i], isIn = p.tag ? /加仓|建仓|买入/.test(p.tag) : false;
-    if (!p.tag && i !== 0) return;
-    const t = p.tag ? (isIn ? "▲" : "▼") + p.tag : "投入 " + (p.cost / 10000).toFixed(1) + "万";
+    const p = pts[i];
+    if (p.tag) {
+      const isIn = /加仓|建仓|买入/.test(p.tag);
+      svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 5).toFixed(1) + '" text-anchor="middle" style="fill:var(--' + (isIn ? "cyan" : "purple") + ');font:var(--fs-xxs) var(--mono)">' + (isIn ? "▲" : "▼") + "</text>";
+      return;
+    }
+    if (i !== 0) return;
+    const t = "投入 " + (p.cost / 10000).toFixed(1) + "万";
     if (place("cost", px[i], t, 10))
-      svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 9).toFixed(1) + '" text-anchor="middle" style="fill:var(--' + (p.tag ? (isIn ? "cyan" : "purple") : "cyan") + ');font:var(--fs-xxs) var(--mono)">' + esc(t) + "</text>";
+      svg += '<text x="' + P(px[i]) + '" y="' + (cy[i] - 9).toFixed(1) + '" text-anchor="middle" style="fill:var(--cyan);font:var(--fs-xxs) var(--mono)">' + esc(t) + "</text>";
   });
   /* crosshair 吸附元素（pointermove 经 showXhair 更新） */
   svg += '<line class="xhair-line" x1="0" x2="0" y1="' + mT + '" y2="' + (H - mB) + '" style="display:none;stroke:var(--tx3);stroke-width:1"/>' +
@@ -1857,11 +1938,16 @@ function renderTrend(todayVal, todayCost) {
      图上标注按空间取舍，数字不会丢，读数条随时能查。 */
   showXhair(pts.length - 1);
   /* 结论行：只写 KPI 里没有的（区间投入、浮盈亏的区间变化）。
-   * 原来的「收益率 A → B」与 KPI 的「当前收益率 · 较基线」是同一个数，已删。 */
-  if (pts.length >= 2 && $("trend-sum")) {
+   * 原来的「收益率 A → B」与 KPI 的「当前收益率 · 较基线」是同一个数，已删。
+   * 口径说明不再混进句子，收进 ⓘ（见 setTrendSum）。 */
+  if (pts.length >= 2) {
     const flowSum = pts.reduce((a, p) => a + (typeof p.flow === "number" ? p.flow : 0), 0);
     const pl0 = pts[0].val - pts[0].cost, pl1 = pts[pts.length - 1].val - pts[pts.length - 1].cost, dPl = pl1 - pl0;
-    $("trend-sum").innerHTML = "区间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 浮盈亏 " + fmtAmt(pl0) + " → <b>" + fmtAmt(pl1) + "</b>（区间内" + (dPl >= 0 ? "改善 " : "恶化 ") + "<b>" + fmtAbs2(dPl) + "</b> 元）";
+    setTrendSum("区间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 浮盈亏 " + fmtAmt(pl0) + " → <b>" + fmtAmt(pl1) + "</b>（" + (dPl >= 0 ? "改善 " : "恶化 ") + "<b>" + fmtAbs2(dPl) + "</b> 元）",
+      "口径：全账户（场内券商 + 场外基金 + 现金）。总资产为各期快照读数，今日为盘中估值、尚未收盘。" +
+      "累计投入 ＝ 总资产 − 累计浮盈亏（＝持仓成本 + 现金）；浮盈亏 ＝ 总资产 − 累计投入，含现金部分。" +
+      "区间投入由逐期 Δ累计投入推导（人工记录的 flow 优先），正为净转入、负为净转出。" +
+      "区间随上方「时间范围」变化；完整逐期归因见下方「快照对比」。");
   }
 }
 
@@ -1927,11 +2013,11 @@ function renderPnlView(box) {
   box.innerHTML = svg;
   showXhair(pts.length - 1);   // 读数条默认显示最新一期
   /* 结论行：「最深浮亏」及其日期 KPI 行已有，这里只留本视图独有的「自最深回升」 */
-  if ($("trend-sum")) {
-    const dDeep = pts[pts.length - 1].pl - pts[deepI].pl;
-    $("trend-sum").innerHTML = "场内账户口径（含已实现）· 自全程最深" +
-      (dDeep >= 0 ? "回升 " : "又跌 ") + "<b class=\"" + cls(dDeep) + "\">" + fmtAbs2(dDeep) + "</b> 元";
-  }
+  const dDeep = pts[pts.length - 1].pl - pts[deepI].pl;
+  setTrendSum("场内账户 · 自全程最深" + (dDeep >= 0 ? "回升 " : "又跌 ") + "<b class=\"" + cls(dDeep) + "\">" + fmtAbs2(dDeep) + "</b> 元",
+    "口径：场内账户累计盈亏（券商 App，含已实现盈亏与税费），自 2026-01-01 起、月度读数拼接。" +
+    "与「金额」视图的全账户（场内 + 场外 + 现金）不同，故曲线与图例都不含场外。" +
+    "「最深」＝建仓以来累计浮亏的最大值（7 月那波深亏），回升 = 当前值 − 最深值。");
 }
 /* 视图③：收益率（%）—— 组合 vs 基准。剔除规模影响，直接看效率与是否跑赢躺平 */
 function renderRateView(box, pts) {
@@ -1975,7 +2061,8 @@ function renderRateView(box, pts) {
   });
   svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
   if (bi.length >= 2)
-    svg += '<polyline points="' + bi.map((o) => P(px[o.i]) + "," + P(Y(o.b))).join(" ") + '" fill="none" style="stroke:var(--tx3);stroke-width:1.5" stroke-dasharray="5 4"/>';
+    /* 基准线用 --tx2（原先 --tx3 太暗，深色底上跟网格线几乎同色，看不清差值在哪） */
+    svg += '<polyline points="' + bi.map((o) => P(px[o.i]) + "," + P(Y(o.b))).join(" ") + '" fill="none" style="stroke:var(--tx2);stroke-width:1.5" stroke-dasharray="5 4"/>';
   svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
   pts.forEach((p, i) => {
     const r = ser[i];
@@ -1992,15 +2079,28 @@ function renderRateView(box, pts) {
   box.innerHTML = svg;
   showXhair(pts.length - 1);   // 读数条默认显示最新一期
   const last = ser[ser.length - 1];
-  /* 结论行：「当前收益率」KPI 行已有，这里只留基准对比（本视图独有） */
-  let sum = "资金流调整口径（TWR）· 全账户";
+  /* 结论行：「当前收益率」KPI 行已有，这里只留基准对比（本视图独有）。
+     口径说明收进 ⓘ，结论句本身只留「跑赢/跑输多少」。 */
+  let sum, note;
   if (bi.length >= 2) {
     const lb = bi[bi.length - 1].b;
-    sum += " · 灰虚线＝同期纳指（<b>与组合同起点</b>）<b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
+    sum = "同期纳指 <b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
+    note = "两条线都是「相对起点的累计收益率」，且**同起点**：组合取快照首期、纳指取首个有基准的日期，故可直接比差值。" +
+      "组合线用资金流调整口径（TWR，逐期剔除转入/转出），与指数同口径——用成本口径去比会得出错误的超额。" +
+      "基准为纳指 NDX 收盘价，逐期记在 data.js 的 BENCH（缺期自动跳过）。";
   } else {
-    sum += " · <span style=\"color:var(--tx3)\">基准待补：在 data.js 的 BENCH 记入各期 NDX 收盘即可对比（可跑 node scripts/sync-bench.mjs 自动补）</span>";
+    sum = "<span style=\"color:var(--tx3)\">基准待补</span>";
+    note = "基准待补：在 data.js 的 BENCH 记入各期 NDX 收盘即可对比（可跑 node scripts/sync-bench.mjs 自动补）。";
   }
-  if ($("trend-sum")) $("trend-sum").innerHTML = sum;
+  setTrendSum(sum, note);
+}
+/* 单行读数（盈亏全程 / 收益率 / 回撤）拼装。
+ * ⚠ .trend-readout 是 flex 列容器：直接塞多个 <b>/文本节点，每个都会变成独立 flex item
+ *   被逐行堆叠（实测「收益率」视图被拆成 5 行碎片）。所以整行必须包成**一个** flex item，
+ *   内部再按行内流排版。
+ * 段内用 .nb 设 nowrap，「·」并入后一段：折行只落在段之间，且「·」不会孤零零留在行尾或行首。 */
+function roLine(segs) {
+  return '<span class="ro-line">' + segs.map((s, i) => '<span class="nb">' + (i ? "· " : "") + s + "</span>").join("") + "</span>";
 }
 function showXhair(i) {
   const L = trendLayout;
@@ -2024,15 +2124,18 @@ function showXhair(i) {
   ro.classList.toggle("ro-rich", mode === "amount");
   ro.classList.toggle("live", hover);
   if (mode === "pnl") {   // 盈亏全程视图：点数据为 { d, pl }
-    ro.innerHTML = '<b>' + dt + '</b> · 累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元";
+    ro.innerHTML = roLine(['<b>' + dt + "</b>", '累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元"]);
   } else if (mode === "rate") {
     const N = trendNav(L.pts), tw = N.nav[k] - 1;
     const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
-    ro.innerHTML = '<b>' + dt + '</b> · 净值口径（TWR）<b class="' + cls(tw) + '">' + fmtPct(tw, 2) + '</b> · 成本口径 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + "</b>";
+    ro.innerHTML = roLine(['<b>' + dt + "</b>",
+      '净值口径（TWR）<b class="' + cls(tw) + '">' + fmtPct(tw, 2) + "</b>",
+      '成本口径 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + "</b>"]);
   } else if (mode === "dd") {
     const N = trendNav(L.pts);
-    ro.innerHTML = '<b>' + dt + '</b> · 回撤 <b class="' + (N.dd[k] < -0.0005 ? "down" : "up") + '">' + fmtPct(N.dd[k], 2) +
-      '</b> · 单位净值 <b>' + N.nav[k].toFixed(4) + "</b>" + (N.dd[k] >= -0.0005 ? "（处在峰值）" : "");
+    ro.innerHTML = roLine(['<b>' + dt + "</b>",
+      '回撤 <b class="' + (N.dd[k] < -0.0005 ? "down" : "up") + '">' + fmtPct(N.dd[k], 2) + "</b>",
+      '单位净值 <b>' + N.nav[k].toFixed(4) + "</b>" + (N.dd[k] >= -0.0005 ? "（处在峰值）" : "")]);
   } else {
     /* 金额视图：三层结构（状态头 / 三列主数 / 归因等式）——
      * ① 三列网格替代一行文字流：原先居中排版，滑动时数字位数一变就整行左右抖动，
@@ -2058,6 +2161,8 @@ function showXhair(i) {
         (p.isToday
           ? '<span class="ro-badge est" title="盘中估值、尚未收盘：场内按最新场内价、场外按各基金 App 最新净值，再加现金。与最后一期快照同日时自动省略。">盘中估 · 未收盘</span>'
           : '<span class="ro-badge snap" title="收盘快照：券商与各基金 App 的当日读数，可与「快照对比」逐项核对">收盘快照</span>') +
+        /* 事件词从图上挪到这里：图上只留一个小三角，滑到该期即可看到是什么事 */
+        (p.tag ? '<span class="ro-badge evt" title="该期快照记录的事件（图上对应位置的 ▲ / ▼ 标记）">' + esc(p.tag) + "</span>" : "") +
         '<span class="ro-pos">第 ' + (k + 1) + "/" + L.pts.length + " 期</span></div>" +
       '<div class="ro-grid">' +
         cell("资产", fmtYuan(p.val)) + cell("投入", fmtYuan(p.cost)) +
@@ -2119,8 +2224,19 @@ function snapCost(s) {
   Object.values(s.items || {}).forEach((it) => { c += (it && it.cost) || 0; });
   return c;
 }
-/* 持仓成本合计（剔现金）：snapCost 含现金项，比对成本时要减掉，否则现金变动会被误读成申购 */
-const snapHoldCost = (s) => snapCost(s) - (typeof s.cash === "number" ? s.cash : 0);
+/* 持仓成本合计（剔现金）：snapCost 含现金项，比对成本时要减掉，否则现金变动会被误读成申购。
+   简快照（无 cash 字段）返回 null —— 缺现金就无法剔除，硬减 0 会把现金混进「持仓成本」。 */
+const snapHoldCost = (s) => (typeof s.cash === "number" ? snapCost(s) - s.cash : null);
+/* ===== 场内 / 场外归属（快照历史分类的唯一依据）=====
+ * 不能用 POSITIONS.hold 反查：那是「当前」持仓，某只场内 ETF 清仓并从 hold 移除后，
+ * 历史快照会把它改判成场外，连带改掉所有过往卡片的场内/场外小计——已对过账的数字会变。
+ * 这里按代码静态固化，新增标的后手工补一行（与 POSITIONS / OTC 解耦）。 */
+const SNAP_MKT = {
+  "159941": "in", "513650": "in", "513310": "in", "513880": "in", "160644": "in",
+  "023402": "ot", "021778": "ot", "021000": "ot", "018738": "ot",
+  "007280": "ot", "015884": "ot", "040046": "ot", "014978": "ot",
+};
+const isOnExchange = (code) => SNAP_MKT[code] === "in";
 /* 本期持仓成本变动（「资金」行的溯源）：逐只 diff，列出「新钱落到了哪几只」。
  * 资金 ＝ Δ总资产 − 本期盈亏 ≡ Δ持仓成本 ＋ Δ现金，所以这些 diff 相加必然等于资金行。
  * 买入/卖出只是账户内「现金 ↔ 持仓」的转换，不改变成本，不会出现在这里。 */
@@ -2131,7 +2247,7 @@ function snapCostMoves(prev, cur) {
     if (!b || typeof b.cost !== "number") return;
     const has = Object.prototype.hasOwnProperty.call(a, code) && typeof a[code].cost === "number";
     const dc = b.cost - (has ? a[code].cost : 0);
-    if (Math.abs(dc) >= 0.5) rows.push({ name: b.name || code, dc: dc, added: !has });
+    if (Math.abs(dc) >= CONFIG.SNAP_COST_EPS) rows.push({ name: b.name || code, dc: dc, added: !has });
   });
   return rows.sort((x, y) => Math.abs(y.dc) - Math.abs(x.dc));
 }
@@ -2164,16 +2280,45 @@ function qPair(txt, label) {
    缺 items（简快照）时返回 null，调用方跳过拆分。 */
 function snapGrpSplit(prev, cur) {
   if (!prev || !prev.items || !cur || !cur.items) return null;
-  const hold = (((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).map((p) => p.code));
   const codes = Array.from(new Set(Object.keys(prev.items).concat(Object.keys(cur.items))));
   const g = { in: { n: 0, d: 0, c: 0 }, ot: { n: 0, d: 0, c: 0 } };
   codes.forEach((code) => {
-    const a = prev.items[code], b = cur.items[code], x = g[hold.indexOf(code) >= 0 ? "in" : "ot"];
+    const a = prev.items[code], b = cur.items[code], x = g[isOnExchange(code) ? "in" : "ot"];
     x.n++;
     x.d += ((b && b.pl) || 0) - ((a && a.pl) || 0);
     x.c += (b && b.pl) || 0;
   });
   return g;
+}
+/* =====「外部投入」口径说明（独立成函数）=====
+ * 这段文案含 4 段分支、12 个插值，内联进 snapPartsHtml 会是一条跨 10 行的三元链：
+ * 既读不出层次，改动也极易碰到相邻分支。抽出来只做「拼字符串」一件事。
+ * 溯源段把推导数落回可核对的原始字段（Δ持仓成本 ＋ Δ现金 ＋ 逐只明细）——
+ * 逐只明细只在两期都能算出剔现金成本时展开，否则会把全部持仓误判成「新增」
+ * （曾把区间卡的 13 只全标成新增、金额变成 45.8 万）。 */
+function snapFlowTip(c) {
+  const trace = c.canTrace
+    ? "持仓成本 " + fmtYuan(c.prevHold) + " → " + fmtYuan(c.costHold) + "（" + fmtAmt(c.moveSum) + "），" +
+      (c.dCash === null
+        ? "现金字段没有记录，现金部分无法核对。"
+        : "现金 " + fmtYuan(c.prev.cash) + " → " + fmtYuan(c.cur.cash) + "（" + fmtAmt(c.dCash) + "），两项相加" +
+          /* 老快照的读数分位误差（≤ 几元）会让两者差一点，差得出来就明说，别写「正好相等」 */
+          (Math.abs(c.moveSum + c.dCash - c.flow) >= CONFIG.SNAP_SUM_EPS
+            ? "与上面的外部投入数差 " + Math.abs(c.moveSum + c.dCash - c.flow).toFixed(1) + " 元（App 读数的分位误差，属正常）。"
+            : "即上面的外部投入数。")) +
+      (c.moves.length
+        ? "成本变动的持仓（" + c.moves.length + " 只）：" +
+          c.moves.map((m) => esc(m.name) + " " + fmtAmt(m.dc) + (m.added ? (c.trio ? "（本期新增）" : "（区间内新增）") : "")).join(" · ") +
+          "。逐只可在快照数据里核对；具体哪个账户、哪张卡扣款，要看对应 App 的申购确认记录——本页不记录支付渠道。"
+        : "持仓成本没有变动，外部投入来自现金进出。")
+    : "起点快照没有逐只明细（或缺少现金字段），这一期无法逐只核对申购去向。";
+  return (Math.abs(c.flow) < 1 ? "本期没有从账户外进来的钱，总变化全部来自市场盈亏。" : "账户外净" + (c.flow > 0 ? "流入" : "流出") + "。") +
+    "银证转入、场外定投申购走银行 / 支付宝通道，不减少本页跟踪的现金，因此算外部投入" +
+    (c.bn === null ? "" : "（银证净 " + fmtAmt2(c.bn) + (c.otc !== null && Math.abs(c.otc) >= 1 ? " · 场外估 " + fmtAmt2(c.otc) + "（含定投申购与估值滞后）" : "") + "）") + "。" +
+    "买入/卖出只是账户内「现金 ↔ 持仓」的转换，不改变总资产，不计入本项。" +
+    "算法：外部投入 ＝ Δ总资产 − 市场盈亏；为负时通常含记账口径差（如卖出回款尚未计入现金），不代表真的取走了钱。" +
+    "<br><b>" + (c.trio ? "本期溯源" : "区间溯源") + "</b>：外部投入 ＝ Δ持仓成本 ＋ Δ现金。" + trace +
+    (c.cur.note && c.cur.note.indexOf("在途") >= 0 ? "已扣款未确认的在途申购不计入本项（见本卡期次解读）。" : "");
 }
 /* ===== 盈亏对照块（逐期对比与区间累计共用，保证口径、措辞、配色一致）=====
  * 顺序：总资产 → 总变化 → 对照条（本期 / 累计 / 资金）。
@@ -2181,77 +2326,57 @@ function snapGrpSplit(prev, cur) {
  * 不再分散在卡片上下两处。两行都附 场内 / 场外 拆分——场外 QDII 净值滞后，
  * 混在一个数里读不出节奏；拆开后每行的小计还能分别对上券商 App 与基金 App 的读数。 */
 function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
-  const o = opts || {}, trio = !!o.trio;   // trio：逐期卡（本期/累计两行）；区间卡保持原样（本期盈亏/资金）
+  const o = opts || {}, trio = !!o.trio;   // trio：逐期卡（市场盈亏/累计盈亏两行）；区间卡为（区间盈亏/外部投入）
   const tp = snapTotal(prev), tc = snapTotal(cur);
   const pctTot = tp ? dTot / tp * 100 : 0;
   const costHold = snapHoldCost(cur);
-  /* 「资金」行溯源用的中间量：两期持仓成本、本期成本变动逐只明细、现金变动 */
+  /* 「外部投入」行溯源用的中间量：两期持仓成本、本期成本变动逐只明细、现金变动 */
   const prevHold = snapHoldCost(prev);
   const moves = snapCostMoves(prev, cur);
   const moveSum = moves.reduce((n, m) => n + m.dc, 0);
   const dCash = (typeof prev.cash === "number" && typeof cur.cash === "number") ? cur.cash - prev.cash : null;
-  /* 两期都必须有逐只明细，逐只 diff 才成立（起点可能是只记总额的简快照） */
+  /* 逐只 diff 成立的前提：两期都有 items 且都能算出剔现金的持仓成本
+     （起点可能是只记总额的简快照，或完整快照但漏了 cash 字段） */
   const prevHasItems = !!(prev && prev.items && Object.keys(prev.items).length);
   const curHasItems = !!(cur && cur.items && Object.keys(cur.items).length);
+  const canTrace = prevHasItems && curHasItems && prevHold !== null && costHold !== null;
   /* 场内 / 场外 拆分小注：跟在金额后面同一行（整块 nowrap，窄屏才整段折行） */
   const splitLine = (vi, vo) => grp ? '<span class="snap-sub snap-subblock">场内 ' + snapSigned(vi) + " · 场外 " + snapSigned(vo) + "</span>" : "";
   const parts = [];
-  /* ① 本期盈亏：市场波动（= 两期累计浮盈亏之差） */
+  /* ① 市场盈亏：市场波动（= 两期累计浮盈亏之差）。标签用「市场盈亏」而非「资金/收益」——
+     它与「外部投入」并列时必须一眼看出哪个是赚的、哪个是转进来的钱 */
   const qPl = qPair(
     "持仓自身的市场波动：两期之间市值与已实现盈亏的变化" + (spanDays > 1 ? "，跨度 " + spanDays + " 天" : "") + "。" +
     (typeof prev.pl === "number" && typeof cur.pl === "number"
       ? "对应累计浮盈亏 " + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "，两个数之差就是本项。" : "") +
     (grp ? "场内/场外拆分为两项各自的市场波动之和。" : "") +
-    "买卖只是账户内转换（现金 ↔ 持仓），不影响本项。", "本期盈亏口径");
+    "买卖只是账户内转换（现金 ↔ 持仓），不影响本项。", "市场盈亏口径");
   parts.push(
-    '<div class="snap-part"><span class="pn">' + (trio ? "本期" : "本期盈亏") + '</span><span class="pv"><b class="' + cls(dPl) + '">' + fmtAmt2(dPl) + "</b>" +
+    '<div class="snap-part"><span class="pn">' + (trio ? "市场盈亏" : "区间盈亏") + '</span><span class="pv"><b class="' + cls(dPl) + '">' + fmtAmt2(dPl) + "</b>" +
       (grp ? splitLine(grp.in.d, grp.ot.d) : "") + "</span>" + qPl.btn + "</div>" + qPl.note);
   /* ② 累计浮盈亏：相对持仓成本（含已实现） */
   const qCum = qPair(
     "累计浮盈亏 ＝ 当前市值 − 持仓成本（含已实现盈亏）。场内取券商 App 读数，场外取各基金 App 读数。" +
-    "「本期」＝本期累计 − 上期累计。" +
+    "「市场盈亏」＝本期累计浮盈亏 − 上期累计浮盈亏。" +
     (costHold > 0 && typeof cur.pl === "number" ? "当前持仓成本 " + fmtYuan(costHold) + "，浮盈亏率 " + fmtPct(cur.pl / costHold, 2) + "。" : ""), "累计盈亏口径");
   if (trio && typeof cur.pl === "number")
-    parts.push('<div class="snap-part"><span class="pn">累计</span><span class="pv"><b class="' + cls(cur.pl) + '">' + fmtAmt2(cur.pl) + "</b>" +
+    parts.push('<div class="snap-part"><span class="pn">累计盈亏</span><span class="pv"><b class="' + cls(cur.pl) + '">' + fmtAmt2(cur.pl) + "</b>" +
       (grp ? splitLine(grp.in.c, grp.ot.c) : "") + "</span>" + qCum.btn + "</div>" + qCum.note);
-  /* ③ 资金：账户外净流入（推导值；FLOWS 有手账时拆出银证实锤） */
+  /* ③ 外部投入：账户外净流入（推导值；FLOWS 有手账时拆出银证实锤） */
   const zero = Math.abs(flow) < 1;
   const bn = flowsNet(prev.d, cur.d);             // 银证转账手账实锤；无记录期返回 null
   const otc = bn === null ? null : flow - bn;     // 余额 = 场外通道净申购 + App 口径微调
   const flowCls = zero ? "pv" : "pv " + (flow > 0 ? "info" : "warn");
-  const qFlow = qPair(
-    /* 正负分开措辞：为负时若还写「净流入」，和旁边的 −192 自相矛盾 */
-    (zero ? "本期没有从账户外进来的钱，总变化全部来自本期盈亏。" : "账户外净" + (flow > 0 ? "流入" : "流出") + "。") +
-    "银证转入、场外定投申购走银行 / 支付宝通道，不减少本页跟踪的现金，因此算外部资金" +
-    (bn === null ? "" : "（银证净 " + fmtAmt2(bn) + (otc !== null && Math.abs(otc) >= 1 ? " · 场外估 " + fmtAmt2(otc) + "（含定投申购与估值滞后）" : "") + "）") + "。" +
-    "买入/卖出只是账户内「现金 ↔ 持仓」的转换，不改变总资产，不计入本项。" +
-    "算法：资金 ＝ Δ总资产 − 本期盈亏；为负时通常含记账口径差（如卖出回款尚未计入现金），不代表真的取走了钱。" +
-    /* 溯源段：把推导数落回可核对的原始字段（Δ持仓成本 ＋ Δ现金 ＋ 逐只明细）。
-       逐只明细只在两期都有 items 时展开——起点若是「只记总额」的简快照，
-       diff 会把全部持仓误判成「新增」（曾把区间卡的 13 只全标成新增、金额变成 45.8 万）。 */
-    "<br><b>" + (trio ? "本期溯源" : "区间溯源") + "</b>：资金 ＝ Δ持仓成本 ＋ Δ现金。" +
-    (prevHasItems && curHasItems
-      ? "持仓成本 " + fmtYuan(prevHold) + " → " + fmtYuan(costHold) + "（" + fmtAmt(moveSum) + "），" +
-        (dCash === null
-          ? "现金字段没有记录，现金部分无法核对。"
-          : "现金 " + fmtYuan(prev.cash) + " → " + fmtYuan(cur.cash) + "（" + fmtAmt(dCash) + "），两项相加" +
-            /* 老快照的读数分位误差（≤ 几元）会让两者差一点，差得出来就明说，别写「正好相等」 */
-            (Math.abs(moveSum + dCash - flow) >= 0.5
-              ? "与上面的资金数差 " + Math.abs(moveSum + dCash - flow).toFixed(1) + " 元（App 读数的分位误差，属正常）。"
-              : "即上面的资金数。")) +
-        (moves.length
-          ? "成本变动的持仓（" + moves.length + " 只）：" +
-            moves.map((m) => m.name + " " + fmtAmt(m.dc) + (m.added ? (trio ? "（本期新增）" : "（区间内新增）") : "")).join(" · ") +
-            "。逐只可在快照数据里核对；具体哪个账户、哪张卡扣款，要看对应 App 的申购确认记录——本页不记录支付渠道。"
-          : "持仓成本没有变动，资金来自现金进出。")
-      : "起点快照只记总额、没有逐只明细，这一期无法逐只核对申购去向。") +
-    (cur.note && cur.note.indexOf("在途") >= 0 ? "已扣款未确认的在途申购不计入本项（见本卡期次解读）。" : ""), "资金口径");
+  const qFlow = qPair(snapFlowTip({
+    trio: trio, flow: flow, bn: bn, otc: otc, canTrace: canTrace,
+    prevHold: prevHold, costHold: costHold, moveSum: moveSum, dCash: dCash, moves: moves, prev: prev, cur: cur,
+  }), "外部投入口径");
   parts.push(
-    '<div class="snap-part"><span class="pn">资金</span><b class="' + flowCls + '"' + (zero ? ' style="color:var(--tx3)"' : "") + ">" +
+    '<div class="snap-part"><span class="pn">外部投入</span><b class="' + flowCls + '">' +
       (zero ? "0" : fmtAmt(flow)) + "</b>" + qFlow.btn + "</div>" + qFlow.note);
-  /* 「总变化 ＝ 涨跌 ＋ 资金」这个等式收进「?」——原用「变化组成」标题行表示，
+  /* 「总变化 ＝ 市场盈亏 ＋ 外部投入」这个等式收进「?」——原用「变化组成」标题行表示，
    * 但列表本身没有缩进、从属关系读不出来；现在由 .snap-parts 的缩进 + 竖线表达。 */
-  const qTot = qPair("总变化 ＝ 本期盈亏 ＋ 资金。只有市场波动（本期盈亏）与账户外资金进出会改变总资产；" +
+  const qTot = qPair("总变化 ＝ 市场盈亏 ＋ 外部投入。只有市场波动（市场盈亏）与账户外资金进出会改变总资产；" +
     "买入/卖出、申购/赎回都只是账户内的转换（现金 ↔ 持仓），不计入其中。", "总变化口径");
   return '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtYuan(tp) + " → <b>" + fmtYuan(tc) + "</b></span></div>" +
     /* 总变化是父行，下面两项是它的组成部分；整行仍是「标签 | 数值 | ?」三列 */
@@ -2275,28 +2400,32 @@ function snapActions(prev, cur) {
   sell.forEach((e) => parts.push('<span class="snap-tag close">卖出 ' + esc(e.sym) + " " + fmtQty(e.qty) + ' 份</span>'));
   return '<div class="snap-line acts"><span class="n" title="只含场内（券商）买卖；场外定投申购不产生本页流水，体现在持仓成本变化上">场内动作</span><span class="v">' + parts.join("") + "</span></div>";
 }
-const SNAP_TAG_CLS = { "加仓": "add", "减仓": "cut", "清仓": "close", "建仓": "open" };
+/* 事件标签：单一来源（中文 → 配色 class），文案即 key。
+   原来 CLS（中文→class）与 TXT（class→中文）是两张互逆的表，只改一张就会标签与配色错位。 */
+const SNAP_TAGS = { "建仓": "open", "加仓": "add", "减仓": "cut", "清仓": "close" };
+const snapTagCls = (txt) => SNAP_TAGS[txt] || "add";
+const SNAP_TAG_TXT = Object.keys(SNAP_TAGS).reduce((m, k) => { m[SNAP_TAGS[k]] = k; return m; }, {});
 /* 期次解读文本：⚠ 标记着色强调（内容原样，仅加语义包裹） */
 const snapNoteHtml = (t) => esc(t).split("⚠").join('<b class="warn">⚠</b>');
-/* 快照明细行：「名称(+仓位小标签) | 本期盈亏 | 累计盈亏」——本位是盈亏，仓位仅作后缀提示 */
-const SNAP_TAG_TXT = { open: "建仓", close: "清仓", add: "加仓", cut: "减仓" };
+/* 快照明细行：「名称(+仓位小标签) | 市场盈亏 | 累计盈亏」——本位是盈亏，仓位仅作后缀提示 */
 const snapSigned = (v) => '<span class="' + cls(v) + '">' + (v >= 0 ? "+" : "−") + fmtAbs2(v) + "</span>";
 /* ===== 持仓来源标签（全页统一口径，唯一取值处）=====
- * 场内＝券商账户（页面通篇用「场内」，与标题／页脚／汇总卡／口径标签一致，不另起别名）；
+ * 场内/场外由 SNAP_MKT 判定（历史快照不受当前持仓变动影响），渠道简称才取自 OTC.funds。
  * 场外＝持有渠道简称：博时APP→博时、华安基金→华安、南方基金→南方、广发基金→广发，支付宝原样。
  * 只取 2~3 字：快照明细的名称列很窄，而「盈亏总览」的渠道行要与它长得一模一样，
  * 长渠道名会把名称挤成省略号。完整渠道名放 title，需要精确时看悬停。 */
 let SRC_LABELS = null;
 function srcLabel(code) {
+  if (isOnExchange(code)) return { s: "场内", f: "场内券商账户" };
   if (!SRC_LABELS) {
     SRC_LABELS = {};
-    ((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).forEach((p) => { SRC_LABELS[p.code] = { s: "场内", f: "场内券商账户" }; });
     ((typeof OTC !== "undefined" && OTC.funds) || []).forEach((x) => {
       const full = String(x.channel || "场外");
       SRC_LABELS[x.code] = { s: full.replace(/(APP|基金)$/, "") || full, f: full };
     });
   }
-  return SRC_LABELS[code] || { s: "—", f: "" };
+  /* 已清仓/历史标的可能既不在 OTC.funds 也不在 hold 里，回落到「场外」而不是「—」 */
+  return SRC_LABELS[code] || { s: "场外", f: "场外基金" };
 }
 function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc) {
   let qt = "";
@@ -2317,6 +2446,8 @@ function snapPairHtml(prev, cur) {
   const dTot = tc - tp;
   const flow = snapFlow(prev, cur);
   const dPl = dTot - flow;   // 期间盈亏变化（= Δ浮盈亏，含已实现）
+  /* 场内/场外拆分只算一次：对照条小注与明细分组小计共用（原在 snapPartsHtml 与分组处各算一遍） */
+  const sub = snapGrpSplit(prev, cur);
   const lines = [];
   let sumRow = "";
   /* 持仓明细 diff：仅当相邻两期均为完整快照时展示（三段式，按金额变化降序） */
@@ -2337,42 +2468,38 @@ function snapPairHtml(prev, cur) {
     /* 分成场内 / 场外两组：两者数据节奏不同（场内＝券商收盘一次到位，场外 QDII 逐只滞后一天），
        混在一张清单里读不出「谁在动」。每组给小计，合计行仍取全量 items（不套明细阈值），
        使「本期盈亏合计」＝上方「本期盈亏」、「累计合计」＝快照 pl。 */
-    const holdCodes = (((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).map((p) => p.code));
-    const isIn = (code) => holdCodes.indexOf(code) >= 0;
     const grpLines = { in: [], ot: [] };
-    diffs.forEach((d) => grpLines[isIn(d.code) ? "in" : "ot"].push(snapItemRow(d.code, d.name, d.dq, d.dPlItem, d.plCum, d.tag, isIn(d.code))));
-    const sub = snapGrpSplit(prev, cur);
+    diffs.forEach((d) => grpLines[isOnExchange(d.code) ? "in" : "ot"].push(snapItemRow(d.code, d.name, d.dq, d.dPlItem, d.plCum, d.tag, isOnExchange(d.code))));
     /* 场外净值日范围：QDII 逐只滞后，常不是同一天，直接列出来避免被读成「同一天的数据」 */
     const navSet = [];
-    if (typeof OTC !== "undefined" && OTC.funds) codes.filter((c) => !isIn(c)).forEach((c) => {
+    if (typeof OTC !== "undefined" && OTC.funds) codes.filter((c) => !isOnExchange(c)).forEach((c) => {
       const f = OTC.funds.filter((x) => x.code === c)[0];
-      /* 只收本批新鲜净值（距快照日 ≤3 天）：广发/华安的截图页不含净值行、nav 沿用旧置值，
-         若一并计入会把范围拉到 09-10，读起来像「场外数据停在 09-10」——那是误解。 */
-      if (f && f.nav && f.nav.closeDate && Date.parse(f.nav.closeDate) >= Date.parse(cur.d) - 3 * 86400000
+      /* 只收本批新鲜净值（距快照日 ≤ 窗口天）：广发/华安的截图页不含净值行、nav 沿用旧置值，
+         若一并计入会把范围拉到未来日期，读起来像「场外数据停在那个日期」——那是误解。 */
+      if (f && f.nav && f.nav.closeDate && Date.parse(f.nav.closeDate) >= Date.parse(cur.d) - CONFIG.SNAP_NAV_FRESH_DAYS * 86400000
           && navSet.indexOf(f.nav.closeDate) < 0) navSet.push(f.nav.closeDate);
     });
     navSet.sort();
     const navTxt = !navSet.length ? "" : navSet.length === 1 ? "净值日 " + mdOf(navSet[0]) : "净值日 " + mdOf(navSet[0]) + "~" + mdOf(navSet[navSet.length - 1]) + " 混排";
-    const grpHead = (key, label, hint, tip) => (!grpLines[key].length && !sub[key].n) ? "" :
-      '<div class="snap-group" title="' + esc(tip) + '"><span>' + label + ' ' + sub[key].n + ' 只 <em>' + hint + "</em></span>" +
-        "<span>" + snapSigned(sub[key].d) + "</span><span>" + snapSigned(sub[key].c) + "</span></div>" + grpLines[key].join("");
-    lines.push(grpHead("in", "场内", "券商 " + mdOf(cur.d) + " 收盘", "场内＝券商账户，收盘后一次性更新"));
-    lines.push(grpHead("ot", "场外", navTxt || "QDII 净值滞后", "场外＝各基金 App 读数，QDII 净值滞后 1 个交易日，逐只数据日常不相同"));
+    const grpBlock = (key, label, hint, tip) => (!grpLines[key].length && !sub[key].n) ? "" :
+      '<details class="snap-grp"><summary class="snap-group" title="' + esc(tip) + '"><span>' + label + ' ' + sub[key].n + ' 只 <em>' + hint + "</em></span>" +
+        "<span>" + snapSigned(sub[key].d) + "</span><span>" + snapSigned(sub[key].c) + "</span></summary>" +
+        grpLines[key].join("") + "</details>";
+    lines.push(grpBlock("in", "场内", "券商 " + mdOf(cur.d) + " 收盘", "场内＝券商账户，收盘后一次性更新"));
+    lines.push(grpBlock("ot", "场外", navTxt || "QDII 净值滞后", "场外＝各基金 App 读数，QDII 净值滞后 1 个交易日，逐只数据日常不相同"));
     sumRow = '<div class="snap-line item snap-sum-row"><span class="n">合计 ' + codes.length + ' 只</span>' +
       '<span class="d">' + snapSigned(sub.in.d + sub.ot.d) + '</span><span class="v">' + snapSigned(sub.in.c + sub.ot.c) + "</span></div>";
   }
   const actsHtml = snapActions(prev, cur);
   return '<article class="snap-item" data-d="' + cur.d + '">' +
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
-      '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（隔 " + spanDays + " 天）" : "") + "</span>" +
-      (cur.tag ? '<span class="snap-tag ' + (SNAP_TAG_CLS[cur.tag] || "add") + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
-    snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, snapGrpSplit(prev, cur), { trio: true }) +
+      '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（跨 " + spanDays + " 天）" : "") + "</span>" +
+      (cur.tag ? '<span class="snap-tag ' + snapTagCls(cur.tag) + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
+    snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, sub, { trio: true }) +
     (actsHtml ? '<div class="snap-divider"></div>' + actsHtml : "") +
     (lines.length
-      ? '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（间隔 ' + spanDays + ' 天）">本期盈亏' + (spanDays > 1 ? "·" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' + lines.join("") + sumRow
-      : (!prev.items || !cur.items ? "" :
-        '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span></div>' +
-        '<div class="snap-line item"><span class="n"></span><span class="d"></span><span class="v" style="color:var(--tx3)">无变动</span></div>')) +
+      ? '<div class="snap-divider"></div><div class="snap-group-title"><span>持仓变化</span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（跨 ' + spanDays + ' 天，含休市）">市场盈亏' + (spanDays > 1 ? "·跨" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' + lines.join("") + sumRow
+      : "") +
     (cur.note ? '<div class="snap-note">' + snapNoteHtml(cur.note) + "</div>" : "") +
   "</article>";
 }
@@ -2497,7 +2624,7 @@ function renderSnapLog() {
     const dTot = snapTotal(b) - snapTotal(a);
     const dPl = (typeof a.pl === "number" && typeof b.pl === "number") ? b.pl - a.pl : dTot - snapFlow(a, b);
     const flow = dTot - dPl;
-    const costHold = snapCost(b) - (typeof b.cash === "number" ? b.cash : 0);   // 持仓成本口径（剔现金，作浮亏%分母）
+    const costHold = snapHoldCost(b);   // 持仓成本口径（剔现金，作浮亏%分母）；简快照无 cash → null
     const plNow = typeof b.pl === "number" ? b.pl : null;
     html.push('<article class="snap-item snap-sum">' +
       '<h3 class="snap-head"><span class="snap-date">区间累计 ' + a.d.slice(5).replace("-", ".") + " → " + b.d.slice(5).replace("-", ".") + '</span>' +
@@ -2505,7 +2632,7 @@ function renderSnapLog() {
       /* 区间卡保持原样：本期盈亏 / 资金 + 当前浮盈浮亏（三口径对照条只用于逐期卡） */
       snapPartsHtml(a, b, dTot, dPl, flow, Math.max(1, Math.round((Date.parse(b.d) - Date.parse(a.d)) / 86400000)), snapGrpSplit(a, b)) +
       (plNow !== null ? '<div class="snap-part"><span class="pn">' + (plNow >= 0 ? "当前浮盈" : "当前浮亏") + '</span><b class="pv ' + cls(plNow) + '">' + fmtAmt2(plNow) +
-        ' <span class="snap-sub">（' + (costHold ? fmtPct(plNow / costHold, 2) : "--") + " · 成本 " + fmtYuan(costHold) + '）</span>' +
+        ' <span class="snap-sub">（' + (costHold ? fmtPct(plNow / costHold, 2) : "--") + " · 成本 " + (costHold !== null ? fmtYuan(costHold) : "--") + '）</span>' +
         /* 两段小注都要写在同一个网格单元内：漏在外面的那个会掉进行尾备用列，被右对齐到很远 */
         "</b></div>" : "") +
       "</article>");
@@ -3195,6 +3322,16 @@ document.addEventListener("click", (e) => {
 });
 
 /* ---- 错误兜底 ---- */
+/* 单卡渲染兜底：把失败限制在该卡容器内，其余卡片照常出图 */
+function safeCard(id, label, fn) {
+  try { fn(); }
+  catch (e) {
+    console.error(label + "渲染异常:", e);
+    const el = $(id);
+    if (el) el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--red)">' +
+      label + "渲染失败：" + esc(e && e.message ? e.message : "未知错误") + "</span></div>";
+  }
+}
 function render() {
   try { renderImpl(); }
   catch (e) {
@@ -3239,13 +3376,25 @@ function syncCostBtn() {
   b.classList.toggle("on", trendShowCost);
   b.setAttribute("aria-pressed", trendShowCost ? "true" : "false");
 }
-$("lg-cost").addEventListener("click", () => {
+/* 「累计投入」开关：按钮由 renderTrendLegend 生成（只在金额视图存在），
+   所以事件必须委托在图例容器上，不能绑在按钮本身（每次重绘按钮都是新节点）。 */
+$("trend-legend").addEventListener("click", (e) => {
+  if (!e.target.closest("#lg-cost")) return;
   trendShowCost = !trendShowCost;
   try { localStorage.setItem("wb_ndxspx_trendcost", trendShowCost ? "1" : "0"); } catch (err) {}
   syncCostBtn();
   if (trendCtx) renderTrend(trendCtx.v, trendCtx.c);
 });
-syncCostBtn();
+/* 结论行的 ⓘ：点开/收起口径说明。同样用委托（#trend-sum 是常驻节点，内容会被重绘）。 */
+$("trend-sum").addEventListener("click", (e) => {
+  const b = e.target.closest(".sum-info");
+  if (!b) return;
+  const note = $("trend-sum").querySelector(".sum-note");
+  if (!note) return;
+  const open = note.hasAttribute("hidden");
+  if (open) note.removeAttribute("hidden"); else note.setAttribute("hidden", "");
+  b.setAttribute("aria-expanded", open ? "true" : "false");
+});
 bindTrendCrosshair();
 
 /* ---- ?debug 数据自检（维护用：校验持仓/快照/归因一致性；正常访问零开销） ---- */
