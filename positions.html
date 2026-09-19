@@ -1882,8 +1882,17 @@ function renderRateView(box, pts) {
   trendLayout = { px: px, py: py, pts: pts, mode: "rate" };
   if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · 成本口径 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   const zeroY = Y(0);
+  /* 基准线：把 NDX 同期涨幅「锚定」在组合线的起点值上，两条线从同一处出发——
+     差值即相对纳指的超额收益。若基准从 0% 起画（而组合起点是 −1.87%），两条线的
+     间距会把「入市前就亏的 1.87%」也算成超额，看不出真实相对表现。 */
   const bi = [];
-  pts.forEach((p, i) => { const b = benchRateAt(p.d); if (b !== null) bi.push({ i: i, b: b }); });
+  let b0 = null, bAnchor = 0;
+  pts.forEach((p, i) => {
+    const b = benchRateAt(p.d);
+    if (b === null) return;
+    if (b0 === null) { b0 = b; bAnchor = rate(p); }
+    bi.push({ i: i, b: bAnchor + (1 + b) / (1 + b0) - 1 });
+  });
   let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="收益率走势：当前 ' + fmtPct(rate(pts[pts.length - 1]), 2) + '">';
   [hi, (hi + lo) / 2, lo].forEach((tv) => {
     const y = Y(tv).toFixed(1);
@@ -1913,9 +1922,9 @@ function renderRateView(box, pts) {
   let sum = "成本口径 · 全账户";
   if (bi.length >= 2) {
     const lb = bi[bi.length - 1].b;
-    sum += " · 同期基准（NDX）<b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
+    sum += " · 灰虚线＝同期纳指（<b>与组合同起点</b>）<b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
   } else {
-    sum += " · <span style=\"color:var(--tx3)\">基准待补：在 data.js 的 BENCH 记入各期 NDX 收盘即可对比</span>";
+    sum += " · <span style=\"color:var(--tx3)\">基准待补：在 data.js 的 BENCH 记入各期 NDX 收盘即可对比（可跑 node scripts/sync-bench.mjs 自动补）</span>";
   }
   if ($("trend-sum")) $("trend-sum").innerHTML = sum;
 }
