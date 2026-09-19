@@ -532,6 +532,15 @@
   .closed-row .c-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
   .closed-total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 7px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-sm); }
   .closed-total b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  /* 清仓结论：左侧细条作锚点（与快照卡的 .lead 同一手法，不铺底色块） */
+  .closed-lead { font-size: var(--fs-xs); color: var(--tx2); line-height: 1.6; border-left: 2px solid var(--info); padding: 1px 0 1px 8px; margin: 9px 0 2px; }
+  /* 全部明细：原生 details 折叠，默认收起（17 行全铺会盖过上面的结论） */
+  .closed-all { margin-top: 8px; border-top: 1px dashed var(--line-soft); padding-top: 7px; }
+  .closed-all > summary { cursor: pointer; font-size: var(--fs-xs); color: var(--tx3); list-style: none; }
+  .closed-all > summary::-webkit-details-marker { display: none; }
+  .closed-all > summary::before { content: "▸ "; }
+  .closed-all[open] > summary::before { content: "▾ "; }
+  .closed-all[open] > summary { margin-bottom: 2px; }
   .trend-dot { cursor: pointer; }
   .footer { text-align: center; font-size: var(--fs-xs); color: var(--tx3); margin: 20px auto 0; max-width: 720px; line-height: 1.8; }
 
@@ -2121,33 +2130,58 @@ function snapPairHtml(prev, cur) {
 }
 /* ===== 清仓历史（已全部卖出的基金，仅留档）=====
  * 这些盈亏发生在首份快照（2026-08-28）之前，所以上方「本金与收益」里看不到它们——
- * 不单列出来，以后翻旧账会以为这两只从没买过。⚠ 它们不计入本金 / 累计收益 / 走势归因。 */
+ * 不单列出来，以后翻旧账会以为这些从没买过。⚠ 不计入本金 / 累计收益 / 走势归因。
+ * 呈现：按类别汇总（低风险债基 vs 权益）+ 全部明细可展开；留档数字精确到分，便于与 App 对账。 */
 function renderClosed() {
   const el = $("closed-card");
   if (!el) return;
-  const rows = (typeof CLOSED !== "undefined" && CLOSED.length) ? CLOSED : [];
-  if (!rows.length) {
+  const C = (typeof CLOSED !== "undefined" && CLOSED && CLOSED.items && CLOSED.items.length) ? CLOSED : null;
+  if (!C) {
     el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无清仓记录</span></div>';
     return;
   }
-  const sum = rows.reduce((a, r) => a + r.pnl, 0);
+  const rows = C.items;
   /* 留档记录精确到分（其他卡按页面惯例显示到元）——要与 App 逐笔对账，截断会看不出来 */
   const fmt2 = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const CATS = [
+    { cat: "债基", label: "低风险 · 纯债 / 中短债" },
+    { cat: "美股QDII", label: "权益 · 美股 / 全球 QDII" },
+    { cat: "日本QDII", label: "权益 · 日本 QDII" },
+    { cat: "A股行业", label: "权益 · A股行业指数" },
+  ];
+  const sum = rows.reduce((a, r) => a + r.pnl, 0);
+  const winN = rows.filter((r) => r.pnl > 0).length;
+  const byCat = CATS.map((g) => {
+    const rs = rows.filter((r) => (r.cat || "其他") === g.cat);
+    return { label: g.label, n: rs.length, sum: rs.reduce((a, r) => a + r.pnl, 0) };
+  }).filter((g) => g.n);
+  const low = rows.filter((r) => r.cat === "债基"), eq = rows.filter((r) => r.cat !== "债基");
+  const lowSum = low.reduce((a, r) => a + r.pnl, 0), eqSum = eq.reduce((a, r) => a + r.pnl, 0);
   const cnt = $("closed-cnt");
-  if (cnt) cnt.textContent = "（" + rows.length + " 只 · 合计 " + fmt2(sum) + " 元 · 均在本页跟踪基线之前清仓）";
+  if (cnt) cnt.textContent = "（支付宝 · " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 平均持有 " +
+    (C.avgHoldDays || "—") + " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）";
   const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
   const qNote = '<div class="strat-note" id="closed-q">'
-    + "来源：支付宝「清仓明细 · 盈亏排行」截图。<b>已清仓</b>＝该基金份额已全部卖出，不再持有、也不再加仓。<br>"
+    + "来源：支付宝「清仓分析」（覆盖「最赚 TOP」与「最亏 TOP」两栏，即全部 " + rows.length + " 笔）。"
+    + "<b>已清仓</b>＝该基金份额已全部卖出，不再持有、也不再加仓。<br>"
+    + "统计区间 " + (C.updated ? "2025-09-19 ~ " + C.updated : "最近一年") + "，App 注明「仅支持 2020.08 之后建仓的记录」；"
+    + "盈亏为清仓时兑现额（含费，App 口径）。<br>"
     + "⚠ 这些盈亏都发生在首份快照（2026-08-28）之前，所以<b>不在</b>本金 / 累计收益 / 走势归因里——"
-    + "本金是从快照推导的，快照之前的事它看不到。<br>"
-    + "右侧数字是清仓时兑现的总盈亏（含费，App 口径）。若要把这段并入「总账」，需补清仓日期与当时的投入金额。</div>";
-  el.innerHTML = rows.map((r) =>
+    + "本金是从快照推导的，快照之前的事它看不到。若要把这段并入「总账」，需补清仓日期与当时的投入金额。<br>"
+    + "类别为手工标注（债基 / 美股QDII / 日本QDII / A股行业），仅用于看清「钱是从哪类资产上赚赔的」。</div>";
+  const detail = rows.map((r) =>
       '<div class="closed-row"><span class="c-nm"><b>' + esc(r.name) + "</b>" +
+        '<span class="c-code">' + esc(r.cat || "其他") + "</span>" +
         (r.code ? '<span class="c-code">' + esc(r.code) + "</span>" : "") +
         (r.note ? '<div class="otc-note" style="margin:3px 0 0;padding:0;border:0">' + esc(r.note) + "</div>" : "") +
-      '</span><span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>").join("") +
-    '<div class="closed-total"><span>合计清仓盈亏' + qBtn + "</span><b class=\"" + cls(sum) + '">' + fmt2(sum) + "</b></div>" +
-    qNote;
+      '</span><span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>").join("");
+  el.innerHTML =
+    byCat.map((g) => '<div class="closed-row"><span class="c-nm"><b>' + esc(g.label) + '</b><span class="c-code">' + g.n + ' 只</span></span><span class="c-v ' + cls(g.sum) + '">' + fmt2(g.sum) + "</span></div>").join("") +
+    '<div class="closed-total"><span>合计清仓盈亏' + qBtn + "（" + rows.length + " 只）</span><b class=\"" + cls(sum) + '">' + fmt2(sum) + "</b></div>" +
+    qNote +
+    '<div class="closed-lead">这段历史里<b>赚钱的全部来自低风险债基（' + fmt2(lowSum) + "，" + low.length + " 只）</b>；" +
+      "权益类（QDII / 行业指数，" + eq.length + " 只）合计 <b class=\"" + cls(eqSum) + '">' + fmt2(eqSum) + "</b>，两者相抵才是 " + fmt2(sum) + "。</div>" +
+    '<details class="closed-all"><summary>展开全部 ' + rows.length + " 只明细（按盈亏排序）</summary>" + detail + "</details>";
 }
 
 /* ===== 本金与收益（一眼看清「投了多少 → 现在多少 → 赚亏多少」）=====
@@ -3078,6 +3112,18 @@ bindTrendCrosshair();
     const miss = (ACCT_STATS.monthly || []).filter((r) => !Number.isFinite(r.pct) || !Number.isFinite(r.bench));
     if (!Number.isFinite(ACCT_STATS.benchYtd)) bad.push("缺 benchYtd");
     if (miss.length) bad.push(miss.map((r) => r.m).join("/") + " 缺收益率或基准");
+    return bad.length ? bad.join("；") : true;
+  });
+  chk("清仓记录自洽（明细合计 = 总收益；只数 / 盈利率一致）", () => {
+    if (typeof CLOSED === "undefined" || !CLOSED || !CLOSED.items) return "无清仓记录";
+    const bad = [], rs = CLOSED.items;
+    const s = rs.reduce((a, r) => a + r.pnl, 0);
+    if (Math.abs(s - CLOSED.total) > 0.02) bad.push("明细合计 " + s.toFixed(2) + " ≠ 总收益 " + CLOSED.total);
+    if (rs.length !== CLOSED.count) bad.push("明细 " + rs.length + " 只 ≠ 记录 " + CLOSED.count + " 只");
+    const wr = rs.filter((r) => r.pnl > 0).length / rs.length * 100;
+    if (Math.abs(wr - CLOSED.winRate) > 0.02) bad.push("盈利率 " + wr.toFixed(2) + "% ≠ " + CLOSED.winRate + "%");
+    const noCat = rs.filter((r) => !r.cat);
+    if (noCat.length) bad.push(noCat.length + " 只缺类别");
     return bad.length ? bad.join("；") : true;
   });
 
