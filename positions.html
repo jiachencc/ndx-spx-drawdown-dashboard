@@ -504,8 +504,14 @@
   .tchip.on { background: var(--accent-bg); color: var(--blue); border-color: var(--accent-line); font-weight: 600; }
   .tchip:disabled { opacity: .35; cursor: default; }
   /* min-height 按「金额」视图的两行读数预留，切视图时不跳动 */
-  .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 4px 6px; margin-bottom: 6px; background: var(--card2); border: 1px dashed var(--line-soft); border-radius: 8px; min-height: 36px; line-height: 1.6; }
+  .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 4px 6px; margin-bottom: 6px;
+ background: var(--card2); border: 1px dashed var(--line-soft); border-radius: 8px; min-height: 36px; line-height: 1.6; }
   .trend-readout b { color: var(--tx); }
+  /* 区间统计（点两个数据点后出现）；:empty 让未选中时整行不占位 */
+  .trend-range { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 4px 6px; line-height: 1.6; }
+  .trend-range:empty { display: none; }
+  .trend-range b { color: var(--tx); }
+  .trend-dot.sel { stroke: var(--warn); stroke-width: 4; }
   #trend-box { touch-action: pan-y; }   /* 纵向滚动留给页面，横向滑动供 crosshair 吸附 */
   .lg-toggle { background: none; border: none; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 0; }
   .lg-toggle:not(.on) { opacity: .4; text-decoration: line-through; }
@@ -632,6 +638,7 @@ try {
       <div class="trend-chips" id="trend-chips"></div>
     </div>
     <div class="trend-readout" id="trend-readout">移动或滑动查看各期 · 点击数据点看详情</div>
+    <div class="trend-range" id="trend-range"></div>
     <div id="trend-box"></div>
     <div class="trend-legend"><span title="蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）"><i></i>总资产</span><button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button><span title="下方每根柱把该期「总资产变化」拆成两段：市值盈亏（绿盈 / 红亏）＋ 资金进出（青色）。逐期金额见上方读数条">归因：<i class="sq" style="background:var(--down)"></i>亏 <i class="sq" style="background:var(--up)"></i>盈 <i class="sq" style="background:var(--info)"></i>资金</span></div>
   </div>
@@ -1343,6 +1350,8 @@ let trendPts = [];        // 气泡/crosshair 数据（当前区间过滤后）
 let trendRange = "all";   // 时间范围：all/1m/3m/6m/1y（快照日期过滤，非重采样）
 let trendShowCost = true; // 投入线开关（localStorage 持久化）
 let trendLayout = null;   // { px, py, pts }（crosshair 最近点计算用）
+let trendSelOn = false;   // 「区间统计」模式：点两个数据点选一段
+let trendSel = [];        // 选中点在当前 trendPts 里的下标（最多 2 个，升序）
 const TREND_RANGES = [["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
 /* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准）
  *           dd 回撤（资金流调整后的单位净值口径，剔除转入/转出造成的假回撤） */
@@ -1354,7 +1363,38 @@ function renderTrendViews() {
   if (!el) return;
   el.innerHTML = TREND_VIEWS.map(([k, label]) =>
     '<button type="button" class="tchip' + (trendView === k ? " on" : "") + '" data-v="' + k + '">' + label + "</button>"
-  ).join("");
+  ).join("") +
+    /* 区间统计：与视图并列的开关（不是视图）——打开后点两个数据点即可量一段 */
+    '<button type="button" class="tchip' + (trendSelOn ? " on" : "") + '" data-sel="1" title="打开后点两个数据点，量这一段的收益 / 回撤 / 净值">区间统计</button>';
+}
+/* ---- 区间统计：点两个数据点 → 算这一段的浮盈亏变化、区间最大回撤、区间净值 ----
+ * 回撤用与「回撤」视图同一套资金流调整净值链（trendNav），只取区间内的点（区间起点归一）。 */
+function paintTrendSel() {
+  const box = $("trend-box"), el = $("trend-range");
+  if (box) box.querySelectorAll(".trend-dot").forEach((d) => d.classList.toggle("sel", trendSel.indexOf(+d.dataset.i) >= 0));
+  if (!el) return;
+  const pts = trendPts;
+  if (!trendSelOn) { el.innerHTML = ""; return; }
+  if (trendSel.length < 2) {
+    el.innerHTML = '<span class="warn">点两个数据点选区间</span>' + (trendSel.length ? "（已选 1 个）" : "");
+    return;
+  }
+  const i0 = trendSel[0], i1 = trendSel[1], a = pts[i0], b = pts[i1];
+  if (!a || !b) { el.innerHTML = ""; return; }
+  const seg = trendNav(pts.slice(i0, i1 + 1));
+  const days = Math.round((Date.parse(b.d) - Date.parse(a.d)) / 86400000);
+  const plA = a.val - a.cost, plB = b.val - b.cost, dPl = plB - plA;
+  const navEnd = seg.nav[seg.nav.length - 1];
+  el.innerHTML = '<b>' + mdOf(a.d) + " → " + mdOf(b.d) + "</b>（" + days + " 天）· 浮盈亏 " + fmtAmt(plA) + " → <b>" + fmtAmt(plB) +
+    "</b>（" + (dPl >= 0 ? "+" : "−") + fmtAbs2(dPl) + "）· 区间最大回撤 <b class=\"down\">" + fmtPct(seg.dd[seg.deepI], 2) +
+    "</b> · 区间净值 <b>" + navEnd.toFixed(4) + "</b>（" + fmtPct(navEnd - 1, 2) + "，已剔除资金进出）";
+}
+function selectTrendPoint(i) {
+  if (trendSel.length >= 2) trendSel = [];                                   // 第三次点击：重新开始选
+  if (trendSel.indexOf(i) >= 0) trendSel = trendSel.filter((x) => x !== i);
+  else trendSel.push(i);
+  trendSel.sort((a, b) => a - b);
+  paintTrendSel();
 }
 const RANGE_DAYS = { "1m": 31, "3m": 92, "6m": 183, "1y": 365 };
 try { trendShowCost = localStorage.getItem("wb_ndxspx_trendcost") !== "0"; } catch (e) {}
@@ -1980,6 +2020,14 @@ function bindTrendCrosshair() {
   box.addEventListener("pointermove", pick);
   box.addEventListener("pointerdown", pick);
   box.addEventListener("pointerleave", () => showXhair(-1));
+  /* 区间统计模式下的点选：click 在 pointerup 之后触发，不会与 crosshair 的 pick 抢事件 */
+  box.addEventListener("click", (e) => {
+    if (!trendSelOn || !trendLayout || trendLayout.px.length < 2) return;
+    const r = box.getBoundingClientRect(), cx = e.clientX - r.left;
+    let best = 0, bd = Infinity;
+    trendLayout.px.forEach((x, i) => { const d = Math.abs(x - cx); if (d < bd) { bd = d; best = i; } });
+    selectTrendPoint(best);
+  });
 }
 
 /* ================= 快照对比日志（相邻快照自动 diff + 资金归因） ================= */
@@ -3085,9 +3133,18 @@ render();
 
 /* ---- 走势图交互绑定：时间 chips / 图例开关 / crosshair（box 元素持久，innerHTML 重绘不影响监听） ---- */
 $("trend-views").addEventListener("click", (e) => {
+  const sel = e.target.closest("[data-sel]");
+  if (sel) {   // 「区间统计」开关：只切模式与提示，不重绘图表
+    trendSelOn = !trendSelOn;
+    trendSel = [];
+    renderTrendViews();
+    paintTrendSel();
+    return;
+  }
   const b = e.target.closest("[data-v]");
   if (!b || b.dataset.v === trendView) return;
   trendView = b.dataset.v;
+  trendSel = [];   // 换视图后点位与顺序都变，清空选中避免错位
   try { localStorage.setItem("trendView", trendView); } catch (err) { /* 隐私模式下忽略 */ }
   renderTrendViews();
   if (trendCtx) renderTrend(trendCtx.v, trendCtx.c);
@@ -3096,6 +3153,7 @@ $("trend-chips").addEventListener("click", (e) => {
   const b = e.target.closest(".tchip");
   if (!b || b.disabled || b.dataset.r === trendRange) return;
   trendRange = b.dataset.r;
+  trendSel = [];   // 时间范围变了，下标失效
   if (trendCtx) renderTrend(trendCtx.v, trendCtx.c);
 });
 function syncCostBtn() {
