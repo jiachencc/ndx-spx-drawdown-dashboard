@@ -523,6 +523,15 @@
   .bench-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border: 1px solid; border-radius: 5px; padding: 1px 6px; white-space: nowrap; font-feature-settings: "tnum"; }
   .bench-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
   .bench-chip.down { color: var(--down); border-color: var(--down-line); background: var(--down-bg); }
+  /* 清仓历史：名称（带代码）左、兑现盈亏右；末行合计与上方虚线分隔 */
+  .closed-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
+  .closed-row:last-of-type { border-bottom: 0; }
+  .closed-row .c-nm { min-width: 0; }
+  .closed-row .c-nm b { font-weight: 600; color: var(--tx2); }
+  .closed-row .c-code { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-left: 6px; }
+  .closed-row .c-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
+  .closed-total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 7px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-sm); }
+  .closed-total b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
   .trend-dot { cursor: pointer; }
   .footer { text-align: center; font-size: var(--fs-xs); color: var(--tx3); margin: 20px auto 0; max-width: 720px; line-height: 1.8; }
 
@@ -620,6 +629,10 @@ try {
 
   <h2 class="sec-title"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
   <div class="card" id="acct-card" style="padding:12px 14px;"></div>
+
+  <h2 class="sec-title"><span aria-hidden="true">🏁</span> 清仓历史 <span class="cnt" id="closed-cnt"></span></h2>
+  <div class="card" id="closed-card" style="padding:12px 14px;"></div>
+
 
   <h2 class="sec-title"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
   <div class="card" id="snap-list" style="padding:4px 14px;"></div>
@@ -1309,6 +1322,7 @@ function renderImpl() {
      把浮亏显示成浮盈（差值填充因此变绿）。修复后 today.val − cost ≡ totalPl。 */
   renderTrend(totalVal, totalCost + OTC.cash);
   renderPrincipal();
+  renderClosed();
   renderSnapLog();
   renderAcctStats();
   renderSwing();
@@ -2105,6 +2119,37 @@ function snapPairHtml(prev, cur) {
     (cur.note ? '<div class="snap-note">' + snapNoteHtml(cur.note) + "</div>" : "") +
   "</article>";
 }
+/* ===== 清仓历史（已全部卖出的基金，仅留档）=====
+ * 这些盈亏发生在首份快照（2026-08-28）之前，所以上方「本金与收益」里看不到它们——
+ * 不单列出来，以后翻旧账会以为这两只从没买过。⚠ 它们不计入本金 / 累计收益 / 走势归因。 */
+function renderClosed() {
+  const el = $("closed-card");
+  if (!el) return;
+  const rows = (typeof CLOSED !== "undefined" && CLOSED.length) ? CLOSED : [];
+  if (!rows.length) {
+    el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无清仓记录</span></div>';
+    return;
+  }
+  const sum = rows.reduce((a, r) => a + r.pnl, 0);
+  /* 留档记录精确到分（其他卡按页面惯例显示到元）——要与 App 逐笔对账，截断会看不出来 */
+  const fmt2 = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const cnt = $("closed-cnt");
+  if (cnt) cnt.textContent = "（" + rows.length + " 只 · 合计 " + fmt2(sum) + " 元 · 均在本页跟踪基线之前清仓）";
+  const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
+  const qNote = '<div class="strat-note" id="closed-q">'
+    + "来源：支付宝「清仓明细 · 盈亏排行」截图。<b>已清仓</b>＝该基金份额已全部卖出，不再持有、也不再加仓。<br>"
+    + "⚠ 这些盈亏都发生在首份快照（2026-08-28）之前，所以<b>不在</b>本金 / 累计收益 / 走势归因里——"
+    + "本金是从快照推导的，快照之前的事它看不到。<br>"
+    + "右侧数字是清仓时兑现的总盈亏（含费，App 口径）。若要把这段并入「总账」，需补清仓日期与当时的投入金额。</div>";
+  el.innerHTML = rows.map((r) =>
+      '<div class="closed-row"><span class="c-nm"><b>' + esc(r.name) + "</b>" +
+        (r.code ? '<span class="c-code">' + esc(r.code) + "</span>" : "") +
+        (r.note ? '<div class="otc-note" style="margin:3px 0 0;padding:0;border:0">' + esc(r.note) + "</div>" : "") +
+      '</span><span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>").join("") +
+    '<div class="closed-total"><span>合计清仓盈亏' + qBtn + "</span><b class=\"" + cls(sum) + '">' + fmt2(sum) + "</b></div>" +
+    qNote;
+}
+
 /* ===== 本金与收益（一眼看清「投了多少 → 现在多少 → 赚亏多少」）=====
  * 本金 ＝ 外部净转入，由快照推导：总资产 − 累计浮盈亏（≡ Σ持仓成本 + 现金）。
  *   买入/卖出、申购/赎回、手续费、税费都只是账户内的「现金 ↔ 持仓」转换，不改变本金；
