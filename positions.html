@@ -493,7 +493,7 @@
   .trend-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; font-size: var(--fs-xs); color: var(--tx3); padding: 7px 4px 4px; }
   .trend-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--blue); vertical-align: middle; margin-right: 4px; border-radius: 2px; }
   .trend-legend i.cost { border-top-style: dashed; border-top-color: var(--cyan); }
-  .trend-legend i.base { border-top-color: var(--tx2); border-top-style: dashed; }
+  .trend-legend i.base { border-top-color: var(--tx); border-top-style: dashed; }   /* 与图内基准线同色 */
   .trend-legend i.dn { border-top-color: var(--down); }
   .trend-legend .tdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--blue); background: var(--card); vertical-align: middle; margin-right: 4px; }
   .trend-legend .sq { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
@@ -529,6 +529,12 @@
      孤零零占掉第二行右端。去掉后六个 chip 一行放得下（含 20px 余量），真挤不下时也是左对齐折行。 */
   .trend-bar .trend-chips + .trend-chips { margin-left: 8px; }
   .tchip { font-size: var(--fs-xs); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); white-space: nowrap; }
+  /* 窄屏把 chip 与间距各收 1~2px：六个 chip 在 375~390px 也能排成一行（原先差约 7px 会折行） */
+  @media (max-width: 480px) {
+    .tchip { padding: 3px 7px; }
+    .trend-chips { gap: 5px; }
+    .trend-bar { gap: 5px 7px; }
+  }
   .tchip.on { background: var(--accent-bg); color: var(--blue); border-color: var(--accent-line); font-weight: 600; }
   .tchip:disabled { opacity: .35; cursor: default; }
 
@@ -541,9 +547,6 @@
   .trend-readout b { color: var(--tx); }
   /* ↓ 金额视图的三层结构：状态头 / 三列主数 / 归因等式 */
   .trend-readout.ro-rich { text-align: left; min-height: 78px; }
-  /* 单行读数（盈亏全程 / 收益率 / 回撤）：整行一个 flex item（见 roLine 注释），
-     段内 .nb 不拆 → 折行只落在段之间，不会把「成本口径」与它的数字拆到两行。 */
-  .trend-readout .ro-line { display: block; }
   .trend-readout .nb { white-space: nowrap; }
   .ro-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-bottom: 5px; font-size: var(--fs-xxs); color: var(--tx3); }
   .ro-date { color: var(--tx); font-weight: 700; white-space: nowrap; }
@@ -1423,6 +1426,11 @@ const TREND_RANGES = [["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], [
  *           dd 回撤（资金流调整后的单位净值口径，剔除转入/转出造成的假回撤） */
 let trendView = "amount";
 try { trendView = localStorage.getItem("trendView") || "amount"; } catch (err) { /* 隐私模式下忽略 */ }
+/* 四个视图共用的绘图几何与线型 —— 原先各自为政（mL 42/46/48、mT 16/20、mB 22/24、
+   绘图区高度 178/254、圆点 r 3.6~5），切视图时左轴横移、圆点跳大跳小，观感跳变。
+   改这里一处，四张图同时跟。H 统一 210：金额视图撤掉归因柱后独占 254、另三个视图 178，
+   取中间值既保住纵向分辨率，又消掉切换时约 76px 的高度跳变（四图同高，切换不再上下窜）。 */
+const TREND_GEO = { mL: 46, mR: 12, mT: 20, mB: 24, H: 210, dot: 3.8, dotBig: 5, axis: "var(--tx3)", axisW: 1.2 };
 const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"], ["dd", "回撤"]];
 function renderTrendViews() {
   const el = $("trend-views");
@@ -1581,6 +1589,18 @@ function benchRateAt(d) {
   const keys = Object.keys(BENCH).sort();
   if (!keys.length || typeof BENCH[d] !== "number" || !BENCH[keys[0]]) return null;
   return BENCH[d] / BENCH[keys[0]] - 1;
+}
+/* 基准的相对收益，归一到「该点之前第一个有基准的日期」——与「收益率」视图内基准线**同一算法**，
+   读数条据此显示「同期纳指 / 超额」，避免图与读数两处口径漂移。 */
+function benchRelAt(pts, k) {
+  let b0 = null, out = null;
+  for (let i = 0; i <= k; i++) {
+    const b = benchRateAt(pts[i].d);
+    if (b === null) continue;
+    if (b0 === null) b0 = b;
+    out = (1 + b) / (1 + b0) - 1;
+  }
+  return out;
 }
 function buildTrendPts(todayVal, todayCost) {
   const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
@@ -1769,7 +1789,7 @@ function renderDdView(box, pts) {
   if (!pts || pts.length < 2) { box.innerHTML = '<div class="trend-empty">数据不足，无法计算回撤（至少需要 2 期）。</div>'; return; }
   const N = trendNav(pts);
   const dd = N.dd, deepI = N.deepI, peakI = N.peakI, recI = N.recI;
-  const W = box.clientWidth || 320, H = 178, mL = 46, mR = 12, mT = 20, mB = 24;
+  const W = box.clientWidth || 320, H = TREND_GEO.H, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
@@ -1790,13 +1810,13 @@ function renderDdView(box, pts) {
   });
   svg += '<polygon points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + " " + P(px[px.length - 1]) + "," + P(zeroY) + " " + P(px[0]) + "," + P(zeroY) + '" style="fill:var(--down)" opacity=".14"/>' +
     '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--down);stroke-width:2"/>' +
-    '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
+    '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:' + TREND_GEO.axis + ';stroke-width:' + TREND_GEO.axisW + '"/>';
   /* 峰值点加一圈空心环（替代原先「峰值→谷底」的斜向虚线：那条线横穿填充区，
      读起来像水印，且起点日期在结论行里已有，不必在图上再画一条线）。 */
   if (peakI !== deepI)
     svg += '<circle cx="' + P(px[peakI]) + '" cy="' + P(py[peakI]) + '" r="6" style="fill:none;stroke:var(--down);stroke-width:1.5" opacity=".6"/>';
   pts.forEach((p, i) => {
-    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? 5 : 3.6) +
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="fill:var(--down);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
       p.d + " 回撤 " + fmtPct(dd[i], 2) + '"/>';
   });
@@ -1849,7 +1869,7 @@ function renderTrend(todayVal, todayCost) {
   /* 2026-09-19 撤掉下方归因柱区：共用一把尺时资金柱（最大 3.7 万）吃满 26px、市场柱最高只有 5.2px，
      12 根里 6 根 < 2px，形状读不出信息；逐期市场/资金数值在「快照对比」逐期卡与读数条里都有。
      省下的 86px 全部让给曲线（168 → 254px，纵向分辨率 +51%）。 */
-  const W = box.clientWidth || 320, H1 = 254, H = H1, mL = 42, mR = 12, mT = 16, mB = 22;
+  const W = box.clientWidth || 320, H1 = TREND_GEO.H, H = H1, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs);
   const span = t1 - t0 || 1;
@@ -1881,7 +1901,7 @@ function renderTrend(todayVal, todayCost) {
   svg += '<polyline points="' + py.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
     '" fill="none" style="stroke:var(--blue)" stroke-width="2"/>';
   pts.forEach((p, i) => {
-    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (p.isToday ? 4.5 : 4) +
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (p.isToday ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="' + (p.isToday ? "fill:var(--card);stroke:var(--blue)" : "fill:var(--blue);stroke:var(--card)") + ';stroke-width:2" tabindex="0" role="button" aria-label="' +
       (p.isToday ? "今日估算" : p.d) + " 总资产 " + fmtYuan(p.val) + '，点击查看详情"/>';
   });
@@ -1960,7 +1980,7 @@ function renderPnlView(box) {
     box.innerHTML = '<div class="trend-empty">暂无月度盈亏读数：在 data.js 的 ACCT_STATS.monthly 补 App 月度盈亏，即可生成建仓以来全程曲线。</div>';
     return;
   }
-  const W = box.clientWidth || 320, H = 178, mL = 48, mR = 12, mT = 20, mB = 24;
+  const W = box.clientWidth || 320, H = TREND_GEO.H, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
@@ -1983,7 +2003,7 @@ function renderPnlView(box) {
     svg += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
       '<text x="' + (mL - 6) + '" y="' + (+y + 3.5) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (tv / 10000).toFixed(1) + "万</text>";
   });
-  svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
+  svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:' + TREND_GEO.axis + ';stroke-width:' + TREND_GEO.axisW + '"/>';
   /* 面积：逐段按正负着色，跨零段按交点拆分 */
   for (let i = 0; i < pts.length - 1; i++) {
     const d1 = pts[i].pl, d2 = pts[i + 1].pl;
@@ -1999,7 +2019,7 @@ function renderPnlView(box) {
   }
   svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
   pts.forEach((p, i) => {
-    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? 5 : 3.8) +
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="fill:var(--' + col(p.pl) + ');stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
       p.d + " 账户累计盈亏 " + fmtAmt(p.pl) + ' 元"/>';
     if (i === 0 || i === pts.length - 1 || i === deepI)
@@ -2022,7 +2042,7 @@ function renderPnlView(box) {
 /* 视图③：收益率（%）—— 组合 vs 基准。剔除规模影响，直接看效率与是否跑赢躺平 */
 function renderRateView(box, pts) {
   const rate = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
-  const W = box.clientWidth || 320, H = 178, mL = 46, mR = 12, mT = 20, mB = 24;
+  const W = box.clientWidth || 320, H = TREND_GEO.H, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
@@ -2059,14 +2079,19 @@ function renderRateView(box, pts) {
     svg += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
       '<text x="' + (mL - 6) + '" y="' + (+y + 3.5) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (tv * 100).toFixed(1) + "%</text>";
   });
-  svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:var(--tx3);stroke-width:1.2"/>';
-  if (bi.length >= 2)
-    /* 基准线用 --tx2（原先 --tx3 太暗，深色底上跟网格线几乎同色，看不清差值在哪） */
-    svg += '<polyline points="' + bi.map((o) => P(px[o.i]) + "," + P(Y(o.b))).join(" ") + '" fill="none" style="stroke:var(--tx2);stroke-width:1.5" stroke-dasharray="5 4"/>';
+  svg += '<line x1="' + mL + '" y1="' + P(zeroY) + '" x2="' + (W - mR) + '" y2="' + P(zeroY) + '" style="stroke:' + TREND_GEO.axis + ';stroke-width:' + TREND_GEO.axisW + '"/>';
+  if (bi.length >= 2) {
+    /* 基准线：亮中性灰（--tx）+ 密虚线。原先 --tx3 与网格线几乎同色，深色底上「看不见差值在哪」；
+       再用 --tx2 仍偏暗，且与零轴同为灰系难分。--tx 是非语义色（不代表涨跌），只当参考线用。 */
+    svg += '<polyline points="' + bi.map((o) => P(px[o.i]) + "," + P(Y(o.b))).join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:1.5" stroke-dasharray="2 3"/>';
+    /* 线端标出基准终值：一条没有名字的灰线，读者只能猜它是谁 */
+    const lb = bi[bi.length - 1];
+    svg += '<text x="' + P(Math.max(mL + 20, px[lb.i] - 4)) + '" y="' + P(Math.min(H - mB - 2, Y(lb.b) + 13)) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">纳指 ' + fmtPct(lb.b, 2) + "</text>";
+  }
   svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
   pts.forEach((p, i) => {
     const r = ser[i];
-    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="3.8"' +
+    svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + TREND_GEO.dot + '"' +
       ' style="fill:var(--blue);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
       p.d + " 净值口径收益率 " + fmtPct(r, 2) + '"/>';
     if (i === 0 || i === pts.length - 1)
@@ -2094,14 +2119,8 @@ function renderRateView(box, pts) {
   }
   setTrendSum(sum, note);
 }
-/* 单行读数（盈亏全程 / 收益率 / 回撤）拼装。
- * ⚠ .trend-readout 是 flex 列容器：直接塞多个 <b>/文本节点，每个都会变成独立 flex item
- *   被逐行堆叠（实测「收益率」视图被拆成 5 行碎片）。所以整行必须包成**一个** flex item，
- *   内部再按行内流排版。
- * 段内用 .nb 设 nowrap，「·」并入后一段：折行只落在段之间，且「·」不会孤零零留在行尾或行首。 */
-function roLine(segs) {
-  return '<span class="ro-line">' + segs.map((s, i) => '<span class="nb">' + (i ? "· " : "") + s + "</span>").join("") + "</span>";
-}
+/* 原 roLine()（单行读数拼装）已删除：四个视图现在统一走「状态头 + 三列主数 + 口径行」三层结构，
+   不再有单行读数的分支；折行安全由 .nb 原子单元 + .ro-cell 整格 nowrap 保证。 */
 function showXhair(i) {
   const L = trendLayout;
   const box = $("trend-box");
@@ -2119,23 +2138,50 @@ function showXhair(i) {
   if (dot) { dot.style.display = hover ? "" : "none"; if (hover) { dot.setAttribute("cx", L.px[k].toFixed(1)); dot.setAttribute("cy", L.py[k].toFixed(1)); } }
   const p = L.pts[k], dt = p.isToday ? "今日估算" : p.d.slice(5).replace("-", ".");
   const mode = L.mode || "amount";
-  /* 金额视图用三列网格排版（更高），其余视图仍是单行；
-     .live 让「正在看某期」与「默认显示最新一期」在视觉上分得开 */
-  ro.classList.toggle("ro-rich", mode === "amount");
+  /* 四个视图统一「状态头 + 三列主数 + 口径 / 归因行」三层结构：
+     .ro-rich 给全部视图 → 高度一致（min-height 78px），切视图时下方图表不再上下窜约 40px。
+     共用零件：roHead（日期 + 口径徽章 + 第 k/n 期）、roCell（标签＋数值同一行，整格 nowrap）。 */
+  ro.classList.toggle("ro-rich", true);
   ro.classList.toggle("live", hover);
-  if (mode === "pnl") {   // 盈亏全程视图：点数据为 { d, pl }
-    ro.innerHTML = roLine(['<b>' + dt + "</b>", '累计盈亏 <b class="' + cls(p.pl) + '">' + fmtAmt(p.pl) + "</b> 元"]);
+  const roCell = (label, val, sub, c) => '<div class="ro-cell"><span class="ro-k">' + label + '</span>' +
+    '<span class="ro-v' + (c ? " " + c : "") + '">' + val + (sub || "") + "</span></div>";
+  const roPct = (v) => '<b class="' + cls(v) + '">' + fmtPct(v, 2) + "</b>";
+  const roHead = (badge, badgeCls, tip) => '<div class="ro-head"><span class="ro-date">' + (p.isToday ? "今日" : dt) + "</span>" +
+    '<span class="ro-badge' + (badgeCls ? " " + badgeCls : "") + '" title="' + tip + '">' + badge + "</span>" +
+    '<span class="ro-pos">第 ' + (k + 1) + "/" + L.pts.length + " 期</span></div>";
+  if (mode === "pnl") {
+    /* 盈亏全程：月度点 { d, pl }，场内账户口径（含已实现） */
+    const prev = k > 0 ? L.pts[k - 1] : null;
+    const mon = prev ? p.pl - prev.pl : null;
+    let deep = L.pts[0];
+    L.pts.forEach((q) => { if (q.pl < deep.pl) deep = q; });
+    const off = p.pl - deep.pl;
+    ro.innerHTML = roHead("按月", "", "月度读数：券商 App 的月度盈亏（场内账户口径、含已实现），每期一个点，不是每日") +
+      '<div class="ro-grid">' + roCell("累计盈亏", fmtAmt(p.pl), null, cls(p.pl)) +
+        (mon === null ? "" : roCell("当月", fmtAmt(mon), null, cls(mon))) +
+        roCell("距最深", fmtAmt(off), '<span class="ro-sub">（' + mdOf(deep.d) + "）</span>", cls(off)) + "</div>" +
+      '<div class="ro-attr"><span class="nb"><span class="ro-k">场内账户口径 · 含已实现 —— 与「快照对比」的全账户（含场外与现金）不是一回事</span></span></div>';
   } else if (mode === "rate") {
     const N = trendNav(L.pts), tw = N.nav[k] - 1;
+    const bi = benchRelAt(L.pts, k);
+    const ex = bi === null ? null : tw - bi;
     const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
-    ro.innerHTML = roLine(['<b>' + dt + "</b>",
-      '净值口径（TWR）<b class="' + cls(tw) + '">' + fmtPct(tw, 2) + "</b>",
-      '成本口径 <b class="' + cls(rr) + '">' + fmtPct(rr, 2) + "</b>"]);
+    ro.innerHTML = roHead("TWR 口径", "snap", "净值口径：逐期剔除转入 / 转出后的组合累计收益率，与基准同口径、同起点") +
+      '<div class="ro-grid">' + roCell("组合", fmtPct(tw, 2), null, cls(tw)) +
+        roCell("同期纳指", bi === null ? "—" : fmtPct(bi, 2), null, bi === null ? "" : cls(bi)) +
+        roCell("超额", ex === null ? "—" : fmtPct(ex, 2), null, ex === null ? "" : cls(ex)) + "</div>" +
+      '<div class="ro-attr"><span class="nb"><span class="ro-k">超额 ＝ 组合 − 同期纳指（同口径同起点）</span></span>' +
+        '<span class="nb"><span class="ro-k">· 成本口径</span>' + roPct(rr) + "</span></div>";
   } else if (mode === "dd") {
     const N = trendNav(L.pts);
-    ro.innerHTML = roLine(['<b>' + dt + "</b>",
-      '回撤 <b class="' + (N.dd[k] < -0.0005 ? "down" : "up") + '">' + fmtPct(N.dd[k], 2) + "</b>",
-      '单位净值 <b>' + N.nav[k].toFixed(4) + "</b>" + (N.dd[k] >= -0.0005 ? "（处在峰值）" : "")]);
+    let pk = 0;
+    for (let j = 1; j <= k; j++) if (N.nav[j] >= N.nav[pk]) pk = j;
+    const ago = k - pk;
+    ro.innerHTML = roHead("净值口径", "snap", "资金流调整后的单位净值回撤（逐期剔除转入 / 转出）；0 在顶、越深越亏") +
+      '<div class="ro-grid">' + roCell("回撤", fmtPct(N.dd[k], 2), ago === 0 ? '<span class="ro-sub">（峰值）</span>' : null, N.dd[k] < -0.0005 ? "down" : "up") +
+        roCell("单位净值", N.nav[k].toFixed(4)) +
+        roCell("距前高", ago === 0 ? "—" : ago + " 期") + "</div>" +
+      '<div class="ro-attr"><span class="nb"><span class="ro-k">与「最大浮亏」（App 口径）不同：这里逐期剔除转入 / 转出，避免把转账当成回撤</span></span></div>';
   } else {
     /* 金额视图：三层结构（状态头 / 三列主数 / 归因等式）——
      * ① 三列网格替代一行文字流：原先居中排版，滑动时数字位数一变就整行左右抖动，
@@ -2153,9 +2199,7 @@ function showXhair(i) {
      * 每个「标签＋数值＋方向词」是一个原子单元（.nb），因此折行只可能落在 ＝ / ＋ 处，不会把标签和数字拆开。 */
     const mkt = net === null ? 0 : net - flow;
     const attrB = (v, c) => '<b' + (c ? ' class="' + c + '"' : "") + ">" + fmtAmt(v) + "</b>";
-    /* 「标签 数值（小注）」全部同一行，且整格 nowrap：窄屏整格换行，不会拆开标签与数字 */
-    const cell = (label, val, sub, c) => '<div class="ro-cell"><span class="ro-k">' + label + '</span>' +
-      '<span class="ro-v' + (c ? " " + c : "") + '">' + val + (sub || "") + "</span></div>";
+    /* 主数格用共用零件 roCell（见 showXhair 开头），这里不再单独定义 */
     ro.innerHTML =
       '<div class="ro-head"><span class="ro-date">' + (p.isToday ? "今日" : dt) + "</span>" +
         (p.isToday
@@ -2165,8 +2209,8 @@ function showXhair(i) {
         (p.tag ? '<span class="ro-badge evt" title="该期快照记录的事件（图上对应位置的 ▲ / ▼ 标记）">' + esc(p.tag) + "</span>" : "") +
         '<span class="ro-pos">第 ' + (k + 1) + "/" + L.pts.length + " 期</span></div>" +
       '<div class="ro-grid">' +
-        cell("资产", fmtYuan(p.val)) + cell("投入", fmtYuan(p.cost)) +
-        cell(pl >= 0 ? "浮盈" : "浮亏", fmtAmt(pl), '<span class="ro-sub">（' + fmtPct(rate, 2) + "）</span>", cls(pl)) +
+        roCell("资产", fmtYuan(p.val)) + roCell("投入", fmtYuan(p.cost)) +
+        roCell(pl >= 0 ? "浮盈" : "浮亏", fmtAmt(pl), '<span class="ro-sub">（' + fmtPct(rate, 2) + "）</span>", cls(pl)) +
       "</div>" +
       (net === null ? "" :
         '<div class="ro-attr"><span class="nb"><span class="ro-k">较上期</span>' +
