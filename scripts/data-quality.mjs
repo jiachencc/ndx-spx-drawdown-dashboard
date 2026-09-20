@@ -4,7 +4,9 @@ import vm from "node:vm";
 export const isDate = s => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
 export function readModel(src) {
   const ctx = vm.createContext({});
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META };", ctx, { timeout: 1500 });
+  /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
+     ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -69,6 +71,51 @@ export function validateModel(m) {
   for (const key of ["DCA_NDX", "DCA_SPX"]) if (!Array.isArray(m[key]) || m[key].length < 2 || !m[key].every(x => Number.isFinite(x) && x > 0)) errors.push(key + " invalid");
   if (m.DCA_NDX?.length !== m.DCA_SPX?.length) errors.push("DCA lengths differ");
   if (!m.MONTHLY?.length || m.MONTHLY.length > 12 || !m.MONTHLY.every((r, i) => r.m === (i + 1) + "月" && [r.ndx, r.spx].every(x => Number.isFinite(x) && x > -100))) errors.push("monthly invalid");
+  /* 标的替换回测（派生块，由 scripts/alt-etf-backtest.mjs 写）：页面取 rows[0] 作「最好」、末行作「最差」，
+     所以「按期末市值降序 + 基准行存在 + mine 标记与 mine 代码一致」是数据契约。
+     块缺失或 groups 为空 = 还没跑过脚本（允许，页面显示提示）；一旦有数据就必须自洽。 */
+  const bt = m.ALT_BACKTEST;
+  if (bt && (bt.groups || []).length) {
+    if (!isDate(bt.asOf) || typeof bt.source !== "string" || !Array.isArray(bt.groups)) errors.push("ALT_BACKTEST: invalid header");
+    for (const g of bt.groups) {
+      const rs = g.rows || [];
+      if (!rs.length || !rs.some((r) => r.mine)) errors.push("ALT_BACKTEST " + g.label + ": missing base row");
+      if (rs.some((r) => ![r.final, r.diffPp, r.rate].every(Number.isFinite))) errors.push("ALT_BACKTEST " + g.label + ": non-finite row");
+      if (rs.some((r, i) => i && rs[i - 1].final < r.final)) errors.push("ALT_BACKTEST " + g.label + ": rows not sorted by final desc");
+      if (rs.some((r) => r.mine !== (r.code === g.mine))) errors.push("ALT_BACKTEST " + g.label + ": mine flag mismatch");
+    }
+    /* 反向表：rows = 「假设买这只场内」，base = 同一套流水走场外净值（基准）。允许为空（没有可映射的场外）。 */
+    const rev = bt.reverse;
+    if (rev && (rev.funds || []).length) {
+      if (!isDate(rev.start)) errors.push("ALT_BACKTEST reverse: invalid assumed start date");
+      for (const f of rev.funds) {
+        if (!Number.isFinite(f.cost) || !Number.isFinite(f.base) || !Number.isFinite(f.baseRet)) errors.push("ALT_BACKTEST reverse " + f.code + ": non-finite base");
+        /* 新列按「缺失＝旧格式」容忍：写前审计读的是磁盘上的上一版，收紧 schema 不能要求它先合规
+           （否则先有鸡还是先有蛋）。字段一旦存在就必须是有限数——null / NaN 照样拦。 */
+        if ((f.mineFinal !== undefined || f.mineDiff !== undefined || f.mineDiffPp !== undefined) &&
+          ![f.mineFinal, f.mineDiff, f.mineDiffPp].every(Number.isFinite)) {
+          errors.push("ALT_BACKTEST reverse " + f.code + ": non-finite mine column");
+        }
+        if (!(f.rows || []).length) errors.push("ALT_BACKTEST reverse " + f.code + ": no candidate rows");
+        if ((f.rows || []).some((r) => !Number.isFinite(r.final) || !Number.isFinite(r.diffPp))) errors.push("ALT_BACKTEST reverse " + f.code + ": non-finite row");
+      }
+      if (rev.total && !Number.isFinite(rev.total.diff)) errors.push("ALT_BACKTEST reverse: non-finite total");
+    }
+  }
+  /* 费率表（AUTO，scripts/fetch-fees.mjs 写）：空块 = 还没抓过（允许）；有数据就必须自洽。
+     peers 指向的替代产品必须也在 items 里，否则页面会显示一个查不到费率的「更便宜替代」。 */
+  const fees = m.FEES;
+  if (fees && fees.items && Object.keys(fees.items).length) {
+    if (!isDate(fees.asOf) || typeof fees.source !== "string") errors.push("FEES: invalid header");
+    for (const [code, f] of Object.entries(fees.items)) {
+      if (!/^\d{6}$/.test(code)) errors.push("FEES " + code + ": bad code");
+      if (![f.manage, f.trust].every(Number.isFinite) || !Number.isFinite(f.total)) errors.push("FEES " + code + ": non-finite rate");
+      else if (!(f.total > 0) || f.total > 3) errors.push("FEES " + code + ": implausible total " + f.total);
+    }
+    for (const [code, peer] of Object.entries(fees.peers || {})) {
+      if (peer !== null && !fees.items[peer]) errors.push("FEES peers " + code + ": peer " + peer + " missing in items");
+    }
+  }
   for (const [k, meta] of Object.entries(m.SOURCE_META || {})) {
     if (!["ok", "retained", "unverified"].includes(meta.status) || (meta.asOf !== null && !isDate(meta.asOf)) || typeof meta.source !== "string") errors.push("invalid provenance " + k);
   }

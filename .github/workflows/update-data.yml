@@ -54,6 +54,15 @@ jobs:
           node-version: "22"
       - name: Fetch, validate and atomically update
         run: node scripts/fetch_and_update.mjs
+      # 费率表（FEES）：抓东财基金档案，来源与行情无关，失败保留旧值。
+      - name: Fee table (FEES)
+        continue-on-error: true
+        run: node scripts/fetch-fees.mjs
+      # 标的替换回测依赖同一批行情（腾讯日K + 东财净值），跑在行情之后、终审之前，让终审同时覆盖它写入的块。
+      # 不阻断日更：它失败时脚本不会写入 data.js（先校验后原子写），行情更新照常提交；页面 ?debug 会提示期末日期落后。
+      - name: Ticker-substitution backtest (ALT_BACKTEST)
+        continue-on-error: true
+        run: node scripts/alt-etf-backtest.mjs
       - name: Final audit
         run: node scripts/check-data.mjs
       - name: Commit only validated business-data changes

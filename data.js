@@ -246,6 +246,872 @@ const ACCT_STATS = {
     { m: "9月", pnl: 3108.00, pct: 0.82, bench: -1.87, note: "至今" },
   ],
 };
+/* ================= 标的替换回测（派生 · AUTO：由 scripts/alt-etf-backtest.mjs 整块重写） =================
+ * 回答「同样的日期、同样的金额，换成同类别的另一只产品，到期末差多少」——把「选哪只标的」
+ * 这一项单独量化出来，作为下次加减仓 / 换标的时的证据。
+ * 口径：每笔按你的实际花费金额买候选标的当日收盘价（前复权）；你的持仓也用同一口径重算，
+ *       从而只比标的、不比盘中择时；佣金两边同费率相抵，管理费/托管费已含在净值里。
+ *       只对买入流水做替换（未建模卖出）；场外按当日净值申购，真实为 T+1/T+2 确认且有申购费，
+ *       故场外结果略偏乐观。
+ * 候选清单与综合费率是 MANUAL，在脚本顶部 UNIVERSE 里改；费率只用于展示，不参与计算。
+ * ⚠ 本块由脚本整块重写，手工编辑会在下次运行时被覆盖；rows 必须按 final 降序（页面取首行作最好）。 */
+const ALT_BACKTEST = {
+  asOf: "2026-09-18",
+  source: "腾讯前复权日K + 东财历史净值",
+  method: "每笔按实际花费金额买候选当日收盘价（前复权）；基准同口径重算；佣金相抵；费率已含在净值内",
+  reverse: {
+    start: "2026-06-23",
+    note: "本金按假设起始日一次性投入；其后按快照期「持仓成本增量」补投（快照明细自 2026-09-07 起）。两侧同一套流水、同金额同日期，只差成交渠道：场内收盘价 vs 场外当日净值。",
+    funds: [
+      {
+        code: "021000",
+        name: "南方纳斯达克100指数(QDII)I",
+        group: "ndx",
+        label: "纳指100",
+        short: "南方纳斯达克100指数I",
+        cost: 22600,
+        value: 22596.48,
+        pnl: -3.52,
+        bulk: 20798,
+        added: 1802,
+        nFlows: 7,
+        first: "2026-09-07",
+        to: "2026-09-18",
+        base: 22503.51,
+        baseRet: -0.00427,
+        mineCode: "159941",
+        mineName: "纳指ETF广发",
+        mineFinal: 23271.22,
+        mineDiff: 767.71,
+        mineDiffPp: 0.03397,
+        rows: [
+          {
+            code: "513100",
+            name: "纳指ETF国泰",
+            rate: 0.8,
+            mine: false,
+            final: 23542.45,
+            ret: 0.041701,
+            diff: 1038.94,
+            diffPp: 0.045971
+          },
+          {
+            code: "159941",
+            name: "纳指ETF广发",
+            rate: 1,
+            mine: true,
+            final: 23271.22,
+            ret: 0.0297,
+            diff: 767.71,
+            diffPp: 0.03397
+          }
+        ],
+        allBest: {
+          code: "513100",
+          name: "纳指ETF国泰"
+        }
+      },
+      {
+        code: "021778",
+        name: "广发纳指100ETF联接(QDII)F",
+        group: "ndx",
+        label: "纳指100",
+        short: "广发纳指100ETF联接F",
+        cost: 22380,
+        value: 22020.83,
+        pnl: -359.17,
+        bulk: 21900,
+        added: 480,
+        nFlows: 7,
+        first: "2026-09-07",
+        to: "2026-09-18",
+        base: 22124.08,
+        baseRet: -0.011435,
+        mineCode: "159941",
+        mineName: "纳指ETF广发",
+        mineFinal: 23059.96,
+        mineDiff: 935.89,
+        mineDiffPp: 0.041818,
+        rows: [
+          {
+            code: "513100",
+            name: "纳指ETF国泰",
+            rate: 0.8,
+            mine: false,
+            final: 23345.83,
+            ret: 0.043156,
+            diff: 1221.76,
+            diffPp: 0.054591
+          },
+          {
+            code: "159941",
+            name: "纳指ETF广发",
+            rate: 1,
+            mine: true,
+            final: 23059.96,
+            ret: 0.030383,
+            diff: 935.89,
+            diffPp: 0.041818
+          }
+        ],
+        allBest: {
+          code: "513100",
+          name: "纳指ETF国泰"
+        }
+      },
+      {
+        code: "040046",
+        name: "华安纳斯达克100ETF联接(QDII)A",
+        group: "ndx",
+        label: "纳指100",
+        short: "华安纳斯达克100ETF联接A",
+        cost: 4000,
+        value: 4011.79,
+        pnl: 11.79,
+        bulk: 3100,
+        added: 900,
+        nFlows: 6,
+        first: "2026-09-07",
+        to: "2026-09-18",
+        base: 3966.53,
+        baseRet: -0.008369,
+        mineCode: "159941",
+        mineName: "纳指ETF广发",
+        mineFinal: 4111.49,
+        mineDiff: 144.96,
+        mineDiffPp: 0.036241,
+        rows: [
+          {
+            code: "513100",
+            name: "纳指ETF国泰",
+            rate: 0.8,
+            mine: false,
+            final: 4152.21,
+            ret: 0.038052,
+            diff: 185.68,
+            diffPp: 0.046421
+          },
+          {
+            code: "159941",
+            name: "纳指ETF广发",
+            rate: 1,
+            mine: true,
+            final: 4111.49,
+            ret: 0.027873,
+            diff: 144.96,
+            diffPp: 0.036241
+          }
+        ],
+        allBest: {
+          code: "513100",
+          name: "纳指ETF国泰"
+        }
+      },
+      {
+        code: "014978",
+        name: "华安纳斯达克100ETF联接(QDII)C",
+        group: "ndx",
+        label: "纳指100",
+        short: "华安纳斯达克100ETF联接C",
+        cost: 4000,
+        value: 4011.19,
+        pnl: 11.19,
+        bulk: 3100,
+        added: 900,
+        nFlows: 6,
+        first: "2026-09-07",
+        to: "2026-09-18",
+        base: 3965.1,
+        baseRet: -0.008725,
+        mineCode: "159941",
+        mineName: "纳指ETF广发",
+        mineFinal: 4111.49,
+        mineDiff: 146.39,
+        mineDiffPp: 0.036597,
+        rows: [
+          {
+            code: "513100",
+            name: "纳指ETF国泰",
+            rate: 0.8,
+            mine: false,
+            final: 4152.21,
+            ret: 0.038052,
+            diff: 187.11,
+            diffPp: 0.046777
+          },
+          {
+            code: "159941",
+            name: "纳指ETF广发",
+            rate: 1,
+            mine: true,
+            final: 4111.49,
+            ret: 0.027873,
+            diff: 146.39,
+            diffPp: 0.036597
+          }
+        ],
+        allBest: {
+          code: "513100",
+          name: "纳指ETF国泰"
+        }
+      },
+      {
+        code: "018738",
+        name: "博时标普500ETF联接E",
+        group: "spx",
+        label: "标普500",
+        short: "博时标普500ETF联接E",
+        cost: 13900,
+        value: 14070.78,
+        pnl: 170.78,
+        bulk: 13704.1,
+        added: 195.9,
+        nFlows: 4,
+        first: "2026-09-07",
+        to: "2026-09-18",
+        base: 14268.63,
+        baseRet: 0.02652,
+        mineCode: "513650",
+        mineName: "标普500ETF南方",
+        mineFinal: 15090.04,
+        mineDiff: 821.41,
+        mineDiffPp: 0.059094,
+        rows: [
+          {
+            code: "513650",
+            name: "标普500ETF南方",
+            rate: 0.75,
+            mine: true,
+            final: 15090.04,
+            ret: 0.085614,
+            diff: 821.41,
+            diffPp: 0.059094
+          }
+        ],
+        allBest: {
+          code: "513650",
+          name: "标普500ETF南方"
+        }
+      }
+    ],
+    total: {
+      n: 5,
+      cost: 66880,
+      base: 66827.85,
+      mineFinal: 69644.2,
+      diff: 2816.35,
+      diffPp: 0.04211
+    }
+  },
+  groups: [
+    {
+      key: "ndx",
+      label: "纳指100",
+      mine: "159941",
+      first: "2026-06-23",
+      to: "2026-09-18",
+      trades: 12,
+      sells: 0,
+      total: 128252.8,
+      real: {
+        units: 81100,
+        final: 136085.8,
+        ret: 0.061075
+      },
+      rows: [
+        {
+          code: "513100",
+          name: "纳指ETF国泰",
+          rate: 0.8,
+          size: 194.9,
+          final: 136796.66,
+          ret: 0.066617,
+          retFlat: 0.051905,
+          navRet: -0.006312,
+          premStart: 0.089069,
+          premEnd: 0.14388,
+          diff: 626.17,
+          diffPp: 0.004882,
+          mine: false
+        },
+        {
+          code: "159941",
+          name: "纳指ETF广发",
+          rate: 1,
+          size: 347.2,
+          final: 136170.49,
+          ret: 0.061735,
+          retFlat: 0.045671,
+          navRet: -0.007751,
+          premStart: 0.087799,
+          premEnd: 0.129966,
+          diff: 0,
+          diffPp: 0,
+          mine: true
+        },
+        {
+          code: "159501",
+          name: "纳指ETF嘉实",
+          rate: 0.6,
+          size: 124.5,
+          final: 135969.18,
+          ret: 0.060165,
+          retFlat: 0.044846,
+          navRet: -0.006028,
+          premStart: 0.103761,
+          premEnd: 0.142658,
+          diff: -201.31,
+          diffPp: -0.00157,
+          mine: false
+        },
+        {
+          code: "159632",
+          name: "纳斯达克ETF华安",
+          rate: 0.8,
+          size: 113.1,
+          final: 135674.65,
+          ret: 0.057869,
+          retFlat: 0.041517,
+          navRet: -0.005825,
+          premStart: 0.071492,
+          premEnd: 0.104847,
+          diff: -495.84,
+          diffPp: -0.003866,
+          mine: false
+        },
+        {
+          code: "513110",
+          name: "纳指ETF华泰柏瑞",
+          rate: 1,
+          size: 51,
+          final: 135361.4,
+          ret: 0.055426,
+          retFlat: 0.038984,
+          navRet: -0.006544,
+          premStart: 0.070541,
+          premEnd: 0.101743,
+          diff: -809.08,
+          diffPp: -0.006309,
+          mine: false
+        },
+        {
+          code: "159513",
+          name: "纳斯达克100ETF大成",
+          rate: 1,
+          size: 75.1,
+          final: 135113.5,
+          ret: 0.053494,
+          retFlat: 0.036616,
+          navRet: -0.006538,
+          premStart: 0.076056,
+          premEnd: 0.099439,
+          diff: -1056.98,
+          diffPp: -0.008241,
+          mine: false
+        },
+        {
+          code: "159660",
+          name: "纳指ETF汇添富",
+          rate: 0.65,
+          size: 49.4,
+          final: 135043.54,
+          ret: 0.052948,
+          retFlat: 0.03574,
+          navRet: -0.00619,
+          premStart: 0.082172,
+          premEnd: 0.10137,
+          diff: -1126.95,
+          diffPp: -0.008787,
+          mine: false
+        },
+        {
+          code: "159659",
+          name: "纳斯达克100ETF招商",
+          rate: 0.65,
+          size: 101,
+          final: 135034.33,
+          ret: 0.052876,
+          retFlat: 0.036707,
+          navRet: -0.005153,
+          premStart: 0.078509,
+          premEnd: 0.105096,
+          diff: -1136.16,
+          diffPp: -0.008859,
+          mine: false
+        },
+        {
+          code: "513390",
+          name: "纳指100ETF博时",
+          rate: 0.65,
+          size: 42.5,
+          final: 134921.64,
+          ret: 0.051998,
+          retFlat: 0.035769,
+          navRet: -0.005405,
+          premStart: 0.077411,
+          premEnd: 0.099434,
+          diff: -1248.85,
+          diffPp: -0.009737,
+          mine: false
+        },
+        {
+          code: "513870",
+          name: "纳指ETF富国",
+          rate: 0.6,
+          size: 25,
+          final: 134620.38,
+          ret: 0.049649,
+          retFlat: 0.034714,
+          navRet: -0.006155,
+          premStart: 0.080598,
+          premEnd: 0.102641,
+          diff: -1550.1,
+          diffPp: -0.012086,
+          mine: false
+        },
+        {
+          code: "513300",
+          name: "纳斯达克ETF华夏",
+          rate: 0.8,
+          size: 133,
+          final: 134524.68,
+          ret: 0.048902,
+          retFlat: 0.03356,
+          navRet: -0.009107,
+          premStart: 0.070723,
+          premEnd: 0.102932,
+          diff: -1645.81,
+          diffPp: -0.012833,
+          mine: false
+        },
+        {
+          code: "159696",
+          name: "纳指ETF易方达",
+          rate: 0.6,
+          size: 50.3,
+          final: 134180.35,
+          ret: 0.046218,
+          retFlat: 0.03032,
+          navRet: -0.005815,
+          premStart: 0.097233,
+          premEnd: 0.109065,
+          diff: -1990.13,
+          diffPp: -0.015517,
+          mine: false
+        }
+      ],
+      otc: [
+        {
+          code: "021000",
+          name: "南方纳指100 I",
+          rate: 0.66,
+          final: 131212.16,
+          ret: 0.023074,
+          retFlat: 0.01128,
+          navRet: -0.005193,
+          diff: -4958.33,
+          diffPp: -0.038661
+        },
+        {
+          code: "021778",
+          name: "广发纳指100 F",
+          rate: 1.18,
+          final: 130993.88,
+          ret: 0.021372,
+          retFlat: 0.008792,
+          navRet: -0.011767,
+          diff: -5176.61,
+          diffPp: -0.040363
+        }
+      ]
+    },
+    {
+      key: "spx",
+      label: "标普500",
+      mine: "513650",
+      first: "2026-06-24",
+      to: "2026-09-18",
+      trades: 9,
+      sells: 0,
+      total: 98512.4,
+      real: {
+        units: 50500,
+        final: 102515,
+        ret: 0.04063
+      },
+      rows: [
+        {
+          code: "513650",
+          name: "标普500ETF南方",
+          rate: 0.75,
+          size: 77.2,
+          final: 102579.29,
+          ret: 0.041283,
+          retFlat: 0.040421,
+          navRet: 0.028989,
+          premStart: 0.041713,
+          premEnd: 0.091398,
+          diff: 0,
+          diffPp: 0,
+          mine: true
+        },
+        {
+          code: "159655",
+          name: "标普500ETF华夏",
+          rate: 0.75,
+          size: 39.4,
+          final: 102302.32,
+          ret: 0.038472,
+          retFlat: 0.03786,
+          navRet: 0.023584,
+          premStart: 0.037679,
+          premEnd: 0.088785,
+          diff: -276.97,
+          diffPp: -0.002812,
+          mine: false
+        },
+        {
+          code: "513500",
+          name: "标普500ETF博时",
+          rate: 0.8,
+          size: 240.2,
+          final: 101975.22,
+          ret: 0.035151,
+          retFlat: 0.03321,
+          navRet: 0.028724,
+          premStart: 0.062629,
+          premEnd: 0.099284,
+          diff: -604.07,
+          diffPp: -0.006132,
+          mine: false
+        },
+        {
+          code: "159612",
+          name: "标普500ETF国泰",
+          rate: 0.75,
+          size: 8.4,
+          final: 101740.81,
+          ret: 0.032772,
+          retFlat: 0.031965,
+          navRet: 0.02828,
+          premStart: 0.053931,
+          premEnd: 0.087047,
+          diff: -838.48,
+          diffPp: -0.008511,
+          mine: false
+        },
+        {
+          code: "161125",
+          name: "易方达标普500LOF",
+          rate: 1,
+          size: null,
+          final: 99888.95,
+          ret: 0.013973,
+          retFlat: 0.013817,
+          navRet: 0.027022,
+          premStart: 0.02735,
+          premEnd: 0.034847,
+          diff: -2690.34,
+          diffPp: -0.02731,
+          mine: false
+        }
+      ],
+      otc: [
+        {
+          code: "018738",
+          name: "博时标普500联接E",
+          rate: 0.81,
+          final: 99462.71,
+          ret: 0.009647,
+          retFlat: 0.007772,
+          navRet: 0.02748,
+          diff: -3116.58,
+          diffPp: -0.031636
+        }
+      ]
+    }
+  ]
+};
+/* ================= 费率表（派生 · AUTO：由 scripts/fetch-fees.mjs 整块重写） =================
+ * 综合费率 = 管理费率 + 托管费率 + 销售服务费率（年化，招募说明书口径）。这些费用每天从基金资产里
+ * 计提、已反映在净值里，不需要投资者另付 —— 所以它不改变「今天赚多少」，只决定「长期少赚多少」。
+ * items 是事实（每只代码的费率与规模，东方财富基金档案）；peers 是 MANUAL 判断（同口径更便宜的替代，
+ * null = 当前没有更便宜的同口径选择），维护在 scripts/fetch-fees.mjs 顶部。
+ * 用途：页面「💸 费率体检」用它算「换成更便宜的同口径产品，每年能省多少」。
+ * ⚠ 本块由脚本整块重写，手工编辑会被覆盖。 */
+const FEES = {
+  asOf: "2026-09-20",
+  source: "东方财富基金档案：管理费率 + 托管费率 + 销售服务费率",
+  peers: {
+    "159941": "159501",
+    "160644": null,
+    "513310": null,
+    "513650": "159655",
+    "513880": null,
+    "021000": null,
+    "021778": "021000",
+    "018738": null,
+    "040046": "021000",
+    "014978": "021000",
+    "023402": null,
+    "007280": null,
+    "015884": null
+  },
+  items: {
+    "159501": {
+      manage: 0.5,
+      trust: 0.1,
+      sale: 0,
+      total: 0.6,
+      scale: 124.11,
+      full: "嘉实纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳指ETF嘉实"
+    },
+    "159513": {
+      manage: 0.8,
+      trust: 0.2,
+      sale: 0,
+      total: 1,
+      scale: 73.84,
+      full: "大成纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳斯达克100ETF大成"
+    },
+    "159612": {
+      manage: 0.6,
+      trust: 0.15,
+      sale: 0,
+      total: 0.75,
+      scale: 8.44,
+      full: "国泰标普500交易型开放式指数证券投资基金(QDII)",
+      name: "标普500ETF国泰"
+    },
+    "159632": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0,
+      total: 0.8,
+      scale: 113,
+      full: "华安纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳斯达克ETF华安"
+    },
+    "159655": {
+      manage: 0.6,
+      trust: 0.15,
+      sale: 0,
+      total: 0.75,
+      scale: 39.37,
+      full: "华夏标普500交易型开放式指数证券投资基金(QDII)",
+      name: "标普500ETF华夏"
+    },
+    "159659": {
+      manage: 0.5,
+      trust: 0.15,
+      sale: 0,
+      total: 0.65,
+      scale: 99.36,
+      full: "招商纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳斯达克100ETF招商"
+    },
+    "159660": {
+      manage: 0.5,
+      trust: 0.15,
+      sale: 0,
+      total: 0.65,
+      scale: 49.1,
+      full: "汇添富纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳指ETF汇添富"
+    },
+    "159696": {
+      manage: 0.5,
+      trust: 0.1,
+      sale: 0,
+      total: 0.6,
+      scale: 50.11,
+      full: "易方达纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳指ETF易方达"
+    },
+    "159941": {
+      manage: 0.8,
+      trust: 0.2,
+      sale: 0,
+      total: 1,
+      scale: 346.82,
+      full: "广发纳斯达克100交易型开放式指数证券投资基金",
+      name: "纳指ETF广发"
+    },
+    "160644": {
+      manage: 1.2,
+      trust: 0.2,
+      sale: 0,
+      total: 1.4,
+      scale: 23.43,
+      full: "鹏华香港美国互联网股票型证券投资基金(LOF)",
+      name: "港美互联网LOF"
+    },
+    "161125": {
+      manage: 0.8,
+      trust: 0.2,
+      sale: 0,
+      total: 1,
+      scale: 15.43,
+      full: "易方达标普500指数证券投资基金(LOF)",
+      name: "易方达标普500LOF"
+    },
+    "513100": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0,
+      total: 0.8,
+      scale: 194.68,
+      full: "纳斯达克100交易型开放式指数证券投资基金",
+      name: "纳指ETF国泰"
+    },
+    "513110": {
+      manage: 0.8,
+      trust: 0.2,
+      sale: 0,
+      total: 1,
+      scale: 50.98,
+      full: "华泰柏瑞纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳指ETF华泰柏瑞"
+    },
+    "513300": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0,
+      total: 0.8,
+      scale: 132.88,
+      full: "华夏纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳斯达克ETF华夏"
+    },
+    "513310": {
+      manage: 0.8,
+      trust: 0.15,
+      sale: 0,
+      total: 0.95,
+      scale: 134.65,
+      full: "华泰柏瑞中证韩交所中韩半导体交易型开放式指数证券投资基金(QDII)",
+      name: "中韩半导体ETF华泰"
+    },
+    "513390": {
+      manage: 0.5,
+      trust: 0.15,
+      sale: 0,
+      total: 0.65,
+      scale: 42.5,
+      full: "博时纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳指100ETF博时"
+    },
+    "513500": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0,
+      total: 0.8,
+      scale: 239.99,
+      full: "博时标普500交易型开放式指数证券投资基金",
+      name: "标普500ETF博时"
+    },
+    "513650": {
+      manage: 0.6,
+      trust: 0.15,
+      sale: 0,
+      total: 0.75,
+      scale: 76.94,
+      full: "南方标普500交易型开放式指数证券投资基金(QDII)",
+      name: "标普500ETF南方"
+    },
+    "513870": {
+      manage: 0.5,
+      trust: 0.1,
+      sale: 0,
+      total: 0.6,
+      scale: 24.71,
+      full: "富国纳斯达克100交易型开放式指数证券投资基金(QDII)",
+      name: "纳指ETF富国"
+    },
+    "513880": {
+      manage: 0.2,
+      trust: 0.05,
+      sale: 0,
+      total: 0.25,
+      scale: 27.3,
+      full: "华安三菱日联日经225交易型开放式指数证券投资基金(QDII)",
+      name: "日经225ETF华安"
+    },
+    "007280": {
+      manage: 1.2,
+      trust: 0.2,
+      sale: 0,
+      total: 1.4,
+      scale: 23.94,
+      full: "摩根日本精选股票型证券投资基金(QDII)",
+      name: "摩根日本精选股票A"
+    },
+    "014978": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0.2,
+      total: 1,
+      scale: 13.48,
+      full: "华安纳斯达克100交易型开放式指数证券投资基金联接基金(QDII)",
+      name: "华安纳斯达克100ETF联接C"
+    },
+    "015884": {
+      manage: 1.2,
+      trust: 0.2,
+      sale: 0,
+      total: 1.4,
+      scale: 1.26,
+      full: "中欧港股数字经济混合型发起式证券投资基金(QDII)",
+      name: "中欧港股数字经济混合发起A"
+    },
+    "018738": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0.01,
+      total: 0.81,
+      scale: 23.04,
+      full: "博时标普500交易型开放式指数证券投资基金联接基金",
+      name: "博时标普500联接E"
+    },
+    "021000": {
+      manage: 0.5,
+      trust: 0.15,
+      sale: 0.01,
+      total: 0.66,
+      scale: 31.36,
+      full: "南方纳斯达克100指数发起式证券投资基金(QDII)",
+      name: "南方纳指100 I"
+    },
+    "021778": {
+      manage: 0.8,
+      trust: 0.2,
+      sale: 0.18,
+      total: 1.18,
+      scale: 21.47,
+      full: "广发纳斯达克100交易型开放式指数证券投资基金联接基金(QDII)",
+      name: "广发纳指100 F"
+    },
+    "023402": {
+      manage: 1.2,
+      trust: 0.2,
+      sale: 0.5,
+      total: 1.9,
+      scale: 15.83,
+      full: "广发全球精选股票型证券投资基金",
+      name: "广发全球精选股票人民币F"
+    },
+    "040046": {
+      manage: 0.6,
+      trust: 0.2,
+      sale: 0,
+      total: 0.8,
+      scale: 58.1,
+      full: "华安纳斯达克100交易型开放式指数证券投资基金联接基金(QDII)",
+      name: "华安纳斯达克100ETF联接A"
+    }
+  }
+};
 /* ================= 基准点位（MANUAL：纳指 NDX 收盘，供走势图「是否跑赢躺平」对比） =================
  * 用法：每期快照 / 每月初记一次当日 NDX 收盘即可（一年 12 个数）。
  * 缺省时走势图自动跳过基准线并在图例提示，其余功能不受影响。
