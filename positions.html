@@ -414,9 +414,24 @@
   /* 合计行的数字：与正文行同为 10px、同为常规字重，所以这里也不能用一级色 --tx（色阶倒挂铁律），
      结论的分量交给 .up/.down 上色那一个数。 */
   .alt-swap-total .num { font-family: var(--mono); font-weight: 400; color: var(--tx2); font-variant-numeric: tabular-nums; }
+
+  /* ---- ⓘ 说明徽标 + 共用浮层（全页可复用）：口径这类长文不进正文，点开看 ----
+     「说明类的、不重要的、太长的」一律走这里，正文只留结论与徽标。
+     浮层固定在底部（手机友好），点别处 / 再点同一个 / Esc 关闭。 */
+  .tip { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin-left: 4px;
+    border-radius: 50%; border: 1px solid var(--line); background: var(--card2); color: var(--tx3);
+    font: italic 9px/1 var(--mono); cursor: pointer; vertical-align: middle; }
+  .tip:hover, .tip:focus-visible { color: var(--blue); border-color: var(--accent-line); }
+  .tip-pop { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 80; width: min(360px, 92vw); max-height: 46vh;
+    overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+    font-size: var(--fs-xs); line-height: 1.75; color: var(--tx2); box-shadow: 0 10px 30px rgba(0,0,0,.45); white-space: pre-line; }
+  .tip-pop .tip-x { float: right; margin-left: 8px; padding: 0 2px; border: 0; background: none; color: var(--tx3); font-size: var(--fs-xs); cursor: pointer; }
+  /* 徽标：一个词说明一档事实（假设 / 已是最低 / 你持有），比整句说明省 80% 宽度 */
+  .pill { display: inline-block; padding: 0 5px; margin-left: 4px; border: 1px solid var(--line); background: var(--card2);
+    border-radius: 999px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx2); white-space: nowrap; }
   .alt-swap-total .mut { color: var(--tx3); }
-  /* 费率体检：同一套三列语言（不可行动的那一段用它） */
-  .alt-col.fee, .alt-row.fee { grid-template-columns: 1fr 66px 94px; }
+  /* 费率体检：不可行动的那一段只用两列（说明不再逐行重复，改挂徽标 + title） */
+  .alt-col.fee, .alt-row.fee { grid-template-columns: 1fr 66px; }
   .alt-feesum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 2px 0 7px; }
   .alt-feesum > div { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 8px; padding: 4px 6px; }
   .alt-feesum .k { font-size: var(--fs-xxs); color: var(--tx3); }
@@ -3121,6 +3136,33 @@ function renderAcctStats() {
 /* ================= 波段复盘（跨标的） =================
  * 单只标的回路样本太少（全部加起来也才个位数），合起来才看得出做T的期望值；
  * 且必须把「波段」与「减仓」分开——混在一起会把超期持仓的亏损算到做T头上。 */
+/* ================= ⓘ 说明浮层（全页共用） =================
+ * 口径/方法这类「说明类的、不重要的、太长的」文本一律走这里：正文只留结论 + 一枚 ⓘ 徽标。
+ * 全页只有一个浮层实例：点 ⓘ 打开、点别处 / 再点同一个 / Esc 关闭。零依赖、无状态机。 */
+let tipPop = null;
+function closeTipPop() { if (tipPop) { tipPop.remove(); tipPop = null; } }
+function tipBtn(text, label) {
+  return '<button type="button" class="tip" data-tip="' + esc(text) + '" title="' + esc(label || "说明") +
+    '" aria-label="' + esc(label || "说明") + '">i</button>';
+}
+document.addEventListener("click", (e) => {
+  const hit = (sel) => (e.target && e.target.closest ? e.target.closest(sel) : null);
+  if (hit(".tip-x")) { closeTipPop(); return; }        // 点 ✕ 关闭（它本身也在浮层里，要单独判断）
+  const t = hit(".tip");
+  const inPop = hit(".tip-pop");
+  if (!t) { if (!inPop) closeTipPop(); return; }
+  const same = tipPop && tipPop.dataset.src === t.dataset.tip;   // 再点同一个 → 收起
+  closeTipPop();
+  if (same) return;
+  tipPop = document.createElement("div");
+  tipPop.className = "tip-pop";
+  tipPop.dataset.src = t.dataset.tip;
+  tipPop.setAttribute("role", "note");
+  tipPop.innerHTML = '<button type="button" class="tip-x" aria-label="关闭">✕</button>' + esc(t.dataset.tip);
+  document.body.appendChild(tipPop);
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTipPop(); });
+
 /* ================= 费率体检（FEES，由 scripts/fetch-fees.mjs 抓东财基金档案写入） =================
  * 它回答的是「确定性成本」这一半：费率不影响今天赚多少，只决定长期少赚多少 —— 而它是唯一
  * 「算得准、改得动」的一项（溢价算不准也会反噬，见上一个板块）。
@@ -3165,11 +3207,17 @@ function renderFees() {
   const saveAll = saveRows.reduce((s, r) => s + r.save, 0);
   const noPeer = rows.filter((r) => !r.save).sort((a, b) => b.rate - a.rate);
 
-  if (cnt) cnt.innerHTML = "（场内 " + pc(wIn) + " · 场外 " + pc(wOt) + " · 整体 " + pc(wAll) + " · 换同类每年可省 " + num(saveAll) + " 元）";
+  /* 口径长文（原来铺在卡底 ~130 字）收进 ⓘ；正文只留「可省多少」这一个结论 */
+  const FEE_TIP = "综合费率 ＝ 管理费 ＋ 托管费 ＋ 销售服务费（年化），来自东方财富基金档案（招募说明书口径），抓取日 " + F.asOf + "。\n" +
+    "这些费用每日从基金资产计提、已含在净值里，不需要另付 —— 所以换标的省下的是「长期的确定性拖累」，不是当期收益。\n" +
+    "本表按当前市值折算，市值变了可省金额也跟着变。\n" +
+    "「无更便宜」= 候选清单里没有更便宜的同口径产品（多为主动型基金，费率 1.40%~1.90%）；换指数化同类还有下降空间，但那是换产品（风险特征会变），不在本表内。\n" +
+    "「已是最低」= 确实存在同口径产品，且它就是费率最低的那一档。";
+  if (cnt) cnt.innerHTML = "（场内 " + pc(wIn) + " · 场外 " + pc(wOt) + " · 可省 " + num(saveAll) + " 元/年" + tipBtn(FEE_TIP, "费率口径") + "）";
 
-  card.innerHTML = '<details class="alt-wrap"><summary title="综合费率 = 管理费 + 托管费 + 销售服务费（年化）。这些费用已含在净值里，换标的省下的是长期的确定性拖累。点开看逐只与替代产品">' +
+  card.innerHTML = '<details class="alt-wrap"><summary title="点开看逐只与替代产品；费率口径见标题旁的 ⓘ">' +
     '<span class="alt-key">费率体检</span>' +
-    '<span class="alt-meta">场内 ' + pc(wIn) + " · 场外 " + pc(wOt) + " · 整体 " + pc(wAll) + " · 换同类每年省 " + num(saveAll) + " 元</span></summary>" +
+    '<span class="alt-meta">场内 ' + pc(wIn) + " · 场外 " + pc(wOt) + " · 可省 " + num(saveAll) + " 元/年</span></summary>" +
 
     '<div class="alt-feesum">' +
       '<div><div class="k">场内加权</div><div class="v">' + pc(wIn) + "</div></div>" +
@@ -3192,22 +3240,18 @@ function renderFees() {
       '）<span class="up"><span class="num">每年省 ' + num(saveAll) + ' 元</span></span><span class="mut">占全部持仓 ' + (saveAll / mvAll * 100).toFixed(2) + "%</span></div>"
       : '<div class="alt-note">当前没有更便宜的同口径替代：所有持仓都已是同类最低档。</div>') +
 
-    '<div class="alt-sub">已是同类最低 / 无更便宜（' + noPeer.length + " 只）</div>" +
-    '<div class="alt-col fee"><span>标的（费率）</span><span>市值</span><span>说明</span></div>' +
-    /* 说明列只有 96px：标签压到 4 个字（「已是最低」/「无更便宜」），完整理由挂 title。
-       这两个词的区别是「确实没有更便宜的」和「表里没找到」—— 别用一个词糊过去。 */
+    '<div class="alt-sub">其余 ' + noPeer.length + " 只 · 无更便宜</div>" +
+    '<div class="alt-col fee"><span>标的（费率）</span><span>市值</span></div>' +
+    /* 这一段全是「不构成行动」的项目：整行降级（.dim），且不再逐行重复「无更便宜」（9 行里有 8 行一样），
+       只给唯一的例外挂一枚徽标；两个词的区别（确实最低 vs 表里没找到）进 title。 */
     noPeer.map((r) => '<div class="alt-row fee dim" title="' + (r.peer
         ? "同口径里已是费率最低的一档"
         : "候选清单里没有更便宜的同口径产品（该指数 / 市场无同类被动产品或未纳入）") + '">' +
-      '<span class="alt-name">' + esc(r.code) + " " + esc(r.name) + "<i>" + pc(r.rate) + "</i></span>" +
-      '<span class="alt-v">' + num(r.mv) + "</span>" +
-      '<span class="alt-d"><span class="mut">' + (r.peer ? "已是最低" : "无更便宜") + "</span></span></div>").join("") +
+      '<span class="alt-name">' + esc(r.code) + " " + esc(r.name) + "<i>" + pc(r.rate) + "</i>" +
+        (r.peer ? '<span class="pill">已是最低</span>' : "") + "</span>" +
+      '<span class="alt-v">' + num(r.mv) + "</span></div>").join("") +
 
-    '<div class="alt-note">口径：综合费率 ＝ 管理费 ＋ 托管费 ＋ 销售服务费（年化），来自东方财富基金档案（招募说明书口径），抓取日 ' +
-      esc(F.asOf) + "。这些费用每日从基金资产计提、<b>已含在净值里</b>，不需要另付 —— 所以换标的省下的是「长期的确定性拖累」，" +
-      "不是当期收益；本表按<b>当前市值</b>折算，市值变了可省金额也跟着变。" +
-      "「无同类候选」多为主动型基金（费率 1.40%~1.90%）：换指数化同类还有下降空间，但那是<b>换产品</b>（风险特征会变），不在本表内。" +
-      "</div></details>";
+    "</details>";
 }
 
 /* ================= 标的替换回测（ALT_BACKTEST，由 scripts/alt-etf-backtest.mjs 写入） =================
@@ -3248,48 +3292,61 @@ function renderAlt() {
      ⚠ 场外没有逐笔记录，本金投入日是脚本里的 MANUAL 假设 → 块头必须显式写出，别让人当成实盘。 */
   const rev = (B.reverse && (B.reverse.funds || []).length) ? B.reverse : null;
   const revMax = rev ? Math.max.apply(null, rev.funds.map((f) => (f.rows[0] ? f.rows[0].final - f.base : 0))) : null;
+  /* 口径与假设（原来两段共 215 字铺在卡底）收进 ⓘ：正文只留结论 + 一枚 ⓘ */
+  const ALT_TIP = "正向：每笔按你当天的实际花费金额，买候选标的当日收盘价（前复权）；你的持仓也用同一口径重算 → 只比标的、不比盘中择时。\n" +
+    "佣金两边同费率相抵；管理费 / 托管费已含在净值里，不另计。\n" +
+    "只替换买入流水，未建模卖出。场外按当日净值申购，真实为 T+1/T+2 确认且有申购费，故场外结果略偏乐观。\n" +
+    "候选清单与费率由 scripts/alt-etf-backtest.mjs 顶部 UNIVERSE 维护，随每日数据更新重跑（数据源：" + B.source + "）。\n" +
+    "———\n" +
+    "反向表：把场外的申购换成场内 ETF。两侧同一套流水、同金额同日期，唯一差别是成交渠道（场内收盘价 vs 场外当日净值）。\n" +
+    "⚠ 场外没有逐笔申购记录（快照带明细的只有 " + ((rev && rev.funds[0]) ? rev.funds[0].first : "—") + " 起），" +
+    "所以「整笔本金」的投入日只能人工给：当前假设 " + (rev ? rev.start : "—") +
+    "（默认取场内首笔流水日），其后按快照期「持仓成本增量」补投。\n" +
+    "这个差额对投入日很敏感（换假设能差好几千），所以当量级看，别当精确结论；想更准：把真实首笔申购日告诉维护者，或自己试算 " +
+    "node scripts/alt-etf-backtest.mjs --start=YYYY-MM-DD --dry。\n" +
+    "未纳入 3 只无同类场内候选的场外（全球精选 / 日本精选 / 港股数字）。";
   if (cnt) cnt.innerHTML = "（截至 " + B.asOf + " · " +
-    gs.reduce((a, x) => a + x.rows.length + (x.g.otc || []).length, 0) + " 只候选 · " + B.source + "）";
+    gs.reduce((a, x) => a + x.rows.length + (x.g.otc || []).length, 0) + " 只候选" + tipBtn(ALT_TIP, "回测口径与假设") + "）";
 
   card.innerHTML = '<details class="alt-wrap"><summary title="同一批操作（同样日期、同样金额）换成同类别的另一只产品，到期末差多少。点开看逐只候选与口径">' +
     '<span class="alt-key">标的替换回测</span>' +
-    '<span class="alt-meta">' + gs.map((x) => x.g.label + " 你排 " + x.rank + "/" + x.rows.length).join(" · ") +
-      " · 换标的离散 ≤ " + num(Math.max.apply(null, gs.map((x) => x.best.final - x.worst.final))) + " 元" +
-      (revMax !== null ? " · 场外换场内最多 +" + num(revMax) + " 元" : "") + "</span></summary>" +
+    '<span class="alt-meta">' + gs.map((x) => x.g.label + " " + x.rank + "/" + x.rows.length).join(" · ") +
+      " · 换标的 ≤" + num(Math.max.apply(null, gs.map((x) => x.best.final - x.worst.final))) + "元" +
+      (revMax !== null ? " · 场外换场内 +" + num(revMax) + "元" : "") + "</span></summary>" +
     gs.map((x) => {
       const g = x.g, rows = x.rows;
       const navs = rows.map((r) => r.navRet).filter((v) => typeof v === "number");
       const otcBest = (g.otc || []).slice().sort((a, b) => b.final - a.final)[0];
       const rt = x.mine ? x.mine.ret : null;
       const facts = [];
+      /* 结论行一律压到 ~40 字以内：具体是哪只、多少份这类细节，上面的表与 title 里都有，不重复念一遍 */
       if (x.best && x.worst && x.best !== x.worst) {
-        facts.push("<li><b>换标的的量级</b>：最好 " + esc(x.best.name) + " " + num(x.best.final) + " vs 最差 " + esc(x.worst.name) + " " +
-          num(x.worst.final) + " → 差 " + num(x.best.final - x.worst.final) + " 元（" +
-          ((x.best.ret - x.worst.ret) * 100).toFixed(2) + "pp）；你排第 " + x.rank + " / " + rows.length + "</li>");
+        facts.push("<li><b>换标的差 " + num(x.best.final - x.worst.final) + " 元</b>（" + ((x.best.ret - x.worst.ret) * 100).toFixed(2) +
+          "pp）：最好 " + num(x.best.final) + " ↔ 最差 " + num(x.worst.final) + " · 你排 " + x.rank + "/" + rows.length + "</li>");
       }
       if (navs.length > 1) {
         const lo = Math.min.apply(null, navs), hi = Math.max.apply(null, navs);
-        facts.push("<li><b>差异来源</b>：各候选净值同期只在 " + pc(lo) + " ~ " + pc(hi) + " 之间（差 " + ((hi - lo) * 100).toFixed(2) +
-          "pp），而场内收益差 " + ((x.best.ret - x.worst.ret) * 100).toFixed(2) + "pp → 排序基本由<b>溢价变动</b>决定，而溢价会双向波动</li>");
+        facts.push("<li><b>差异来源</b>：净值同期只差 " + ((hi - lo) * 100).toFixed(2) + "pp，收益却差 " +
+          ((x.best.ret - x.worst.ret) * 100).toFixed(2) + "pp → 排序基本由<b>溢价变动</b>决定</li>");
       }
       if (otcBest) {
-        facts.push("<li><b>场外路线（无溢价）</b>：" + esc(otcBest.name) + " " + num(otcBest.final) + "（" + pc(otcBest.ret) + "）→ 比你的场内存 " +
-          sgn(otcBest.diff) + " 元（" + pp(otcBest.diffPp) + "）。这是本区间的结果，不等于长期结论</li>");
+        facts.push("<li><b>场外路线</b>：" + esc(otcBest.name) + " " + num(otcBest.final) + "（" + pc(otcBest.ret) + "）→ 比场内少 " +
+          num(Math.abs(otcBest.diff)) + " 元（" + pp(otcBest.diffPp) + "）</li>");
       }
       if (rt !== null && g.real) {
-        facts.push("<li><b>你的真实成交</b>：" + num(g.total) + " 元买入 " + g.real.units.toLocaleString("en-US") + " 份 → " + num(g.real.final) +
-          " 元（" + pc(g.real.ret) + "）；同口径全按收盘价买入为 " + pc(rt) + "，差额即你的盘中择时</li>");
+        facts.push("<li><b>你的成交</b>：" + pc(g.real.ret) + " vs 全按收盘 " + pc(rt) + "（差即盘中择时）</li>");
       }
       return '<div class="alt-grp">' +
         '<div class="alt-grp-head"><b>' + esc(g.label) + "</b><span>你的 " + esc(g.mine) + " · " + g.trades + " 笔" +
-          (g.sells ? " + " + g.sells + " 笔卖出" : "") + " · " + esc(g.first) + "→" + esc(g.to) + " · 投入 " + num(g.total) + " 元</span></div>" +
+          (g.sells ? " + " + g.sells + " 笔卖出" : "") + " · " + esc(g.first.slice(5)) + "→" + esc(g.to.slice(5)) +
+          " · " + num(g.total) + " 元</span></div>" +
         '<div class="alt-col"><span>标的</span><span>期末市值</span><span>与你的差</span></div>' +
         rows.map((r) => '<div class="alt-row' + (r.mine ? " mine" : "") + '">' +
           cells(esc(r.code) + " " + esc(r.name) + (r.mine ? "<em>你的</em>" : "") +
             '<i title="综合费率（管理+托管）：影响长期成本，本区间差异主要来自溢价变动">' + r.rate.toFixed(2) + "%</i>",
             r.final, r.mine, r.diff, r.diffPp) + "</div>").join("") +
         ((g.otc || []).length
-          ? '<div class="alt-sub">场外同类 · <b>假设</b>把场内这批钱改走场外申购（按当日净值，无溢价）→ 与你场内比；<b>不是你场外的实际盈亏</b><span class="alt-sub-note">（真实场外见「盈亏总览 / 快照对比」）</span></div>' +
+          ? '<div class="alt-sub">场外同类<span class="pill">假设</span>把场内这批钱改走场外申购（无溢价）· 非你实际场外盈亏</div>' +
             (g.otc || []).map((r) => '<div class="alt-row otc">' +
               cells(esc(r.code) + " " + esc(r.name) + (heldCodes.has(r.code) ? '<em class="alt-held" title="这只你场外也在持有（' + esc(r.code) + '）">你持有</em>' : "") +
                 "<i>" + r.rate.toFixed(2) + "%</i>", r.final, false, r.diff, r.diffPp) + "</div>").join("")
@@ -3315,13 +3372,8 @@ function renderAlt() {
             '）留场外 <span class="num">' + num(rev.total.base) + '</span> → 若买场内 <span class="num">' + num(rev.total.mineFinal) +
             '</span><span class="up"><span class="num">' + sgn(rev.total.diff) + " 元</span>（" + (rev.total.diffPp >= 0 ? "+" : "−") +
             Math.abs(rev.total.diffPp * 100).toFixed(2) + "%）</span></div>" : "") +
-        '<div class="alt-note">⚠ 本金投入日是<b>假设值</b>（' + esc(rev.start) + '）：场外没有逐笔申购记录，快照带明细的只有 ' +
-          esc(rev.funds[0] ? rev.funds[0].first : "—") + " 起，「整笔本金」的投入日只能人工给。未纳入 3 只无同类场内候选的场外（全球精选 / 日本精选 / 港股数字）。" +
-          "<b>这个差额对「投入日」很敏感</b>（换假设能差好几千），所以先当<b>量级</b>看，别当精确结论；" +
-          "想更准：把真实首笔申购日告诉维护者（改脚本顶部 <b>OTC_START</b>），或自己试算 <b>node scripts/alt-etf-backtest.mjs --start=YYYY-MM-DD --dry</b>。</div></div>" : "") +
-    '<div class="alt-note">口径：每笔按你当天的<b>实际花费金额</b>买候选标的<b>当日收盘价</b>（前复权），你的持仓同口径重算 → 只比标的、不比盘中择时；' +
-      "佣金同费率相抵，管理费 / 托管费已含在净值里；只替换买入流水（未建模卖出）；场外按当日净值申购，实际为 T+1/T+2 确认且有申购费，故场外略偏乐观。" +
-      "候选清单与费率在 <b>scripts/alt-etf-backtest.mjs</b> 顶部 UNIVERSE 维护，随每日数据更新自动重跑。</div></details>";
+        '<div class="alt-sub">⚠ 本金投入日<span class="pill">假设</span>' + esc(rev.start) + "（非实测）· 原因见 ⓘ</div></div>" : "") +
+    "</details>";
 }
 
 function renderSwing() {
