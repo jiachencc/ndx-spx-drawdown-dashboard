@@ -1225,9 +1225,9 @@ const SOURCE_META = {
     "status": "ok"
   },
   "etfNdx": {
-    "asOf": "2026-09-18",
-    "source": "Tencent sz159941 qfq (latest price)",
-    "fetchedAt": "2026-09-18T23:35:59.081Z",
+    "asOf": "2026-09-21",
+    "source": "平安证券 App 09-21 收盘截图（人工录入兜底；CI 会用 Tencent sz159941 qfq 覆盖）",
+    "fetchedAt": "2026-09-21T08:26:07.000Z",
     "status": "ok"
   },
   "premium:159941": {
@@ -1239,9 +1239,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "hkus": {
-    "asOf": "2026-09-18",
-    "source": "Tencent sz160644 qfq (latest price)",
-    "fetchedAt": "2026-09-18T23:35:59.081Z",
+    "asOf": "2026-09-21",
+    "source": "平安证券 App 09-21 收盘截图（人工录入兜底；CI 会用 Tencent sz160644 qfq 覆盖）",
+    "fetchedAt": "2026-09-21T08:26:07.000Z",
     "status": "ok"
   },
   "premium:160644": {
@@ -1253,9 +1253,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "kr": {
-    "asOf": "2026-09-18",
-    "source": "Tencent sh513310 qfq (latest price)",
-    "fetchedAt": "2026-09-18T23:35:59.081Z",
+    "asOf": "2026-09-21",
+    "source": "平安证券 App 09-21 收盘截图（人工录入兜底；CI 会用 Tencent sh513310 qfq 覆盖）",
+    "fetchedAt": "2026-09-21T08:26:07.000Z",
     "status": "ok"
   },
   "premium:513310": {
@@ -1267,9 +1267,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "etfSpx": {
-    "asOf": "2026-09-18",
-    "source": "Tencent sh513650 qfq (latest price)",
-    "fetchedAt": "2026-09-18T23:35:59.081Z",
+    "asOf": "2026-09-21",
+    "source": "平安证券 App 09-21 收盘截图（人工录入兜底；CI 会用 Tencent sh513650 qfq 覆盖）",
+    "fetchedAt": "2026-09-21T08:26:07.000Z",
     "status": "ok"
   },
   "premium:513650": {
@@ -1281,9 +1281,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "n225": {
-    "asOf": "2026-09-18",
-    "source": "Tencent sh513880 qfq (latest price)",
-    "fetchedAt": "2026-09-18T23:35:59.081Z",
+    "asOf": "2026-09-21",
+    "source": "平安证券 App 09-21 收盘截图（人工录入兜底；CI 会用 Tencent sh513880 qfq 覆盖）",
+    "fetchedAt": "2026-09-21T08:26:07.000Z",
     "status": "ok"
   },
   "premium:513880": {
