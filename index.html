@@ -395,6 +395,10 @@
   .cal-info .e-name { font-size: 12.5px; font-weight: 600; }
   .cal-info .e-desc { font-size: 11px; color: var(--tx2); }
   .cal-pri { flex-shrink: 0; font-size: 10.5px; padding: 2px 9px; border-radius: 10px; height: fit-content; font-weight: 700; }
+  /* 日历空态：全部事件都已过期（或还没登记）时的占位行 —— 比空卡片更像「正常的空」，
+     并说明有几条过期没显示，免得被当成数据没加载出来 */
+  .cal-empty { padding: 12px 0 10px; font-size: 11.5px; color: var(--tx3); }
+  .cal-empty b { color: var(--tx2); font-weight: 600; }
   .pri-high { background: rgba(242,109,125,.14); color: var(--red); }
   .pri-mid { background: rgba(247,193,78,.13); color: var(--yellow); }
   .pri-low { background: rgba(143,160,186,.12); color: var(--tx2); }
@@ -1445,10 +1449,20 @@ function renderMonthly() {
     `对比 ${otherName} 年内累计 <b class="up">${pct(otherCum*100)}</b>`;
 }
 
-/* CALENDAR 数组已移至 data.js；本函数仅负责渲染 */
+/* CALENDAR 数组在 data.js；本函数只负责渲染。
+ * 过期不显示（2026-09-21 起）：此前只靠人工注释里的「去过期事件」，结果 09-21 这天
+ * 4 条已过期事件仍列在「未来事件日历」下 —— 名字说未来、内容全是过去。
+ * 判过期用「本机当天」，不用 DEFAULT.asOf.us：后者是行情日（周末/节假日会滞后），
+ * 会把昨天的事件继续留在「未来」里。条目漏填 iso 的按「未排期」照常显示（不静默吞掉）。 */
 function renderCalendar() {
   const box = $("calendar");
-  box.innerHTML = CALENDAR.map(c => `
+  if (!box) return;
+  const now = new Date();
+  const today = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  const all = Array.isArray(CALENDAR) ? CALENDAR : [];
+  const upcoming = all.filter(c => !c.iso || String(c.iso) >= today);
+  const expired = all.length - upcoming.length;
+  box.innerHTML = upcoming.length ? upcoming.map(c => `
     <div class="cal-item">
       <div class="cal-date"><div class="d">${c.d}</div><div class="m">${c.m}<br>${c.day}</div></div>
       <div class="cal-info">
@@ -1456,7 +1470,7 @@ function renderCalendar() {
         <div class="e-desc">${c.desc || ""}</div>
       </div>
       <span class="cal-pri pri-${c.pri==="高"?"high":(c.pri==="中"?"mid":"low")}">${c.pri}</span>
-    </div>`).join("");
+    </div>`).join("") : `<div class="cal-empty">近期无登记事件${expired ? `（另有 <b>${expired}</b> 条已过期，不再显示）` : ""}。</div>`;
 }
 
 
