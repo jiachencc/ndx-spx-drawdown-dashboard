@@ -278,8 +278,13 @@
      两个小计不再重复——它们就是上方「市场盈亏 / 累计盈亏」两行的场内·场外拆分；
      组小计与底部「合计」行同理，一并去掉（数字都在结论区，这里只回答「谁在动」）。
      分组的理由仍是数据节奏不同：场内券商收盘一次到位，场外 QDII 逐只滞后一天。 */
-  .snap-group { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; align-items: baseline; margin-top: 8px; margin-left: -6px; padding: 3px 6px; background: var(--card); border-radius: 6px; font-size: var(--fs-xxs); font-weight: 700; color: var(--tx); }
-  .snap-group em { font-style: normal; font-weight: 400; color: var(--tx3); }
+  /* 分组头：原来沿用明细行的 1fr 78px 84px 三列网格、却只填第一列 → 手机上天数一栏只剩
+     ~184px，「场外 8 只 净值日 09.17~09.18 混排」正好在词中间折行（场内行也贴着临界）。
+     改 flex：左段（组名 + 只数）与右段（数据节奏）各自 nowrap、整体可换行 —— 折也只折在两段
+     之间，不会从词中间断开；hint 推到行尾，与右侧两个数字列大致对齐。 */
+  .snap-group { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 8px; margin-left: -6px; padding: 3px 6px; background: var(--card); border-radius: 6px; font-size: var(--fs-xxs); font-weight: 700; color: var(--tx); }
+  .snap-group .snap-group-key { white-space: nowrap; }
+  .snap-group .snap-group-hint { margin-left: auto; white-space: nowrap; font-weight: 400; color: var(--tx3); }
   /* ===== 持仓明细的主次（原 13 行平铺，一眼看不出重点）=====
      ① 本期有动作（份额变了 / 盈亏幅度 ≥1 元）：市场盈亏列加粗着色，排在组内最前（亏得最多在最上）；
      ② 本期无变动（场外净值滞后时整天不动很常见）：该列降为灰字常规字重，排到组内末尾。
@@ -2863,8 +2868,11 @@ function snapPairHtml(prev, cur) {
     /* 分组默认全展开，分组头只留标签：组小计与底部「合计」行都已删除 ——
        那些数字与上方「市场盈亏 / 累计盈亏」两行的场内·场外拆分完全重复，
        这一块只回答「这期谁在动、动了多少」。 */
+    /* 分组头拆成「组名 + 只数」与「数据节奏」两段：两段各自不折行，整行可换行 ——
+       原来是一整句塞进三列网格的第一列，窄屏下会从词中间断开。 */
     const grpBlock = (key, label, hint, tip) => (!grpLines[key].length && !sub[key].n) ? "" :
-      '<div class="snap-group" title="' + esc(tip) + '"><span>' + label + " " + sub[key].n + " 只 <em>" + hint + "</em></span></div>" +
+      '<div class="snap-group" title="' + esc(tip) + '"><span class="snap-group-key">' + label + " " + sub[key].n + " 只</span>" +
+      '<span class="snap-group-hint">' + hint + "</span></div>" +
       grpLines[key].join("");
     lines.push(grpBlock("in", "场内", "券商 " + mdOf(cur.d) + " 收盘", "场内＝券商账户，收盘后一次性更新"));
     lines.push(grpBlock("ot", "场外", navTxt || "QDII 净值滞后", "场外＝各基金 App 读数，QDII 净值滞后 1 个交易日，逐只数据日常不相同"));
