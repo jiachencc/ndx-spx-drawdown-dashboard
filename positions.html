@@ -191,7 +191,6 @@
   .date-chip.etf { color: var(--cyan); border-color: var(--info-line); background: var(--info-bg); }
   .date-chip.otc { color: var(--purple); border-color: var(--purple-line); background: var(--purple-bg); }
   .date-chip.nav { color: var(--tx3); }
-  .date-chip .tick { color: var(--green); }
   .date-chip.stale { color: var(--yellow); border-color: var(--warn-line); background: var(--warn-bg); }
   .date-chip + .date-chip, .date-chip + .qty-tag { margin-left: 4px; }
   .sum-cell .s-asof { margin-top: 4px; line-height: 1.6; }   /* 汇总格底部的口径日期行 */
@@ -1552,6 +1551,20 @@ function otcNavTag(code, short) {
     '">' + mdOf(f.nav.closeDate) + "</span>";
 }
 
+/* 盈亏总览行内联的「· 净值 09.18」片段：并入来源胶囊，不再单独占一枚。
+   净值数值与完整口径写进 title —— 行内放不下数值，但按上去能看到。 */
+function otcNavInline(code) {
+  if (typeof OTC === "undefined" || !OTC.funds) return { text: "", title: "" };
+  const f = OTC.funds.filter((x) => x.code === code)[0];
+  if (!f || !f.nav || !f.nav.closeDate) return { text: "", title: "" };
+  const same = !!(OTC.updated && f.nav.closeDate === OTC.updated);
+  return {
+    text: " · 净值 " + mdOf(f.nav.closeDate),
+    title: "；净值日 " + f.nav.closeDate + "（净值 " + (Number.isFinite(f.nav.close) ? f.nav.close : "—") + "）" +
+      (same ? "，已到截图当日" : "，比截图日早 —— QDII 发布节奏差异，不是漏更新"),
+  };
+}
+
 /* 单只场内标的的报价日标签（盈亏总览行、持仓卡头用） */
 function etfRowTag(row) {
   const h = (typeof sourceHealth === "function") ? sourceHealth(QUOTE_KEY[row.p.idx] || row.p.idx) : null;
@@ -1578,17 +1591,19 @@ function renderImpl() {
   };
   /* 场外同步徽章：upd = 该基金截图同步时间（含状态栏时刻）。与 OTC.updated 同日 → 绿「✓HH:MM」；
    * 否则琥珀显示上次同步日期（说明该 App 截图还没发，页面沿用旧值）。 */
-  /* 场外行来源胶囊：把「渠道 + 状态 + 截图日 + 时刻」收进同一枚（紫色＝场外），
-     取代原来「渠道纯文字 + 一枚日期胶囊」两截 —— 一眼知道这是哪个 App、哪天的、有没有跟上。 */
+  /* 场外行来源胶囊：一枚装齐「渠道 + 截图日（+时刻）＋ 净值日」（紫色＝场外）。
+     两个日期用「·」分开，原来是两枚胶囊，一行显得碎。
+     不加 ✓ 勾：紫色本身就表示"这是最近一次截图"，只有沿用旧值才转琥珀并加 ⚠。 */
   const syncBadge = (f) => {
     const ch = (typeof srcLabel === "function") ? srcLabel(f.code).s : "";
-    if (!f.upd) return '<span class="date-chip stale" title="未记录该只的截图同步时间">⚠ ' + esc(ch) + " 未记录</span>";
+    const nav = otcNavInline(f.code);
+    if (!f.upd) return '<span class="date-chip stale" title="未记录该只的截图同步时间（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " 未记录" + esc(nav.text) + "</span>";
     const d = f.upd.slice(0, 10), t = (f.upd.slice(11, 16) || "").trim();
     const md = d.slice(5).replace("-", ".");
     if (d === OTC.updated)
-      return '<span class="date-chip otc" title="场外 App 截图：' + esc(f.upd) + '（状态栏时刻）· 渠道 ' + esc(ch) + '">' +
-        '<span class="tick">✓</span> ' + esc(ch) + " " + md + (t ? " " + t : "") + "</span>";
-    return '<span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新（渠道 ' + esc(ch) + '）">⚠ ' + esc(ch) + " " + md + " 待更</span>";
+      return '<span class="date-chip otc" title="场外 App 截图：' + esc(f.upd) + '（状态栏时刻）· 渠道 ' + esc(ch) + esc(nav.title) + '">' +
+        esc(ch) + " " + md + (t ? " " + t : "") + esc(nav.text) + "</span>";
+    return '<span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " " + md + " 待更" + esc(nav.text) + "</span>";
   };
   const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) === OTC.updated).length;
   $("otc-updated").innerHTML = (OTC.updated ? otcTag() : "未记录") + freshBadge(OTC.updated) +
@@ -1696,7 +1711,7 @@ function renderImpl() {
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
   /* 来源标签统一走 srcLabel()：场内→「场内」、场外→渠道简称，与快照明细同一套取值 */
   rows.forEach((row) => plRows.push({ code: row.p.code, name: row.p.sym, badge: etfRowTag(row), pl: row.valAmt - row.costAmt, r: row.r, cost: row.costAmt, sel: ".card[data-sym='" + row.p.sym + "']" }));
-  otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f) + otcNavTag(row.f.code), pl: row.f.pnl, r: row.r, cost: row.costAmt }));   // 场外明细卡已取消 → 不挂跳转目标
+  otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, cost: row.costAmt }));   // 场外明细卡已取消 → 不挂跳转目标；净值日已并入来源胶囊
   plRows.sort((a, b) => b.pl - a.pl);
   $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · " + etfTag() + " · " + otcTag() + ")";
   $("pl-list").innerHTML =
