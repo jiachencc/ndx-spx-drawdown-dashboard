@@ -182,7 +182,7 @@
      上一版把「场内 / 场外」留在胶囊外面，形状与颜色仍不齐；现在统一收进胶囊里，
      一枚胶囊自己就说清「这是什么数据、哪天的、有没有跟上」：
        配色按来源分色，状态色压过来源色
-         青＝场内（A 股 ETF 报价日）· 紫＝场外（各基金 App 截图日，带状态栏时刻）
+         青＝场内（A 股 ETF 报价日）· 紫＝场外（各基金 App 截图日；截图时刻只在 title 里，不上屏）
          灰＝净值日（辅助事实，不加底）· 绿勾＝已同步 · 琥珀（连 ⚠）＝沿用旧值 / 滞后 / 缺记录
        形状：等宽 tabular + pill 描边 + 极浅底色（与 .idx-badge 同一套视觉语言）
      ⚠ 相对时间（今日 / N 天前 / 待更 N 天）不走胶囊：它修饰的就是紧挨着的那枚日期胶囊。
@@ -998,7 +998,8 @@ const $ = (id) => document.getElementById(id);
 /* ---- 场外持仓数据（MANUAL 快照；净值为天天基金抓取快照） ----
  * day: null = 该净值日未更新（渲染「—」且不计入当日合计），勿用 0 冒充
  * upd: 该基金截图同步时间（"YYYY-MM-DD HH:MM"，取截图状态栏时刻）——
- *      与 OTC.updated 同日显示绿「✓HH:MM」，否则琥珀「待更」；用于「已同步 X/8」进度 */
+ *      页面上只显示到日期（HH:MM 留在 title 里供对账）；与 OTC.updated 同日为紫色胶囊，否则琥珀「待更」；
+ *      同时用于「已同步 X/8」进度 */
 const OTC = {
   updated: "2026-09-21",   // App 截图日（09-21 晚 19:41~21:01 抓取；场内＝平安证券 09-21 收盘，场外逐只净值日见下）
   cash: 13458.10,  // 各渠道可用资金合计 = 场内券商可用 13,458.10（平安 App 09-21 实读）+ 场外平台 0（本期起核销，见下）
@@ -1591,20 +1592,17 @@ function renderImpl() {
     if (!n) return ' <span class="fresh-ok">今日</span>';
     return ' <span class="fresh-' + (n >= 3 ? "old" : "stale") + '">' + n + ' 天前</span>';
   };
-  /* 场外同步徽章：upd = 该基金截图同步时间（含状态栏时刻）。与 OTC.updated 同日 → 绿「✓HH:MM」；
-   * 否则琥珀显示上次同步日期（说明该 App 截图还没发，页面沿用旧值）。 */
-  /* 场外行来源胶囊：一枚装齐「渠道 + 截图日（+时刻）＋ 净值日」（紫色＝场外）。
-     两个日期用「·」分开，原来是两枚胶囊，一行显得碎。
+  /* 场外行来源胶囊：一枚装齐「渠道 + 截图日 ＋ 净值日」（紫色＝场外），两个日期用「·」分开。
+     只显示到日期：截图时刻（upd 里的 HH:MM）不显示，只留在 title 里供对账查证。
      不加 ✓ 勾：紫色本身就表示"这是最近一次截图"，只有沿用旧值才转琥珀并加 ⚠。 */
   const syncBadge = (f) => {
     const ch = (typeof srcLabel === "function") ? srcLabel(f.code).s : "";
     const nav = otcNavInline(f.code);
     if (!f.upd) return '<span class="date-chip stale" title="未记录该只的截图同步时间（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " 未记录" + esc(nav.text) + "</span>";
-    const d = f.upd.slice(0, 10), t = (f.upd.slice(11, 16) || "").trim();
-    const md = d.slice(5).replace("-", ".");
-    if (d === OTC.updated)
+    const md = f.upd.slice(5, 10).replace("-", ".");
+    if (f.upd.slice(0, 10) === OTC.updated)
       return '<span class="date-chip otc" title="场外 App 截图：' + esc(f.upd) + '（状态栏时刻）· 渠道 ' + esc(ch) + esc(nav.title) + '">' +
-        esc(ch) + " " + md + (t ? " " + t : "") + esc(nav.text) + "</span>";
+        esc(ch) + " " + md + esc(nav.text) + "</span>";
     return '<span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " " + md + " 待更" + esc(nav.text) + "</span>";
   };
   const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) === OTC.updated).length;
