@@ -178,11 +178,23 @@
   .sum-cell .s-label { font-size: var(--fs-xs); color: var(--tx3); margin-bottom: 4px; }
   .sum-cell .s-val { font-family: var(--mono); font-size: var(--fs-lg); font-weight: 700; font-feature-settings: "tnum"; }
   .sum-cell .s-sub { font-family: var(--mono); font-size: var(--fs-xs); margin-top: 3px; font-feature-settings: "tnum"; }
-  /* ===== 口径日期标签：所有模块统一标注「这个数字源自哪天」=====
-     etf=场内报价日（青）· 默认=场外快照日 · warn=日期缺失（不猜，直接标未记录） */
-  .asof-tag { display: inline-block; font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 400; font-feature-settings: "tnum"; color: var(--tx3); background: var(--tint); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; vertical-align: 1px; white-space: nowrap; }
-  .asof-tag.etf { color: var(--cyan); border-color: var(--info-line); }
-  .asof-tag.warn { color: var(--yellow); border-color: var(--warn-line); }
+  /* ===== 口径日期 / 时刻徽章（.date-chip）：全页「这个数字源自哪天」只有一种形状、一套配色 =====
+     以前同一件事有四种长相：青/琥珀描边胶囊（.asof-tag）、纯绿字（.sync-ok）、纯琥珀字
+     （.sync-stale）、灰描边胶囊（.nav-tag）—— 圆角、字号、有无边框各不相同，排在一行里很花。
+     现在统一成一枚胶囊：
+       文本  只装「日期 MM.DD」或「日期 + 截图时刻」；状态符号（✓）可留在里面。
+             「场内 / 场外 / 报价 / 净值」这类词一律放胶囊外面 —— 胶囊里只有时间事实。
+       配色  青＝场内报价日（A 股交易日）· 绿＝场外截图已同步 · 琥珀＝沿用旧值 / 滞后 / 缺记录
+             灰＝辅助事实（净值日）· 中性＝场外快照日
+       形状  等宽 tabular 数字 + pill 描边（数字列不抖；与 .idx-badge / .snap-tag 同一套圆角语言）
+     ⚠ 相对时间（今日 / N 天前 / 待更 N 天）不走胶囊：它修饰的是同一个日期，不是来源日期本身；
+       只有「待更」这类纯状态才用胶囊。相邻胶囊之间统一 4px，不靠各处硬写。 */
+  .date-chip { display: inline-block; font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 400; font-feature-settings: "tnum"; color: var(--tx3); background: var(--tint); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 6px; vertical-align: 1px; white-space: nowrap; }
+  .date-chip.etf { color: var(--cyan); border-color: var(--info-line); }
+  .date-chip.ok { color: var(--green); border-color: var(--up-line); }
+  .date-chip.stale { color: var(--yellow); border-color: var(--warn-line); }
+  .date-chip.nav { color: var(--tx3); }
+  .date-chip + .date-chip, .date-chip + .qty-tag { margin-left: 4px; }
   .sum-cell .s-asof { margin-top: 4px; line-height: 1.6; }   /* 汇总格底部的口径日期行 */
   /* 当日盈亏分量大、合计量小——盘中估值与 App 快照不同口径，写成一个主数字会误导 */
   .s-split { display: flex; align-items: baseline; justify-content: center; gap: 4px; margin-top: 2px; }
@@ -556,16 +568,15 @@
   @keyframes ipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   .strat-row { margin-top: 8px; font-size: var(--fs-xs); color: var(--tx3); line-height: 1.6; overflow-wrap: break-word; }
   .held { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; }
-  /* 同步状态徽章（场外基金：upd 截图同步时间）与数据新鲜度（fresh-*） */
-  .sync-ok, .sync-stale, .sync-cnt, .fresh-ok, .fresh-stale, .fresh-old { font-family: var(--mono); font-size: var(--fs-xxs); font-feature-settings: "tnum"; }
-  .sync-ok, .fresh-ok { color: var(--green); }
-  .sync-stale, .fresh-stale { color: var(--yellow); }
+  /* 数据新鲜度的**相对时间**文字（今日 / N 天前）与「同步 X/8」计数：
+     它们修饰的是旁边那枚 .date-chip，本身不是来源日期，故保持文字、不用胶囊。 */
+  .sync-cnt, .fresh-ok, .fresh-stale, .fresh-old { font-family: var(--mono); font-size: var(--fs-xxs); font-feature-settings: "tnum"; }
+  .fresh-ok { color: var(--green); }
+  .fresh-stale { color: var(--yellow); }
   .fresh-old { color: var(--red); }
   .sync-cnt { color: var(--tx3); }
-  /* 场外逐只净值日：与「同步徽章」并列的第二枚事实标签 ——
-     同步徽章答「截图是哪天」，净值日答「市值算到哪天」，两者常不同（QDII 发布节奏）。
-     中性灰描边胶囊，不抢结论；与 .asof-tag 同一套形状语言 */
-  .nav-tag { display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 999px; border: 1px solid var(--line-soft); font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum"; }
+  /* （原 .nav-tag 已并入 .date-chip.nav —— 场外逐只净值日：同一枚胶囊、灰色）
+     它答「市值算到哪天」，与左边的同步胶囊（答「截图是哪天」）是两件事，常不同：QDII 发布节奏。 */
   .sync-cnt.ok { color: var(--green); }
   .strat-hint { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 4px; border: 1px solid var(--line); border-radius: 50%; background: none; color: var(--tx3); font-size: var(--fs-xxs); font-family: var(--sans); cursor: pointer; vertical-align: 1px; padding: 0; }
   .strat-note { display: none; font-size: var(--fs-xs); color: var(--tx3); margin-top: 6px; line-height: 1.55; padding: 7px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; }
@@ -1515,12 +1526,17 @@ function etfAsOfText() {
  * suffix 可追加说明（如「 日涨跌」） */
 function etfTag(suffix, short) {
   const t = etfAsOfText();
-  return '<span class="asof-tag ' + (t ? "etf" : "warn") + '">' + (short ? "" : "场内 ") + (t || "报价日未记录") + (suffix || "") + "</span>";
+  /* 胶囊里只放日期，词（场内）放外面 —— 全页统一 */
+  return (short ? "" : "场内 ") +
+    '<span class="date-chip ' + (t ? "etf" : "stale") + '" title="场内 ETF 报价日（A 股交易日，15:00 收盘后即为定值）">' +
+    (t || "未记录") + (suffix || "") + "</span>";
 }
 /* 场外快照（截图）日标签；short 同上 */
 function otcTag(suffix, short) {
   const d = mdOf(OTC.updated);
-  return '<span class="asof-tag ' + (d ? "" : "warn") + '">' + (short ? "" : "场外 ") + (d || "快照日未记录") + (suffix || "") + "</span>";
+  return (short ? "" : "场外 ") +
+    '<span class="date-chip ' + (d ? "" : "stale") + '" title="场外 App 截图日（净值日通常再早一天，逐只见「盈亏总览」行）">' +
+    (d || "未记录") + (suffix || "") + "</span>";
 }
 /* 单只场外基金的**净值日**标签（盈亏总览行、快照对比行用）。
  * 它回答的是「这只的市值算到哪一天」——与同步徽章（截图是哪天）是两件事，常常不同：
@@ -1531,18 +1547,22 @@ function otcNavTag(code, short) {
   const f = OTC.funds.filter((x) => x.code === code)[0];
   if (!f || !f.nav || !f.nav.closeDate) return "";
   const same = !!(OTC.updated && f.nav.closeDate === OTC.updated);
-  /* short：快照对比的名称列只有 ~160px，还要塞渠道与份额标签 → 只留日期（是什么日期交给 title 说） */
-  return '<span class="nav-tag" title="净值日：该只市值按 ' + f.nav.closeDate + " 的净值 " +
+  /* short：快照对比的名称列只有 ~160px，还要塞渠道与份额标签 → 胶囊只留日期、连「净值」也省掉
+     （是什么日期交给 title；同一行左边那枚同步胶囊才是「截图日」） */
+  return (short ? "" : "净值 ") +
+    '<span class="date-chip nav" title="净值日：该只市值按 ' + f.nav.closeDate + " 的净值 " +
     (Number.isFinite(f.nav.close) ? f.nav.close : "—") + " 计算（截图日 " + (OTC.updated || "—") + "）；" +
     (same ? "这只已到截图当日的净值" : "比截图日早，属 QDII 净值发布节奏差异，不是漏更新") +
-    '">' + (short ? "" : "净值 ") + mdOf(f.nav.closeDate) + "</span>";
+    '">' + mdOf(f.nav.closeDate) + "</span>";
 }
 
 /* 单只场内标的的报价日标签（盈亏总览行、持仓卡头用） */
 function etfRowTag(row) {
   const h = (typeof sourceHealth === "function") ? sourceHealth(QUOTE_KEY[row.p.idx] || row.p.idx) : null;
   const d = mdOf((h && h.asOf) || row.m.priceDate);
-  return d ? '<span class="asof-tag etf">' + d + "</span>" : '<span class="asof-tag warn">报价日未记录</span>';
+  return d
+    ? '<span class="date-chip etf" title="场内报价日：' + esc((h && h.source) || "ETF 场内收盘价") + '">' + d + "</span>"
+    : '<span class="date-chip stale" title="该只报价日缺失，未做猜测">未记录</span>';
 }
 
 function renderImpl() {
@@ -1563,15 +1583,15 @@ function renderImpl() {
   /* 场外同步徽章：upd = 该基金截图同步时间（含状态栏时刻）。与 OTC.updated 同日 → 绿「✓HH:MM」；
    * 否则琥珀显示上次同步日期（说明该 App 截图还没发，页面沿用旧值）。 */
   const syncBadge = (f) => {
-    if (!f.upd) return ' <span class="sync-stale" title="未记录同步时间">?</span>';
+    if (!f.upd) return ' <span class="date-chip stale" title="未记录该只的截图同步时间">?</span>';
     const d = f.upd.slice(0, 10), t = (f.upd.slice(11, 16) || "").trim();
     const md = d.slice(5).replace("-", ".");
-    /* 与场内行的报价日徽章保持同一形状：都带日期（场内无时刻，场外多给状态栏时刻） */
-    if (d === OTC.updated) return ' <span class="sync-ok" title="App 截图已同步（' + f.upd + '）">✓' + md + " " + t + "</span>";
-    return ' <span class="sync-stale" title="沿用 ' + md + ' 截图旧值，待更新">' + md + " 待更</span>";
+    /* 与场内报价日同一枚胶囊：场内只有日期（A 股收盘即定值），场外多给到状态栏时刻 */
+    if (d === OTC.updated) return ' <span class="date-chip ok" title="App 截图已同步：' + f.upd + '（状态栏时刻）">✓ ' + md + (t ? " " + t : "") + "</span>";
+    return ' <span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新">' + md + " 待更</span>";
   };
   const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) === OTC.updated).length;
-  $("otc-updated").innerHTML = (mdOf(OTC.updated) || "--") + freshBadge(OTC.updated) +
+  $("otc-updated").innerHTML = (OTC.updated ? otcTag("", true) : "未记录") + freshBadge(OTC.updated) +
     ' <span class="sync-cnt' + (syncCnt === OTC.funds.length ? " ok" : "") + '" title="App 截图已同步 ' + syncCnt + "/" + OTC.funds.length + '（截图日与净值日非同一天属正常）">· 同步 ' + syncCnt + "/" + OTC.funds.length + "</span>";
   /* 场内报价核验：五只同日同状态时并成一句（原为逐只罗列 5 段、占三行），明细挂 title；
    * 仅当状态不一致或缺失时才展开逐只——正常情况不再把无关差异堆在首屏。 */
@@ -1579,7 +1599,7 @@ function renderImpl() {
   const qTexts = [...new Set(qh.map((h) => h.text))];
   const qDetail = qh.map((h) => h.label + " " + (h.asOf || "无日期") + "（" + h.text + "）").join(" · ");
   const qUniform = new Set(qh.map((h) => h.asOf || "无日期")).size === 1 && qTexts.length === 1;
-  $("pos-asof").innerHTML = (etfAsOfText() || "未核验") +
+  $("pos-asof").innerHTML = (etfAsOfText() ? etfTag("", true) : "未核验") +
     (qUniform ? ' <span class="' + (qh[0].usable ? "" : "warn") + '" title="' + esc(qDetail) + '">· ' + esc(qTexts[0]) + "</span>" : "");
   $("pos-source-health").innerHTML = qUniform ? "" : '<span title="' + esc(qDetail) + '">⚠ ' + esc(qDetail) + "</span>";
   const residuals = SNAPSHOTS.flatMap(s => Object.entries(s.items || {}).filter(([, it]) => ![it.val, it.cost, it.pl].every(Number.isFinite) || Math.abs(it.val - it.cost - it.pl) > 1).map(([code, it]) => s.d + " / " + code + " 残差 " + (it.val - it.cost - it.pl).toFixed(2) + " 元"));
@@ -3150,8 +3170,8 @@ function renderAcctStats() {
      曾静默过期 9 天（09-09 的读数配 09-18 的行情），徽标避免再发生。 */
   const acctRef = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS[SNAPSHOTS.length - 1].d : (typeof OTC !== "undefined" ? OTC.updated : null);
   const acctStale = acctRef && S.updated ? Math.round((Date.parse(acctRef) - Date.parse(S.updated)) / 86400000) : null;
-  $("acct-cnt").innerHTML = "（场内券商 App 读数 " + (S.updated || "未记录") +
-    (acctStale !== null && acctStale > 7 ? ' <span class="sync-stale" title="这块是手工抄的 App 读数，已落后最新快照 ' + acctStale + ' 天；交易笔数 / 税费可用流水核对，其余需按 App 补更">待更 ' + acctStale + " 天</span>" : "") +
+  $("acct-cnt").innerHTML = "（场内券商 App 读数 " + (S.updated ? '<span class="date-chip" title="这块是手工抄的场内券商 App 读数；交易笔数 / 税费可用流水核对">' + mdOf(S.updated) + "</span>" : "未记录") +
+    (acctStale !== null && acctStale > 7 ? ' <span class="date-chip stale" title="这块是手工抄的 App 读数，已落后最新快照 ' + acctStale + ' 天；交易笔数 / 税费可用流水核对，其余需按 App 补更">待更 ' + acctStale + " 天</span>" : "") +
     " · 月度盈亏含已实现）";
   /* 相对基准：券商对账单每行右侧的「上证」涨跌——只看自己的绝对收益（−11.61%）判断不了好坏。
      pp ＝ 百分点（账户收益率 − 基准涨跌），正数＝跑赢。 */
@@ -3532,8 +3552,8 @@ function holdCardHtml(row, i, ctx) {
    * 且长期挂着一句重复警告会被直接无视。改为照常给结论、旁边挂滞后角标，把判断依据摆到结论边上；
    * 只有连报价日期都没有（无从判断是哪天的行情）时才阻断。 */
   const lagTag = (health.asOf && !health.usable)
-    ? ' <span class="asof-tag warn" title="触发线按该报价日的收盘涨跌计算；已滞后 ' + health.days +
-      ' 个交易日，盘中请以券商实时价为准">' + mdOf(health.asOf) + ' · 滞后 ' + health.days + ' 日</span>'
+    ? ' <span class="date-chip stale" title="触发线按该报价日的收盘涨跌计算；已滞后 ' + health.days +
+      ' 个交易日，盘中请以券商实时价为准">' + mdOf(health.asOf) + '</span> · 滞后 ' + health.days + ' 日'
     : "";
   let strat;
   if (!health.asOf) {
@@ -3647,7 +3667,8 @@ function holdCardHtml(row, i, ctx) {
     '<div class="pos-head"><div class="pos-name">' + p.sym +
       '<span class="code">' + p.code + '</span>' +
       '<span class="idx-badge ' + p.idx + '">' + idxName + '</span>' +
-      '<span class="asof-tag ' + (quoteDate ? "etf" : "warn") + '">' + (quoteDate ? "报价 " + quoteDate : "报价日未记录") + '</span></div>' +
+      (quoteDate ? '报价 <span class="date-chip etf" title="该只报价日（A 股交易日）">' + quoteDate + "</span>"
+        : '<span class="date-chip stale" title="该只报价日缺失">报价日未记录</span>') + '</div>' +
       (heldDays ? '<span class="held">持有 ' + heldDays + ' 天</span>' : '') +
     '</div>' +
     '<div class="stat-grid">' +
