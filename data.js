@@ -18,12 +18,12 @@ const DEFAULT = {
   fx: 6.6976,
   // AUTO：无对应免费指数的持仓用 ETF 自身场内价的 52 周区间作水位口径（腾讯日K，脚本自动更新）。
   // 字段与 ndx/spx 同构：close 现价 / chg 当日涨跌% / low52 52周低 / ath 52周高 / athDate 高点日期 / prevYr 年初首个交易日收盘
-  kr:   { close: 4.84, chg: 2.07, low52: 1.882, ath: 7.12, athDate: "2026-07-02", prevYr: 2.577, priceDate: "2026-09-18" },   // kr 持仓（场内价口径，AUTO）
-  n225:   { close: 2.125, chg: 1.14, low52: 1.508, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-09-18" },   // n225 持仓（场内价口径，AUTO）
-  hkus:   { close: 1.875, chg: 3.59, low52: 1.43, ath: 2.508, athDate: "2026-05-27", prevYr: 1.492, priceDate: "2026-09-18" },   // hkus 持仓（场内价口径，AUTO）
+  kr:   { close: 4.9, chg: 1.24, low52: 1.882, ath: 7.12, athDate: "2026-07-02", prevYr: 2.577, priceDate: "2026-09-21" },   // kr 持仓（场内价口径，AUTO）
+  n225:   { close: 2.125, chg: 0, low52: 1.508, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-09-21" },   // n225 持仓（场内价口径，AUTO）
+  hkus:   { close: 1.929, chg: 2.88, low52: 1.43, ath: 2.508, athDate: "2026-05-27", prevYr: 1.492, priceDate: "2026-09-21" },   // hkus 持仓（场内价口径，AUTO）
   // AUTO：纳指/标普 ETF 自身场内价口径（腾讯日K，52周区间），供持仓页水位梯/买入分布用（与真实流水成交价同口径）
-  etfNdx: { close: 1.678, chg: 2.32, low52: 1.244, ath: 1.773, athDate: "2026-06-01", prevYr: 1.413, priceDate: "2026-09-18" },  // etfNdx 持仓（场内价口径，AUTO）
-  etfSpx: { close: 2.03, chg: 1.15, low52: 1.61, ath: 2.066, athDate: "2026-08-17", prevYr: 1.808, priceDate: "2026-09-18" },  // etfSpx 持仓（场内价口径，AUTO）
+  etfNdx: { close: 1.687, chg: 0.54, low52: 1.244, ath: 1.773, athDate: "2026-06-01", prevYr: 1.413, priceDate: "2026-09-21" },  // etfNdx 持仓（场内价口径，AUTO；09-21 券商收盘）
+  etfSpx: { close: 2.044, chg: 0.69, low52: 1.61, ath: 2.066, athDate: "2026-08-17", prevYr: 1.808, priceDate: "2026-09-21" },  // etfSpx 持仓（场内价口径，AUTO；09-21 券商收盘）
   peFwd: 20.12, peTtm: 26.65, cape: 40.52, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
   ndxPeFwd: 22.37, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8, // MANUAL：盈利增速预期，无免费源，人工维护
