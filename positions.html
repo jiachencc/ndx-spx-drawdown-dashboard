@@ -562,6 +562,10 @@
   .sync-stale, .fresh-stale { color: var(--yellow); }
   .fresh-old { color: var(--red); }
   .sync-cnt { color: var(--tx3); }
+  /* 场外逐只净值日：与「同步徽章」并列的第二枚事实标签 ——
+     同步徽章答「截图是哪天」，净值日答「市值算到哪天」，两者常不同（QDII 发布节奏）。
+     中性灰描边胶囊，不抢结论；与 .asof-tag 同一套形状语言 */
+  .nav-tag { display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 999px; border: 1px solid var(--line-soft); font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum"; }
   .sync-cnt.ok { color: var(--green); }
   .strat-hint { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 4px; border: 1px solid var(--line); border-radius: 50%; background: none; color: var(--tx3); font-size: var(--fs-xxs); font-family: var(--sans); cursor: pointer; vertical-align: 1px; padding: 0; }
   .strat-note { display: none; font-size: var(--fs-xs); color: var(--tx3); margin-top: 6px; line-height: 1.55; padding: 7px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; }
@@ -1016,8 +1020,9 @@ const OTC = {
    ⚠ 博时 App 的「持有收益」仍显示 +170.78、收益率 1.23%（其净值停 09-18，收益未随金额刷新）：
    本页改用「成本固定 + 盈亏 = 市值 − 成本」记 pl 181.69 / rate 1.31%，与上一期成本 13,900.00 连贯
    —— 若照 App 的 pl 反推成本会变成 13,910.91，凭空多出 10.91 的资金流、破坏归因闭合。
-   ⚠ 在途申购未计入（今日未取到在途金额）：南方显示「2 笔交易确认中」、广发纳指F「定投待确认 30.00」；
-   广发纳指F 30（09-18 扣款成功、待确认）；09-18 期是「资产含在途」口径（合计 860），差异见 SNAPSHOTS note。
+   ⚠ 在途 / 当日定投已在 App 读数内（与 09-07 期「App 市值已含在途」同一口径）：广发纳指F 页明示
+   「含买入在途金额 30.00 元」；南方份额 9,824.31（较上期 +87.73 份 ≈ 200 元）、华安 A/C 各 +12 份（≈ 100 元）
+   —— 即当日定投已确认进份额。09-18 期是「App 原始资产 + 另加在途 860」的口径，本期不必另加。
    ⚠ 定投节奏（MANUAL，2026-09-21 起）：南方纳指 I 每工作日 200（招商银行代扣）；华安 A/C 每工作日 100（限购 100）；
    广发纳指F 原 30/工作日 —— 09-21 起扣款失败，App 已标「暂不支持申购、定投和转换」（额度用尽）；其「含买入在途
    30.00 元」＝定投待确认（已计入该只市值与成本，故 App 持仓收益 −233.54 与快照一致）；广发全球精选 F 无定投；
@@ -1215,7 +1220,7 @@ const SNAPSHOTS = [
   },
   {
     d: "2026-09-21", cash: 13458.10, pl: -3098.07, day: 3222.87, flow: -668.00, tag: "减仓",
-    note: "截图录入（09-21 晚 19:41~21:01 共 9 张，App 口径）：场内＝平安证券 09-21 收盘（当日参考盈亏 +2,306.30：纳指 +729.90、中韩 +756.00、标普 +707.00、港美 +113.40、日经 0.00；总资产 359,449.20 = 市值 345,991.10 + 可用 13,458.10）。场外 8/8 全刷新，当日合计 +916.57（摩根 −60.86 是唯一负值）。⚠ 本期三笔净赎回共 400.00：南方 200.00（成本 22,600→22,400，份额 9,824.31）、华安 A/C 各 100.00（成本 4,000→3,900，份额 480.22 / 490.30）；「Δ市值 + 赎回额 = 当日收益」逐只成立（南方 −77.20+200=+122.80、华安 A −77.68+99.96=+22.28、C −77.71+99.97=+22.26），故这不是浮亏而是资金流出。⚠ 现金由 13,726.10 降为 13,458.10：场内券商可用仍是 13,458.10（赎回款未进场内），场外平台现金由 09-12 的 268 核销为 0（那 400 元去向未核）。归因据此记 flow −668.00（赎回 400 ＋ 核销 268），本期盈亏 3,222.95 与当日读数合计 3,222.87 相差 0.08（博时预估与实际之差），闭合。⚠ 口径：博时净值停 09-18、其 App 持有收益 +170.78 / 收益率 1.23% 未随金额刷新，本页按「成本固定 + 盈亏 = 市值 − 成本」记 cost 13,900.00 / pl 181.69（照 App 反推会多出 10.91 的假资金流）；在途申购未计入（南方 200 ＝ 09-21 08:38 招行代扣「支付成功」；广发纳指F 30 ＝ 09-18 扣款成功待确认；09-18 期为「资产含在途」口径合计 860）。⚠ 广发纳指F 定投自 09-21 起扣款失败（额度用尽，原 30/工作日），计划已停、此后不再定投广发。总资产 46.33 万（场内市值 34.60 万 + 场外 10.38 万 + 现金 1.35 万），浮亏 −0.31 万（场内 +0.01 万 / 场外 −0.32 万）。另：摩根日本精选暂停申购（仅可预约开放买入）、华安纳指 A/C 单日限购 100 元。",
+    note: "截图录入（09-21 晚 19:41~21:01 共 9 张，App 口径）：场内＝平安证券 09-21 收盘（当日参考盈亏 +2,306.30：纳指 +729.90、中韩 +756.00、标普 +707.00、港美 +113.40、日经 0.00；总资产 359,449.20 = 市值 345,991.10 + 可用 13,458.10）。场外 8/8 全刷新，当日合计 +916.57（摩根 −60.86 是唯一负值）。⚠ 本期三笔净赎回共 400.00：南方 200.00（成本 22,600→22,400，份额 9,824.31）、华安 A/C 各 100.00（成本 4,000→3,900，份额 480.22 / 490.30）；「Δ市值 + 赎回额 = 当日收益」逐只成立（南方 −77.20+200=+122.80、华安 A −77.68+99.96=+22.28、C −77.71+99.97=+22.26），故这不是浮亏而是资金流出。⚠ 现金由 13,726.10 降为 13,458.10：场内券商可用仍是 13,458.10（赎回款未进场内），场外平台现金由 09-12 的 268 核销为 0（那 400 元去向未核）。归因据此记 flow −668.00（赎回 400 ＋ 核销 268），本期盈亏 3,222.95 与当日读数合计 3,222.87 相差 0.08（博时预估与实际之差），闭合。⚠ 口径：博时净值停 09-18、其 App 持有收益 +170.78 / 收益率 1.23% 未随金额刷新，本页按「成本固定 + 盈亏 = 市值 − 成本」记 cost 13,900.00 / pl 181.69（照 App 反推会多出 10.91 的假资金流）；在途与当日定投本身已在 App 读数里（广发纳指F 明示「含买入在途 30.00 元」；南方份额 9,824.31 较上期 +87.73 份 ≈ 200 元、华安 A/C 各 +12 份 ≈ 100 元，即定投已确认进份额），故本期无需像 09-18 期那样另加在途（那期 App 原始资产不含，故合计补了 860）。⚠ 广发纳指F 定投自 09-21 起扣款失败（额度用尽，原 30/工作日），计划已停、此后不再定投广发。总资产 46.33 万（场内市值 34.60 万 + 场外 10.38 万 + 现金 1.35 万），浮亏 −0.31 万（场内 +0.01 万 / 场外 −0.32 万）。另：摩根日本精选暂停申购（仅可预约开放买入）、华安纳指 A/C 单日限购 100 元。",
     items: {
       "159941": { name: "纳指ETF广发", qty: 81100, cost: 128312.80, val: 136815.70, pl: 8502.90 },
       "513650": { name: "标普500ETF南方", qty: 50500, cost: 98559.45, val: 103222.00, pl: 4662.55 },
@@ -1517,6 +1522,22 @@ function otcTag(suffix, short) {
   const d = mdOf(OTC.updated);
   return '<span class="asof-tag ' + (d ? "" : "warn") + '">' + (short ? "" : "场外 ") + (d || "快照日未记录") + (suffix || "") + "</span>";
 }
+/* 单只场外基金的**净值日**标签（盈亏总览行、快照对比行用）。
+ * 它回答的是「这只的市值算到哪一天」——与同步徽章（截图是哪天）是两件事，常常不同：
+ * 同一根美股行情，广发 App 把那份净值标成 09-18、南方标成 09-21；摩根（日本）则是当天。
+ * 所以必须逐只标：只给一个范围（09.18~09.21 混排）看不出谁是谁。无 nav 记录时不占位（不用「未知」糊过去）。 */
+function otcNavTag(code, short) {
+  if (typeof OTC === "undefined" || !OTC.funds) return "";
+  const f = OTC.funds.filter((x) => x.code === code)[0];
+  if (!f || !f.nav || !f.nav.closeDate) return "";
+  const same = !!(OTC.updated && f.nav.closeDate === OTC.updated);
+  /* short：快照对比的名称列只有 ~160px，还要塞渠道与份额标签 → 只留日期（是什么日期交给 title 说） */
+  return '<span class="nav-tag" title="净值日：该只市值按 ' + f.nav.closeDate + " 的净值 " +
+    (Number.isFinite(f.nav.close) ? f.nav.close : "—") + " 计算（截图日 " + (OTC.updated || "—") + "）；" +
+    (same ? "这只已到截图当日的净值" : "比截图日早，属 QDII 净值发布节奏差异，不是漏更新") +
+    '">' + (short ? "" : "净值 ") + mdOf(f.nav.closeDate) + "</span>";
+}
+
 /* 单只场内标的的报价日标签（盈亏总览行、持仓卡头用） */
 function etfRowTag(row) {
   const h = (typeof sourceHealth === "function") ? sourceHealth(QUOTE_KEY[row.p.idx] || row.p.idx) : null;
@@ -1655,7 +1676,7 @@ function renderImpl() {
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
   /* 来源标签统一走 srcLabel()：场内→「场内」、场外→渠道简称，与快照明细同一套取值 */
   rows.forEach((row) => plRows.push({ code: row.p.code, name: row.p.sym, badge: " " + etfRowTag(row), pl: row.valAmt - row.costAmt, r: row.r, cost: row.costAmt, sel: ".card[data-sym='" + row.p.sym + "']" }));
-  otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, cost: row.costAmt }));   // 场外明细卡已取消 → 不挂跳转目标
+  otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f) + otcNavTag(row.f.code), pl: row.f.pnl, r: row.r, cost: row.costAmt }));   // 场外明细卡已取消 → 不挂跳转目标
   plRows.sort((a, b) => b.pl - a.pl);
   $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · " + etfTag() + " · " + otcTag() + ")";
   $("pl-list").innerHTML =
@@ -2836,7 +2857,7 @@ function srcLabel(code) {
   /* 已清仓/历史标的可能既不在 OTC.funds 也不在 hold 里，回落到「场外」而不是「—」 */
   return SRC_LABELS[code] || { s: "场外", f: "场外基金" };
 }
-function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat) {
+function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml) {
   let qt = "";
   if (tag) qt = '<span class="snap-tag ' + tag + '">' + SNAP_TAG_TXT[tag] + "</span>";
   else if (dq !== null && Math.abs(dq) >= 0.5)
@@ -2847,7 +2868,7 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat) {
   /* flat：本期份额没动、盈亏也不足 1 元 → 「市场盈亏」列降灰（.snap-flat），
      与有动作的行拉开层次；「累计盈亏」不动，那是持仓水平不是本期事件。 */
   return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
-    srcTag + qt + "</span>" +
+    srcTag + (navHtml || "") + qt + "</span>" +
     '<span class="d">' + snapSigned(dPlItem) + '</span><span class="v">' + snapSigned(plCum) + "</span></div>";
 }
 function snapPairHtml(prev, cur) {
@@ -2883,7 +2904,11 @@ function snapPairHtml(prev, cur) {
        混在一张清单里读不出「谁在动」。每组给小计，合计行仍取全量 items（不套明细阈值），
        使「本期盈亏合计」＝上方「本期盈亏」、「累计合计」＝快照 pl。 */
     const grpLines = { in: [], ot: [] };
-    diffs.forEach((d) => grpLines[isOnExchange(d.code) ? "in" : "ot"].push(snapItemRow(d.code, d.name, d.dq, d.dPlItem, d.plCum, d.tag, isOnExchange(d.code), isFlat(d))));
+    /* 逐只净值日只在「与场外块同一天」的那期标（OTC.updated）：历史期用的是当期的净值日，
+       但那一格没留档，硬套今天的净值日就是编数据 —— 旧期不标，只靠分组头的范围。 */
+    const isCurrent = (typeof OTC !== "undefined" && !!OTC.updated && cur.d === OTC.updated);
+    diffs.forEach((d) => grpLines[isOnExchange(d.code) ? "in" : "ot"].push(
+      snapItemRow(d.code, d.name, d.dq, d.dPlItem, d.plCum, d.tag, isOnExchange(d.code), isFlat(d), isCurrent ? otcNavTag(d.code, true) : "")));
     /* 场外净值日范围：QDII 逐只滞后，常不是同一天，直接列出来避免被读成「同一天的数据」 */
     const navSet = [];
     if (typeof OTC !== "undefined" && OTC.funds) codes.filter((c) => !isOnExchange(c)).forEach((c) => {
