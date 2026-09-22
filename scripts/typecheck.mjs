@@ -107,9 +107,6 @@ const strict = diags.filter((d) => STRICT.has(d.code));
    用「计数」而不是「行号」比对 —— 改动导致行号漂移不算新问题，同一消息多冒一条才算。
    往里加条目之前先判断是不是真错；每条都要写清楚为什么可以接受。 */
 const ACCEPTED = {
-  /* etfTag / otcTag 只声明了 (suffix)，汇总卡副行却按 (suffix, short) 调用 → true 被静默忽略，
-     后果：那两个日期胶囊没走注释里承诺的「short=true 省略场内/场外前缀」。等宽屏/窄屏文案定下来再改。 */
-  "positions.html|TS2554|Expected 0-1 arguments, but got 2.": 2,
   /* v4 由 (r.drift !== null && r.drift < -0.05) ? "watch" : "ok" 得出，永不为 "na" → 那个 === "na" 是死分支，
      属防御性写法，不影响结果（IC[v4] 查得到）。 */
   "positions.html|TS2367|This comparison appears to be unintentional because the types '\"ok\" | \"watch\"' and '\"na\"' have no overlap.": 1,

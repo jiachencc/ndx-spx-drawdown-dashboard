@@ -1948,17 +1948,19 @@ function etfAsOfText() {
   return a === b ? a : a + "–" + b;
 }
 /* 场内报价日标签。short=true 省略「场内」前缀（所在格子/标题已表明来源，窄屏省横向空间）；
- * suffix 可追加说明（如「 日涨跌」） */
-function etfTag(suffix) {
+ * suffix 可追加说明（如「 日涨跌」）。
+ * ⚠ short 曾经是「调用处传了、函数没收」的参数（汇总卡副行按 (suffix, short) 调用而这里只声明 suffix），
+ *   于是那个 true 被静默忽略、简写一直没生效 —— typecheck 的 TS2554 就是报这个。 */
+function etfTag(suffix, short) {
   const t = etfAsOfText();
   return '<span class="date-chip ' + (t ? "etf" : "stale") + '" title="场内 ETF 报价日（A 股交易日，15:00 收盘后即为定值）">' +
-    (t ? "场内 " + t : "⚠ 场内 未记录") + (suffix || "") + "</span>";
+    (t ? (short ? "" : "场内 ") + t : "⚠ " + (short ? "" : "场内 ") + "未记录") + (suffix || "") + "</span>";
 }
 /* 场外快照（截图）日标签；short 同上 */
-function otcTag(suffix) {
+function otcTag(suffix, short) {
   const d = mdOf(OTC.updated);
   return '<span class="date-chip ' + (d ? "otc" : "stale") + '" title="场外 App 截图日（净值日通常再早一天，逐只见「盈亏总览」行）">' +
-    (d ? "场外 " + d : "⚠ 场外 未记录") + (suffix || "") + "</span>";
+    (d ? (short ? "" : "场外 ") + d : "⚠ " + (short ? "" : "场外 ") + "未记录") + (suffix || "") + "</span>";
 }
 /* 单只场外基金的**净值日**标签（盈亏总览行、快照对比行用）。
  * 它回答的是「这只的市值算到哪一天」——与同步徽章（截图是哪天）是两件事，常常不同：
