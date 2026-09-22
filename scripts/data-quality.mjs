@@ -36,6 +36,20 @@ export function snapshotIssues(html) {
     }
     if (Number.isFinite(s.pl) && Math.abs(sum - s.pl) > 2) issues.push(s.d + ": item P&L sum mismatch");
   }
+  /* OTC 块（场外持仓 + 现金）必须与最新一期快照同步 —— 它才是汇总卡的数字来源，
+     而快照里的现金/市值只是留档。2026-09-22 曾把 OTC.cash 留成上一期的 13,458.10：
+     总资产少算 6,866、配置图现金占比偏小，但盈亏因现金两边抵消完全正常，肉眼查不出来。
+     两侧都在才校验：测试里的最小 fixture 缺 OTC 块或现金字段是正常的，不该记成问题。 */
+  const om = html.match(/^const OTC = \{[\s\S]*?^\};/m);
+  const last = ctx.rows.filter((s) => Number.isFinite(s.cash)).at(-1);
+  if (om && last) {
+    const oc = vm.createContext({});
+    vm.runInContext(om[0] + "\nthis.otc = OTC;", oc, { timeout: 500 });
+    if (!Number.isFinite(oc.otc.cash) || Math.abs(oc.otc.cash - last.cash) > 0.01)
+      issues.push("OTC.cash " + oc.otc.cash + " ≠ 最新快照（" + last.d + "）现金 " + last.cash + "：汇总卡总资产与配置图会算错");
+    if (isDate(oc.otc.updated) && oc.otc.updated < last.d)
+      issues.push("OTC.updated " + oc.otc.updated + " 早于最新快照 " + last.d + "：场外读数疑似未刷新");
+  }
   return issues;
 }
 export function validateModel(m) {
