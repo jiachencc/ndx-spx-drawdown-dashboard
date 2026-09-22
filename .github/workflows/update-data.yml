@@ -64,9 +64,11 @@ jobs:
         continue-on-error: true
         run: node scripts/alt-etf-backtest.mjs
       # 同节奏基准（BENCH）依赖快照日期：新一期快照落盘后补上该日的纳指收盘，
-      # 走势图那条「同节奏纳指」虚线才能画到最后一点。只补缺失日期、已有值不覆盖。
-      # 数据源是兄弟仓库 fed-cycle-dashboard/data/series.json —— 本地有、CI 里可能没有，
-      # 故 continue-on-error：补不上只是那条线停在前一天，不影响日更与其它数据。
+      # 走势图那条「同节奏纳指」虚线才能画到最后一点。只插入缺失日期：
+      # 已有值不覆盖，块内手写注释与排版也不动（原实现重建整块，会把注释冲掉）。
+      # 数据源优先在线抓 ^NDX（复用本 job 上面用过的 Yahoo 源，CI 里可用），
+      # 拿不到才退回兄弟仓库 fed-cycle-dashboard/data/series.json（本地常有、CI 里没有）。
+      # continue-on-error：补不上只是那条线停在前一天，不影响日更与其它数据。
       - name: Fill missing benchmark levels (BENCH)
         continue-on-error: true
         run: node scripts/sync-bench.mjs

@@ -42,7 +42,7 @@ async function yahooAuth() {
   })();
   return authPromise;
 }
-async function series(symbol, fallback, range = "10y") {
+export async function series(symbol, fallback, range = "10y") {
   const auth = await yahooAuth();
   for (const host of ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]) {
     try {
