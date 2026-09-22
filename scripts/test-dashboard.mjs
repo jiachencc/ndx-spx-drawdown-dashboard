@@ -31,7 +31,7 @@ function extract(name) {
   const m = positions.match(new RegExp("^function " + name + "\\([^]*?^\\}", "m"));
   assert.ok(m, name); vm.runInContext(m[0], ctx);
 }
-["calcTWR", "trendCashflows", "calcXIRR"].forEach(extract);
+["calcTWR", "trendCashflows", "calcXIRR", "trendSegFill"].forEach(extract);
 const approx = (a, b, eps = 1e-8) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
 test("all page scripts compile; current data schema and quantities valid", () => {
@@ -266,4 +266,26 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     // This is the unique directory returned by mkdtemp under the OS temporary directory.
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("trend fill: crossing segment never emits malformed coordinates", () => {
+  /* 2026-09-21 → 09-22（首次「浮亏 → 浮盈」）是唯一走交叉分支的一段。
+     入参沿用页面的字符串形式（P() = toFixed(1)）：原先 xi = x1 + (x2−x1)*r 会退化成
+     字符串拼接，产出 "935.921.10…" 这种非法坐标，浏览器按 0 处理 → 图上出现横跨左上角的大三角。 */
+  const svg = ctx.trendSegFill("935.9", "64.8", "61.5", "973.0", "36.1", "38.6");
+  assert.ok(svg.includes("<polygon"), "交叉段应产出多边形");
+  const n = svg.match(/points="([^"]+)"/)[1].split(/[ ,]+/).map(Number);
+  assert.equal(n.length, 8, "四点八个数");
+  assert.ok(n.every(Number.isFinite), "坐标必须全是有限数字：" + svg);
+  assert.ok(n[0] > 935.9 && n[0] < 973, "交叉点 x 应落在两端之间，而不是被拼成 0");
+  assert.ok(n[1] > 36.1 && n[1] < 64.8, "交叉点 y 应是两线插值，而不是 0");
+});
+test("trend fill: underwater unfilled, profitable green, garbage dropped", () => {
+  /* 这一层是像素 y（向下为正）→ 浮盈 = 资产 y 更小。原先用 v−c 判符号恰好判反：
+     08-28→08-31 两期都浮亏却被涂绿，这才是满屏绿底的来源。 */
+  assert.equal(ctx.trendSegFill(46, 169.6, 162.1, 157.2, 169.9, 160.4), "", "两期都浮亏：不铺色");
+  assert.ok(ctx.trendSegFill(500, 100, 120, 600, 90, 118).includes("var(--green)"), "两期都浮盈：铺绿");
+  const left = ctx.trendSegFill(0, 100, 120, 100, 140, 118);   // 浮盈 → 浮亏：只留左半段
+  assert.equal(left.match(/points="([^"]+)"/)[1].split(/[ ,]+/)[0], "0", "只保留浮盈那一侧");
+  assert.equal(ctx.trendSegFill(1, 100, 120, undefined, 130, 118), "", "坐标非有限：宁缺不画");
 });
