@@ -18,12 +18,12 @@ const DEFAULT = {
   fx: 6.6954,
   // AUTO：无对应免费指数的持仓用 ETF 自身场内价的 52 周区间作水位口径（腾讯日K，脚本自动更新）。
   // 字段与 ndx/spx 同构：close 现价 / chg 当日涨跌% / low52 52周低 / ath 52周高 / athDate 高点日期 / prevYr 年初首个交易日收盘
-  kr:   { close: 4.9, chg: 1.24, low52: 1.91, ath: 7.12, athDate: "2026-07-02", prevYr: 2.577, priceDate: "2026-09-21" },   // kr 持仓（场内价口径，AUTO）
-  n225:   { close: 2.125, chg: 0, low52: 1.508, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-09-21" },   // n225 持仓（场内价口径，AUTO）
-  hkus:   { close: 1.929, chg: 2.88, low52: 1.43, ath: 2.508, athDate: "2026-05-27", prevYr: 1.492, priceDate: "2026-09-21" },   // hkus 持仓（场内价口径，AUTO）
+  kr:   { close: 4.937, chg: 0.23, low52: 1.91, ath: 7.12, athDate: "2026-07-02", prevYr: 2.577, priceDate: "2026-09-22" },   // kr 持仓（场内价口径，AUTO）
+  n225:   { close: 2.151, chg: 1.22, low52: 1.508, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-09-22" },   // n225 持仓（场内价口径，AUTO）
+  hkus:   { close: 1.943, chg: 0.73, low52: 1.43, ath: 2.508, athDate: "2026-05-27", prevYr: 1.492, priceDate: "2026-09-22" },   // hkus 持仓（场内价口径，AUTO）
   // AUTO：纳指/标普 ETF 自身场内价口径（腾讯日K，52周区间），供持仓页水位梯/买入分布用（与真实流水成交价同口径）
-  etfNdx: { close: 1.687, chg: 0.54, low52: 1.244, ath: 1.773, athDate: "2026-06-01", prevYr: 1.413, priceDate: "2026-09-21" },  // etfNdx 持仓（场内价口径，AUTO；09-21 券商收盘）
-  etfSpx: { close: 2.044, chg: 0.69, low52: 1.61, ath: 2.066, athDate: "2026-08-17", prevYr: 1.808, priceDate: "2026-09-21" },  // etfSpx 持仓（场内价口径，AUTO；09-21 券商收盘）
+  etfNdx: { close: 1.714, chg: 1.60, low52: 1.244, ath: 1.773, athDate: "2026-06-01", prevYr: 1.413, priceDate: "2026-09-22" },  // etfNdx 持仓（场内价口径，AUTO；09-21 券商收盘）
+  etfSpx: { close: 2.052, chg: 0.39, low52: 1.61, ath: 2.066, athDate: "2026-08-17", prevYr: 1.808, priceDate: "2026-09-22" },  // etfSpx 持仓（场内价口径，AUTO；09-21 券商收盘）
   peFwd: 20.12, peTtm: 27.08, cape: 40.94, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
   ndxPeFwd: 22.37, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8, // MANUAL：盈利增速预期，无免费源，人工维护
@@ -110,11 +110,11 @@ const POSITIONS = {
   // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）＝ ETF 场内买入价相对基金实际价值的偏离；
   // 由脚本从天天基金净值接口自动计算。QDII 净值滞后 1-2 个交易日，溢价为近似值。折价为负。
   premiums: { // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）；QDII 净值滞后 1-2 个交易日
-    "159941": { pct: 12.9, nav: 1.4936, navDate: "2026-09-18", priceDate: "2026-09-21" },
-    "160644": { pct: 0.6, nav: 1.9184, navDate: "2026-09-18", priceDate: "2026-09-21" },
-    "513310": { pct: 7.8, nav: 4.545, navDate: "2026-09-21", priceDate: "2026-09-21" },
-    "513650": { pct: 9.8, nav: 1.8614, navDate: "2026-09-18", priceDate: "2026-09-21" },
-    "513880": { pct: 4.5, nav: 2.0337, navDate: "2026-09-21", priceDate: "2026-09-21" },
+    "159941": { pct: 14.8, nav: 1.4936, navDate: "2026-09-18", priceDate: "2026-09-22" },
+    "160644": { pct: 1.3, nav: 1.9184, navDate: "2026-09-18", priceDate: "2026-09-22" },
+    "513310": { pct: 8.6, nav: 4.545, navDate: "2026-09-21", priceDate: "2026-09-22" },
+    "513650": { pct: 10.2, nav: 1.8614, navDate: "2026-09-18", priceDate: "2026-09-22" },
+    "513880": { pct: 5.8, nav: 2.0337, navDate: "2026-09-21", priceDate: "2026-09-22" },
   },
   /* ⚠ 摊薄成本按「(市值 − 盈亏) ÷ 份数」取自券商 App 读数，保留 10 位小数。
      原只存 3~4 位（券商显示位数），在大仓位上被放大成数元误差：
@@ -122,10 +122,10 @@ const POSITIONS = {
      因此比 App 读数少 5.02 元，且与 09-16 快照（App 口径）对不上。取全精度后两者一致。
      idxAtCost 必须与 cost 相等（data-quality.mjs 校验），故两处同步。 */
   hold: [
-    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 81100, cost: 1.5821553637, idxAtCost: 1.5821553637, pct: 40.6 },   // pct: MANUAL 组合占比%（已不参与渲染）；09-14 买入 13,000@1.630 后券商摊薄成本（App 显示 1.5822）
-    { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 50500, cost: 1.9516722772, idxAtCost: 1.9516722772, pct: 25.8 },   // 09-14 买入 6,500@2.011（App 显示 1.952）
-    { sym: "中韩半导体ETF华泰", code: "513310", idx: "kr", qty: 12600, cost: 5.4950079365, idxAtCost: 5.4950079365, pct: 13.4 },   // 09-16 卖出 700@4.795 后券商摊薄成本（App 显示 5.495）
-    { sym: "日经225ETF华安", code: "513880", idx: "n225", qty: 18900, cost: 2.1410158730, idxAtCost: 2.1410158730, pct: 9.8 },   // 09-14 买入 5,000@2.096（App 显示 2.141）
+    { sym: "纳指ETF广发", code: "159941", idx: "ndx", qty: 81100, cost: 1.5821553637, idxAtCost: 1.5821553637, pct: 38.4 },   // pct: MANUAL 组合占比%（已不参与渲染）；09-14 买入 13,000@1.630 后券商摊薄成本（App 显示 1.5822）
+    { sym: "标普500ETF南方", code: "513650", idx: "spx", qty: 50500, cost: 1.9516722772, idxAtCost: 1.9516722772, pct: 28.6 },   // 09-14 买入 6,500@2.011（App 显示 1.952）
+    { sym: "中韩半导体ETF华泰", code: "513310", idx: "kr", qty: 15200, cost: 5.4192171053, idxAtCost: 5.4192171053, pct: 20.7 },   // 09-16 卖出 700@4.795 后券商摊薄成本（App 显示 5.495）
+    { sym: "日经225ETF华安", code: "513880", idx: "n225", qty: 18900, cost: 2.1410158730, idxAtCost: 2.1410158730, pct: 11.2 },   // 09-14 买入 5,000@2.096（App 显示 2.141）
     { sym: "港美互联网LOF", code: "160644", idx: "hkus", qty: 2100, cost: 4.4314761905, idxAtCost: 4.4314761905, pct: 1.1 },   // 09-18 卖出 3,000@1.872（净回款 5,611.00）后券商摊薄成本（App 显示 4.431；摊薄口径＝Σ买入含费−Σ卖出净额，全流水复算 4.42938／尾差 4.4 元）
   ],
   // MANUAL：操作日志（新在上）。全部为场内券商真实流水（43 笔，自 2026-06-01 建仓起）。
@@ -133,6 +133,7 @@ const POSITIONS = {
   // 格式：{ d: "YYYY-MM-DD", act: "建仓|买入|卖出", sym, qty, cost, note? }
   // cost = 当日成交价（ETF 场内价口径，用于「买入位置分布」绿点）
   log: [
+    { d: "2026-09-22", act: "买入", sym: "中韩半导体ETF华泰", qty: 2600, cost: 5.050, note: "平安证券 09-22 09:31 成交，金额 13,130.00（费 5.00，含费成本 13,135.00）→ 均价 5.4950→5.4192，与 App 展示的 5.419 一致" },
     { d: "2026-09-18", act: "卖出", sym: "港美互联网LOF", qty: 3000, cost: 1.872, realized: -437.69, note: "券商流水 09-18 成交，金额 5,616.00（费 5.00，净回款 5,611.00）；实现盈亏 -437.69（按原始买入成本计；该标的累计实现 -5,072.01）" },
     { d: "2026-09-16", act: "卖出", sym: "港美互联网LOF", qty: 2400, cost: 1.821, realized: -473.55, note: "对账单 09-16 14:56 成交，金额 4,370.40（费 5.00）；实现盈亏 -473.55（含费；此处原记 -468.48 未含费，已按券商流水订正）" },
     { d: "2026-09-16", act: "卖出", sym: "中韩半导体ETF华泰", qty: 700, cost: 4.795, realized: -463.96, note: "对账单 09-16 14:44 成交，金额 3,356.50（费 5.00）；实现盈亏 -463.96" },
@@ -1229,9 +1230,9 @@ const SOURCE_META = {
     "status": "ok"
   },
   "etfNdx": {
-    "asOf": "2026-09-21",
-    "source": "Tencent sz159941 qfq (latest price)",
-    "fetchedAt": "2026-09-22T00:18:41.175Z",
+    "asOf": "2026-09-22",
+    "source": "平安证券 App 09-22 收盘截图（人工录入兜底）",
+    "fetchedAt": "2026-09-22T11:48:26.000Z",
     "status": "ok"
   },
   "premium:159941": {
@@ -1243,9 +1244,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "hkus": {
-    "asOf": "2026-09-21",
-    "source": "Tencent sz160644 qfq (latest price)",
-    "fetchedAt": "2026-09-22T00:18:41.175Z",
+    "asOf": "2026-09-22",
+    "source": "平安证券 App 09-22 收盘截图（人工录入兜底）",
+    "fetchedAt": "2026-09-22T11:48:26.000Z",
     "status": "ok"
   },
   "premium:160644": {
@@ -1257,9 +1258,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "kr": {
-    "asOf": "2026-09-21",
-    "source": "Tencent sh513310 qfq (latest price)",
-    "fetchedAt": "2026-09-22T00:18:41.175Z",
+    "asOf": "2026-09-22",
+    "source": "平安证券 App 09-22 收盘截图（人工录入兜底）",
+    "fetchedAt": "2026-09-22T11:48:26.000Z",
     "status": "ok"
   },
   "premium:513310": {
@@ -1271,9 +1272,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "etfSpx": {
-    "asOf": "2026-09-21",
-    "source": "Tencent sh513650 qfq (latest price)",
-    "fetchedAt": "2026-09-22T00:18:41.175Z",
+    "asOf": "2026-09-22",
+    "source": "平安证券 App 09-22 收盘截图（人工录入兜底）",
+    "fetchedAt": "2026-09-22T11:48:26.000Z",
     "status": "ok"
   },
   "premium:513650": {
@@ -1285,9 +1286,9 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "n225": {
-    "asOf": "2026-09-21",
-    "source": "Tencent sh513880 qfq (latest price)",
-    "fetchedAt": "2026-09-22T00:18:41.175Z",
+    "asOf": "2026-09-22",
+    "source": "平安证券 App 09-22 收盘截图（人工录入兜底）",
+    "fetchedAt": "2026-09-22T11:48:26.000Z",
     "status": "ok"
   },
   "premium:513880": {
