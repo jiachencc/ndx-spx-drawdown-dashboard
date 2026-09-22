@@ -324,7 +324,11 @@
   .snap-part { display: grid; grid-template-columns: 66px 1fr auto; align-items: baseline; gap: 8px; padding: 2px 0; font-size: var(--fs-sm); }
   /* 逐只资金加权：基金简称（7~8 个汉字）比默认 66px 标签列宽，单独放宽一档。
      不这么做的话，.pn 是 nowrap，列窄了会直接溢出到数值列上（不是折行）。 */
-  .snap-part.fund { grid-template-columns: 96px 1fr auto; }
+  .snap-part.fund { grid-template-columns: 96px 1fr 62px; }
+  /* 逐只表的表头行（名称 / 你的钱·XIRR / 标的·TWR）：只用小字标注，不参与数据 */
+  .snap-part.fund.head { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 600; }
+  .snap-part.fund.head .pv { font-family: var(--sans); font-size: var(--fs-xxs); font-weight: 600; }
+  .snap-twr { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700; font-feature-settings: "tnum"; text-align: right; }
   .snap-part .strat-hint { align-self: center; }
   /* nowrap：标签一律单行（最长 4 字「本期盈亏」＝48px，列宽 58px 留 10px 余量），
      宁可让数值列窄一点也不折行——折行后整块表格的纵向对齐全乱。 */
@@ -3555,12 +3559,37 @@ function renderPrincipal() {
     const lastD = cur.d;
     const lastItems = cur.items || {};
     const rows = [];
+    /* 逐只 TWR（时间加权）：窗口固定为「首个含持仓明细的快照 → 最新」，按快照期切段、
+       每段剔除该只自己的资金流后连乘 —— 它衡量【标的本身】，与进出金时点无关。
+       该只的资金流 = 场外 OTC_LOG（申赎/定投）＋ 场内 POSITIONS.log（买卖，sym→code 用 POSITIONS.hold 的映射），
+       因为买/卖一只 ETF 同样是在「往这只基金里加钱 / 取钱」。
+       ⚠ 两处口径限制：① 窗口由快照决定（现在只有 14 天），与逐只 XIRR 的全史窗口不同，两者不可直接相减；
+                       ② 期内现金流按「期末发生」计入（与页面既有 calcTWR 同一约定），
+                          快照期很密时误差极小，但不能当逐日精度用。 */
+    const full = (typeof SNAPSHOTS !== "undefined" ? SNAPSHOTS : [])
+      .filter((x) => x.items && Object.keys(x.items).length).sort((a, b) => (a.d < b.d ? -1 : 1));
+    const etfFlow = {};
+    if (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) {
+      const symMap = {}; POSITIONS.hold.forEach((h) => { symMap[h.sym] = h.code; });
+      (POSITIONS.log || []).forEach((e) => { const c = symMap[e.sym]; if (!c) return;
+        (etfFlow[c] = etfFlow[c] || []).push({ d: e.d, amt: (/卖出/.test(e.act) ? -1 : 1) * (e.qty || 0) * (e.cost || 0) }); });
+    }
+    const flowIn = (code, d0, d1) => (OTC_LOG[code] || []).filter((t) => t.status === "成功")
+      .map((t) => ({ d: t.d, amt: t.act === "赎回" ? -t.amt : t.amt })).concat(etfFlow[code] || [])
+      .filter((x) => x.d > d0 && x.d <= d1).reduce((t, x) => t + x.amt, 0);
+    const twrOf = (code) => { let acc = 1;
+      for (let k = 1; k < full.length; k++) {
+        const a = full[k - 1].items[code], b = full[k].items[code];
+        if (!a || !b || !(a.val > 0)) continue;
+        acc *= (b.val - flowIn(code, full[k - 1].d, full[k].d)) / a.val;
+      } return acc - 1; };
+    const twrWin = full.length >= 2 ? mdOf(full[0].d) + "→" + mdOf(full[full.length - 1].d) : "";
     OTC.funds.forEach((f) => {
       const log = (OTC_LOG[f.code] || []).filter((t) => t.status === "成功");
       const has = lastItems[f.code] && typeof lastItems[f.code].val === "number";
       const val = has ? lastItems[f.code].val : f.value;
       const nm = SHORT[f.code] || String(f.name).slice(0, 8);
-      if (!log.length) { rows.push({ nm: nm, full: f.name, val: val, miss: true }); return; }
+      if (!log.length) { rows.push({ nm: nm, full: f.name, val: val, miss: true, twr: twrOf(f.code) }); return; }
       const inv = log.filter((t) => t.act !== "赎回").reduce((a, t) => a + t.amt, 0);
       const redeemed = log.filter((t) => t.act === "赎回").reduce((a, t) => a + t.amt, 0);
       const t0 = Date.parse(log.map((t) => t.d).sort()[0]);
@@ -3571,25 +3600,32 @@ function renderPrincipal() {
       const gain = val + redeemed - inv;
       /* drift ＝ 本表累计投入 − 快照成本（快照成本是已赎回后的净口径，故先把赎回加回） */
       rows.push({ nm: nm, full: f.name, inv: inv, val: val, gain: gain, rate: inv ? gain / inv : 0,
-        xirr: calcXIRR(cfs), days: days, ann: days >= 90,
+        xirr: calcXIRR(cfs), days: days, ann: days >= 90, twr: twrOf(f.code),
         drift: has && typeof lastItems[f.code].cost === "number" ? inv - (lastItems[f.code].cost + redeemed) : null });
     });
     if (rows.length) {
       const miss = rows.filter((r) => r.miss).length;
       const drift = rows.filter((r) => !r.miss && r.drift !== null && Math.abs(r.drift) >= 0.05);
-      perFundSec = '<div class="snap-sec" title="每只都按自己的真实申赎日期与金额解 IRR（现金流来自 OTC_LOG 逐笔录入）；跨度不足 90 天不年化">逐只资金加权' +
-        '<span class="snap-cnt">（' + (rows.length - miss) + "/" + rows.length + " 只已录成交流水 · 按真实申赎日期解 IRR · 期末 " + mdOf(lastD) +
+      perFundSec = '<div class="snap-sec" title="左＝你的钱（按真实申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
+        '<span class="snap-cnt">（' + (rows.length - miss) + "/" + rows.length + " 只已录成交流水 · IRR 全史按期解 · TWR 窗口 " + twrWin +
         " · " + (drift.length ? "⚠ " + drift.length + " 只与快照成本有微差" : "与快照成本逐只对平 ✓") + "）</span></div>" +
-        '<div class="snap-tbl">' + rows.map((r) => {
+        '<div class="snap-tbl">' +
+        /* 表头：两列各是"谁的成绩"——左＝你的钱（资金加权，全史），右＝标的本身（时间加权，快照窗口） */
+        '<div class="snap-part fund head"><span class="pn"></span><span class="pv">你的钱 · XIRR</span><span class="snap-twr">标的 · TWR</span></div>' +
+        rows.map((r) => {
+          const tNote = "时间加权（标的本身的表现）：窗口 " + twrWin +
+            "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。它与左边 XIRR 的窗口不同，不可直接相减。";
+          const tCell = '<span class="snap-twr" title="' + esc(tNote) + '"><b class="' + (Number.isFinite(r.twr) ? cls(r.twr) : "") + '">' +
+            (Number.isFinite(r.twr) ? fmtPct(r.twr, 2) : "—") + "</b></span>";
           if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
-            '</span><span class="pv"><b style="color:var(--tx3)">未录入</b><span class="snap-sub">缺成交流水 → 不参与年化（现值 ' + fmtYuan(r.val) + '）</span></span></div>';
+            '</span><span class="pv"><b style="color:var(--tx3)">未录入</b><span class="snap-sub">缺成交流水 → 不参与年化（现值 ' + fmtYuan(r.val) + '）</span></span>' + tCell + "</div>";
           const main = (r.ann && r.xirr !== null)
             ? '<b class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + '</b><span class="snap-sub">年化</span>'
             : '<b style="color:var(--tx3)">' + r.days + ' 天 · 暂不年化</b>';
           return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + main +
             '<span class="snap-sub">投入 ' + fmtYuan(r.inv) + ' · 现值 ' + fmtYuan(r.val) + '</span>' +
             /* 未年化时主值已经写了「N 天」，次级小注就不再重复一遍天数 */
-            '<span class="snap-sub">简单 <b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>" + (r.ann ? " · 跨 " + r.days + " 天" : "") + "</span></span></div>";
+            '<span class="snap-sub">简单 <b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>" + (r.ann ? " · 跨 " + r.days + " 天" : "") + "</span></span>" + tCell + "</div>";
         }).join("") + "</div>";
     }
   }
