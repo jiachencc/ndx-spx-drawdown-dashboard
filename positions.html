@@ -3577,19 +3577,42 @@ function renderPrincipal() {
     const flowIn = (code, d0, d1) => (OTC_LOG[code] || []).filter((t) => t.status === "成功")
       .map((t) => ({ d: t.d, amt: t.act === "赎回" ? -t.amt : t.amt })).concat(etfFlow[code] || [])
       .filter((x) => x.d > d0 && x.d <= d1).reduce((t, x) => t + x.amt, 0);
-    const twrOf = (code) => { let acc = 1;
-      for (let k = 1; k < full.length; k++) {
-        const a = full[k - 1].items[code], b = full[k].items[code];
+    /* 任意窗口的 TWR（体检第①项要与基准取交集窗口，不能直接用全窗口） */
+    const twrRange = (code, d0, d1) => { const seg = full.filter((x) => x.d >= d0 && x.d <= d1);
+      if (seg.length < 2) return null;
+      let acc = 1;
+      for (let k = 1; k < seg.length; k++) {
+        const a = seg[k - 1].items[code], b = seg[k].items[code];
         if (!a || !b || !(a.val > 0)) continue;
-        acc *= (b.val - flowIn(code, full[k - 1].d, full[k].d)) / a.val;
+        acc *= (b.val - flowIn(code, seg[k - 1].d, seg[k].d)) / a.val;
       } return acc - 1; };
+    const twrOf = (code) => (full.length >= 2 ? twrRange(code, full[0].d, full[full.length - 1].d) : null);
+    /* 同窗口 XIRR：与 TWR 用同一窗口，这样「时点 ＝ XIRR − TWR」才是同口径相减（全史 XIRR 与它不可减） */
+    const xirrRange = (code, d0, d1, v0, vN) => {
+      const t0 = Date.parse(d0), tN = Date.parse(d1);
+      if (!Number.isFinite(v0) || !Number.isFinite(vN) || !(v0 > 0) || tN <= t0) return null;
+      const fl = (OTC_LOG[code] || []).filter((t) => t.status === "成功")
+        .map((t) => ({ d: t.d, amt: t.act === "赎回" ? t.amt : -t.amt }))
+        .concat((etfFlow[code] || []).map((x) => ({ d: x.d, amt: -x.amt })))
+        .filter((x) => x.d > d0 && x.d <= d1);
+      const cfs = [{ t: 0, amt: -v0 }].concat(fl.map((x) => ({ t: (Date.parse(x.d) - t0) / 86400000, amt: x.amt })));
+      cfs.push({ t: (tN - t0) / 86400000, amt: vN });
+      return calcXIRR(cfs);
+    };
     const twrWin = full.length >= 2 ? mdOf(full[0].d) + "→" + mdOf(full[full.length - 1].d) : "";
+    /* 基准：BENCH 只有纳指一条线，且由 CI 每晚更新（比快照晚一期）→ 只能与纳指类 theme 比，且要取交集窗口 */
+    const benchKeys = (typeof BENCH !== "undefined" ? Object.keys(BENCH) : []).sort();
+    const bStart = full.length ? (benchKeys.find((d) => d >= full[0].d) || null) : null;
+    const bEnd = full.length ? (benchKeys.filter((d) => d <= full[full.length - 1].d).pop() || null) : null;
+    const benchRet = (bStart && bEnd && bEnd > bStart) ? BENCH[bEnd] / BENCH[bStart] - 1 : null;
+    const benchWin = (bStart && bEnd && bEnd > bStart) ? mdOf(bStart) + "→" + mdOf(bEnd) : "";
     OTC.funds.forEach((f) => {
       const log = (OTC_LOG[f.code] || []).filter((t) => t.status === "成功");
       const has = lastItems[f.code] && typeof lastItems[f.code].val === "number";
       const val = has ? lastItems[f.code].val : f.value;
       const nm = SHORT[f.code] || String(f.name).slice(0, 8);
-      if (!log.length) { rows.push({ nm: nm, full: f.name, val: val, miss: true, twr: twrOf(f.code) }); return; }
+      if (!log.length) { rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, val: val, miss: true, twr: twrOf(f.code),
+        v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null }); return; }
       const inv = log.filter((t) => t.act !== "赎回").reduce((a, t) => a + t.amt, 0);
       const redeemed = log.filter((t) => t.act === "赎回").reduce((a, t) => a + t.amt, 0);
       const t0 = Date.parse(log.map((t) => t.d).sort()[0]);
@@ -3599,8 +3622,9 @@ function renderPrincipal() {
       cfs.push({ t: (Date.parse(lastD) - t0) / 86400000, amt: val + redeemed });
       const gain = val + redeemed - inv;
       /* drift ＝ 本表累计投入 − 快照成本（快照成本是已赎回后的净口径，故先把赎回加回） */
-      rows.push({ nm: nm, full: f.name, inv: inv, val: val, gain: gain, rate: inv ? gain / inv : 0,
+      rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, inv: inv, val: val, gain: gain, rate: inv ? gain / inv : 0,
         xirr: calcXIRR(cfs), days: days, ann: days >= 90, twr: twrOf(f.code),
+        v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null,
         drift: has && typeof lastItems[f.code].cost === "number" ? inv - (lastItems[f.code].cost + redeemed) : null });
     });
     if (rows.length) {
@@ -3626,6 +3650,49 @@ function renderPrincipal() {
             '<span class="snap-sub">投入 ' + fmtYuan(r.inv) + ' · 现值 ' + fmtYuan(r.val) + '</span>' +
             /* 未年化时主值已经写了「N 天」，次级小注就不再重复一遍天数 */
             '<span class="snap-sub">简单 <b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>" + (r.ann ? " · 跨 " + r.days + " 天" : "") + "</span></span>" + tCell + "</div>";
+        }).join("") + "</div>";
+      /* ---- 逐只体检（骨架版）-------------------------------------------------------
+         4 项：① 标的（TWR vs 同类指数 · 取交集窗口）② 你的钱（全史 XIRR vs 无风险 10Y）
+               ③ 时点（同窗口 XIRR − TWR，两者都年化）④ 数据（流水齐全 + Σ 与快照成本对平）
+         输入不足的项一律标 ⏳「样本不足」而不是硬给结论 —— 与全页同一条原则。
+         每行只出「4 枚灯的结论」，具体数字都在上面的逐只表里、也在本行 title 里（避免重复占屏）。 */
+      const rf = (typeof DEFAULT !== "undefined" && Number.isFinite(DEFAULT.tnx)) ? DEFAULT.tnx / 100 : null;
+      const winDays = (full.length >= 2) ? Math.round((Date.parse(full[full.length - 1].d) - Date.parse(full[0].d)) / 86400000) : 0;
+      const IC = { ok: "✓", watch: "⚠", bad: "✗", na: "⏳" };
+      perFundSec += '<div class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 你的钱＝全史 XIRR vs 无风险 10Y ③ 时点＝同窗口 XIRR − TWR ④ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
+        '<span class="snap-cnt">（骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜达标线＝年化 ≥ ' + (rf !== null ? fmtPct(rf, 2) : "无风险") +
+        " ｜①③ 需同窗口 ≥90 天）</span></div>" +
+        '<div class="snap-tbl">' + rows.map((r) => {
+          if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
+            '</span><span class="pv"><b style="color:var(--tx3)">⏳ 流水未录</b><span class="snap-sub">无法体检（现值 ' + fmtYuan(r.val) + '）</span></span></div>';
+          const twrB = (r.theme === "ndx" && benchRet !== null) ? twrRange(r.code, bStart, bEnd) : null;
+          /* ① 也要 ≥90 天才出结论：短窗口下「QDII 联接 vs 指数」本身不可比 ——
+             币种不同（人民币净值 vs 美元指数）＋ QDII 净值滞后 1~2 个交易日，
+             11 天的错配足以造出 2~3pp 的假差距（首版就在这里误报了"标的落后"✗）。 */
+          const bDays = (bStart && bEnd) ? Math.round((Date.parse(bEnd) - Date.parse(bStart)) / 86400000) : 0;
+          const v1 = (twrB === null || benchRet === null || bDays < 90) ? "na" : (twrB >= benchRet - 0.005 ? "ok" : "bad");
+          const v2 = (r.xirr === null || !r.ann) ? "na" : ((rf !== null && r.xirr >= rf) ? "ok" : "bad");
+          const xW = (winDays >= 90 && r.v0 > 0) ? xirrRange(r.code, full[0].d, full[full.length - 1].d, r.v0, r.val) : null;
+          const tW = (winDays >= 90) ? twrRange(r.code, full[0].d, full[full.length - 1].d) : null;
+          const gapW = (xW === null || tW === null) ? null : xW - (Math.pow(1 + tW, 365 / winDays) - 1);
+          const v3 = gapW === null ? "na" : (Math.abs(gapW) < 0.01 ? "watch" : (gapW > 0 ? "ok" : "bad"));
+          const v4 = (r.drift !== null && Math.abs(r.drift) >= 0.05) ? "watch" : "ok";
+          const why =
+            "① " + (twrB !== null && benchRet !== null
+              ? "标的 TWR " + fmtPct(twrB, 2) + " vs 纳指 " + fmtPct(benchRet, 2) + "（" + benchWin + "）" + (winDays < 90 ? " · 样本不足" : "")
+              : "无同口径基准（BENCH 只有纳指" + (benchKeys.length ? "，现至 " + mdOf(benchKeys[benchKeys.length - 1]) : "") + "）") +
+            "；② 你的钱 " + ((r.ann && r.xirr !== null) ? fmtPct(r.xirr, 1) + " 年化 vs 无风险 " + (rf !== null ? fmtPct(rf, 2) : "—") : r.days + " 天 · 未达 90 天门槛") +
+            "；③ 时点 " + (gapW === null ? "需同窗口 ≥90 天（现 " + winDays + " 天）" : "XIRR " + fmtPct(xW, 1) + " − TWR " + fmtPct(Math.pow(1 + tW, 365 / winDays) - 1, 1) + " ＝ " + fmtPct(gapW, 2)) +
+            "；④ 数据 流水齐全" + (r.drift === null ? "" : (Math.abs(r.drift) < 0.05 ? " · Σ 与快照成本对平" : " · ⚠ 与快照成本差 " + fmtYuan(r.drift)));
+          const concl = (v1 === "na" && v2 === "na" && v3 === "na")
+            ? "跨度与基准都不足 → 暂不出结论（数据够了会自动点亮）"
+            : (v2 === "bad" ? "收益未跑赢无风险利率 ✗" : v2 === "ok" ? "收益已跑赢无风险利率 ✓" : "收益口径样本不足") +
+              (v1 === "bad" ? "；标的落后同类指数 ✗" : v1 === "ok" ? "；标的持平或更好 ✓" : "") +
+              (v3 === "bad" ? "；节奏拖累 ✗" : v3 === "ok" ? "；节奏加分 ✓" : "");
+          return '<div class="snap-part fund" title="' + esc(why) + '"><span class="pn">' + esc(r.nm) + '</span><span class="pv">' +
+            '<b' + (v1 === "na" ? ' style="color:var(--tx3)"' : "") + '>①' + IC[v1] + '</b> <b' + (v2 === "na" ? ' style="color:var(--tx3)"' : "") + '>②' + IC[v2] +
+            '</b> <b' + (v3 === "na" ? ' style="color:var(--tx3)"' : "") + '>③' + IC[v3] + '</b> <b' + (v4 === "na" ? ' style="color:var(--tx3)"' : "") + '>④' + IC[v4] + '</b>' +
+            '<span class="snap-sub">' + esc(concl) + "</span></span></div>";
         }).join("") + "</div>";
     }
   }
