@@ -105,10 +105,16 @@ const serie = [...merged.entries()].map(([d, c]) => ({ d, c })).sort((a, b) => (
 
 /* 序列最后一条的日期：只有它 ≥ 待补日期时，「取 ≤d 的最新收盘」才真的等于「截至该日的最新收盘」 */
 const seriesLast = serie.length ? serie[serie.length - 1].d : null;
+/* ⚠ 美东 16:00 之前的「当天」不许补：Yahoo 日线在盘中会给出一根**未完成**的当根 K 线，
+   closeAt 取到的是盘中价、不是收盘价 —— 而 BENCH 只补不覆盖，写错就永久留着 ✗。
+   定时跑（北京 05:47 = 美东 16:00 之后）不受影响；只有手工在美股盘中触发 CI 才会遇到
+   （2026-09-22 手工触发那次就是：data.js 被写成 intraday: true / 美东 10:00）。 */
+const ny = nydate();
+const partialDay = ny && ny.minuteOfDay < 16 * 60 ? ny.d : null;
 const added = [], uncovered = [];
 dates.forEach((d) => {
   if (have[d] !== undefined) return;
-  if (!seriesLast || d > seriesLast) { uncovered.push(d); return; }
+  if (!seriesLast || d > seriesLast || (partialDay && d === partialDay)) { uncovered.push(d); return; }
   const c = closeAt(serie, d);
   if (c === null) return;
   have[d] = c;
@@ -116,10 +122,23 @@ dates.forEach((d) => {
 });
 
 console.log("快照日期 " + dates.length + " 个，已有基准 " + Object.keys(bm[1].match(/"\d{4}-\d{2}-\d{2}"/g) || []).length + " 个，本次补 " + added.length + " 个" +
-  "（序列 " + serie.length + " 根" + (seriesLast ? "，到 " + seriesLast : "") + "）");
+  "（序列 " + serie.length + " 根" + (seriesLast ? "，到 " + seriesLast : "") + (partialDay ? "；美东未收盘，" + partialDay + " 视为未完成" : "") + "）");
 added.forEach(([d, c]) => console.log("  + " + d + "  NDX " + c.toFixed(2)));
-if (uncovered.length) console.log("⚠ 序列末端（" + seriesLast + "）早于这些快照日，**不补**：" + uncovered.join("、") +
-  "\n   → 这几天的点位请人工记入（可用 data.js 的 DEFAULT.ndx.close），或等序列更新后再跑本脚本。");
+if (uncovered.length) console.log("⚠ 这些快照日**不补**：" + uncovered.join("、") +
+  "\n   原因之一：序列末端（" + seriesLast + "）早于该日，或该日就是美股未收盘的当天（" + (partialDay || "无") + "）。" +
+  "\n   → 点位请人工记入（可参考 data.js 的 DEFAULT.ndx.close），或等序列更新/收盘后再跑本脚本。");
+
+/* 当前美东日期与时刻：判断「当天」那根日线是否已收盘（用 America/New_York 时区，不依赖本机时区） */
+function nydate() {
+  try {
+    const p = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date());
+    const g = (t) => (p.find((x) => x.type === t) || {}).value;
+    return { d: g("year") + "-" + g("month") + "-" + g("day"), minuteOfDay: +g("hour") * 60 + +g("minute") };
+  } catch { return null; }
+}
 
 const missing = dates.filter((d) => have[d] === undefined);
 if (missing.length) console.log("⚠ 序列未覆盖，仍缺：" + missing.join("、"));
