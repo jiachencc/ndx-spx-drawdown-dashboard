@@ -281,6 +281,21 @@
   .snap-sec { margin-top: 12px; font-size: var(--fs-xs); font-weight: 700; color: var(--tx2); letter-spacing: .06em; }
   .snap-sec .snap-cnt { font-weight: 400; letter-spacing: 0; color: var(--tx3); }   /* 小节题末尾的只数（原由「合计 N 只」行承载） */
   .snap-sec .n { font-size: var(--fs-xs); font-weight: 700; color: var(--tx2); letter-spacing: .06em; }   /* 「场内动作」这类行式小节标题 */
+  /* ===== 本金与收益：信息分层（2026-09-22）=====
+     这张卡原来把所有口径平铺（三行等式 ＋ 收益构成 ＋ 收益率口径 ＋ 逐只 XIRR ＋ 逐只体检），
+     手机上近 40 行密集文字，「该看什么」被淹掉。改法：
+       ① 三行等式（本金 → 累计收益 → 总资产）常显 —— 回答「投了多少 / 赚了多少 / 现在多少」；
+       ② 一句话结论常显（.pf-concl）—— 回答「该看什么」；
+       ③ 其余四块各自折叠，折叠行的 .snap-cnt 里直接带上结论数字，收起时不丢信息。 */
+  .pf-concl { margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: var(--card2); border: 1px solid var(--line-soft);
+    font-size: var(--fs-xs); color: var(--tx2); line-height: 1.7; }
+  .pf-concl b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  /* 折叠块：summary 直接复用 .snap-sec 的小节题样式，展开才铺出明细（全页一个版式） */
+  .pf-fold > summary.snap-sec { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .pf-fold > summary.snap-sec::-webkit-details-marker { display: none; }
+  .pf-fold > summary.snap-sec::after { content: "▾"; color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
+  .pf-fold[open] > summary.snap-sec::after { content: "▴"; }
+  .pf-fold > summary.snap-sec .snap-cnt { flex: 1 1 auto; min-width: 0; }
   /* 原「合计 N 只」行已删：两个数字与上方「市场盈亏 / 累计盈亏」完全重复，只数由小节标题承载 */
   .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
   .snap-group-title span:not(:first-child) { text-align: right; }
@@ -328,6 +343,15 @@
   /* 逐只表的表头行（名称 / 你的钱·XIRR / 标的·TWR）：只用小字标注，不参与数据 */
   .snap-part.fund.head { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 600; }
   .snap-part.fund.head .pv { font-family: var(--sans); font-size: var(--fs-xxs); font-weight: 600; }
+  /* 逐只表（XIRR 与 TWR / 逐只体检）的**第二行**：把「投入 / 现值 / 简单 / 天数」和结论文案从首行挪下来。
+     起因：首行原本把 5 个数塞进 .pv（1fr 列），手机上必然折成两三行，且各基金的数位对不齐 ——
+     「乱」就是从这里来的。现在首行只留三个数（名称 | 你的钱 | 标的），跨基金严格对齐；
+     细节整行铺开、灰字小一号，读不读都行。
+     ⚠ 它是 .snap-part 的**兄弟**（不在那个 grid 里），所以靠 padding 对齐，不要写 grid-column。 */
+  .xr-det { margin: 0 0 4px 6px; font-size: var(--fs-xxs); color: var(--tx3); font-family: var(--mono);
+    font-feature-settings: "tnum"; line-height: 1.65; }
+  /* .xr-det 自己设了三级灰，会盖掉全局 .up/.down（同权重、后出现者胜），故显式还原 */
+  .xr-det .up { color: var(--up); } .xr-det .down { color: var(--down); }
   .snap-twr { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700; font-feature-settings: "tnum"; text-align: right; }
   .snap-part .strat-hint { align-self: center; }
   /* nowrap：标签一律单行（最长 4 字「本期盈亏」＝48px，列宽 58px 留 10px 余量），
@@ -1087,10 +1111,10 @@ const OTC = {
    南方 9,824.31×2.2922=22,519.28、华安 A 480.22×8.1923=3,934.11 / C 490.30×8.0226=3,933.48、摩根 4,410.06×2.2281=9,826.05。
    场外合计市值 103,818.29 / 浮盈亏 −3,219.43 / 当日 +916.57（摩根 −60.86 是唯一负值）。
    限购提示：摩根日本精选暂停申购（仅可预约开放买入）、华安纳指 A/C 单日 100 元。 */
-    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "支付宝", theme: "n225", value: 9826.05, day: -60.86, pnl: 79.24, rate: 0.81, upd: "2026-09-21 21:01",
-      nav: { close: 2.2281, closeDate: "2026-09-21", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },
-    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "支付宝", theme: "hkus", value: 4985.85, day: 178.67, pnl: -1314.15, rate: -20.86, upd: "2026-09-21 21:40",
-      nav: { close: 1.4678, closeDate: "2026-09-18", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },
+    { name: "摩根日本精选股票(QDII)A", code: "007280", channel: "支付宝", theme: "n225", value: 9803.12, day: -22.93, pnl: 56.31, rate: 0.58, upd: "2026-09-22 20:57",
+      nav: { close: 2.2229, closeDate: "2026-09-22", hi: 2.3317, hiDate: "2026-06-22", lo: 1.9056 } },   // 09-22 截图：日涨幅 −0.23%、净值 2.2229；卡片上的「昨日收益 −60.86」是 09-21 的旧读数
+    { name: "中欧港股数字经济混合发起(QDII)A", code: "015884", channel: "支付宝", theme: "hkus", value: 5118.67, day: 132.82, pnl: -1181.33, rate: -18.75, upd: "2026-09-22 20:56",
+      nav: { close: 1.5069, closeDate: "2026-09-22", hi: 2.2610, hiDate: "2026-06-22", lo: 1.2924 } },   // ⚠ 净值 1.5069 是推导值：该截图只给了金额与收益，按 1.4678 × 5,118.67 ÷ 4,985.85 反推
     { name: "华安纳斯达克100ETF联接(QDII)A", code: "040046", channel: "华安基金", theme: "ndx", value: 4347.49, day: 113.36, pnl: 147.49, rate: 3.69, upd: "2026-09-22 19:40",
       nav: { close: 8.4225, closeDate: "2026-09-21", hi: 8.6249, hiDate: "2026-06-02", lo: 6.5577 } },
     { name: "华安纳斯达克100ETF联接(QDII)C", code: "014978", channel: "华安基金", theme: "ndx", value: 4346.66, day: 113.22, pnl: 146.66, rate: 3.67, upd: "2026-09-22 19:40",
@@ -1628,8 +1652,8 @@ const SNAPSHOTS = [
       "014978": { name: "华安纳指C", qty: 490.30, cost: 3900, val: 3933.48, pl: 33.48 },
     },
   },
-    { d: "2026-09-22", cash: 20324.46, pl: 2373.08, day: 5476.52, tag: "加仓",
-    note: "截图录入（09-22 19:38~19:41，App 口径）：场内＝平安证券 09-22 收盘（当日参考盈亏 +3,286.90；总资产 382,732.46 = 市值 362,408.00 + 可用 20,324.46；浮动盈亏 +3,392.35，与逐只 Σ(市值−成本) 分毫不差）。\n场内当日动作：买入 中韩半导体 2,600 份 @5.050（金额 13,130.00 + 费 5.00，均价 5.4950→5.4192）；银行转证券 +20,000.00（13:37）。\n场外 6/8 刷新（净值日均为 09-21，App 的「09-22 收益」是记账日口径）：广发精选 22,929.25(+537.88)、广发纳指F 22,771.87(+625.40)、南方 23,721.90(+602.62)、博时 14,278.47(预估+197.14)、华安 A 4,347.49(+113.36)、C 4,346.66(+113.22)。\n⚠ 摩根 / 中欧（支付宝）尚未更新，沿用 09-21 读数（9,826.05 / 4,985.85）→ 本期总资产与当日盈亏都少了这两只的 09-22 波动，不是漏记。\n⚠ 当日盈亏合计 5,476.52 = 场内 3,286.90 + 六只场外 2,189.62；未含摩根/中欧。\n⚠ 本期未手工登记 flow：可查的外部流入 = 银行转证券 20,000 + 六只场外定投 400（南方/华安 A、C 各一笔），归因交由 Δ累计投入 推导。\n⚠ 三只场外的成本较 09-21 上升，且各是 3 个工作日的定投量一次性入账（南方 +600 = 3×200、华安 A/C 各 +300 = 3×100，合计 +1,200）：\n  其中只有 1 天进了份额（南方 Δ份额 +87.25 份 ≈ 200 元、华安 A/C 各 +12 份 ≈ 100 元），另 800 仍在途（南方 400、华安 A/C 各 200）\n  —— App 把在途并进「持仓成本」但不并进「份额」，故「平均成本 × 份额」比持仓成本少 400（南方 2.2802 × 9,911.56 = 22,604 vs 23,000），与 021778 那 30 元「含买入在途」同源；\n  这几笔按「交易日 × 定投额」重建入 OTC_LOG 时不含在途，故逐只表会显示这 3 只与快照成本有微差（差的就是在途）。\n⚠ 连带口径：在途 800 已离开银行卡 → 计入本期「资金转入」金额无误，但归属日期偏早 1~2 天（本该散在 09-18 / 09-21），对 90 天以上的年化影响 < 0.1pp；\n  本期 flow 21,201.36 的构成 = 银证转入 +20,000 ＋ 三只定投确认 +1,200（已进份额 400 / 在途 800）＋ 零头 +1.36。\n⚠ 博时 App 的「持有收益」仍是 +181.69（未随金额刷新）→ 本页按 val − cost 记 pl +378.47。\n⚠ 对账单另补齐了 09-14 的银证转入 35,000.00（此前按脱敏约定只记「含一笔银证转入」未记金额）。",
+    { d: "2026-09-22", cash: 20324.46, pl: 2482.97, day: 5586.41, tag: "加仓",
+    note: "截图录入（09-22 19:38~19:41，App 口径）：场内＝平安证券 09-22 收盘（当日参考盈亏 +3,286.90；总资产 382,732.46 = 市值 362,408.00 + 可用 20,324.46；浮动盈亏 +3,392.35，与逐只 Σ(市值−成本) 分毫不差）。\n场内当日动作：买入 中韩半导体 2,600 份 @5.050（金额 13,130.00 + 费 5.00，均价 5.4950→5.4192）；银行转证券 +20,000.00（13:37）。\n场外 8/8 刷新（净值日：广发/南方/博时/华安 09-21、摩根/中欧 09-22；App 的「09-22 收益」是记账日口径）：广发精选 22,929.25(+537.88)、广发纳指F 22,771.87(+625.40)、南方 23,721.90(+602.62)、博时 14,278.47(预估+197.14)、华安 A 4,347.49(+113.36)、C 4,346.66(+113.22)。\n⚠ 摩根 / 中欧（支付宝）20:56~20:57 已补齐 09-22 净值 → 本期场外 8/8 全覆盖：摩根 9,803.12（−22.93，净值 2.2229@09-22）、中欧 5,118.67（+132.82）。\n  ⚠ 摩根页的「昨日收益 −60.86」是 09-21 那根没刷新（净值其实已到 09-22），故本页当日取 9,803.12 − 9,826.05 = −22.93。\n⚠ 当日盈亏合计 5,586.41 = 场内 3,286.90 + 八只场外 2,299.51（本期 8/8 全覆盖）。\n⚠ 本期未手工登记 flow：可查的外部流入 = 银行转证券 20,000 + 六只场外定投 400（南方/华安 A、C 各一笔），归因交由 Δ累计投入 推导。\n⚠ 三只场外的成本较 09-21 上升，且各是 3 个工作日的定投量一次性入账（南方 +600 = 3×200、华安 A/C 各 +300 = 3×100，合计 +1,200）：\n  其中只有 1 天进了份额（南方 Δ份额 +87.25 份 ≈ 200 元、华安 A/C 各 +12 份 ≈ 100 元），另 800 仍在途（南方 400、华安 A/C 各 200）\n  —— App 把在途并进「持仓成本」但不并进「份额」，故「平均成本 × 份额」比持仓成本少 400（南方 2.2802 × 9,911.56 = 22,604 vs 23,000），与 021778 那 30 元「含买入在途」同源；\n  这几笔按「交易日 × 定投额」重建入 OTC_LOG 时不含在途，故逐只表会显示这 3 只与快照成本有微差（差的就是在途）。\n⚠ 连带口径：在途 800 已离开银行卡 → 计入本期「资金转入」金额无误，但归属日期偏早 1~2 天（本该散在 09-18 / 09-21），对 90 天以上的年化影响 < 0.1pp；\n  本期 flow 21,201.36 的构成 = 银证转入 +20,000 ＋ 三只定投确认 +1,200（已进份额 400 / 在途 800）＋ 零头 +1.36。\n⚠ 博时 App 的「持有收益」仍是 +181.69（未随金额刷新）→ 本页按 val − cost 记 pl +378.47。\n⚠ 对账单另补齐了 09-14 的银证转入 35,000.00（此前按脱敏约定只记「含一笔银证转入」未记金额）。",
       items: {
         "159941": { name: "纳指ETF广发", qty: 81100, cost: 128312.8, val: 139005.4, pl: 10692.6 },
         "160644": { name: "港美互联网LOF", qty: 2100, cost: 9306.1, val: 4080.3, pl: -5225.8 },
@@ -1640,8 +1664,8 @@ const SNAPSHOTS = [
         "021778": { name: "广发纳指F", qty: 2722.7, cost: 22380, val: 22771.87, pl: 391.87 },
         "021000": { name: "南方纳指I", qty: 9911.56, cost: 23000, val: 23721.9, pl: 721.9 },
         "018738": { name: "博时标普E", qty: 2535.87, cost: 13900, val: 14278.47, pl: 378.47 },
-        "007280": { name: "日本精选", qty: 4410.06, cost: 9746.81, val: 9826.05, pl: 79.24 },
-        "015884": { name: "中欧港股", qty: 3396.82, cost: 6300, val: 4985.85, pl: -1314.15 },
+        "007280": { name: "日本精选", qty: 4410.06, cost: 9746.81, val: 9803.12, pl: 56.31 },
+        "015884": { name: "中欧港股", qty: 3396.82, cost: 6300, val: 5118.67, pl: -1181.33 },
         "040046": { name: "华安纳指A", qty: 492.43, cost: 4200, val: 4347.49, pl: 147.49 },
         "014978": { name: "华安纳指C", qty: 502.76, cost: 4200, val: 4346.66, pl: 146.66 },
       } },
@@ -3675,6 +3699,7 @@ function renderPrincipal() {
      盘中估算是"还没发生的一天"，不该混进年化里。 */
   const rPts = rAll ? rAll.filter((p) => !p.isToday) : null;
   let rateSec = "";
+  let conclLine = "";   // 卡片最上面那句结论（回答「该看什么」）；没有同节奏基准时为空
   if (rPts && rPts.length >= 2) {
     const navArr = trendNav(rPts).nav;
     let twr = calcTWR(rPts);
@@ -3699,8 +3724,20 @@ function renderPrincipal() {
        与走势图 KPI 同一处理：跨度不足 90 天就不显示 XIRR 数值、也不算差额。 */
     const xCell = ann ? pc(annT(xirr)) : (cf ? Math.round(days) + " 天 · 暂不年化" : "缺现金流");
     const gap = (ann && xirr !== null && twr !== null) ? xirr - twr : null;
-    rateSec = '<div class="snap-sec">收益率口径 <span class="snap-cnt">（首期 ' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
-        " · 跨 " + Math.round(days) + " 天" + (ann ? " · 年化" : " · 样本太短，不年化") + "）</span></div>" +
+    /* 一句话结论：先回答「该看什么」。原来把 TWR / XIRR / 同节奏三行平铺，读者得自己找哪个是结论；
+       口径说明一字未动，仍在下面的折叠块里。 */
+    if (twr !== null && bTwr !== null) {
+      const beat = twr - bTwr;
+      /* 措辞按 TWR 口径说：这里比的是「时间加权」——指数没有资金流，它的 TWR 就是指数涨跌本身，
+         所以「同期纳指」与「同节奏纳指（同样的钱同样的日期）」在 TWR 口径下是同一个数，不必分开说。
+         只有金额 / 资金加权口径下两者才会分叉（见「资产走势」的说明）。 */
+      conclLine = '<div class="pf-concl">同期纳指 <b>' + pc(annT(bTwr)) + "</b>，你是 <b class=\"" + cls(twr) + "\">" + pc(annT(twr)) +
+        "</b>（同为时间加权口径）→ <b class=\"" + cls(beat) + "\">" + (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>" +
+        (ann ? "" : " · 跨 " + Math.round(days) + " 天，样本太短不年化") + "</div>";
+    }
+    rateSec = '<details class="pf-fold"><summary class="snap-sec">收益率口径 <span class="snap-cnt">（首期 ' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
+        " · TWR " + pc(annT(twr)) + (ann ? " · XIRR " + pc(annT(xirr)) : " · XIRR 暂不年化") +
+        " · 跨 " + Math.round(days) + " 天" + (ann ? " · 已年化" : "，样本太短") + "）</span></summary>" +
       '<div class="snap-tbl">' +
       '<div class="snap-part"><span class="pn">TWR</span><span class="pv"><b class="' + cls(twr) + '">' + pc(annT(twr)) + '</b>' +
         '<span class="snap-sub" title="时间加权收益率：按快照末端资金流逐期剔除转入/转出，衡量标的与持有本身 —— 不含你「何时加减仓」的影响">时间加权 · 剔除出入金时点</span></span></div>' +
@@ -3712,7 +3749,7 @@ function renderPrincipal() {
         (bXirr !== null && ann ? "（XIRR " + pc(annT(bXirr)) + "）" : "") +
         (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") +
         " → 你" + (twr >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twr - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
-      "</div>";
+      "</div></details>";
   }
   /* ===== 逐只资金加权（XIRR）===================================================
      数据源：OTC_LOG（逐只真实申赎日期与金额，MANUAL 录入）＋ 末期快照市值。
@@ -3788,22 +3825,39 @@ function renderPrincipal() {
       const redeemed = log.filter((t) => t.act === "赎回").reduce((a, t) => a + t.amt, 0);
       const t0 = Date.parse(log.map((t) => t.d).sort()[0]);
       const days = Math.round((Date.parse(lastD) - t0) / 86400000);
+      /* 快照成本 − 流水净投入：
+         · > 0 ＝ **在途**（钱已从银行卡扣走、份额还没确认 → 快照成本里有它、流水里没有），
+           如 021000 +200、040046 / 014978 各 +100、021778 的 30 元。补记进现金流即可，不算异常；
+         · < 0 ＝ 流水比快照成本还多 → 口径或录入有问题，保留 ⚠（这才是最该看的那一种）。 */
+      const costSnap = (has && typeof lastItems[f.code].cost === "number") ? lastItems[f.code].cost : null;
+      const gapSnap = costSnap === null ? null : costSnap - (inv - redeemed);
+      const transit = (gapSnap !== null && gapSnap > 0.05) ? gapSnap : 0;
+      const invAll = inv + transit;
       const cfs = log.map((t) => ({ t: (Date.parse(t.d) - t0) / 86400000, amt: t.act === "赎回" ? t.amt : -t.amt }))
         .sort((a, b) => a.t - b.t);
-      cfs.push({ t: (Date.parse(lastD) - t0) / 86400000, amt: val + redeemed });
-      const gain = val + redeemed - inv;
-      /* drift ＝ 本表累计投入 − 快照成本（快照成本是已赎回后的净口径，故先把赎回加回） */
-      rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, inv: inv, val: val, gain: gain, rate: inv ? gain / inv : 0,
-        xirr: calcXIRR(cfs), days: days, ann: days >= 90, twr: twrOf(f.code),
+      /* ⚠ 终值只放**市值**：赎回已经在自己那天记过正现金流，这里再加一次就是双计 ——
+         原先写 val + redeemed，会让有赎回的基金在跨过 90 天门槛后年化偏高。 */
+      if (transit) cfs.push({ t: (Date.parse(lastD) - t0) / 86400000, amt: -transit });
+      cfs.push({ t: (Date.parse(lastD) - t0) / 86400000, amt: val });
+      const gain = val + redeemed - invAll;
+      rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, inv: inv, invAll: invAll, val: val, gain: gain, rate: invAll ? gain / invAll : 0,
+        xirr: calcXIRR(cfs), days: days, ann: days >= 90, twr: twrOf(f.code), transit: transit,
         v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null,
-        drift: has && typeof lastItems[f.code].cost === "number" ? inv - (lastItems[f.code].cost + redeemed) : null });
+        drift: gapSnap === null ? null : (gapSnap < -0.05 ? gapSnap : 0) });
     });
     if (rows.length) {
       const miss = rows.filter((r) => r.miss).length;
-      const drift = rows.filter((r) => !r.miss && r.drift !== null && Math.abs(r.drift) >= 0.05);
-      perFundSec = '<div class="snap-sec" title="左＝你的钱（按真实申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
-        '<span class="snap-cnt">（' + (rows.length - miss) + "/" + rows.length + " 只已录成交流水 · IRR 全史按期解 · TWR 窗口 " + twrWin +
-        " · " + (drift.length ? "⚠ " + drift.length + " 只与快照成本有微差" : "与快照成本逐只对平 ✓") + "）</span></div>" +
+      const transit = rows.filter((r) => !r.miss && r.transit > 0.05);
+      const drift = rows.filter((r) => !r.miss && r.drift !== null && r.drift < -0.05);
+      /* 收起时也要能看出结论：把「最差 / 最好」提到 summary 里（只取已达 90 天、可年化的那几只） */
+      const rank = rows.filter((r) => !r.miss && r.ann && r.xirr !== null).sort((a, b) => a.xirr - b.xirr);
+      perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
+        '<span class="snap-cnt">（' + (rows.length - miss) + "/" + rows.length + " 只已录成交流水" +
+        (rank.length ? " · 最差 " + fmtPct(rank[0].xirr, 1) + "（" + rank[0].nm + "） · 最好 " + fmtPct(rank[rank.length - 1].xirr, 1) + "（" + rank[rank.length - 1].nm + "）"
+          : " · 均未达 90 天，暂不年化") +
+        " · " + (drift.length ? "⚠ " + drift.length + " 只流水比快照成本多，需核对"
+          : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平 ✓"
+          : "与快照成本逐只对平 ✓") + "）</span></summary>" +
         '<div class="snap-tbl">' +
         /* 表头：两列各是"谁的成绩"——左＝你的钱（资金加权，全史），右＝标的本身（时间加权，快照窗口） */
         '<div class="snap-part fund head"><span class="pn"></span><span class="pv">你的钱 · XIRR</span><span class="snap-twr">标的 · TWR</span></div>' +
@@ -3812,16 +3866,18 @@ function renderPrincipal() {
             "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。它与左边 XIRR 的窗口不同，不可直接相减。";
           const tCell = '<span class="snap-twr" title="' + esc(tNote) + '"><b class="' + (Number.isFinite(r.twr) ? cls(r.twr) : "") + '">' +
             (Number.isFinite(r.twr) ? fmtPct(r.twr, 2) : "—") + "</b></span>";
+          /* 第二行 = 细节（整行铺开）。首行只留名称 / XIRR / TWR 三个数 —— 这样跨基金才对得齐。 */
+          const det = (arr) => '<div class="xr-det">' + arr.filter(Boolean).join(" · ") + "</div>";
           if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
-            '</span><span class="pv"><b style="color:var(--tx3)">未录入</b><span class="snap-sub">缺成交流水 → 不参与年化（现值 ' + fmtYuan(r.val) + '）</span></span>' + tCell + "</div>";
+            '</span><span class="pv"><b style="color:var(--tx3)">未录入</b></span>' + tCell + "</div>" +
+            det(["缺成交流水 → 不参与年化", "现值 " + fmtYuan(r.val)]);
           const main = (r.ann && r.xirr !== null)
             ? '<b class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + '</b><span class="snap-sub">年化</span>'
             : '<b style="color:var(--tx3)">' + r.days + ' 天 · 暂不年化</b>';
-          return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + main +
-            '<span class="snap-sub">投入 ' + fmtYuan(r.inv) + ' · 现值 ' + fmtYuan(r.val) + '</span>' +
-            /* 未年化时主值已经写了「N 天」，次级小注就不再重复一遍天数 */
-            '<span class="snap-sub">简单 <b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>" + (r.ann ? " · 跨 " + r.days + " 天" : "") + "</span></span>" + tCell + "</div>";
-        }).join("") + "</div>";
+          return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + main + "</span>" + tCell + "</div>" +
+            det([r.ann ? r.days + " 天" : "", "投入 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtAmt2(r.transit) + "）" : ""),
+              "现值 " + fmtYuan(r.val), "简单 " + '<b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>"]);
+        }).join("") + "</div></details>";
       /* ---- 逐只体检（骨架版）-------------------------------------------------------
          4 项：① 标的（TWR vs 同类指数 · 取交集窗口）② 你的钱（全史 XIRR vs 无风险 10Y）
                ③ 时点（同窗口 XIRR − TWR，两者都年化）④ 数据（流水齐全 + Σ 与快照成本对平）
@@ -3830,12 +3886,13 @@ function renderPrincipal() {
       const rf = (typeof DEFAULT !== "undefined" && Number.isFinite(DEFAULT.tnx)) ? DEFAULT.tnx / 100 : null;
       const winDays = (full.length >= 2) ? Math.round((Date.parse(full[full.length - 1].d) - Date.parse(full[0].d)) / 86400000) : 0;
       const IC = { ok: "✓", watch: "⚠", bad: "✗", na: "⏳" };
-      perFundSec += '<div class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 你的钱＝全史 XIRR vs 无风险 10Y ③ 时点＝同窗口 XIRR − TWR ④ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
+      perFundSec += '<details class="pf-fold"><summary class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 你的钱＝全史 XIRR vs 无风险 10Y ③ 时点＝同窗口 XIRR − TWR ④ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
         '<span class="snap-cnt">（骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜达标线＝年化 ≥ ' + (rf !== null ? fmtPct(rf, 2) : "无风险") +
-        " ｜①③ 需同窗口 ≥90 天）</span></div>" +
+        " ｜①③ 需同窗口 ≥90 天）</span></summary>" +
         '<div class="snap-tbl">' + rows.map((r) => {
           if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
-            '</span><span class="pv"><b style="color:var(--tx3)">⏳ 流水未录</b><span class="snap-sub">无法体检（现值 ' + fmtYuan(r.val) + '）</span></span></div>';
+            '</span><span class="pv"><b style="color:var(--tx3)">⏳ 流水未录</b></span></div>' +
+            '<div class="xr-det">无法体检（现值 ' + fmtYuan(r.val) + '）</div>';
           const twrB = (r.theme === "ndx" && benchRet !== null) ? twrRange(r.code, bStart, bEnd) : null;
           /* ① 也要 ≥90 天才出结论：短窗口下「QDII 联接 vs 指数」本身不可比 ——
              币种不同（人民币净值 vs 美元指数）＋ QDII 净值滞后 1~2 个交易日，
@@ -3847,14 +3904,16 @@ function renderPrincipal() {
           const tW = (winDays >= 90) ? twrRange(r.code, full[0].d, full[full.length - 1].d) : null;
           const gapW = (xW === null || tW === null) ? null : xW - (Math.pow(1 + tW, 365 / winDays) - 1);
           const v3 = gapW === null ? "na" : (Math.abs(gapW) < 0.01 ? "watch" : (gapW > 0 ? "ok" : "bad"));
-          const v4 = (r.drift !== null && Math.abs(r.drift) >= 0.05) ? "watch" : "ok";
+          /* ④ 数据完整：只有「流水比快照成本多」才算问题；在途（快照成本更多）是正常口径，不计入 */
+          const v4 = (r.drift !== null && r.drift < -0.05) ? "watch" : "ok";
           const why =
             "① " + (twrB !== null && benchRet !== null
               ? "标的 TWR " + fmtPct(twrB, 2) + " vs 纳指 " + fmtPct(benchRet, 2) + "（" + benchWin + "）" + (winDays < 90 ? " · 样本不足" : "")
               : "无同口径基准（BENCH 只有纳指" + (benchKeys.length ? "，现至 " + mdOf(benchKeys[benchKeys.length - 1]) : "") + "）") +
             "；② 你的钱 " + ((r.ann && r.xirr !== null) ? fmtPct(r.xirr, 1) + " 年化 vs 无风险 " + (rf !== null ? fmtPct(rf, 2) : "—") : r.days + " 天 · 未达 90 天门槛") +
             "；③ 时点 " + (gapW === null ? "需同窗口 ≥90 天（现 " + winDays + " 天）" : "XIRR " + fmtPct(xW, 1) + " − TWR " + fmtPct(Math.pow(1 + tW, 365 / winDays) - 1, 1) + " ＝ " + fmtPct(gapW, 2)) +
-            "；④ 数据 流水齐全" + (r.drift === null ? "" : (Math.abs(r.drift) < 0.05 ? " · Σ 与快照成本对平" : " · ⚠ 与快照成本差 " + fmtYuan(r.drift)));
+            "；④ 数据 流水齐全" + (r.drift !== null && r.drift < -0.05 ? " · ⚠ 流水比快照成本多 " + fmtYuan(-r.drift)
+              : " · Σ 与快照成本对平" + (r.transit > 0.05 ? "（含在途补记 " + fmtAmt2(r.transit) + "）" : ""));
           const concl = (v1 === "na" && v2 === "na" && v3 === "na")
             ? "跨度与基准都不足 → 暂不出结论（数据够了会自动点亮）"
             : (v2 === "bad" ? "收益未跑赢无风险利率 ✗" : v2 === "ok" ? "收益已跑赢无风险利率 ✓" : "收益口径样本不足") +
@@ -3863,8 +3922,9 @@ function renderPrincipal() {
           return '<div class="snap-part fund" title="' + esc(why) + '"><span class="pn">' + esc(r.nm) + '</span><span class="pv">' +
             '<b' + (v1 === "na" ? ' style="color:var(--tx3)"' : "") + '>①' + IC[v1] + '</b> <b' + (v2 === "na" ? ' style="color:var(--tx3)"' : "") + '>②' + IC[v2] +
             '</b> <b' + (v3 === "na" ? ' style="color:var(--tx3)"' : "") + '>③' + IC[v3] + '</b> <b' + (v4 === "na" ? ' style="color:var(--tx3)"' : "") + '>④' + IC[v4] + '</b>' +
-            '<span class="snap-sub">' + esc(concl) + "</span></span></div>";
-        }).join("") + "</div>";
+            '</span></div>' +
+            '<div class="xr-det">' + esc(concl) + "</div>";
+        }).join("") + "</div></details>";
     }
   }
   box.innerHTML =
@@ -3879,12 +3939,16 @@ function renderPrincipal() {
     '<div class="snap-part"><span class="pn">总资产</span><span class="pv">' + fmtYuan(total) + "</span>" + qBtn + "</div>" + qNote +
     /* ④ 两种成色：已兑现（实亏 / 实盈）与还拿着的浮动（浮亏 / 浮盈）。
        用与快照卡完全相同的小节题 + 缩进块，全页一个版式（见 handoff §4.6）。 */
-    '<div class="snap-sec">收益构成</div><div class="snap-tbl">' +
+    conclLine +
+    /* ④ 两种成色：已兑现（实亏 / 实盈）与还拿着的浮动（浮亏 / 浮盈）。
+       折叠起来 —— summary 里直接给「已实现 / 未实现」两个数，收起时不丢信息。 */
+    '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(cashed) + " · 未实现 " + fmtAmt2(held) + "</span></summary>" +
+    '<div class="snap-tbl">' +
       '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(cashed) + '">' + fmtAmt2(cashed) +
         '</b><span class="snap-sub">' + (sells.length ? (cashed < 0 ? "实亏" : "实盈") + " · " + sells.length + " 笔卖出兑现（含卖出费）" : "还没有卖出记录") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(held) + '">' + fmtAmt2(held) +
         '</b><span class="snap-sub">' + (held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + cashNote + "</span></span></div>" +
-    "</div>" +
+    "</div></details>" +
     rateSec +
     perFundSec;
 }

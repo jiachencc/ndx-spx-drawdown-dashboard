@@ -47,17 +47,26 @@ const have = {};
 const dates = readDates();
 const series = readSeries();
 
-const added = [];
+/* 序列最后一条的日期：只有它 ≥ 待补日期时，「取 ≤d 的最新收盘」才真的等于「截至该日的最新收盘」 */
+const seriesLast = series.length ? series[series.length - 1].d : null;
+const added = [], uncovered = [];
 dates.forEach((d) => {
   if (have[d] !== undefined) return;
+  /* ⚠ 序列末端早于 d 时**不许补**：closeAt 会返回一个更早的旧点位，那不是「截至该日的最新收盘」。
+     2026-09-22 实测：series.json 停在 09-16 的 28,945.06，而 09-21 的真值是 30,482.35（差 5%）——
+     照补会让「收益率」视图里的纳指基准线凭空下挫，属数据事故。宁可缺，也不猜。 */
+  if (!seriesLast || d > seriesLast) { uncovered.push(d); return; }
   const c = closeAt(series, d);
   if (c === null) return;
   have[d] = c;
   added.push([d, c]);
 });
 
-console.log("快照日期 " + dates.length + " 个，已有基准 " + Object.keys(bm[1].match(/"\d{4}-\d{2}-\d{2}"/g) || []).length + " 个，本次补 " + added.length + " 个");
+console.log("快照日期 " + dates.length + " 个，已有基准 " + Object.keys(bm[1].match(/"\d{4}-\d{2}-\d{2}"/g) || []).length + " 个，本次补 " + added.length + " 个" +
+  (seriesLast ? "（序列本身到 " + seriesLast + "）" : ""));
 added.forEach(([d, c]) => console.log("  + " + d + "  NDX " + c.toFixed(2)));
+if (uncovered.length) console.log("⚠ 序列末端（" + seriesLast + "）早于这些快照日，**不补**：" + uncovered.join("、") +
+  "\n   → 这几天的点位请人工记入（可用 data.js 的 DEFAULT.ndx.close），或等 series.json 更新后再跑本脚本。");
 
 const missing = dates.filter((d) => have[d] === undefined);
 if (missing.length) console.log("⚠ 序列未覆盖，仍缺：" + missing.join("、") + "（等 series.json 更新后再跑一次）");
