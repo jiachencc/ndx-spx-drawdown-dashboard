@@ -1808,7 +1808,8 @@ function renderTrendLegend() {
     html = item("dn", "回撤", "红色实线＋面积＝资金流调整后单位净值相对历史峰值的回撤（0 在顶，越深越亏）；圆点为各期快照");
   } else {
     html = item("", "总资产", "蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）") +
-      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>';
+      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充），在下＝浮亏（红色填充）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
+      item("base", "同节奏纳指", "灰色密虚线＝同节奏基准：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌。回答「同样的钱、同样的日期，全买纳指今天是多少」。末点＝最近一个有纳指收盘的日期（基准点位缺当日时自动停在前一天，不猜）。");
   }
   el.innerHTML = html;
   syncCostBtn();
@@ -1938,6 +1939,46 @@ function benchRateAt(d) {
   const keys = Object.keys(BENCH).sort();
   if (!keys.length || typeof BENCH[d] !== "number" || !BENCH[keys[0]]) return null;
   return BENCH[d] / BENCH[keys[0]] - 1;
+}
+/* ---- 同节奏基准（借鉴 Portfolio Performance 的"同现金流基准组合"）------------------
+ * 把组合每一期的「外部净流入」在当天按纳指点位买入，其余时间随纳指涨跌，得到一条市值链。
+ * 它回答的是：**同样这些钱、同样这些日期，全部买纳指，今天会是多少？**
+ * 为什么「收益率」视图里那条「同期纳指」不够：指数没有资金流，它的时间加权收益率就是指数涨跌本身，
+ *   与你的出入金无关；只有在「金额」或「资金加权（XIRR）」口径下，"同节奏"才产生差异 —— 那正是这里要算的。
+ * 口径：V₀ = 组合首期总资产（同样的起点钱）；Vᵢ = Vᵢ₋₁ ×(benchᵢ / benchᵢ₋₁)+ flowᵢ；
+ *   flow 取 pts[i].flow（与 TWR/XIRR 同一套推导：人工记录优先，否则 Δ累计投入），今日估算点为 null 按 0；
+ *   基准点位取「不晚于该日的最近一个」（休市自动落到前一交易日，与 sync-bench.mjs 同规则）；
+ *   某日之前还没有基准点位 → 该点不画（图上自动降级，不猜）。 */
+function trendBenchPts(pts) {
+  if (typeof BENCH === "undefined" || !BENCH || !pts || pts.length < 2) return null;
+  const keys = Object.keys(BENCH).sort();
+  if (!keys.length) return null;
+  const levelAt = (d) => { let hit = null; for (const k of keys) { if (k <= d) hit = BENCH[k]; else break; } return hit; };
+  const out = [];
+  const lastKey = keys[keys.length - 1];
+  let v = null, prev = null;
+  for (const p of pts) {
+    if (p.d > lastKey) break;               // 最后有基准点位之后不再延伸：那几根纳指还没收盘，不猜
+    const lvl = levelAt(p.d);
+    if (!lvl) continue;
+    if (v === null) { v = p.val; prev = lvl; out.push({ d: p.d, v: v }); continue; }
+    v = v * (lvl / prev) + (Number.isFinite(p.flow) ? p.flow : 0);
+    prev = lvl;
+    out.push({ d: p.d, v: v });
+  }
+  return out.length >= 2 ? out : null;
+}
+/* 同节奏基准的 XIRR：日期与金额都与组合完全相同（同样的钱、同样的日子），只把期末值换成基准市值。
+ * 组合与基准的 XIRR 之差，就是「择时 + 选标的」合计贡献（正＝跑赢躺平买纳指）。 */
+function benchCashflows(pts, bp) {
+  const cf = trendCashflows(pts);
+  if (!cf || !bp || bp.length < 2) return null;
+  const t0 = Date.parse(pts[0].d), last = bp[bp.length - 1];
+  const tLast = (Date.parse(last.d) - t0) / 86400000;
+  if (!isFinite(tLast) || tLast <= 0) return null;
+  const cfs = cf.cfs.filter((c) => c.t <= tLast + 1e-9);   // 基准末点之后不再有进出
+  cfs.push({ t: tLast, amt: last.v });
+  return { cfs, days: tLast };
 }
 /* 基准的相对收益，归一到「该点之前第一个有基准的日期」——与「收益率」视图内基准线**同一算法**，
    读数条据此显示「同期纳指 / 超额」，避免图与读数两处口径漂移。 */
@@ -2223,8 +2264,10 @@ function renderTrend(todayVal, todayCost) {
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs);
   const span = t1 - t0 || 1;
   const X = (p, i) => pts.length === 1 ? (mL + mR) / 2 + mL / 2 : mL + (xs[i] - t0) / span * (W - mL - mR);
-  /* 投入线隐藏时 y 轴只按资产线取值域，避免空轴线压扁资产波动 */
-  const allV = pts.map((p) => p.val).concat(trendShowCost ? pts.map((p) => p.cost) : []);
+  /* 投入线隐藏时 y 轴只按资产线取值域，避免空轴线压扁资产波动；
+     同节奏基准线也并入值域 —— 宁可压缩纵向分辨率，也不要画一条跑到图外被裁掉的线 */
+  const bPts = trendBenchPts(pts);
+  const allV = pts.map((p) => p.val).concat(trendShowCost ? pts.map((p) => p.cost) : []).concat(bPts ? bPts.map((o) => o.v) : []);
   let yLo = Math.min.apply(null, allV), yHi = Math.max.apply(null, allV);
   const pad = (yHi - yLo) * 0.12 || yHi * 0.02;
   yLo -= pad; yHi += pad;
@@ -2246,6 +2289,19 @@ function renderTrend(todayVal, todayCost) {
       svg += trendSegFill(P(px[i]), P(py[i]), P(cy[i]), P(px[i + 1]), P(py[i + 1]), P(cy[i + 1]));   // x 坐标一并格式化，避免超长小数串进 SVG
     svg += '<polyline points="' + cy.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
       '" fill="none" style="stroke:var(--cyan)" stroke-width="1.5" stroke-dasharray="5 4"/>';
+  }
+  if (bPts) {
+    /* 同节奏基准：按日期各自映射 x（它可能比组合少末点，或起点靠后） */
+    const xOf = {};
+    pts.forEach((p, i) => { xOf[p.d] = px[i]; });
+    const seg = bPts.map((o) => (xOf[o.d] === undefined ? null : P(xOf[o.d]) + "," + P(Y(o.v)))).filter(Boolean);
+    if (seg.length >= 2)
+      svg += '<polyline points="' + seg.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:1.5;opacity:.8" stroke-dasharray="2 3"/>';
+    /* 线端标出基准终值：一条没名字的灰线，读者只能猜它是谁 */
+    const last = bPts[bPts.length - 1], lx = xOf[last.d];
+    if (lx !== undefined)
+      svg += '<text x="' + P(Math.max(mL + 40, lx - 4)) + '" y="' + P(Math.min(H - mB - 2, Y(last.v) - 5)) +
+        '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">同节奏 ' + (last.v / 10000).toFixed(1) + "万</text>";
   }
   svg += '<polyline points="' + py.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
     '" fill="none" style="stroke:var(--blue)" stroke-width="2"/>';
@@ -3094,6 +3150,59 @@ function renderPrincipal() {
     + "⚠ 未实现 <b>不等于</b>「快照卡逐只累计盈亏」之和：券商摊薄成本把已实现的盈亏并进了剩余仓位成本，"
     + "单只的累计盈亏里已含已实现（如港美 −5,369 中含 −5,072 已实现），两者相差的正是已实现那部分。"
     + "余下 ±10 元为买入费与摊薄口径微差。</div>";
+  /* ===== 两种收益率口径（借鉴 Portfolio Performance 的账目学）=====================
+     TWR（时间加权）＝按快照末端资金流逐期剔除转入/转出 → 衡量"标的与持有本身"
+     XIRR（资金加权）＝计入每一笔出入金的日期与金额      → 衡量"你的钱实际赚了多少"
+     两者之差 ＝ 出入金节奏本身的贡献（正＝择时赚钱，负＝高位加仓的拖累）
+     再加一条「同节奏基准」：同样的钱、同样的日期全买纳指 → 直接回答"该不该躺平"
+     区间固定为「快照首期 → 最新」，与走势图的时间档位无关，故在标题里写明区间。
+     ⚠ 跨度不足 90 天不做年化 —— 与走势图 KPI 同一条规则，免得把 3 周的表现吹成年化。 */
+  const rAll = (typeof trendCtx !== "undefined" && trendCtx && Number.isFinite(trendCtx.v) && Number.isFinite(trendCtx.c))
+    ? buildTrendPts(trendCtx.v, trendCtx.c) : null;
+  /* 只用**快照期**：今日估算点的 flow 为 null，会让 XIRR 的现金流构造直接放弃（走势 KPI 里
+     「XIRR 缺现金流」就是同一原因）；而且 XIRR 本身要按已成交的日期与金额算才成立 ——
+     盘中估算是"还没发生的一天"，不该混进年化里。 */
+  const rPts = rAll ? rAll.filter((p) => !p.isToday) : null;
+  let rateSec = "";
+  if (rPts && rPts.length >= 2) {
+    const navArr = trendNav(rPts).nav;
+    let twr = calcTWR(rPts);
+    if (twr === null) twr = navArr[navArr.length - 1] - 1;
+    const cf = trendCashflows(rPts);
+    const xirr = cf ? calcXIRR(cf.cfs) : null;
+    const bPts = trendBenchPts(rPts);
+    const bCf = bPts ? benchCashflows(rPts, bPts) : null;
+    const bXirr = bCf ? calcXIRR(bCf.cfs) : null;
+    /* 基准 TWR ＝纳指同期涨跌（指数没有资金流），点位裁到基准链覆盖的那一段，
+       免得用全量 BENCH 的首尾冒充同期（基准可能比组合晚几天才有第一个点位） */
+    const bk = Object.keys(typeof BENCH === "undefined" ? {} : BENCH).sort();
+    const bIn = (bPts && bk.length) ? bk.filter((d) => d >= bPts[0].d && d <= bPts[bPts.length - 1].d) : [];
+    const bTwr = bIn.length >= 2 ? BENCH[bIn[bIn.length - 1]] / BENCH[bIn[0]] - 1 : null;
+    const bLast = bIn.length ? bIn[bIn.length - 1] : null;
+    const days = cf ? cf.days : 0;
+    const ann = days >= 90;                                  // 与走势 KPI 同规则
+    const annT = (v) => (v === null || !ann ? v : Math.pow(1 + v, 365 / days) - 1);
+    const pc = (v) => (v === null || v === undefined ? "—" : fmtPct(v, 2));
+    /* TWR 是「区间累计」（不足 90 天不年化）；XIRR 天生是年化 —— 两者跨度短时不可相减，
+       否则等于拿 24 天的累计去减一个年化值（实测会造出 +14.77pp 这种假信号）。
+       与走势图 KPI 同一处理：跨度不足 90 天就不显示 XIRR 数值、也不算差额。 */
+    const xCell = ann ? pc(annT(xirr)) : (cf ? Math.round(days) + " 天 · 暂不年化" : "缺现金流");
+    const gap = (ann && xirr !== null && twr !== null) ? xirr - twr : null;
+    rateSec = '<div class="snap-sec">收益率口径 <span class="snap-cnt">（首期 ' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
+        " · 跨 " + Math.round(days) + " 天" + (ann ? " · 年化" : " · 样本太短，不年化") + "）</span></div>" +
+      '<div class="snap-tbl">' +
+      '<div class="snap-part"><span class="pn">TWR</span><span class="pv"><b class="' + cls(twr) + '">' + pc(annT(twr)) + '</b>' +
+        '<span class="snap-sub" title="时间加权收益率：按快照末端资金流逐期剔除转入/转出，衡量标的与持有本身 —— 不含你「何时加减仓」的影响">时间加权 · 剔除出入金时点</span></span></div>' +
+      '<div class="snap-part"><span class="pn">XIRR</span><span class="pv"><b>' + xCell + '</b>' +
+        '<span class="snap-sub" title="资金加权年化：用每一笔出入金的日期与金额解 IRR，衡量你的钱实际赚了多少">资金加权 · 含出入金时点' +
+        (gap !== null ? "；与 TWR 差 " + (gap >= 0 ? "+" : "−") + Math.abs(gap * 100).toFixed(2) + "pp＝出入金节奏的贡献" : "（跨度过短不做年化，与走势图同一规则）") + "</span></span></div>" +
+      (bTwr !== null ? '<div class="snap-part"><span class="pn">同节奏纳指</span><span class="pv"><b class="' + cls(bTwr) + '">' + pc(annT(bTwr)) + '</b>' +
+        '<span class="snap-sub" title="同节奏基准：把每一期的外部净流入在当天按纳指收盘买入（现金流与组合完全相同）">同样的钱、同样的日期全买纳指' +
+        (bXirr !== null && ann ? "（XIRR " + pc(annT(bXirr)) + "）" : "") +
+        (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") +
+        " → 你" + (twr >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twr - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
+      "</div>";
+  }
   box.innerHTML =
     /* ① 钱的来路 */
     '<div class="snap-part"><span class="pn">本金</span><span class="pv">' + fmtYuan(principal) +
@@ -3111,7 +3220,8 @@ function renderPrincipal() {
         '</b><span class="snap-sub">' + (sells.length ? (cashed < 0 ? "实亏" : "实盈") + " · " + sells.length + " 笔卖出兑现（含卖出费）" : "还没有卖出记录") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(held) + '">' + fmtAmt2(held) +
         '</b><span class="snap-sub">' + (held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + cashNote + "</span></span></div>" +
-    "</div>";
+    "</div>" +
+    rateSec;
 }
 
 function renderSnapLog() {

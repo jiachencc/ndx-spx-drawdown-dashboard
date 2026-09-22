@@ -63,6 +63,13 @@ jobs:
       - name: Ticker-substitution backtest (ALT_BACKTEST)
         continue-on-error: true
         run: node scripts/alt-etf-backtest.mjs
+      # 同节奏基准（BENCH）依赖快照日期：新一期快照落盘后补上该日的纳指收盘，
+      # 走势图那条「同节奏纳指」虚线才能画到最后一点。只补缺失日期、已有值不覆盖。
+      # 数据源是兄弟仓库 fed-cycle-dashboard/data/series.json —— 本地有、CI 里可能没有，
+      # 故 continue-on-error：补不上只是那条线停在前一天，不影响日更与其它数据。
+      - name: Fill missing benchmark levels (BENCH)
+        continue-on-error: true
+        run: node scripts/sync-bench.mjs
       - name: Final audit
         run: node scripts/check-data.mjs
       - name: Commit only validated business-data changes
