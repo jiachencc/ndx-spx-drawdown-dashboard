@@ -91,6 +91,20 @@ async function getJSON(url, headers) {
   }
 }
 
+/* 同上，但要原始文本（东财 pingzhongdata 是整包 JS，不是 JSON）。超时放宽到 20s：单只最大约 500KB。 */
+async function getText(url, headers) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await fetch(url, { headers: { ...UA, ...(headers || {}) }, signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return await r.text();
+    } catch (e) {
+      if (i === 2) throw e;
+      await sleep(600 * (i + 1));
+    }
+  }
+}
+
 /* 前复权日K：返回 { "2026-06-23": 1.628, ... }
  * ⚠ 缓存必须记窗口：正向与反向对同一代码要的区间不同（前者 06-13 起、后者可能更早），
  * 只按代码缓存会让后来者拿到「不够早」的序列，第一笔流水静默取不到价。 */
@@ -107,10 +121,33 @@ async function closes(code, from, to) {
   return m;
 }
 
-/* 历史净值：倒序 + 每页 20，翻页取到 from 之前为止（同样按窗口缓存，理由见 closes） */
-async function navs(code, from) {
-  const k = "n" + code, hit = cache[k];
-  if (hit && hit.from <= from) return hit.m;
+/* 历史净值（主路径）：东财 pingzhongdata 一次给**整只全史**，一只 1 次请求。
+ * 为什么换（2026-09-22，请求量优化 A）：翻页版每只要 ~4 次（pageSize 上限实测就是 20，调大无效），
+ *   23 个净值序列 ≈ 90 次/天 —— 占整个日更请求量一半以上；换成它直接降到 23 次。
+ * 等价性实测：021000 与 lsjz 逐日比对 6/6 完全一致（2.2599/2.2449/2.2441/2.2797/2.2922/2.353），
+ *   最新日同为 09-21（不滞后），且覆盖到窗口起点 2026-06-13。
+ * ⚠ 时间戳 x 是**北京时间**的毫秒值 → 必须按 UTC+8 取日期。用 UTC 解析会整体错位一天，
+ *   表现为「bulk 的 09-15 等于 lsjz 的 09-16」这种假性不一致（实测踩过）。
+ * ⚠ 这是未公开的整包 JS，格式可能变 → 正则/JSON.parse 任一步失败即抛错，由 navs() 回退到翻页版，
+ *   不当成硬依赖。 */
+async function navsBulk(code) {
+  const txt = await getText("https://fund.eastmoney.com/pingzhongdata/" + code + ".js", { Referer: "https://fund.eastmoney.com/" });
+  const mm = txt.match(/Data_netWorthTrend\s*=\s*(\[[\s\S]*?\])\s*;/);
+  if (!mm) throw new Error("未找到 Data_netWorthTrend");
+  const arr = JSON.parse(mm[1]);
+  if (!Array.isArray(arr) || !arr.length) throw new Error("净值数组为空");
+  const m = {};
+  for (const x of arr) {
+    const ms = Number(x.x), v = Number(x.y);
+    if (!(ms > 0) || !(v > 0)) continue;
+    m[new Date(ms + 8 * 3600 * 1000).toISOString().slice(0, 10)] = v;
+  }
+  if (!Object.keys(m).length) throw new Error("解析后序列为空");
+  return m;
+}
+
+/* 历史净值（回退路径）：倒序 + 每页 20，翻页取到 from 之前为止（同样按窗口缓存，理由见 closes） */
+async function navsPaged(code, from) {
   const m = {};
   for (let page = 1; page <= 12; page++) {
     let j;
@@ -124,7 +161,18 @@ async function navs(code, from) {
     if (list[list.length - 1].FSRQ < from) break;   // 已经翻到窗口之前
     await sleep(120);                                // 东财接口对连续请求不友好，稍作间隔
   }
-  cache[k] = { from, m };
+  return m;
+}
+
+async function navs(code, from) {
+  const k = "n" + code, hit = cache[k];
+  if (hit && hit.from <= from) return hit.m;
+  let m, full = false;
+  try { m = await navsBulk(code); full = true; }
+  catch (e) { m = await navsPaged(code, from); console.log("  · " + code + " 全史接口不可用，回退翻页：" + e.message); }
+  if (!Object.keys(m).length) console.log("  ⚠ " + code + " 净值序列为空");
+  /* 全史路径拿到的是完整历史 → 缓存起点记为「更早」，后续任何窗口都能命中（省掉反向那一次的重复取数） */
+  cache[k] = { from: full ? "0000-00-00" : from, m };
   return m;
 }
 

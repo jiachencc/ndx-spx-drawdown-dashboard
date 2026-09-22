@@ -15,7 +15,9 @@
  * 代码清单：我持有的场内（data.js POSITIONS.hold）+ 我持有的场外（positions.html OTC.funds）
  *          + 回测候选（scripts/alt-etf-backtest.mjs 的 UNIVERSE）+ PEERS 指向的替代产品。
  * 数据源：https://fundf10.eastmoney.com/jbgk_<code>.html（基金基本概况，招募说明书口径）
- * 运行：node scripts/fetch-fees.mjs [--dry]      （--dry 只打印不写盘）
+ * 运行：node scripts/fetch-fees.mjs [--dry] [--max-age-days N]
+ *       --dry 只打印不写盘；--max-age-days N（默认 7）＝费率表 N 天内视为新鲜、直接跳过抓取（0 = 总是刷新）。
+ *       逐日抓 28 个档案页是纯浪费（费率一年未必动一次），故加了这条门控；CI 不加参数即按默认 7 天走 ✓。
  * ⚠ PEERS 是 MANUAL 判断，不在东财数据里，改这里即可（null = 当前没有更便宜的同口径选择）。
  * ========================================================================== */
 
@@ -133,6 +135,26 @@ async function main() {
   P.hold.forEach((h) => { SHORT[h.code] = h.sym; });
   OTC.funds.forEach((f) => { SHORT[f.code] = f.name.replace(/\(QDII\)/g, "").replace(/发起式|型证券投资基金/g, "").trim(); });
   UNIVERSE.forEach((g) => { [...g.etf, ...g.otc].forEach(([c, n]) => { SHORT[c] = n; }); });
+
+  /* 新鲜度门控（2026-09-22，请求量优化 C）：费率与行情不同频 —— 一年也未必动一次，
+     逐日抓 28 个档案页纯属浪费（约占日更请求量 17%）。同时满足两条才跳过：
+       ① FEES.asOf 距今天数 < maxAge（默认 7）；
+       ② 清单里每一只都已有费率记录 —— 新加了持仓/候选就必须补抓，不能因为"表还新"漏掉新成员。
+     跳过 = 保持旧块不动 ✓，与「抓失败保留旧值」语义一致。强制刷新：--max-age-days 0。 */
+  const maxAge = (() => {
+    const i = process.argv.indexOf("--max-age-days");
+    const v = i >= 0 ? Number(process.argv[i + 1]) : NaN;
+    return Number.isFinite(v) && v >= 0 ? v : 7;
+  })();
+  const today = new Date().toISOString().slice(0, 10);
+  const gapDays = old.asOf ? Math.floor((Date.parse(today) - Date.parse(old.asOf)) / 86400000) : Infinity;
+  const missing = list.filter((c) => !(old.items && old.items[c]));
+  if (maxAge > 0 && gapDays < maxAge && !missing.length) {
+    console.log("跳过抓取：费率表 asOf " + old.asOf + "（" + gapDays + " 天前，阈值 " + maxAge + " 天），且 " + list.length + " 只全都有记录 ✓");
+    console.log("  强制刷新：node scripts/fetch-fees.mjs --max-age-days 0");
+    return;
+  }
+  if (missing.length) console.log("需要刷新：清单里有 " + missing.length + " 只尚无费率记录（" + missing.slice(0, 8).join("、") + (missing.length > 8 ? " 等" : "") + "）");
 
   console.log("抓取 " + list.length + " 只的费率（东财基金档案）…");
   const items = {};
