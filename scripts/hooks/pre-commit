@@ -1,0 +1,43 @@
+#!/bin/sh
+# 提交前门禁：数据自洽（check-data）+ 回归测试 + ESLint。
+# 为什么需要：CI 只在「推之后」跑校验（.github/workflows/update-data.yml 的 validate job），
+#   数据/渲染问题会先上线再被发现（如 2026-09-22 的 OTC.cash 滞后一期、trendSegFill 非法坐标）。
+# 安装（本文件在仓库里，但 git 不会自动启用）：
+#   cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+set -u
+
+# node 可能不在默认 PATH（本机装在 .workbuddy 下）；找不到就跳过，别挡提交。
+command -v node >/dev/null 2>&1 || export PATH="/Users/liujiachen/.workbuddy/binaries/node/versions/22.12.0/bin:$PATH"
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: 未找到 node，跳过门禁"; exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)" && cd "$root" || exit 1
+
+if ! node scripts/check-data.mjs; then
+  echo "pre-commit: 数据门禁未通过 → 已阻止提交（确认无误可用 git commit --no-verify 跳过）"
+  exit 1
+fi
+
+log="${TMPDIR:-/tmp}/precommit-test.log"
+if ! node --test scripts/test-dashboard.mjs >"$log" 2>&1; then
+  echo "pre-commit: 回归测试未通过 → 已阻止提交（详见 $log）"
+  tail -25 "$log"
+  exit 1
+fi
+echo "pre-commit: check-data ✓ · $(grep -E '^# (pass|fail)' "$log" | tr '\n' ' ')"
+
+# ESLint：只挑「改数据时容易犯且会静默算错」的规则（未定义名 / 重复键 / 漏 break…）。没装就跳过。
+if command -v eslint >/dev/null 2>&1; then
+  if ! node scripts/lint.mjs --quiet; then
+    echo "pre-commit: ESLint 未通过 → 已阻止提交"
+    exit 1
+  fi
+  echo "pre-commit: eslint ✓"
+else
+  echo "pre-commit: 未装 eslint，跳过（npm i -g eslint）"
+fi
+
+# 深度检查不放进提交路径（慢/依赖外部包），需要时手动跑
+echo "pre-commit: 深度检查（可选）→ node scripts/dom-check.mjs · node scripts/typecheck.mjs · node scripts/screenshot.mjs"
+exit 0
