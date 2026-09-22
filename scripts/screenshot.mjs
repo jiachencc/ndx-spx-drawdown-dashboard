@@ -40,6 +40,7 @@ const CARDS = {
   sum: "#sum-grid",             // 汇总：总资产 / 浮盈亏
   principal: "#sec-principal",  // 本金与收益（含折叠区）
   snap: "#sec-snap",            // 快照对比：14 期，最长的一张
+  acct: "#acct-card",           // 账户统计（月度盈亏柱 + KPI）
   pos: "#pos-list",             // 成交流水
 };
 

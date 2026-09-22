@@ -4049,12 +4049,14 @@ function renderAcctStats() {
       .map((r) => { const d = r.pct - r.bench; return '<span class="bench-chip ' + (d >= 0 ? "up" : "down") + '">' + r.m + " " + (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(2) + "pp</span>"; }).join("");
     return '<div class="bench-row"><span class="bench-l">相对' + bn + "</span>" +
         '<b class="' + (diff >= 0 ? "up" : "down") + '">' + (diff >= 0 ? "+" : "−") + Math.abs(diff).toFixed(2) + "pp</b>" +
-        '<span class="bench-sub">你 ' + fmtPct(S.pnlPct / 100, 2) + " · " + bn + " " + fmtPct(B / 100, 2) + "</span>" +
+        '<span class="bench-sub">你 ' + fmtPct(S.pnlPct / 100, 2) + "（App 口径）· " + bn + " " + fmtPct(B / 100, 2) + "</span>" +
         '<button type="button" class="strat-hint" data-note="acct-bench-q" aria-label="基准口径" aria-expanded="false">?</button></div>' +
       '<div class="strat-note" id="acct-bench-q">基准取券商对账单每行右侧的「' + bn + "」涨跌（App 原样给出，本页未换算）。"
         + "pp 是<b>百分点</b>：账户收益率 − 基准涨跌，正数＝跑赢。<br>"
         + "⚠ 这只是个现成参照物：你的持仓 2/3 是美股（纳指 + 标普），<b>上证不是合适基准</b>；"
-        + "真正该比的是纳指 / 标普同期涨跌，那需要另补数据。</div>" +
+        + "真正该比的是纳指 / 标普同期涨跌，那需要另补数据。<br>"
+        + "⚠ 账户那个百分比是 <b>App 自带口径</b>（见「账户累计盈亏」的 ?），与指数涨跌并不同源，"
+        + "相减只能当粗略参照，别当成「跑输 X pp」的结论。</div>" +
       (chips ? '<div class="bench-chips">' + chips + "</div>" : "");
   }
   const W = el.clientWidth || 360, H = 128, mT = 16, mB = 18, mL = 10, mR = 10;
@@ -4071,13 +4073,29 @@ function renderAcctStats() {
     svg += '<text x="' + cxx.toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + r.m + (r.note || "") + "</text>";
   });
   svg += "</svg>";
+  /* 金额与百分比是**两套口径**（2026-09-22 加说明）：金额＝券商累计盈亏，与月度柱子闭合 ✓；
+     百分比＝App 自带口径（≠ 盈亏÷本金，也 ≠ 月度收益率相加：实测相加 −9.37% 而它是 −10.20%），
+     按资金在场权重加权 → 会出现「金额为正、百分比为负」。不加说明时正常人都读成「亏了 10%」。 */
+  const pnlTip = "App 自带收益率口径：不等于 盈亏÷本金（本期金额为正而它是负），也不等于月度收益率相加"
+    + "（实测 −4.57−13.73+6.50+2.43 = −9.37%，对不上 −10.20%）—— 它按资金在场权重加权，"
+    + "故与金额不同号。统一的资金加权口径见「本金与收益 · 收益率口径」里的 XIRR。";
   el.innerHTML = svg +
     '<div class="acct-stats">' +
-      '<div class="kpi"><div class="k-label">账户累计盈亏</div><div class="k-val ' + cls(S.pnl) + '">' + fmtAmt2(S.pnl) + '</div><div class="k-sub ' + cls(S.pnl) + '">' + fmtPct(S.pnlPct / 100, 2) + " · " + S.since + ' 起</div></div>' +
+      '<div class="kpi"><div class="k-label">账户累计盈亏<button type="button" class="strat-hint" data-note="acct-pnl-q" aria-label="账户累计盈亏口径说明" aria-expanded="false">?</button></div>' +
+      '<div class="k-val ' + cls(S.pnl) + '">' + fmtAmt2(S.pnl) + '</div>' +
+      '<div class="k-sub ' + cls(S.pnl) + '" title="' + pnlTip + '">' + fmtPct(S.pnlPct / 100, 2) + " · " + S.since + ' 起</div></div>' +
       '<div class="kpi"><div class="k-label">交易笔数</div><div class="k-val">' + S.trades + '</div><div class="k-sub" style="color:var(--tx3)">税费 ' + fmtYuan(S.fees) + " 元</div></div>" +
       '<div class="kpi"><div class="k-label">平均仓位</div><div class="k-val">' + S.avgPos.toFixed(1) + '%</div><div class="k-sub" style="color:var(--tx3)">持股 ' + S.holdDays + " 天</div></div>" +
       '<div class="kpi"><div class="k-label">盈 / 亏持仓</div><div class="k-val"><span class="up">' + S.win + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> / </span><span class="down">' + S.loss + '</span></div><div class="k-sub" style="color:var(--tx3)">App 口径</div></div>' +
     '</div>' +
+    '<div class="strat-note" id="acct-pnl-q"><b>金额</b>＝券商「累计盈亏」原读数（含已实现盈亏与税费），与下方月度柱子相加闭合 ✓：'
+      + "−661.71 − 17,378.05 + 12,736.10 + 8,702.56 ＝ +3,398.90。<br>"
+      + "<b>百分比</b>＝App 自带的收益率口径，与金额是<b>两套算法、不能互相换算</b>，更不代表账户实际亏了 10%："
+      + "① 不是「盈亏 ÷ 本金」（本期金额为正、它却是负 ✗）；"
+      + "② 也不是月度收益率相加（−4.57 −13.73 +6.50 +2.43 ＝ −9.37%，对不上 −10.20% ✗）——"
+      + "它按<b>资金在</b>场的权重加权：7 月那 −1.74 万是在大额资金在场时亏的、权重最大，"
+      + "后面赚回来只让<b>金额</b>回正，收益率不会折返抵消。<br>"
+      + "→ 想看统一的资金加权口径（你的钱实际赚了多少），见「本金与收益 · 收益率口径」里的 <b>XIRR</b>。</div>" +
     benchHtml() +
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
 }
