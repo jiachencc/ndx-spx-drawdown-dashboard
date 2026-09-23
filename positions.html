@@ -283,7 +283,7 @@
   .snap-line .n { font-weight: 600; color: var(--tx2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .snap-line .v { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
   .snap-line .v b { color: var(--tx); font-weight: 700; }
-  /* 持仓明细行：「名称(+份数变化) | 市场盈亏 · 累计盈亏」——重心在盈亏，仓位降为名称后缀。
+  /* 持仓明细行：「名称(+份数变化) | 当日盈亏 · 总盈亏」——重心在盈亏，仓位降为名称后缀。
      2026-09-23：盈亏由两列并为一列（原来 78+84px），手机上一列换成 116px、宽屏 124px，
      腾出的宽度还给名称；两个数按字号分主次（见 .dv / .cv）。 */
   .snap-line.item { grid-template-columns: 1fr 124px; }
@@ -293,7 +293,7 @@
      标签放不下就自己折到第二行（只有真放不下的行才多占一行，放得下的行不变）。 */
   .snap-line.item .n { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
   /* 名称列同用 10px、不加粗（2026-09-23 用户要求）：整张持仓变化表统一一档字号，
-     层级交给「留白 + 色彩」表达（绿/红仍表方向，「本期无变动」仍只把市场盈亏降灰）。
+     层级交给「留白 + 色彩」表达（绿/红仍表方向，「本期无变动」仍只把当日盈亏降灰）。
      ⚠ 只有这一处例外：列头与两个数字都是 10px 时，名称若仍 12px/600 会重新变成"最重"的元素。 */
   .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: var(--fs-xxs); font-weight: 400; }
   .snap-line.item .n .qty-tag { flex-shrink: 0; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); font-family: var(--mono); white-space: nowrap; font-feature-settings: "tnum"; }
@@ -332,15 +332,15 @@
   .pf-fold > summary.snap-sec::after { content: "▾"; position: absolute; right: 0; top: 0; color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
   .pf-fold[open] > summary.snap-sec::after { content: "▴"; }
   .pf-fold > summary.snap-sec .snap-cnt { flex: 1 1 auto; min-width: 0; }
-  /* 原「合计 N 只」行已删：两个数字与上方「市场盈亏 / 累计盈亏」完全重复，只数由小节标题承载 */
+  /* 原「合计 N 只」行已删：两个数字与上方「当日盈亏 / 总盈亏」完全重复，只数由小节标题承载 */
   .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
   .snap-group-title span:not(:first-child) { text-align: right; }
   /* 列头两格与下方明细行的两个数字**同网格**（1fr 1fr + 12px）—— 字号不再区分主次后，
-     「哪个是哪个」就靠这行表头：市场盈亏对齐左半格、累计盈亏对齐右半格（2026-09-23）。 */
+     「哪个是哪个」就靠这行表头：当日盈亏对齐左半格、总盈亏对齐右半格（2026-09-23）。 */
   .snap-group-title .snap-tcol { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
   .snap-group-title .snap-tcol i { font-style: normal; text-align: right; }
   /* 场内 / 场外分组头：**默认全展开**（原折叠 + 可收起），只留一行标签。
-     两个小计不再重复——它们就是上方「市场盈亏 / 累计盈亏」两行的场内·场外拆分；
+     两个小计不再重复——它们就是上方「当日盈亏 / 总盈亏」两行的场内·场外拆分；
      组小计与底部「合计」行同理，一并去掉（数字都在结论区，这里只回答「谁在动」）。
      分组的理由仍是数据节奏不同：场内券商收盘一次到位，场外 QDII 逐只滞后一天。 */
   /* 分组头：原来沿用明细行的 1fr 78px 84px 三列网格、却只填第一列 → 手机上天数一栏只剩
@@ -351,20 +351,20 @@
   .snap-group .snap-group-key { white-space: nowrap; }
   .snap-group .snap-group-hint { margin-left: auto; white-space: nowrap; font-weight: 400; color: var(--tx3); }
   /* ===== 持仓明细的主次（原 13 行平铺，一眼看不出重点）=====
-     ① 本期有动作（份额变了 / 盈亏幅度 ≥1 元）：市场盈亏列加粗着色，排在组内最前（亏得最多在最上）；
+     ① 本期有动作（份额变了 / 盈亏幅度 ≥1 元）：当日盈亏列加粗着色，排在组内最前（亏得最多在最上）；
      ② 本期无变动（场外净值滞后时整天不动很常见）：该列降为灰字常规字重，排到组内末尾。
-     累计盈亏列不参与分级——它是持仓水平，本期无变动 ≠ 没事（港美 −5,368 就是长期浮亏）。 */
-  /* 合并列内的主次（2026-09-23）：左＝市场盈亏（本期事件，加粗、大一号）；右＝累计盈亏（持仓水平，常规、小一号）。
+     总盈亏列不参与分级——它是持仓水平，本期无变动 ≠ 没事（港美 −5,368 就是长期浮亏）。 */
+  /* 合并列内的主次（2026-09-23）：左＝当日盈亏（本期事件，加粗、大一号）；右＝总盈亏（持仓水平，常规、小一号）。
      ⚠ 初版把两个数放进同一条 inline 流（只差一个 6px 外边距）→ 两个数字贴在一起、跨行也不对齐，
      读起来像一串数（用户反馈「挤在一起」）。改成**半格两列、各自右对齐**：跨行竖直对齐，
      格与格之间固定 8px 间隔，紧凑但不会撞上。 */
   .snap-line.item .d { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: baseline; }
   /* 两个数**同一档字号、都不加粗**（2026-09-23 用户要求）：行面更安静、更密。
-     于是「哪个是哪个」不再靠字号，改由①位置（左＝市场盈亏 / 右＝累计盈亏）＋②对齐到两数上方的列头承担；
-     颜色仍保留语义（绿/红），"本期无变动"的行仍只把市场盈亏降灰。 */
+     于是「哪个是哪个」不再靠字号，改由①位置（左＝当日盈亏 / 右＝总盈亏）＋②对齐到两数上方的列头承担；
+     颜色仍保留语义（绿/红），"本期无变动"的行仍只把当日盈亏降灰。 */
   .snap-line.item .d .dv,
   .snap-line.item .d .cv { text-align: right; font-weight: 400; font-size: var(--fs-xxs); }
-  /* 「本期无变动」的行：把**市场盈亏**降灰（累计盈亏保留自己的颜色 —— 它是持仓水平，不是本期事件） */
+  /* 「本期无变动」的行：把**当日盈亏**降灰（总盈亏保留自己的颜色 —— 它是持仓水平，不是本期事件） */
   .snap-line.item.snap-flat .d .dv { color: var(--tx3); font-weight: 400; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
   .snap-tag { font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 6px; border: 1px solid; white-space: nowrap; }
@@ -411,18 +411,24 @@
   /* 数值后紧跟的小注一律留 5px 间隙（与 .snap-subblock 同值）：10px 小注贴着 12px 等宽数字会糊成一串，
      原先靠 .snap-subblock 的 margin-left 提供，改用 .snap-sub 后就没有间隙了，故在此统一补上。 */
   .snap-part .snap-sub { margin-left: 5px; }
-  /* 「外部投入」的构成小注（快照对比）：flex 折行 —— 每个「项」是原子（nowrap），
-     换行只发生在项与项之间；场外明细整组另起一行（.sfd 占满一行），组内再折行。
-     运算符粘在项首（"＋ 场外申购…"），所以行尾永远不会留下孤零零的 ＋ / ·。 */
+  /* 「银行进出」的构成小注（快照对比）：竖排小账本（2026-09-24 用户反馈）——
+     原是一条长 flex 公式「＝ 银证转账 X ＋ 场外申购 Y └ A +200 · B +100」，
+     折行点不可控、构成与明细混在一团，看不出「由什么组成」；
+     现每个构成项独占一行（名称 + 带符号金额），场外逐只明细为缩进一组。 */
   .snap-part .snap-flow { margin-left: 0; }   /* 覆盖 .snap-part .snap-sub 的 5px（缩进统一由 padding-left 给） */
   /* 小注独占一整行（grid-column: 1/-1）—— 用满卡片宽度，手机上明细才能两三个一行，
      而不是被挤在 66px 标签列之后那 ~180px 里（那样区间卡会长到 10 行）。 */
-  .snap-flow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 8px; line-height: 1.7; margin-top: 1px; padding-left: 14px; }
-  .snap-flow .sfx { white-space: nowrap; }
-  /* .sfp＝可折行的说明句（不加 nowrap）。⚠ 长句千万别套 .sfx —— nowrap 会让它的 min-content
-     等于整句宽度，把 .snap-part 的 1fr 列撑破、溢出被卡片裁掉（2026-09-22 踩过）。 */
-  .snap-flow .sfp { white-space: normal; }
-  .snap-flow > .sfd { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 8px; padding-left: 12px; }
+  .snap-flow { grid-column: 1 / -1; display: block; margin-top: 2px; padding-left: 14px; line-height: 1.7; }
+  .sf-line { white-space: nowrap; }
+  .sf-line b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; margin-left: 4px; }
+  .sf-line b.info { color: var(--info); }
+  .sf-line b.warn { color: var(--warn); }
+  /* 场外逐只明细（与「早期未拆」说明句）：缩进一组；项是 nowrap 原子，整组可折行。
+     ⚠ 长句用 .sfp（可折行），千万别套 .sfx —— nowrap 会让 min-content 等于整句宽度，
+     把 .snap-part 的 1fr 列撑破、溢出被卡片裁掉（2026-09-22 踩过）。 */
+  .sf-det { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 8px; padding-left: 12px; }
+  .sf-det .sfx { white-space: nowrap; }
+  .sf-det .sfp { white-space: normal; }
   /* 组成块与紧随其后的行（当日盈亏 / 当前浮亏）之间留分组间距 */
   .snap-parts + .snap-line, .snap-parts + .snap-part { margin-top: 6px; }
   /* 对照条里「本期 / 累计」的小注：跟在金额后面同一行（390px 下定长 224px ≤ 可用 239px）。
@@ -3350,9 +3356,9 @@ function snapCostMoves(prev, cur) {
   });
   return rows.sort((x, y) => Math.abs(y.dc) - Math.abs(x.dc));
 }
-/* ===== 「外部投入」的构成拆分（行内小注 + ? 浮层共用）=====
- * 口径：外部投入 ＝ 场内入金 ＋ 场外申购 ＋（早期未拆 / 口径差）。
- *   · 场内入金 ＝ Σ场内标的Δ持仓成本 ＋ Δ现金。买入/卖出会在成本与现金两侧等额抵消，
+/* ===== 「银行进出」的构成拆分（行内小注 + ? 浮层共用）=====
+ * 口径：银行进出 ＝ 银证转账 ＋ 场外申购 ＋（早期未拆 / 口径差）。「外部投入」是旧名（2026-09-24 改）。
+ *   · 银证转账 ＝ Σ场内标的Δ持仓成本 ＋ Δ现金。买入/卖出会在成本与现金两侧等额抵消，
  *     所以这项只留下外部转入（银证/银行入金）。⚠ 单看场内 Δ成本会被误读：如 09-22 买入中韩半导体
  *     +13,135 是「现金 → 持仓」的内部转换，必须与 Δ现金 相加后再看，它不是新钱。
  *   · 场外申购 ＝ Σ场外标的Δ持仓成本。场外通道（银行/支付宝代扣）的钱不经过本页跟踪的场内现金，
@@ -3390,58 +3396,73 @@ function snapFlowSplit(prev, cur, flow) {
   const seq = snaps.filter((x) => x.d > prev.d && x.d <= cur.d).sort((a, b) => (a.d < b.d ? -1 : 1));
   if (!seq.length) return null;
   let inFlow = 0, otc = 0, nSkip = 0;
-  const agg = {}, rows = [];
+  const agg = {}, rows = [], inMoves = [];
   let from = prev, skipFrom = null, skipTo = null;
   seq.forEach((to) => {
     const one = snapPairSplit(from, to);
     if (!one) { nSkip++; if (!skipFrom) skipFrom = from.d; skipTo = to.d; }
     else {
       inFlow += one.inFlow; otc += one.otc;
+      /* 银证转账的逐期明细（2026-09-24 加）：与「场外逐只」对称 —— 区间卡上 +54,408 也必须看得出
+         是哪几天进的（原只有一行合计，逐期构成藏在 ? 浮层里且只有 flow）。|Δ|≥1 才记，避免噪音。 */
+      if (Math.abs(one.inFlow) >= 1) inMoves.push({ d: to.d, v: one.inFlow });
       one.moves.forEach((m) => { const o = agg[m.code] || (agg[m.code] = { code: m.code, name: m.name, dc: 0 }); o.dc += m.dc; });
     }
-    rows.push({ d: to.d, flow: (typeof to.flow === "number") ? to.flow : snapCost(to) - snapCost(from) });
+    rows.push({ d: to.d, flow: (typeof to.flow === "number") ? to.flow : snapCost(to) - snapCost(from),
+      inFlow: one ? one.inFlow : null, otc: one ? one.otc : null });
     from = to;
   });
   const otcMoves = Object.keys(agg).map((k) => agg[k])
     .filter((m) => Math.abs(m.dc) >= 1).sort((x, y) => Math.abs(y.dc) - Math.abs(x.dc));
   return {
-    inFlow: inFlow, otc: otc, rest: flow - inFlow - otc, otcMoves: otcMoves,
+    inFlow: inFlow, otc: otc, rest: flow - inFlow - otc, otcMoves: otcMoves, inMoves: inMoves,
     nSkip: nSkip, skipFrom: skipFrom, skipTo: skipTo, rows: rows, done: seq.length - nSkip,
   };
 }
-/* 行内小注：「外部投入 ＝ 场内入金 ＋ 场外申购（＋ 口径差）」。
- * 逐只明细太长（会折三行），仍留在「?」浮层里（见 snapFlowTip）。 */
+/* 行内小注：「银行进出」的构成竖排小账本（每项一行，紧跟各自的明细组）。
+ * 逐只/逐期的完整口径仍留在「?」浮层里（见 snapFlowTip）。 */
 function snapFlowNote(flow, sp) {
   if (!sp || Math.abs(flow) < 1) return "";
-  const u = (t) => '<span class="sfx">' + t + "</span>";
-  /* 主行：运算符粘在**后面那一项**的首位（"＋ 场外申购 …"）—— 折行时不会把 ＋ 孤零零留在行尾。
-     每一项都是 nowrap 原子，所以数字永远不会被拆到两行。 */
-  const main = [u("＝ 场内入金 " + fmtAmt(sp.inFlow)), u("＋ 场外申购 " + fmtAmt(sp.otc))];
-  if (sp.nSkip) main.push(u("＋ 早期未拆 " + fmtAmt(sp.rest)));   // 区间卡：起点是简快照，那几期拆不出来
-  else if (Math.abs(sp.rest) >= 1) main.push(u("＋ 口径差 " + fmtAmt(sp.rest)));
-  /* 明细行：整组另起一行（.sfd 占满一行，组内再按项折行）。
-     ① 场外逐只（区间卡自动变成区间累计），|Δ|≥1 才列，最多 4 只，多出来的归「等 N 只」；
-     ② 区间卡另加一行说明「早期未拆」是哪几期、为什么拆不出来。 */
+  /* 竖排小账本（2026-09-24 用户反馈）：每个构成项独占一行「名称 + 带符号金额」，
+     各行金额相加即上方总数；颜色沿用总数约定：流入 info、流出 warn（资金方向，不是盈亏）。
+     2026-09-24 再优化（用户要求「明细」）：
+       · 银证转账也给出**逐期**明细（原来只有一行合计 —— 区间卡上 +54,408 看不出是哪几天进的），
+         与「场外逐只」对称：日期 + 金额，最多 3 项、多出的归「等 N 期」；
+       · 场外那一项的名称随符号走（净申购 / 净赎回）—— 赎回期原来显示「场外申购 −400」，字面自相矛盾；
+       · 金额为 0 的项不再印成「+0」（fmtAmt(0) 会带正号），直接印 0。 */
+  const line = (k, v) => {
+    const tone = Math.abs(v) < 1 ? "" : (v > 0 ? "info" : "warn");
+    return '<div class="sf-line">' + k + (tone ? '<b class="' + tone + '">' : "<b>") + (Math.abs(v) < 1 ? "0" : fmtAmt(v)) + "</b></div>";
+  };
+  const det = (atoms) => atoms.length ? '<div class="sf-det">' + atoms.join("") + "</div>" : "";
+  const MAXN = 3;   // 手机上每行只放得下 2~3 项；截断后归「等 N 项」，卡片高度可控
+  let html = line("银证转账", sp.inFlow);
+  /* 银证逐期明细：只有「多于一期可讲」时才印（两期卡里那一期的日期/金额与卡头重复，印了是噪音） */
+  const im = sp.inMoves || [];
+  if (im.length > 1 || (sp.done > 1 && im.length)) {
+    const atoms = [];
+    im.slice(0, MAXN).forEach((m) => atoms.push('<span class="sfx">' + mdOf(m.d) + " " + fmtAmt(m.v) + "</span>"));
+    if (im.length > MAXN) atoms.push('<span class="sfx">等 ' + im.length + " 期</span>");
+    html += det(atoms);
+  }
+  html += line(Math.abs(sp.otc) < 1 ? "场外申购" : (sp.otc > 0 ? "场外净申购" : "场外净赎回"), sp.otc);
+  if (sp.nSkip) html += line("早期未拆", sp.rest);   // 区间卡：起点是简快照，那几期拆不出来
+  else if (Math.abs(sp.rest) >= 1) html += line("口径差", sp.rest);
+  /* 场外逐只（区间卡自动变成区间累计），|Δ|≥1 才列 */
   const ms = sp.otcMoves || [];
-  let det = "";
   if (ms.length) {
-    const MAXN = 3;   // 手机上每行只放得下 2~3 个标的；截断后归「等 N 只」，卡片高度可控
-    const items = [];
-    /* 前缀单独成原子：否则「区间累计 9 期（场外）：南方纳指I」会粘成一个 ~200px 的长原子，
-       既挤压可折行空间，也让断行位置难看。 */
-    if (sp.done > 1) items.push(u("└ 区间累计 " + sp.done + " 期（场外）："));
-    else items.push(u("└"));
-    ms.slice(0, MAXN).forEach((m) => items.push(u(esc(m.name) + " " + fmtAmt(m.dc))));
-    if (ms.length > MAXN) items.push(u("等 " + ms.length + " 只"));
-    det += '<span class="sfd">' + items.join("") + "</span>";
+    const atoms = [];
+    if (sp.done > 1) atoms.push('<span class="sfx">区间累计 ' + sp.done + " 期：</span>");
+    ms.slice(0, MAXN).forEach((m) => atoms.push('<span class="sfx">' + esc(m.name) + " " + fmtAmt(m.dc) + "</span>"));
+    if (ms.length > MAXN) atoms.push('<span class="sfx">等 ' + ms.length + " 只</span>");
+    html += det(atoms);
   }
   if (sp.nSkip)
     /* ⚠ 这句**不能**加 .sfx：.sfx 是 nowrap 原子，整句 ≈400px 会把 grid 的 1fr 列撑到溢出
-       （2026-09-22 实测：.snap-part 宽 277px、scrollWidth 501px，文字被卡片裁掉）。
-       让它做普通可折行的 flex 项，min-content 就只剩最长的词。 */
-    det += '<span class="sfd"><span class="sfp">' + "└ 早期 " + sp.nSkip + " 期（" + mdOf(sp.skipFrom) + " ~ " + mdOf(sp.skipTo) +
-      "）是简快照，只有总额、无逐只明细（金额见上面那项）" + "</span></span>";
-  return '<span class="snap-sub snap-flow">' + main.join("") + det + "</span>";
+       （2026-09-22 实测：.snap-part 宽 277px、scrollWidth 501px，文字被卡片裁掉）。 */
+    html += '<div class="sf-det"><span class="sfp">' + "早期 " + sp.nSkip + " 期（" + mdOf(sp.skipFrom) + " ~ " + mdOf(sp.skipTo) +
+      "）是简快照，只有总额、无逐只明细（金额见上面那项）" + "</span></div>";
+  return '<div class="snap-sub snap-flow">' + html + "</div>";
 }
 /* 期间外部资金进出：人工记录优先，否则按 Δ累计投入推导（恒等式：Δ总资产 = Δ浮盈亏 + 资金进出） */
 function snapFlow(prev, cur) {
@@ -3482,7 +3503,7 @@ function snapGrpSplit(prev, cur) {
   });
   return g;
 }
-/* =====「外部投入」口径说明（独立成函数）=====
+/* =====「银行进出」口径说明（独立成函数）=====
  * 这段文案含 4 段分支、12 个插值，内联进 snapPartsHtml 会是一条跨 10 行的三元链：
  * 既读不出层次，改动也极易碰到相邻分支。抽出来只做「拼字符串」一件事。
  * 溯源段把推导数落回可核对的原始字段（Δ持仓成本 ＋ Δ现金 ＋ 逐只明细）——
@@ -3496,40 +3517,45 @@ function snapFlowTip(c) {
         : "现金 " + fmtYuan(c.prev.cash) + " → " + fmtYuan(c.cur.cash) + "（" + fmtAmt(c.dCash) + "），两项相加" +
           /* 老快照的读数分位误差（≤ 几元）会让两者差一点，差得出来就明说，别写「正好相等」 */
           (Math.abs(c.moveSum + c.dCash - c.flow) >= CONFIG.SNAP_SUM_EPS
-            ? "与上面的外部投入数差 " + Math.abs(c.moveSum + c.dCash - c.flow).toFixed(1) + " 元（App 读数的分位误差，属正常）。"
-            : "即上面的外部投入数。")) +
+            ? "与上面的银行进出数差 " + Math.abs(c.moveSum + c.dCash - c.flow).toFixed(1) + " 元（App 读数的分位误差，属正常）。"
+            : "即上面的银行进出数。")) +
       (c.moves.length
         ? "持仓成本有变动的（" + c.moves.length + " 只，含账户内买入）：" +
           c.moves.map((m) => esc(m.name) + " " + fmtAmt(m.dc) + (m.added ? (c.trio ? "（本期新增）" : "（区间内新增）") : "")).join(" · ") +
-          "。⚠ 场内标的的买卖是「现金 ↔ 持仓」的内部转换，不计入外部投入（那部分在 Δ现金 里等额抵消）；" +
-          "外部投入的构成看行内小注。逐只可回到快照数据核对；具体哪个账户、哪张卡扣款，要看对应 App 的申购确认记录——本页不记录支付渠道。"
-        : "持仓成本没有变动，外部投入来自现金进出。")
+          "。⚠ 场内标的的买卖是「现金 ↔ 持仓」的内部转换，不计入银行进出（那部分在 Δ现金 里等额抵消）；" +
+          "银行进出的构成看行内小注。逐只可回到快照数据核对；具体哪个账户、哪张卡扣款，要看对应 App 的申购确认记录——本页不记录支付渠道。"
+        : "持仓成本没有变动，银行进出来自现金进出。")
     : "起点快照没有逐只明细（或缺少现金字段），这一期无法逐只核对申购去向。";
-  return (Math.abs(c.flow) < 1 ? "本期没有从账户外进来的钱，总变化全部来自市场盈亏。" : "账户外净" + (c.flow > 0 ? "流入" : "流出") + "。") +
-    "银证转入、场外定投申购走银行 / 支付宝通道，不减少本页跟踪的现金，因此算外部投入" +
+  return (Math.abs(c.flow) < 1 ? "本期没有银行转账进出，总变化全部来自盈亏。" : "银行净" + (c.flow > 0 ? "转入" : "转出") + "。") +
+    "银证转入、场外定投申购走银行 / 支付宝通道，不减少本页跟踪的现金，因此算银行进出" +
     (c.bn === null ? "" : "（银证净 " + fmtAmt2(c.bn) + (c.otc !== null && Math.abs(c.otc) >= 1 ? " · 场外估 " + fmtAmt2(c.otc) + "（含定投申购与估值滞后）" : "") + "）") + "。" +
     "买入/卖出只是账户内「现金 ↔ 持仓」的转换，不改变总资产，不计入本项。" +
-    "算法：外部投入 ＝ Δ总资产 − 市场盈亏；为负时通常含记账口径差（如卖出回款尚未计入现金），不代表真的取走了钱。" +
-    "<br><b>" + (c.trio ? "本期溯源" : "区间溯源") + "</b>：外部投入 ＝ Δ持仓成本 ＋ Δ现金。" + trace +
+    "算法：银行进出 ＝ Δ总资产 − 本期盈亏；为负时通常含记账口径差（如卖出回款尚未计入现金），不代表真的取走了钱。" +
+    "<br><b>" + (c.trio ? "本期溯源" : "区间溯源") + "</b>：银行进出 ＝ Δ持仓成本 ＋ Δ现金。" + trace +
     (c.cur.note && c.cur.note.indexOf("在途") >= 0 ? "已扣款未确认的在途申购不计入本项（见本卡期次解读）。" : "") +
     /* 区间卡：把「区间合计」摊回逐期 —— 这是它唯一能落回原始读数的路径（行内小注只能给三项合计）。
        ⚠ 只列能拆的期；头部简快照那几期无逐只明细，已经并进行内小注的「早期未拆」。 */
     (c.split && c.split.rows.length > 1
-      ? "<br><b>逐期构成</b>：" + c.split.rows.map((r) => mdOf(r.d) + " " + fmtAmt(r.flow)).join(" · ") +
+      /* 逐期构成：每期再拆「银证 / 场外」（2026-09-24 加）—— 行内小注只给三项合计，
+         这一行才是「哪一天进的是银证的钱、哪一天是场外扣款」的落点（逐期 flow 里混着两者）。 */
+      ? "<br><b>逐期构成</b>：" + c.split.rows.map((r) => mdOf(r.d) + " " + fmtAmt(r.flow) +
+          (r.inFlow === null ? "" : "（银证 " + fmtAmt2(r.inFlow) + " / 场外 " + fmtAmt2(r.otc) + "）")).join(" · ") +
         "（" + c.split.done + " 期可逐期拆；另有 " + c.split.nSkip + " 期是简快照，合计 " + fmtAmt(c.split.rest) + " 无法拆分）"
       : "");
 }
 /* ===== 盈亏对照块（逐期对比与区间累计共用，保证口径、措辞、配色一致）=====
- * 顺序：总资产 → 总变化 → 对照条（本期 / 累计 / 资金）。
- * 本期与累计是一个时间尺度的连续两行，一眼读完「这一期多少、总共多少」，
+ * 顺序：总资产 → 总变化 → 对照条（当日盈亏 / 总盈亏 / 银行进出）。
+ * 当日与总是一个时间尺度的连续两行，一眼读完「这一期多少、总共多少」，
  * 不再分散在卡片上下两处。两行都附 场内 / 场外 拆分——场外 QDII 净值滞后，
- * 混在一个数里读不出节奏；拆开后每行的小计还能分别对上券商 App 与基金 App 的读数。 */
+ * 混在一个数里读不出节奏；拆开后每行的小计还能分别对上券商 App 与基金 App 的读数。
+ * 术语（2026-09-24 用户反馈改）：市场盈亏→当日盈亏、累计盈亏→总盈亏、外部投入→银行进出 ——
+ * 原术语「市场/累计/外部投入」是记账视角，用户视角就是「今天赚多少 / 总共赚多少 / 银行转了多少」。 */
 function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
-  const o = opts || {}, trio = !!o.trio;   // trio：逐期卡（市场盈亏/累计盈亏两行）；区间卡为（区间盈亏/外部投入）
+  const o = opts || {}, trio = !!o.trio;   // trio：逐期卡（当日盈亏/总盈亏两行）；区间卡为（区间盈亏/银行进出）
   const tp = snapTotal(prev), tc = snapTotal(cur);
   const pctTot = tp ? dTot / tp * 100 : 0;
   const costHold = snapHoldCost(cur);
-  /* 「外部投入」行溯源用的中间量：两期持仓成本、本期成本变动逐只明细、现金变动 */
+  /* 「银行进出」行溯源用的中间量：两期持仓成本、本期成本变动逐只明细、现金变动 */
   const prevHold = snapHoldCost(prev);
   const moves = snapCostMoves(prev, cur);
   const moveSum = moves.reduce((n, m) => n + m.dc, 0);
@@ -3542,26 +3568,27 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
   /* 场内 / 场外 拆分小注：跟在金额后面同一行（整块 nowrap，窄屏才整段折行） */
   const splitLine = (vi, vo) => grp ? '<span class="snap-sub snap-subblock">场内 ' + snapSigned(vi) + " · 场外 " + snapSigned(vo) + "</span>" : "";
   const parts = [];
-  /* ① 市场盈亏：市场波动（= 两期累计浮盈亏之差）。标签用「市场盈亏」而非「资金/收益」——
-     它与「外部投入」并列时必须一眼看出哪个是赚的、哪个是转进来的钱 */
+  /* ① 当日盈亏（原「市场盈亏」）：市场波动（= 两期总盈亏之差）。标签随跨度切换 ——
+     相邻两期就是「当日」，跨周末/断档时是「本期」（两期之间的累计波动） */
+  const plLabel = (trio && spanDays === 1) ? "当日盈亏" : (trio ? "本期盈亏" : "区间盈亏");
   const qPl = qPair(
-    "持仓自身的市场波动：两期之间市值与已实现盈亏的变化" + (spanDays > 1 ? "，跨度 " + spanDays + " 天" : "") + "。" +
+    "这段时间持仓自身涨跌带来的赚亏（不含银行转入转出的钱）" + (spanDays > 1 ? "，跨度 " + spanDays + " 天（含休市）" : "") + "。" +
     (typeof prev.pl === "number" && typeof cur.pl === "number"
-      ? "对应累计浮盈亏 " + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "，两个数之差就是本项。" : "") +
-    (grp ? "场内/场外拆分为两项各自的市场波动之和。" : "") +
-    "买卖只是账户内转换（现金 ↔ 持仓），不影响本项。", "市场盈亏口径");
+      ? "对应总盈亏 " + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "，两个数之差就是本项。" : "") +
+    (grp ? "场内/场外拆分为两组各自的赚亏之和。" : "") +
+    "买卖只是账户内转换（现金 ↔ 持仓），不影响本项。", "盈亏口径");
   parts.push(
-    '<div class="snap-part"><span class="pn">' + (trio ? "市场盈亏" : "区间盈亏") + '</span><span class="pv"><b class="' + cls(dPl) + '">' + fmtAmt2(dPl) + "</b>" +
+    '<div class="snap-part"><span class="pn">' + plLabel + '</span><span class="pv"><b class="' + cls(dPl) + '">' + fmtAmt2(dPl) + "</b>" +
       (grp ? splitLine(grp.in.d, grp.ot.d) : "") + "</span>" + qPl.btn + "</div>" + qPl.note);
-  /* ② 累计浮盈亏：相对持仓成本（含已实现） */
+  /* ② 总盈亏（原「累计盈亏」）：相对持仓成本（含已实现） */
   const qCum = qPair(
-    "累计浮盈亏 ＝ 当前市值 − 持仓成本（含已实现盈亏）。场内取券商 App 读数，场外取各基金 App 读数。" +
-    "「市场盈亏」＝本期累计浮盈亏 − 上期累计浮盈亏。" +
-    (costHold > 0 && typeof cur.pl === "number" ? "当前持仓成本 " + fmtYuan(costHold) + "，浮盈亏率 " + fmtPct(cur.pl / costHold, 2) + "。" : ""), "累计盈亏口径");
+    "总盈亏 ＝ 当前市值 − 持仓成本（含已实现）。场内取券商 App 读数，场外取各基金 App 读数。" +
+    "每期卡片上的盈亏 ＝ 该期期末总盈亏 − 期初总盈亏（两期总盈亏之差）。" +
+    (costHold > 0 && typeof cur.pl === "number" ? "当前持仓成本 " + fmtYuan(costHold) + "，总盈亏率 " + fmtPct(cur.pl / costHold, 2) + "。" : ""), "总盈亏口径");
   if (trio && typeof cur.pl === "number")
-    parts.push('<div class="snap-part"><span class="pn">累计盈亏</span><span class="pv"><b class="' + cls(cur.pl) + '">' + fmtAmt2(cur.pl) + "</b>" +
+    parts.push('<div class="snap-part"><span class="pn">总盈亏</span><span class="pv"><b class="' + cls(cur.pl) + '">' + fmtAmt2(cur.pl) + "</b>" +
       (grp ? splitLine(grp.in.c, grp.ot.c) : "") + "</span>" + qCum.btn + "</div>" + qCum.note);
-  /* ③ 外部投入：账户外净流入（推导值；FLOWS 有手账时拆出银证实锤） */
+  /* ③ 银行进出（原「外部投入」）：与银行账户之间的净转入/转出（推导值；FLOWS 有手账时拆出银证实锤） */
   const zero = Math.abs(flow) < 1;
   const bn = flowsNet(prev.d, cur.d);             // 银证转账手账实锤；无记录期返回 null
   const otc = bn === null ? null : flow - bn;     // 余额 = 场外通道净申购 + App 口径微调
@@ -3570,17 +3597,17 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
   const qFlow = qPair(snapFlowTip({
     trio: trio, flow: flow, bn: bn, otc: otc, canTrace: canTrace, split: spSplit,
     prevHold: prevHold, costHold: costHold, moveSum: moveSum, dCash: dCash, moves: moves, prev: prev, cur: cur,
-  }), "外部投入口径");
+  }), "银行进出口径");
   parts.push(
     /* ⚠ 小注必须包在 .pv 里：.snap-part 是 grid（66px 1fr auto），直接多挂一个子元素会占掉第三列，
        把「?」按钮挤到下一行（2026-09-22 踩过）。多行的换行结构由 .snap-flow 自己负责。 */
     /* 小注放在 .pv 外面、并靠 CSS 的 grid-column: 1/-1 独占一整行：
        中间那列在手机上只有 ~180px，明细一行只放得下一个标的，卡片会被撑得很高。 */
-    '<div class="snap-part"><span class="pn">外部投入</span><span class="pv"><b class="' + flowCls + '">' +
+    '<div class="snap-part"><span class="pn">银行进出</span><span class="pv"><b class="' + flowCls + '">' +
       (zero ? "0" : fmtAmt(flow)) + "</b></span>" + qFlow.btn + snapFlowNote(flow, spSplit) + "</div>" + qFlow.note);
-  /* 「总变化 ＝ 市场盈亏 ＋ 外部投入」这个等式收进「?」——原用「变化组成」标题行表示，
+  /* 「总变化 ＝ 当日盈亏 ＋ 银行进出」这个等式收进「?」——原用「变化组成」标题行表示，
    * 但列表本身没有缩进、从属关系读不出来；现在由 .snap-parts 的缩进 + 竖线表达。 */
-  const qTot = qPair("总变化 ＝ 市场盈亏 ＋ 外部投入。只有市场波动（市场盈亏）与账户外资金进出会改变总资产；" +
+  const qTot = qPair("总变化 ＝ 盈亏 ＋ 银行进出。只有涨跌赚亏与银行转入转出会改变总资产；" +
     "买入/卖出、申购/赎回都只是账户内的转换（现金 ↔ 持仓），不计入其中。", "总变化口径");
   return '<div class="snap-line total"><span class="n">总资产</span><span class="v">' + fmtYuan(tp) + " → <b>" + fmtYuan(tc) + "</b></span></div>" +
     /* 总变化是父行，下面两项是它的组成部分；整行仍是「标签 | 数值 | ?」三列 */
@@ -3656,7 +3683,7 @@ function snapNoteBlock(t) {
         : "") +
     "</div></details>";
 }
-/* 快照明细行：「名称(+仓位小标签) | 市场盈亏 | 累计盈亏」——本位是盈亏，仓位仅作后缀提示 */
+/* 快照明细行：「名称(+仓位小标签) | 当日盈亏 | 总盈亏」——本位是盈亏，仓位仅作后缀提示 */
 const snapSigned = (v) => '<span class="' + cls(v) + '">' + (v >= 0 ? "+" : "−") + fmtAbs2(v) + "</span>";
 /* ===== 持仓来源标签（全页统一口径，唯一取值处）=====
  * 场内/场外由 SNAP_MKT 判定（历史快照不受当前持仓变动影响），渠道简称才取自 OTC.funds。
@@ -3694,13 +3721,13 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
   /* 逐只净值日不再占版面（2026-09-23）：场外 8 只里 7 只是同一天，分组头已写「净值日 09.21~09.22 混排」，
      逐条重复只让名称列更窄。日期改挂进 .n 的 title（悬停可查，信息不丢）。 */
   const navTxt = navHtml ? String(navHtml).replace(/<[^>]*>/g, "").trim() : "";
-  /* 两列合一列（2026-09-23）：左＝市场盈亏（本期波动，大而粗、带色），右＝累计盈亏（持仓水平，小一号、常规字重）。
+  /* 两列合一列（2026-09-23）：左＝当日盈亏（本期波动，大而粗、带色），右＝总盈亏（持仓水平，小一号、常规字重）。
      原来两者同字号同字重、各占一列（64+72px），手机上既挤名称，又分不出主次。 */
   const num = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);
   return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) +
       (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
     srcTag + qt + "</span>" +
-    '<span class="d" title="市场盈亏 ' + num(dPlItem) + " 元（与上一期之间的波动）· 累计盈亏 " + num(plCum) + ' 元（相对持仓成本，含已实现）">' +
+    '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（相对持仓成本，含已实现）">' +
       '<span class="dv ' + cls(dPlItem) + '">' + num(dPlItem) + '</span>' +
       '<span class="cv ' + cls(plCum) + '">' + num(plCum) + "</span></span></div>";
 }
@@ -3754,7 +3781,7 @@ function snapPairHtml(prev, cur) {
     navSet.sort();
     const navTxt = !navSet.length ? "" : navSet.length === 1 ? "净值日 " + mdOf(navSet[0]) : "净值日 " + mdOf(navSet[0]) + "~" + mdOf(navSet[navSet.length - 1]) + " 混排";
     /* 分组默认全展开，分组头只留标签：组小计与底部「合计」行都已删除 ——
-       那些数字与上方「市场盈亏 / 累计盈亏」两行的场内·场外拆分完全重复，
+       那些数字与上方「当日盈亏 / 总盈亏」两行的场内·场外拆分完全重复，
        这一块只回答「这期谁在动、动了多少」。 */
     /* 分组头拆成「组名 + 只数」与「数据节奏」两段：两段各自不折行，整行可换行 ——
        原来是一整句塞进三列网格的第一列，窄屏下会从词中间断开。 */
@@ -3769,11 +3796,11 @@ function snapPairHtml(prev, cur) {
       '<div class="snap-tbl">' +
       /* 列头（2026-09-23 两列合一）：原来「市场盈亏 / 累计盈亏」各占一列（64+72px），手机上挤掉名称列；
          合并后与下方数字**同网格**（左半格 / 右半格），字号不再区分主次时它就是唯一的图例。 */
-      /* 列头只写 2 字（2026-09-23）：每半格仅 ~52px，「市场盈亏」4 字在某些机型上会折成两行；
-         完整术语与口径放进 title，且卡片上方本来就有一整行「市场盈亏 / 累计盈亏」的正式读法。 */
+      /* 左列 2 字、随跨度切换（当日/本期），右列「总盈亏」3 字（~30px，半格放得下）；
+         完整口径放进 title，且卡片上方本来就有一整行「当日盈亏 / 总盈亏」的正式读法。 */
       '<div class="snap-group-title"><span></span><span class="snap-tcol">' +
-        '<i title="本期＝市场盈亏：与上一期快照 ' + prev.d + ' 之间的波动（跨 ' + spanDays + ' 天，含休市）">本期</i>' +
-        '<i title="累计＝累计盈亏：相对持仓成本，含已实现">累计</i></span></div>' +
+        '<i title="＝ 与上一期快照 ' + prev.d + ' 之间的盈亏（跨 ' + spanDays + ' 天，含休市）">' + (spanDays === 1 ? "当日" : "本期") + '</i>' +
+        '<i title="总盈亏 ＝ 当前市值 − 持仓成本，含已实现">总盈亏</i></span></div>' +
       lines.join("") + "</div>";
   }
   const actsHtml = snapActions(prev, cur);
@@ -3877,7 +3904,7 @@ function renderPrincipal() {
   const holdCost = principal - cash;
   /* 收益的两种成色：已实现＝卖掉兑现（实亏 / 实盈）；未实现＝还拿在手里的账面浮动（浮亏 / 浮盈）。
      未实现再按市场拆开：场外从无卖出记录，快照 pl 即纯浮动；场内券商用摊薄成本，
-     单只累计盈亏里已含已实现，故场内未实现要从「未实现」里倒扣，不能直接取快照场内合计。 */
+     单只总盈亏里已含已实现，故场内未实现要从「未实现」里倒扣，不能直接取快照场内合计。 */
   const items = cur.items || {};
   const hasItems = Object.keys(items).length > 0;
   const unrealOtc = Object.keys(items).filter((c) => !isOnExchange(c)).reduce((a, c) => a + (items[c].pl || 0), 0);
@@ -3895,8 +3922,8 @@ function renderPrincipal() {
     + "与走势图上「总资产 / 累计投入」两条线之间的竖直间距是同一个数。<br>"
     + "<b>收益构成</b>按「卖没卖」分两种：<b>已实现</b>取券商流水的「实现盈亏」减去卖出费（卖掉了才算）；"
     + "<b>未实现</b> ＝ 累计收益 − 已实现，就是还拿在手里的账面浮动，再按市场拆成场外 / 场内。"
-    + "⚠ 未实现 <b>不等于</b>「快照卡逐只累计盈亏」之和：券商摊薄成本把已实现的盈亏并进了剩余仓位成本，"
-    + "单只的累计盈亏里已含已实现（如港美 −5,369 中含 −5,072 已实现），两者相差的正是已实现那部分。"
+    + "⚠ 未实现 <b>不等于</b>「快照卡逐只总盈亏」之和：券商摊薄成本把已实现的盈亏并进了剩余仓位成本，"
+    + "单只的总盈亏里已含已实现（如港美 −5,369 中含 −5,072 已实现），两者相差的正是已实现那部分。"
     + "余下 ±10 元为买入费与摊薄口径微差。</div>";
   /* ===== 两种收益率口径（借鉴 Portfolio Performance 的账目学）=====================
      TWR（时间加权）＝按快照末端资金流逐期剔除转入/转出 → 衡量"标的与持有本身"
