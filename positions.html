@@ -4476,7 +4476,10 @@ function holdCardHtml(row, i, ctx) {
   } else if (chg >= st.rally) {
     strat = '<span class="warn"><span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>' + lagTag;
   } else {
-    strat = '<span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + ' · 未触发（' + ruleTxt + '）' + lagTag;
+    /* 常态压缩（2026-09-23）：未触发是绝大多数日子的状态，原来把整条规则也写在这一行，
+       每个交易日都得重读一遍规则。规则挪进本卡 ? 说明里，这里只留「未触发」。 */
+    strat = '<span style="color:var(--tx3)" title="' + ruleTxt + '"><span aria-hidden="true">🎯</span> 今日 ' +
+      fmtPctChg(chg / 100) + ' · 未触发</span>' + lagTag;
   }
   posInfos[i] = { close: m.close, chg, lo, hi, days: m.days };
   const tierWord = tier[1];
@@ -4510,6 +4513,9 @@ function holdCardHtml(row, i, ctx) {
     const op = (0.95 - 0.55 * age).toFixed(2);
     return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
+      /* title 与 aria-label 都写：前者鼠标悬停即见（原先只有 aria-label，读屏能读、正常人看不到），
+         后者给读屏；点击仍会定位到该买入点并闪烁（flashBuyMark） */
+      ' title="' + e.d + ' 买入 ' + fmtQty(e.qty) + ' 份 @ ' + e.cost + ' 元"' +
       ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtQty(e.qty) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
   }).join("");
@@ -4523,6 +4529,7 @@ function holdCardHtml(row, i, ctx) {
     const op = (0.95 - 0.35 * age).toFixed(2);   // 时间衰减幅度小于买入，保证卖出点始终可见
     return '<button type="button" class="sell-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + Math.abs(e.qty) + '"' +
+      ' title="' + e.d + ' 卖出 ' + fmtQty(Math.abs(e.qty)) + ' 份 @ ' + e.cost + ' 元"' +
       ' aria-label="' + e.d + ' 卖出 ' + e.cost + ' 元 ' + fmtQty(Math.abs(e.qty)) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:3px"></i></button>';
   }).join("");
@@ -4561,15 +4568,23 @@ function holdCardHtml(row, i, ctx) {
   if (prem && Number.isFinite(prem.pct)) {
     const pv = prem.pct;
     const pc = pv >= CONFIG.PREM_HIGH ? "prem-high" : pv >= CONFIG.PREM_WARN ? "prem-warn" : pv < 0 ? "prem-disc" : "prem-ok";
-    const tag = pv >= CONFIG.PREM_HIGH ? '<span class="prem-tag ' + pc + '"><span aria-hidden="true">⚠️</span> 场内买入价明显高于基金实际净值，慎买</span>'
+    const tag = pv >= CONFIG.PREM_HIGH ? '<span class="prem-tag ' + pc + '"><span aria-hidden="true">⚠️</span> 明显高于净值，慎买</span>'
       : pv >= CONFIG.PREM_WARN ? '<span class="prem-tag ' + pc + '">溢价偏高，买入留意</span>'
       : pv < 0 ? '<span class="prem-tag prem-disc">折价</span>' : "";
     const premHealth = sourceHealth("premium:" + p.code);
-    premRow = '<div class="prem-row"><span>价格/滞后净值差（近似）</span>' +
+    /* 「价格/滞后净值差」＝场内收盘价 ÷ 基金**最近公布**的单位净值 − 1。
+       QDII 净值要晚 1~2 个交易日才出，两个数不同日 —— 脚本里对它的定性就是
+       "asynchronous price/NAV ratio, not contemporaneous premium"（不同步的价/净值比）。
+       正＝溢价（场内买贵了，买入即吃亏）；负＝折价（场内买更划算）。
+       逐日刷新的是那两个日期与净值，故 2026-09-23 把「价格日 / 净值」收进悬停：
+       行内只留「差值 ＋ 结论」，手机上少占一行（原来一行摆不下会折成两行）。 */
+    const premTip = "场内收盘价 ÷ 基金最近公布的单位净值 − 1。"
+      + (prem.priceDate ? "价格日 " + prem.priceDate + "；" : "")
+      + "净值 " + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") + (prem.navDate ? "（" + prem.navDate + "）" : "") + "。"
+      + "QDII 净值要晚 1~2 个交易日才公布，所以这两个数不同日、只能算近似。"
+      + "正数＝溢价：场内买价比基金实际价值贵，买入即吃亏（卖出时溢价收窄同样吃亏）；负数＝折价，场内买更划算。";
+    premRow = '<div class="prem-row" title="' + esc(premTip) + '"><span>价格/滞后净值差（近似）</span>' +
       '<b class="' + pc + '">' + (Number.isFinite(pv) ? fmtPct(pv / 100, 1) : "--") + '</b>' + (premHealth.usable ? tag : '<span class="prem-note">' + esc(premHealth.text) + '</span>') +
-      '<span class="prem-note">价格日 ' + esc(prem.priceDate || "未知") + '</span>' +
-      '<span class="prem-note">净值 ' + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") +
-      (prem.navDate ? " (" + prem.navDate.slice(5).replace("-", ".") + ")" : "") + '</span>' +
     '</div>';
   }
   return '<article class="card" data-sym="' + p.sym + '">' +
@@ -4578,10 +4593,12 @@ function holdCardHtml(row, i, ctx) {
       '<span class="idx-badge ' + p.idx + '">' + idxName + '</span>' +
       (quoteDate ? '<span class="date-chip etf" title="该只报价日（A 股交易日）">场内 ' + quoteDate + "</span>"
         : '<span class="date-chip stale" title="该只报价日缺失">⚠ 场内 未记录</span>') + '</div>' +
-      (heldDays ? '<span class="held">持有 ' + heldDays + ' 天</span>' : '') +
+      /* 市值从 KPI 主位挪到头部右侧（2026-09-23 主视觉换位）：桌面头部本来就有大片空白，零成本；
+         换位后 KPI 主数是浮盈% 与距成本位 —— 那才是"该不该动手"的依据，市值只是仓位大小。 */
+      '<span class="held">' + (heldDays ? '持有 ' + heldDays + ' 天 · ' : '') + '市值 ' + fmtYuan(valAmt) + '</span>' +
     '</div>' +
     '<div class="kpi-row kpi3">' +
-      '<div class="kpi"><div class="k-label" title="市值与浮盈按场内现价估算（含溢价）；App 净值口径差≈场内溢价率">市值（估）</div><div class="k-val">' + fmtYuan(valAmt) + '</div><div class="k-sub ' + cls(r) + '">浮盈 ' + fmtPct(r) + ' ' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + '</div></div>' +
+      '<div class="kpi"><div class="k-label" title="按场内现价估算（含溢价），与 App 净值口径的差额≈本卡「价格/滞后净值差」">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + ' 元</div></div>' +
       /* 成本价并入本格副行（2026-09-23）：原「份数 / 成本价」独占一行 24px，且成本价在卡内出现 4 次 */
       '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">成本 ' + p.cost.toFixed(3) + ' 元 · ' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
       /* 份数并入本格副行（与「占比」同属「持有规模」那种量） */
@@ -4606,11 +4623,16 @@ function holdCardHtml(row, i, ctx) {
       '</div>' +
       '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
       /* 图例去掉「成本/现价/高点」三项（2026-09-23）：它们已在上面 .lad-line 里逐项给出、配色与条上标记一致 → 图例只留条上独有的两类点 */
-      '<div class="bar-legend"><span>52周区间</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入*</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
+      /* 去掉「历次买入」后面的星号（2026-09-23）：星号只在 title 里有解释，移动端没有悬停 → 说明挪进 ? 里 */
+      '<div class="bar-legend"><span>52周区间</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
     '</div>' +
     '<div class="strat-row">' + strat +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
-      '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>卡内市值/浮盈按<b>场内现价</b>（含溢价）估算，与 App 净值口径的差额 ≈ 本卡「场内溢价」行的溢价率。</div>' +
+      '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>' +
+      '规则：<b>' + ruleTxt + '</b>（见 data.js POSITIONS.strategy）；未触发时本行只显示「未触发」，不重复规则。<br>' +
+      '条上的<b>绿点/红圈</b>是历次买入/卖出的成交价位置（<b>含已减仓的部分</b>，所以可能落在成本位下方）；当前持仓的成本分布看青色「成本」位。<br>' +
+      '卡内市值/浮盈按<b>场内现价</b>（含溢价）估算；「价格/滞后净值差」＝场内收盘价 ÷ 基金<b>最近公布</b>的单位净值 − 1：' +
+      'QDII 净值晚 1~2 个交易日才出、两个数不同日，故为近似；正＝溢价（场内买贵了）、负＝折价。</div>' +
     '</div>' +
     posLogHtml(p, r, pl) +
   '</article>';
