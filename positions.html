@@ -342,10 +342,13 @@
      ① 本期有动作（份额变了 / 盈亏幅度 ≥1 元）：市场盈亏列加粗着色，排在组内最前（亏得最多在最上）；
      ② 本期无变动（场外净值滞后时整天不动很常见）：该列降为灰字常规字重，排到组内末尾。
      累计盈亏列不参与分级——它是持仓水平，本期无变动 ≠ 没事（港美 −5,368 就是长期浮亏）。 */
-  /* 合并列内的主次（2026-09-23）：左＝市场盈亏（本期事件，大一号、加粗、带色）；
-     右＝累计盈亏（持仓水平，小一号、常规字重）。同一列里靠字号区分，不再各占一列。 */
-  .snap-line.item .d .dv { font-weight: 700; font-size: var(--fs-sm); }   /* 与名称同级（13px）＝本期事件 */
-  .snap-line.item .d .cv { font-weight: 400; font-size: var(--fs-xxs); margin-left: 6px; }   /* 小一号（10px）＝持仓水平 */
+  /* 合并列内的主次（2026-09-23）：左＝市场盈亏（本期事件，加粗、大一号）；右＝累计盈亏（持仓水平，常规、小一号）。
+     ⚠ 初版把两个数放进同一条 inline 流（只差一个 6px 外边距）→ 两个数字贴在一起、跨行也不对齐，
+     读起来像一串数（用户反馈「挤在一起」）。改成**半格两列、各自右对齐**：跨行竖直对齐，
+     格与格之间固定 8px 间隔，紧凑但不会撞上。 */
+  .snap-line.item .d { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: baseline; }
+  .snap-line.item .d .dv { text-align: right; font-weight: 700; font-size: var(--fs-sm); }   /* 与名称同级＝本期事件 */
+  .snap-line.item .d .cv { text-align: right; font-weight: 400; font-size: var(--fs-xxs); }   /* 小一号＝持仓水平 */
   /* 「本期无变动」的行：把**市场盈亏**降灰（累计盈亏保留自己的颜色 —— 它是持仓水平，不是本期事件） */
   .snap-line.item.snap-flat .d .dv { color: var(--tx3); font-weight: 400; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
