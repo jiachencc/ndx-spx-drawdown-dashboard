@@ -544,17 +544,14 @@
   /* ===== 三点水位梯：高点/现价/成本 ===== */
   .ladder { position: relative; margin: 0 0 8px; }
   .ladder::before { content: ""; position: absolute; left: 4px; top: 14px; bottom: 14px; width: 2px; border-radius: 1px; background: var(--line); }
-  .lad-fill { position: absolute; left: 4px; width: 2px; border-radius: 1px; background: linear-gradient(180deg, var(--up-bg), var(--up-fill)); }
-  .lad-fill.down { background: linear-gradient(180deg, var(--down-fill), var(--down-bg)); }
-  .lad-row { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 5px 0 8px 22px; min-width: 0; flex-wrap: wrap; }
-  /* 迷你比例轨：每行一条、左对齐同一起点，柱长 = 该价位相对 52 周低→高的分位（低 0% → 高 100%），柱长一眼可比 */
-  .lad-track { position: absolute; left: 22px; right: 6px; bottom: 1px; height: 3px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
-  .lad-track i { display: block; height: 100%; border-radius: 2px; opacity: .8; }   /* 原 .55 在浅色模式下与 --line-soft 几乎同色，提一档 */
-  .lad-track i.tk-hi { background: var(--yellow); }
-  .lad-track i.tk-now { background: var(--tx); }
-  .lad-track i.tk-cost { background: var(--cyan); }
-  .lad-dot { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--card); }
-  .lad-dot.now { box-shadow: 0 0 0 3px var(--card), 0 0 8px var(--tx-glow); }
+  /* 「成本 / 现价 / 高点」三档读数（2026-09-23：原水位梯三行 ＋ 三根迷你轨道合并成这一行）
+     —— 原来它与下面的分位条是同一份「区间位置」的两种画法，合计占 219px（整卡 46%）；
+     位置信息统一交给分位条，这里只给数值与结论 chip（点的配色与条上三个标记一致 ✓）。
+     原来按值排序的三行（高点/现价/成本）现按固定顺序平铺，窄屏自动换行。 */
+  .lad-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; padding: 3px 0 5px; font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; }
+  .lad-line .lad-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .lad-line .lad-item b { color: var(--tx); font-weight: 700; }
+  .lad-line .lad-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; box-shadow: 0 0 0 3px var(--card); }
   .lad-name { font-size: var(--fs-xs); color: var(--tx3); flex: none; }
   .lad-val { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; }
   .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
@@ -4552,11 +4549,7 @@ function holdCardHtml(row, i, ctx) {
       }
     }
   }
-  const ladRows = [
-    { k: "hi", name: "高点" + athStr, v: hi, dot: "var(--yellow)", chips: "" },
-    { k: "now", name: "现价" + dateStr, v: m.close, dot: "var(--tx)", chips: chipCost + chipHigh },
-    { k: "cost", name: "成本", v: p.idxAtCost, dot: "var(--cyan)", chips: chipDip },
-  ].sort((a, b) => b.v - a.v);
+  /* 原 ladRows（水位梯三行数据）已随水位梯合并为 .lad-line 一行而移除（2026-09-23） */
   /* 场内溢价 */
   /* 区间着色带：现价↔成本之间 = 当前浮盈(绿)/浮亏(红)区间；带内箭头从成本端指向现价端 */
   const segC = pctOf(p.idxAtCost), segN = pctOf(m.close);
@@ -4587,25 +4580,20 @@ function holdCardHtml(row, i, ctx) {
         : '<span class="date-chip stale" title="该只报价日缺失">⚠ 场内 未记录</span>') + '</div>' +
       (heldDays ? '<span class="held">持有 ' + heldDays + ' 天</span>' : '') +
     '</div>' +
-    '<div class="stat-grid">' +
-      '<div class="row"><span style="color:var(--tx2)">份数</span><b>' + fmtQty(p.qty) + ' 份</b></div>' +
-      '<div class="row"><span style="color:var(--tx2)">成本价</span><b>' + p.cost.toFixed(3) + ' 元</b></div>' +
-    '</div>' +
     '<div class="kpi-row kpi3">' +
       '<div class="kpi"><div class="k-label" title="市值与浮盈按场内现价估算（含溢价）；App 净值口径差≈场内溢价率">市值（估）</div><div class="k-val">' + fmtYuan(valAmt) + '</div><div class="k-sub ' + cls(r) + '">浮盈 ' + fmtPct(r) + ' ' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + '</div></div>' +
-      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
-      '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div></div>' +
+      /* 成本价并入本格副行（2026-09-23）：原「份数 / 成本价」独占一行 24px，且成本价在卡内出现 4 次 */
+      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">成本 ' + p.cost.toFixed(3) + ' 元 · ' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
+      /* 份数并入本格副行（与「占比」同属「持有规模」那种量） */
+      '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div><div class="k-sub" style="color:var(--tx3)">' + fmtQty(p.qty) + ' 份</div></div>' +
     '</div>' +
-    '<div class="ladder">' +
-      ladRows.map((lr) =>
-        '<div class="lad-row">' +
-          '<span class="lad-dot ' + lr.k + '" style="background:' + lr.dot + '"></span>' +
-          '<span class="lad-name">' + lr.name + '</span>' +
-          '<b class="lad-val">' + fmtIdx(lr.v) + '</b>' +
-          (lr.chips ? '<span class="lad-chips">' + lr.chips + '</span>' : '') +
-          '<span class="lad-track"><i class="tk-' + lr.k + '" style="width:' + pctOf(lr.v).toFixed(1) + '%"></i></span>' +
-        '</div>').join("") +
-      '<span class="lad-fill' + (r >= 0 ? "" : " down") + '"></span>' +
+    /* 成本 / 现价 / 高点 三档读数（2026-09-23：原「水位梯」三行 ＋ 三根迷你轨道合并成这一行）
+       —— 原来它与下面的分位条是同一份「区间位置」的两种画法，合计占 219px（整卡 46%）；
+       位置信息统一交给分位条，这里只留数值与结论 chip（点的配色与条上的三个标记一致）。 */
+    '<div class="lad-line">' +
+      '<span class="lad-item"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtIdx(hi) + '</b>' + athStr + '</span>' +
+      '<span class="lad-item"><i class="lad-dot" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b>' + dateStr + chipCost + chipHigh + '</span>' +
+      '<span class="lad-item"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtIdx(p.idxAtCost) + '</b>' + chipDip + '</span>' +
     '</div>' +
     premRow +
     '<div class="bar-wrap">' +
@@ -4617,7 +4605,8 @@ function holdCardHtml(row, i, ctx) {
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
       '</div>' +
       '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
-      '<div class="bar-legend"><span>52周区间</span><span><i style="background:var(--cyan);border-radius:50%"></i>成本</span><span><i style="background:var(--tx);border-radius:50%"></i>现价</span><span><i style="background:var(--yellow);border-radius:2px"></i>高点</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入*</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
+      /* 图例去掉「成本/现价/高点」三项（2026-09-23）：它们已在上面 .lad-line 里逐项给出、配色与条上标记一致 → 图例只留条上独有的两类点 */
+      '<div class="bar-legend"><span>52周区间</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入*</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
     '</div>' +
     '<div class="strat-row">' + strat +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
