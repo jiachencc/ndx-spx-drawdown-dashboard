@@ -672,6 +672,11 @@
   .log-date { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx3); font-feature-settings: "tnum"; }
   .log-sym { font-weight: 600; font-size: var(--fs-sm); }
   .log-nums { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
+  /* 逐笔流水的「成本价变化」（2026-09-23 加）：这一笔之后摊薄成本价变成多少、变了多少。
+     卖出是按净回款冲减成本 → 成本价下降是常态，且下降是**好事** → 差值用 up 色，别按「跌=红」读。
+     数值为全流水复算值（与 App 可能有 <0.01 尾差），悬停给口径。 */
+  .log-cost { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; cursor: help; }
+  .log-cost b { font-weight: 700; }
   .log-note { width: 100%; font-family: var(--sans); color: var(--tx3); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: break-word; }
   /* 配对角标：同一回路的买入行与卖出行同号（⇄①）；悬停给出配对双方的成交明细 */
   .log-pair { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 5px; white-space: nowrap; cursor: help; }
@@ -4622,6 +4627,31 @@ function observeLadders() {
   document.querySelectorAll(".ladder").forEach((el) => _ladderRO.observe(el));
 }
 
+/* ---- 逐笔复算「摊薄成本价」：Map<流水条目, {before, after, qtyAfter, est}> ----
+ * 口径与券商一致（见 data.js POSITIONS.hold 的注释）：买入按「价×份 ＋ 费」累进成本；
+ * 卖出按「价×份 − 费」的**净回款**冲减成本 —— 所以卖出后成本价通常**下降**
+ * （等于把一部分成本"取回来"，不是赚了；这正是「卖完成本价变低」这类疑惑的来源）。
+ * 回放顺序：log 是「新在上」，故按数组**倒序**回放 = 时间正序；同日多笔也按真实先后（日志内同日同样新在上）。
+ * 费用优先取备注里的「费 X」，缺失按 CONFIG.FEE_PER_SIDE 估（est=true，页面显示加 ≈）。
+ * ⚠ 复算值：与券商 App 显示的摊薄成本可能有 <0.01 的尾差（券商自己的取整/费用口径），
+ *   方向与幅度可信，绝对值以 App 为准（页面在折叠区底部写明了这一点）。 */
+let _costTrace = null;
+function costTrace() {
+  if (_costTrace) return _costTrace;
+  const map = new Map(), st = {};
+  (POSITIONS.log || []).slice().reverse().forEach((e) => {
+    const s = (st[e.sym] = st[e.sym] || { qty: 0, basis: 0 });
+    const before = s.qty > 0 ? s.basis / s.qty : null;
+    const gross = (e.qty || 0) * (e.cost || 0);
+    const rec = logFee(e), fee = rec === null ? CONFIG.FEE_PER_SIDE : rec;
+    if (isSellAct(e)) { s.qty -= (e.qty || 0); s.basis -= gross - fee; }
+    else { s.qty += (e.qty || 0); s.basis += gross + fee; }
+    map.set(e, { before, after: s.qty > 0 ? s.basis / s.qty : null, qtyAfter: s.qty, est: rec === null });
+  });
+  _costTrace = map;
+  return map;
+}
+
 /* ---- 流水条目（现嵌在各持仓卡内，hideSym 时省略重复的标的名）
  * pair：配对角标 HTML（同一回路的买入行与卖出行挂同一个编号，逐笔流水才看得出「哪一买对哪一卖」） ---- */
 function logItemHtml(e, hideSym, pair) {
@@ -4629,11 +4659,33 @@ function logItemHtml(e, hideSym, pair) {
   const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
   const d = e.d ? e.d.slice(5).replace("-", ".") : "--";
   const link = e.cost !== undefined && !/卖出|减仓|清仓/.test(a);
+  /* 成本价变化 chip：这一笔之后摊薄成本价变成多少、变了多少（口径见 costTrace 与折叠区底部说明） */
+  const t = costTrace().get(e);
+  const f4 = (v) => (v === null ? "—" : v.toFixed(4));
+  let costChip = "";
+  if (t) {
+    const w = t.est ? "≈" : "";
+    const tip = "这一笔之后的摊薄成本价（全流水复算：Σ买入含费 − Σ卖出净额，再 ÷ 剩余份数）。"
+      + "卖出按净回款冲减成本 → 卖出后成本价通常下降，那是把成本「取回来」，不是赚了。"
+      + (t.est ? " 费用按 " + CONFIG.FEE_PER_SIDE + " 元/边估算（备注未记「费 X」）。" : "")
+      + " 与券商 App 显示值可能有 <0.01 的尾差。";
+    if (t.after === null) {
+      costChip = '<span class="log-cost" title="清仓后无剩余份额，摊薄成本价不再有定义">成本价 —（清仓）</span>';
+    } else if (t.before === null) {
+      costChip = '<span class="log-cost" title="首次建仓：成本价 ＝（价×份 ＋ 费）÷ 份">成本价 ' + f4(t.after) + w + '（建仓）</span>';
+    } else {
+      const dl = t.after - t.before;
+      /* dl < 0 = 成本价下降 = 好事（卖出冲减 / 买得更低）→ up 色；不要按「跌=红」读 */
+      costChip = '<span class="log-cost" title="' + esc(tip) + '">成本价 ' + f4(t.before) + " → <b>" + f4(t.after) + w +
+        '</b> <b class="' + (dl <= 0 ? "up" : "down") + '">' + (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "</b></span>";
+    }
+  }
   return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
     '<span class="log-date">' + d + '</span>' +
     '<span class="act-badge ' + c + '">' + e.act + '</span>' +
     (hideSym ? "" : '<span class="log-sym">' + e.sym + '</span>') +
     '<span class="log-nums">' + fmtQty(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + ' 元</span>' +
+    costChip +
     (pair || "") +
     (e.note ? '<div class="log-note">' + e.note + '</div>' : '') +
   '</div>';
@@ -4761,6 +4813,10 @@ function posLogHtml(p, r, pl) {
       (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") +
     '</summary>' +
     '<div class="log-list">' + html + '</div>' +
+    '<div class="otc-note">成本价＝<b>全流水复算</b>的摊薄成本：（Σ买入含费 − Σ卖出净额）÷ 剩余份数，与券商 App 同一口径。'
+      + '卖出按<b>净回款冲减成本</b>，所以卖出后成本价通常下降 —— 那是把成本「取回来」，不是赚了。'
+      + '费用优先取备注里的「费 X」，没写就按 ' + CONFIG.FEE_PER_SIDE + ' 元/边估（数字前标 ≈）；'
+      + '与 App 显示值可能有 &lt;0.01 的尾差，绝对值以 App 为准。</div>' +
   '</details>';
   return out;
 }
