@@ -4804,11 +4804,20 @@ function holdCardHtml(row, i, ctx) {
     const pv = prem.pct;
     const pc = pv >= CONFIG.PREM_HIGH ? "prem-high" : pv >= CONFIG.PREM_WARN ? "prem-warn" : pv < 0 ? "prem-disc" : "prem-ok";
     const premHealth = sourceHealth("premium:" + p.code);
-    const premTip = "溢价/折价（近似）＝场内收盘价 ÷ 基金最近公布的单位净值 − 1。"
+    let premTip = "溢价/折价（近似）＝场内收盘价 ÷ 基金最近公布的单位净值 − 1。"   // let：下面要追加上「结论」一行（初版写成 const → 页面整卡空白，dom-check 抓到）
       + (prem.priceDate ? "本次：价格日 " + prem.priceDate + "；" : "")
       + "净值 " + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") + (prem.navDate ? "（" + prem.navDate + "）" : "") + "。"
       + "QDII 的净值要晚 1~2 个交易日才公布，所以这两个数不同日、只能算近似（不是同期溢价）。"
       + "正数＝溢价：场内买价比基金实际价值贵，买入即吃亏（卖出时溢价收窄同样吃亏）；负数＝折价：场内买更划算。";
+    /* 结论文字与阈值（2026-09-23 补）：溢价行改成卡头胶囊时（同日早些时候），
+       「溢价过高，慎买 / 溢价偏高，买入留意 / 折价，场内买更划算」这行文字随原行一起没了 ✗，
+       只剩颜色 + ≥8% 的 ⚠️ —— 而阈值（3% / 8%）页面上任何地方都没写，读者只能猜颜色含义。
+       胶囊一行放不下这句（手机上会折行、且与「溢价 +7.4%」重复），故补进悬停：口径说明后追加一行结论。 */
+    const premLvl = pv >= CONFIG.PREM_HIGH ? "⚠ 溢价过高（≥" + CONFIG.PREM_HIGH + "%）：慎买"
+      : pv >= CONFIG.PREM_WARN ? "溢价偏高（" + CONFIG.PREM_WARN + "~" + CONFIG.PREM_HIGH + "%）：买入留意"
+      : pv < 0 ? "折价：场内买更划算"
+      : "溢价温和（<" + CONFIG.PREM_WARN + "%）：买入即多吃这一小块成本";
+    premTip += "\n\n结论：" + premLvl + "。";
     premChip = premHealth.usable
       ? (function () {
           /* 方向由「溢价 / 折价」二字承担，数值只留绝对值 —— 否则会读成「折价 +0.9%」（符号与词打架） */
