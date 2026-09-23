@@ -285,7 +285,11 @@
   .snap-line .v b { color: var(--tx); font-weight: 700; }
   /* 持仓明细行：「名称(+仓位小标签) | 本期盈亏 | 累计盈亏」——重心在盈亏，仓位降为名称后缀 */
   .snap-line.item { grid-template-columns: 1fr 78px 84px; }
-  .snap-line.item .n { display: flex; align-items: baseline; gap: 4px; }
+  /* flex-wrap（2026-09-23）：名称是这一行里**唯一**可压缩的项（其余三个标签都 flex-shrink:0），
+     手机上名称列只有 ~140px，被「/ 渠道 + 净值日 + 份数」三个标签挤到只剩 ~40px →
+     「华安纳指C」显示成「华…」，认不出是哪只基金。允许换行后：名称整占一行，
+     标签放不下就自己折到第二行（只有真放不下的行才多占一行，放得下的行不变）。 */
+  .snap-line.item .n { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
   .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .snap-line.item .n .qty-tag { flex-shrink: 0; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); font-family: var(--mono); white-space: nowrap; font-feature-settings: "tnum"; }
   /* 快照明细行的来源短标签（场内 / 博时 / 华安 …）：与「盈亏总览」同款斜杠前缀，
@@ -918,8 +922,8 @@
     .pl-amt { font-size: var(--fs-md); }
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
     .snap-part { grid-template-columns: 58px 1fr auto; }   /* 与 .snap-line 同步收窄，保持一致 */
-    .snap-line.item { grid-template-columns: 1fr 64px 72px; }
-    .snap-group-title { grid-template-columns: 1fr 64px 72px; }
+    .snap-line.item { grid-template-columns: 1fr 58px 64px; }   /* 两个数字列各收 6/8px，留给名称 */
+    .snap-group-title { grid-template-columns: 1fr 58px 64px; }
     .snap-group { grid-template-columns: 1fr 64px 72px; }
     .snap-line.item .n .qty-tag { font-size: var(--fs-xxs); }
     .snap-parts, .snap-tbl { padding-left: 10px; }   /* 标签列已统一 58px，此处不再重复定义 */
@@ -3595,8 +3599,12 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
   else if (dq !== null && Math.abs(dq) >= 0.5)
     qt = '<span class="qty-tag">' + (dq > 0 ? "+" : "−") + fmtQty(Math.abs(dq)) + "份</span>";
   const src = srcLabel(code);
-  /* hideSrc：分组头已写明「场内」，行内不再逐条重复；场外仍标渠道（博时/华安/支付宝…） */
-  const srcTag = hideSrc ? "" : '<span class="snap-src">' + esc(src.s) + "</span>";
+  /* hideSrc：分组头已写明「场内」，行内不再逐条重复；场外仍标渠道（博时/华安/支付宝…）。
+     2026-09-23 再加一条：**渠道已被名称包含时不再重复标** —— 手机上「华安纳指C / 华安」里那个
+     「/ 华安」白占 ~40px，正是把名称挤成「华…」的主因；「日本精选 / 支付宝」这种不重复的照旧保留。
+     完整渠道名一直在 .n 的 title 里（src.f），信息没丢。 */
+  const srcRedundant = src.s.length >= 2 && name.indexOf(src.s) === 0;
+  const srcTag = (hideSrc || srcRedundant) ? "" : '<span class="snap-src">' + esc(src.s) + "</span>";
   /* flat：本期份额没动、盈亏也不足 1 元 → 「市场盈亏」列降灰（.snap-flat），
      与有动作的行拉开层次；「累计盈亏」不动，那是持仓水平不是本期事件。 */
   return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
