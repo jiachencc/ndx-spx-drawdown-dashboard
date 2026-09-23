@@ -81,6 +81,13 @@ export function validateModel(m) {
   for (const [code, p] of Object.entries(m.POSITIONS?.premiums || {})) {
     if (!Number.isFinite(p.pct) || !Number.isFinite(p.nav) || p.nav <= 0 || !isDate(p.navDate)) errors.push("premium invalid " + code);
   }
+  /* 卖出行必须带 realized（券商逐笔「实现盈亏」）：持仓卡的「其中已落袋」与「本金与收益」卡的
+     「已实现」都靠它求和 —— 缺失会被当成 0 静默少算（页面不报错、数字悄悄变小，看不出来）。
+     2026-09-23 加：当天给持仓卡加了「其中已落袋」这一格，它的数据源就是这条。 */
+  for (const e of m.POSITIONS?.log || []) {
+    if (/卖出|减仓|清仓/.test(String(e.act || "")) && !Number.isFinite(e.realized))
+      errors.push("sell log entry missing realized: " + (e.d || "?") + " " + (e.sym || "?"));
+  }
   if (!isDate(m.DCA_META?.start) || !isDate(m.DCA_META?.end) || m.DCA_META.start >= m.DCA_META.end) errors.push("DCA metadata invalid");
   for (const key of ["DCA_NDX", "DCA_SPX"]) if (!Array.isArray(m[key]) || m[key].length < 2 || !m[key].every(x => Number.isFinite(x) && x > 0)) errors.push(key + " invalid");
   if (m.DCA_NDX?.length !== m.DCA_SPX?.length) errors.push("DCA lengths differ");

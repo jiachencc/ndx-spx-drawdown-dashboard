@@ -192,6 +192,13 @@
   .date-chip.otc { color: var(--purple); border-color: var(--purple-line); background: var(--purple-bg); }
   .date-chip.nav { color: var(--tx3); }
   .date-chip.stale { color: var(--yellow); border-color: var(--warn-line); background: var(--warn-bg); }
+  /* 溢价/折价胶囊（2026-09-23：从独立一行挪到卡头，紧跟在「场内 09.22」之后）——
+     那枚胶囊说"这是哪天的场内价"，这枚说"这个价比基金实际净值贵多少"，同属"怎么读这个价格"。
+     .date-chip + .date-chip 的 4px 间距规则（见下）自动生效，不用额外写。 */
+  .date-chip.prem-ok { color: var(--tx3); }
+  .date-chip.prem-warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+  .date-chip.prem-high { color: var(--red); border-color: var(--down-line); background: var(--down-bg); }
+  .date-chip.prem-disc { color: var(--green); border-color: var(--up-line); background: var(--up-bg); }
   .date-chip + .date-chip, .date-chip + .qty-tag { margin-left: 4px; }
   .sum-cell .s-asof { margin-top: 4px; line-height: 1.6; }   /* 汇总格底部的口径日期行 */
   /* 当日盈亏分量大、合计量小——盘中估值与 App 快照不同口径，写成一个主数字会误导 */
@@ -614,6 +621,7 @@
   .idx-pop .ip-note { margin-top: 4px; font-size: var(--fs-xxs); color: var(--tx3); }
   @keyframes ipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   .strat-row { margin-top: 8px; font-size: var(--fs-xs); color: var(--tx3); line-height: 1.6; overflow-wrap: break-word; }
+  .strat-row .lad-chip { margin-left: 6px; vertical-align: 1px; }   /* 加仓档 chip 自 2026-09-23 起挂在这一行（原挂三档读数行） */
   .held { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; }
   /* 数据新鲜度的**相对时间**文字（今日 / N 天前）与「同步 X/8」计数：
      它们修饰的是旁边那枚 .date-chip，本身不是来源日期，故保持文字、不用胶囊。 */
@@ -4591,8 +4599,9 @@ function holdCardHtml(row, i, ctx) {
       '<span class="lad-arrow" aria-hidden="true">→</span>' + html + '</span>';
     return '<span class="lad-chain">' + ladNodes[0].html +
       hop(ladNodes[0].v, ladNodes[1].v, ladNodes[1].html) +
-      hop(ladNodes[1].v, ladNodes[2].v, ladNodes[2].html) + '</span>' +
-      '<span class="lad-chips">' + chipDip + '</span>';
+      hop(ladNodes[1].v, ladNodes[2].v, ladNodes[2].html) + '</span>';
+    /* 这里原来还挂着「距 −15% 档还差 X pp」的加仓档 chip（.lad-chips），2026-09-23 挪到策略行：
+       它是"触发/档位"类信息，与「未触发 / 触发加仓观察」同族，而这一行只留「数值＋位置」。 */
   })();
   /* 原 ladRows（水位梯三行数据）已随水位梯合并为 .lad-line 一行而移除（2026-09-23） */
   /* 场内溢价 */
@@ -4602,53 +4611,89 @@ function holdCardHtml(row, i, ctx) {
   const seg = (m.close && p.idxAtCost && segWv > 0.01)
     ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + (segWv >= 4 && m.close !== p.idxAtCost ? (m.close > p.idxAtCost ? " s-r" : " s-l") : "") + '" style="left:' + Math.min(segC, segN) + '%;width:' + segWv + '%"></span>' : "";
   const prem = (POSITIONS.premiums || {})[p.code];
-  let premRow = "";
+  /* 溢价/折价胶囊（2026-09-23 从独立一行挪到卡头，紧跟「场内 09.22」之后）：
+     那枚胶囊说"这是哪天的场内价"，这枚说"这个价比基金实际净值贵多少"，同属"怎么读这个价格"；
+     原来它独占一行、夹在「三档读数」与「分位条」中间，把"位置故事"切成两半，也占了 24px。
+     算法：场内收盘价 ÷ 基金**最近公布**的单位净值 − 1。QDII 净值要晚 1~2 个交易日才出，
+     两个数不同日 —— 脚本里对它的定性就是 "asynchronous price/NAV ratio, not contemporaneous premium"，
+     故胶囊只写「溢价/折价 + 数值」，"不同日、只能算近似"的保留全部交给悬停。 */
+  let premChip = "";
   if (prem && Number.isFinite(prem.pct)) {
     const pv = prem.pct;
     const pc = pv >= CONFIG.PREM_HIGH ? "prem-high" : pv >= CONFIG.PREM_WARN ? "prem-warn" : pv < 0 ? "prem-disc" : "prem-ok";
-    const tag = pv >= CONFIG.PREM_HIGH ? '<span class="prem-tag ' + pc + '"><span aria-hidden="true">⚠️</span> 溢价过高，慎买</span>'
-      : pv >= CONFIG.PREM_WARN ? '<span class="prem-tag ' + pc + '">溢价偏高，买入留意</span>'
-      : pv < 0 ? '<span class="prem-tag prem-disc">折价，场内买更划算</span>' : "";
     const premHealth = sourceHealth("premium:" + p.code);
-    /* 行名 2026-09-23 由「价格/滞后净值差（近似）」改为「溢价/折价（近似）」：
-       原先那名字是为了强调"两个数不同日、不是同期溢价"（脚本里的定性就是
-       "asynchronous price/NAV ratio, not contemporaneous premium"），但「差」是中性词，
-       看不出方向 —— 溢价＝买贵了、折价＝划算，术语本身就把结论带出来了，而且它与
-       data.js（AUTO：场内溢价率%）和本行结论标签同词。口径的保留都留给「（近似）」＋悬停。
-       算法：场内收盘价 ÷ 基金**最近公布**的单位净值 − 1；QDII 净值晚 1~2 个交易日。 */
     const premTip = "溢价/折价（近似）＝场内收盘价 ÷ 基金最近公布的单位净值 − 1。"
       + (prem.priceDate ? "本次：价格日 " + prem.priceDate + "；" : "")
       + "净值 " + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") + (prem.navDate ? "（" + prem.navDate + "）" : "") + "。"
       + "QDII 的净值要晚 1~2 个交易日才公布，所以这两个数不同日、只能算近似（不是同期溢价）。"
       + "正数＝溢价：场内买价比基金实际价值贵，买入即吃亏（卖出时溢价收窄同样吃亏）；负数＝折价：场内买更划算。";
-    premRow = '<div class="prem-row" title="' + esc(premTip) + '"><span>溢价/折价（近似）</span>' +
-      '<b class="' + pc + '">' + (Number.isFinite(pv) ? fmtPct(pv / 100, 1) : "--") + '</b>' + (premHealth.usable ? tag : '<span class="prem-note">' + esc(premHealth.text) + '</span>') +
-    '</div>';
+    premChip = premHealth.usable
+      ? (function () {
+          /* 方向由「溢价 / 折价」二字承担，数值只留绝对值 —— 否则会读成「折价 +0.9%」（符号与词打架） */
+          const mag = fmtPct(Math.abs(pv) / 100, 1).replace(/^[+−]/, "");
+          return '<span class="date-chip ' + pc + '" title="' + esc(premTip) + '">' +
+            (pv >= CONFIG.PREM_HIGH ? '<span aria-hidden="true">⚠️</span> ' : "") +
+            (pv < 0 ? "折价 " : "溢价 +") + mag + "</span>";
+        })()
+      : '<span class="date-chip stale" title="' + esc(premHealth.text) + '">⚠ 溢价未核验</span>';
+  }
+  /* KPI 第三格（2026-09-23 起）：有卖出 → 「其中已落袋」；没卖出 → 「摊薄（成本总额）」。
+     为什么不是「额外一笔」：券商用摊薄成本，卖出的净回款已冲减剩余仓位的成本 —— 所以已落袋的
+     金额本就在左边那格「浮盈（估）」里，两者**不能相加**（「本金与收益」卡的口径说明也写了这条）。
+     无卖出的标的没有已实现可讲，这一格就该回答另一件事：这一路操作把摊薄成本拉低了多少。 */
+  const sellsOf = (POSITIONS.log || []).filter((e) => e.sym === p.sym && isSellAct(e));
+  const realized = sellsOf.reduce((a, e) => a + (Number.isFinite(e.realized) ? e.realized : 0), 0);
+  const cashed = realized - sellsOf.reduce((a, e) => { const v = logFee(e); return a + (v === null ? CONFIG.FEE_PER_SIDE : v); }, 0);
+  /* 全程复算的摊薄成本价：首笔之后 → 末笔之后（与「逐笔流水」summary 里的那个数是同一套 costTrace） */
+  const traceSeq = (POSITIONS.log || []).filter((e) => e.sym === p.sym).slice().reverse()
+    .map((e) => costTrace().get(e)).filter((t) => t && t.after !== null);
+  const spanFrom = traceSeq.length >= 2 ? traceSeq[0].after : null;
+  const spanTo = traceSeq.length ? traceSeq[traceSeq.length - 1].after : null;
+  const dipDelta = (spanFrom !== null && spanTo !== null) ? spanTo - spanFrom : null;
+  let kpiThird;
+  if (sellsOf.length) {
+    kpiThird = '<div class="kpi"><div class="k-label" title="券商流水逐笔「实现盈亏」之和 − 卖出费，口径与「本金与收益」卡的「已实现」相同。' +
+      '⚠ 这不是额外一笔：券商用摊薄成本，卖出的净回款已冲减剩余仓位成本，所以它已经包含在左边的「浮盈（估）」里，两者不能相加。">' +
+      '其中已落袋</div><div class="k-val ' + cls(cashed) + '">' + fmtAmt(cashed) + ' 元</div>' +
+      '<div class="k-sub" style="color:var(--tx3)">卖出 ' + sellsOf.length + ' 笔 · 已在浮盈里</div></div>';
+  } else if (dipDelta !== null) {
+    kpiThird = '<div class="kpi"><div class="k-label" title="全程复算的摊薄成本价变化（Σ买入含费 − Σ卖出净额，逐笔回放；与「逐笔流水」summary 同源）。' +
+      '成本总额下降＝成本被拉低，不是赚了 —— 它也已经在左边的「浮盈（估）」里。">摊薄成本变化</div>' +
+      '<div class="k-val ' + (dipDelta <= 0 ? "up" : "down") + '">' + (dipDelta <= 0 ? "−" : "+") + fmtAbs2(Math.abs(dipDelta * p.qty)) + ' 元</div>' +
+      '<div class="k-sub" style="color:var(--tx3)">成本价 ' + spanFrom.toFixed(4) + ' → ' + spanTo.toFixed(4) + '</div></div>';
+  } else {
+    kpiThird = '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div><div class="k-sub" style="color:var(--tx3)">' + fmtQty(p.qty) + ' 份</div></div>';
   }
   return '<article class="card" data-sym="' + p.sym + '">' +
     '<div class="pos-head"><div class="pos-name">' + p.sym +
       '<span class="code">' + p.code + '</span>' +
       '<span class="idx-badge ' + p.idx + '">' + idxName + '</span>' +
       (quoteDate ? '<span class="date-chip etf" title="该只报价日（A 股交易日）">场内 ' + quoteDate + "</span>"
-        : '<span class="date-chip stale" title="该只报价日缺失">⚠ 场内 未记录</span>') + '</div>' +
-      /* 市值从 KPI 主位挪到头部右侧（2026-09-23 主视觉换位）：桌面头部本来就有大片空白，零成本；
-         换位后 KPI 主数是浮盈% 与距成本位 —— 那才是"该不该动手"的依据，市值只是仓位大小。 */
-      '<span class="held">' + (heldDays ? '持有 ' + heldDays + ' 天 · ' : '') + '市值 ' + fmtYuan(valAmt) + '</span>' +
+        : '<span class="date-chip stale" title="该只报价日缺失">⚠ 场内 未记录</span>') +
+      premChip + '</div>' +
+      /* 头部右侧＝持有规模三件（2026-09-23）：原「组合占比」独占 KPI 一格，而它与市值、份数同属
+         "仓位多大"、不是决策数；腾出的第三格改放「已落袋 / 摊薄」（见下）。桌面头部本来就有大片
+         空白，这一挪零成本；手机上它独占一行，但换来 KPI 行少一格重复。 */
+      '<span class="held">' + (heldDays ? '持有 ' + heldDays + ' 天 · ' : '') + '市值 ' + fmtYuan(valAmt) +
+        (totalVal ? ' · 占比 ' + (valAmt / totalVal * 100).toFixed(1) + '%' : '') + '</span>' +
     '</div>' +
     '<div class="kpi-row kpi3">' +
-      '<div class="kpi"><div class="k-label" title="按场内现价估算（含溢价），与 App 净值口径的差额≈本卡「溢价/折价」那一行">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + ' 元</div></div>' +
-      /* 成本价并入本格副行（2026-09-23）：原「份数 / 成本价」独占一行 24px，且成本价在卡内出现 4 次 */
-      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">成本 ' + p.cost.toFixed(3) + ' 元 · ' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
-      /* 份数并入本格副行（与「占比」同属「持有规模」那种量） */
-      '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div><div class="k-sub" style="color:var(--tx3)">' + fmtQty(p.qty) + ' 份</div></div>' +
+      /* 金额用 fmtAmt（自带符号）：原先写 (pl >= 0 ? "+" : "") + fmtYuan(pl)，而 fmtYuan = fmtAbs2 是**无符号**的
+         —— 负浮盈那一格只靠红色表意、数字是正的（中韩显示「7,329 元」，读起来像赚了 7,329）。2026-09-23 修。 */
+      '<div class="kpi"><div class="k-label" title="按场内现价估算（含溢价），与 App 净值口径的差额≈卡头「溢价」胶囊">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + fmtAmt(pl) + ' 元</div></div>' +
+      /* 副行只说单位成本价，不再重复「需涨 X% 回本」—— 那与本格主数是同一句话（同一句不说两遍） */
+      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">成本价 ' + p.cost.toFixed(4) + ' 元</div></div>' +
+      kpiThird +
     '</div>' +
-    /* 成本 / 现价 / 高点 三档读数（2026-09-23：原「水位梯」三行 ＋ 三根迷你轨道合并成这一行）
-       —— 原来它与下面的分位条是同一份「区间位置」的两种画法，合计占 219px（整卡 46%）；
-       位置信息统一交给分位条，这里只留数值与结论 chip（点的配色与条上的三个标记一致）。 */
-    '<div class="lad-line">' + ladChain + '</div>' +
-    premRow +
+    /* 三档读数 ＋ 右侧分位胶囊（2026-09-23 合并）：两者讲的是同一件事的两种表达 ——
+       链上是绝对数值、胶囊是"你的成本位在 52 周区间的哪儿"，故并成一行；原独立标题行
+       「成本位置 · 分位 64%」取消（那是本次要清掉的第三处"成本"字样）。
+       加仓档 chip 也从这一行挪到下方策略行 —— 它是"触发"类信息，与「未触发」同族。 */
+    '<div class="lad-line">' + ladChain +
+      '<span class="lad-chips"><span class="pos-tier ' + tier[0] + '" title="你的成本位（下方条上的青色点）在 52 周区间中的位置；三档按四舍五入后的整数分位判定：<35% 低 / 35–65% 中 / >65% 高">' +
+        '<span aria-hidden="true">' + tier[2] + '</span> 52周分位 ' + pct.toFixed(0) + '% · ' + tier[1] + '</span></span>' +
+    '</div>' +
     '<div class="bar-wrap">' +
-      '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span></div>' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
       '<div class="bar-track pops">' + seg +
         '<span class="bar-end"></span>' +
@@ -4660,7 +4705,7 @@ function holdCardHtml(row, i, ctx) {
       /* 去掉「历次买入」后面的星号（2026-09-23）：星号只在 title 里有解释，移动端没有悬停 → 说明挪进 ? 里 */
       '<div class="bar-legend"><span>52周区间</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
     '</div>' +
-    '<div class="strat-row">' + strat +
+    '<div class="strat-row">' + strat + chipDip +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
       '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>' +
       '规则：<b>' + ruleTxt + '</b>（见 data.js POSITIONS.strategy）；未触发时本行只显示「未触发」，不重复规则。<br>' +
@@ -4880,19 +4925,12 @@ function posLogHtml(p, r, pl) {
     if (w && w !== wk) { wk = w; html += weekRowHtml(entries.filter((x) => x.d && weekOf(x.d) === w), w); }
     html += logItemHtml(e, true, pairBadge(i));
   });
-  /* 全程成本价变化（2026-09-23 加）：首笔之后 → 末笔之后 —— 回答「这一路操作把摊薄成本从多少拉到多少」。
-     与每行的单笔 Δ 是同一套复算值（costTrace），这里只取首末两端；清仓过再建仓的，取最后一个非空值。 */
-  const seq = entries.slice().reverse().map((e) => costTrace().get(e)).filter((t) => t && t.after !== null);
-  const spanChip = seq.length >= 2
-    ? (() => {
-        const a = seq[0].after, b = seq[seq.length - 1].after, dl = b - a;
-        return " · 成本价 <b>" + a.toFixed(4) + " → " + b.toFixed(4) + '</b> <b class="' + (dl <= 0 ? "up" : "down") + '">' +
-          (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "</b>";
-      })()
-    : "";
+  /* 全程成本价变化原来挂在这一行（「成本价 1.6294 → 1.5822」），2026-09-23 移到 KPI 第三格
+     （「摊薄成本变化 −3,830 元 / 成本价 1.6294 → 1.5822」）—— 那个数现在已经常显在卡面上，
+     这里再写一遍就是同一句话出现两次（页面约定：同一个数不出现两次）。本行只留「笔数 + 买卖金额」。 */
   out += '<details class="pos-log">' +
-    '<summary title="买卖额为累计成交金额（含已卖出部分）；成本价为该标的首笔 → 末笔的全程变化（逐笔明细见展开）">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
-      (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") + spanChip +
+    '<summary title="买卖额为累计成交金额（含已卖出部分），逐笔明细见展开；全程成本价变化见卡面「摊薄成本变化」格">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
+      (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") +
     '</summary>' +
     '<div class="log-list">' + html + '</div>' +
     '<div class="otc-note">成本价＝<b>全流水复算</b>的摊薄成本：（Σ买入含费 − Σ卖出净额）÷ 剩余份数，与券商 App 同一口径。'
