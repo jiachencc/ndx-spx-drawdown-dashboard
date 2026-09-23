@@ -2240,13 +2240,20 @@ function renderImpl() {
 /* ================= 资产走势（快照各期 + 今日估算，双线 + 差值着色） ================= */
 let trendCtx = null;      // { v: 今日总资产, c: 今日总成本 }（resize 重绘用）
 let trendPts = [];        // 气泡/crosshair 数据（当前区间过滤后）
-let trendRange = "all";   // 时间范围：all/1m/3m/6m/1y（快照日期过滤，非重采样）
+/* 时间范围档位：**数字 = 近 N 期快照**（"5"/"10"），其余按天数（all/1m/3m/6m/1y）。
+   默认「近5次」（2026-09-23）：快照目前只有约 14 期且日更，全部铺开时手机上一个点只隔 ~22px，
+   波形挤成一团（连拐点都相互遮盖）；取近 5 期后点距约 70px，走向一眼可读，且 y 值域跟着收窄，
+   小波动不再被压平。选过的档位记在 localStorage（与 trendView 同一套做法）。 */
+let trendRange = "5";
+try { trendRange = localStorage.getItem("trendRange") || "5"; } catch (err) { /* 隐私模式下忽略 */ }
 let trendShowCost = true; // 投入线开关（localStorage 持久化）
 let trendLayout = null;   // { px, py, pts }（crosshair 最近点计算用）
 let trendSelOn = false;   // 「区间统计」模式：点两个数据点选一段
 let trendSel = [];        // 选中点在当前 trendPts 里的下标（最多 2 个，升序）
 let trendHoverI = -1;     // 最近一次悬停的点的下标（-1＝指针不在图上）；区间统计刷新读数条时用它保持原位
-const TREND_RANGES = [["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
+/* 档位顺序＝控件里的先后：**按期数**在前（快照日更，"期数"才是能改变画面的维度），按月/年在后 ——
+   它们在历史还没攒够时会被 renderTrendChips 自动隐藏（筛出的点与「全部」同一批就不显示）。 */
+const TREND_RANGES = [["5", "近5次"], ["10", "近10次"], ["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
 /* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准）
  *           dd 回撤（资金流调整后的单位净值口径，剔除转入/转出造成的假回撤） */
 let trendView = "amount";
@@ -2256,6 +2263,10 @@ try { trendView = localStorage.getItem("trendView") || "amount"; } catch (err) {
    改这里一处，四张图同时跟。H 统一 210：金额视图撤掉归因柱后独占 254、另三个视图 178，
    取中间值既保住纵向分辨率，又消掉切换时约 76px 的高度跳变（四图同高，切换不再上下窜）。 */
 const TREND_GEO = { mL: 46, mR: 12, mT: 20, mB: 24, H: 210, dot: 3.8, dotBig: 5, axis: "var(--tx3)", axisW: 1.2 };
+/* 画布高度：窄屏给得更高（2026-09-23）。手机横向只有 ~300px 绘图区，再压到 210px 高，
+   整条线像一条飘带，拐点之间的差别读不出来；窄屏 272px（纵向 +30%）。
+   resize 会整张重绘（renderTrend），所以横竖屏切换、拖宽窗口都自动跟随。 */
+const geoH = () => (window.innerWidth <= 560 ? 272 : TREND_GEO.H);
 const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"], ["dd", "回撤"]];
 function renderTrendViews() {
   const el = $("trend-views");
@@ -2488,13 +2499,27 @@ function buildTrendPts(todayVal, todayCost) {
   }
   return pts;
 }
-/* 时间范围过滤（快照日期截断，非重采样）；区间内不足 2 点时回退全量 */
-function filterTrendPts(all) {
-  if (trendRange === "all" || !all.length) return all;
-  const lastD = all[all.length - 1].d;
-  const cut = new Date(Date.parse(lastD + "T00:00:00Z") - RANGE_DAYS[trendRange] * 86400000).toISOString().slice(0, 10);
-  const f = all.filter((p) => p.d >= cut);
+/* 档位过滤（不做重采样）：
+ *   数字档 = 近 N 期快照（.slice(-N)）；其余档 = 按天数截断。
+ *   两种都保证至少 2 点，否则回退全量（1 个点连不成线）。 */
+function rangeFilterPts(all, k) {
+  if (!all.length || k === "all") return all;
+  let f;
+  if (/^\d+$/.test(k)) f = all.slice(-Number(k));
+  else {
+    const lastD = all[all.length - 1].d;
+    const cut = new Date(Date.parse(lastD + "T00:00:00Z") - RANGE_DAYS[k] * 86400000).toISOString().slice(0, 10);
+    f = all.filter((p) => p.d >= cut);
+  }
   return f.length >= 2 ? f : all;
+}
+function filterTrendPts(all) { return rangeFilterPts(all, trendRange); }
+/* 当前档位若已不适用（历史没攒够 / 上次选的是别的期间的档位），退回第一个可用档。
+   ⚠ 必须在 filterTrendPts **之前**调用：否则图用的是旧档位、chips 高亮的是新档位，两者对不上。 */
+function normalizeTrendRange(allPts) {
+  const baseSig = allPts.map((p) => p.d).join(",");
+  const ok = (k) => k === "all" || !allPts.length || rangeFilterPts(allPts, k).map((p) => p.d).join(",") !== baseSig;
+  if (!ok(trendRange)) trendRange = (TREND_RANGES.filter(([k]) => ok(k))[0] || ["all"])[0];
 }
 /* 时间范围 chips：**只渲染真能改变画面的档位**。
  * 快照是事件驱动的（不定期发截图），历史跨度常常短于任一档阈值 —— 此时各档筛出的点集
@@ -2508,9 +2533,7 @@ function renderTrendChips(allPts) {
   const baseSig = allPts.map((p) => p.d).join(",");
   const usable = TREND_RANGES.filter(([k]) => {
     if (k === "all" || !lastD) return true;
-    const cut = new Date(Date.parse(lastD + "T00:00:00Z") - RANGE_DAYS[k] * 86400000).toISOString().slice(0, 10);
-    const f = allPts.filter((p) => p.d >= cut);
-    return f.length >= 2 && f.map((p) => p.d).join(",") !== baseSig;
+    return rangeFilterPts(allPts, k).map((p) => p.d).join(",") !== baseSig;
   });
   const spanDays = (allPts.length > 1) ? Math.round((Date.parse(lastD) - Date.parse(allPts[0].d)) / 86400000) : 0;
   /* 被隐藏的档位（跨度不足、筛出的点与「全部」同一批）只写进「全部」的悬停说明，不占版面 */
@@ -2556,7 +2579,15 @@ function renderTrendKpis(pts) {
   el.innerHTML =
     '<div class="kpi"><div class="k-label">总资产' + (last.isToday ? "（估）" : "") + '</div><div class="k-val">' + fmtYuan(last.val) + '</div><div class="k-sub ' + cls(dTotB) + '">' + fmtPct(base.val ? dTotB / base.val : 0, 1) + ' 较基线</div></div>' +
     '<div class="kpi"><div class="k-label">当前收益率</div><div class="k-val ' + cls(r1) + '">' + fmtPct(r1, 2) + '</div><div class="k-sub" title="' + rateTip + '">TWR <span class="' + cls(twr) + '">' + (twr === null ? "—" : fmtPct(twr, 2)) + '</span></div></div>' +
-    (ddN ? '<div class="kpi"><div class="k-label" title="资金流调整后的单位净值回撤（按 TWR 方式逐期剔除转入/转出，避免把转账造成的资产跳变当成回撤）；区间口径，随上方时间范围变化。">最大回撤（区间）</div><div class="k-val down">' + fmtPct(ddN.dd[ddN.deepI], 2) + '</div><div class="k-sub" style="color:var(--tx3)">' + mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复") + '</div></div>' : "") +
+    (ddN ? (function () {
+      const ddv = ddN.dd[ddN.deepI];
+      /* 区间内一路新高时不再写「−0.00% · 未修复」—— 那句读起来像坏了（2026-09-23：
+         默认档改为「近5次」后，5 期窗口常常全程上涨，这个 KPI 会频繁命中这种情形）。 */
+      const flat = Math.abs(ddv) < 0.0005;
+      return '<div class="kpi"><div class="k-label" title="资金流调整后的单位净值回撤（按 TWR 方式逐期剔除转入/转出，避免把转账造成的资产跳变当成回撤）；区间口径，随上方时间范围变化。">最大回撤（区间）</div>' +
+        '<div class="k-val' + (flat ? "" : " down") + '"' + (flat ? ' style="color:var(--tx3)"' : "") + ">" + (flat ? "无回撤" : fmtPct(ddv, 2)) + "</div>" +
+        '<div class="k-sub" style="color:var(--tx3)">' + (flat ? "区间内步步新高" : mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复")) + "</div></div>";
+    })() : "") +
     (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
 }
 /**
@@ -2671,7 +2702,7 @@ function renderDdView(box, pts) {
   if (!pts || pts.length < 2) { box.innerHTML = '<div class="trend-empty">数据不足，无法计算回撤（至少需要 2 期）。</div>'; return; }
   const N = trendNav(pts);
   const dd = N.dd, deepI = N.deepI, peakI = N.peakI, recI = N.recI;
-  const W = box.clientWidth || 320, H = TREND_GEO.H, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
+  const W = box.clientWidth || 320, H = geoH(), mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
@@ -2726,6 +2757,7 @@ function renderTrend(todayVal, todayCost) {
   trendCtx = { v: todayVal, c: todayCost };
   const snaps = (typeof SNAPSHOTS !== "undefined") ? SNAPSHOTS : [];
   const allPts = buildTrendPts(todayVal, todayCost);
+  normalizeTrendRange(allPts);   // 必须在过滤前：否则图用旧档位、chips 高亮新档位
   const pts = filterTrendPts(allPts);
   trendPts = pts;
   renderTrendChips(allPts);
@@ -2751,7 +2783,7 @@ function renderTrend(todayVal, todayCost) {
   /* 2026-09-19 撤掉下方归因柱区：共用一把尺时资金柱（最大 3.7 万）吃满 26px、市场柱最高只有 5.2px，
      12 根里 6 根 < 2px，形状读不出信息；逐期市场/资金数值在「快照对比」逐期卡与读数条里都有。
      省下的 86px 全部让给曲线（168 → 254px，纵向分辨率 +51%）。 */
-  const W = box.clientWidth || 320, H1 = TREND_GEO.H, H = H1, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
+  const W = box.clientWidth || 320, H1 = geoH(), H = H1, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs);
   const span = t1 - t0 || 1;
@@ -2782,6 +2814,7 @@ function renderTrend(todayVal, todayCost) {
     svg += '<polyline points="' + cy.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
       '" fill="none" style="stroke:var(--cyan)" stroke-width="1.5" stroke-dasharray="5 4"/>';
   }
+  let baseLabel = null;   // 基准终值标签（占位登记用，见下方 rows.rate 的种子）
   if (bPts) {
     /* 同节奏基准：按日期各自映射 x（它可能比组合少末点，或起点靠后） */
     const xOf = {};
@@ -2791,9 +2824,12 @@ function renderTrend(todayVal, todayCost) {
       svg += '<polyline points="' + seg.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:1.5;opacity:.8" stroke-dasharray="2 3"/>';
     /* 线端标出基准终值：一条没名字的灰线，读者只能猜它是谁 */
     const last = bPts[bPts.length - 1], lx = xOf[last.d];
-    if (lx !== undefined)
-      svg += '<text x="' + P(Math.max(mL + 40, lx - 4)) + '" y="' + P(Math.min(H - mB - 2, Y(last.v) - 5)) +
-        '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">同节奏 ' + (last.v / 10000).toFixed(1) + "万</text>";
+    if (lx !== undefined) {
+      const bx = Math.max(mL + 40, lx - 4), bTxt = "同节奏 " + (last.v / 10000).toFixed(1) + "万";
+      svg += '<text x="' + P(bx) + '" y="' + P(Math.min(H - mB - 2, Y(last.v) - 5)) +
+        '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + bTxt + "</text>";
+      baseLabel = { x: bx, txt: bTxt };
+    }
   }
   svg += '<polyline points="' + py.map((y, i) => P(px[i]) + "," + P(y)).join(" ") +
     '" fill="none" style="stroke:var(--blue)" stroke-width="2"/>';
@@ -2811,8 +2847,12 @@ function renderTrend(todayVal, todayCost) {
   const rateOf = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
   let deepI = 0, hiI = 0;
   pts.forEach((p, i) => { if (rateOf(p) < rateOf(pts[deepI])) deepI = i; if (p.val > pts[hiI].val) hiI = i; });
-  const rows = { rate: [], cost: [] };   // 互不相干的「行」，各自独立占位
   const tw = (s, size) => [...s].reduce((n, c) => n + (/[\u4e00-\u9fa5\uff00-\uffef▲▼]/.test(c) ? size : size * 0.6), 0);
+  const rows = { rate: [], cost: [] };   // 互不相干的「行」，各自独立占位
+  /* 基准终值标签先占位（2026-09-23 修）：它画在收益率的行①上，却从来不登记 ——
+     于是「同节奏 49.8万 / +0.5% / −0.5%」在右端挤成一团。占位后行①会自己让开
+     （让不开就不画，读数条里仍可查到该期数字，与既有取舍规则一致）。 */
+  if (baseLabel) rows.rate.push({ a: baseLabel.x - tw(baseLabel.txt, 10), b: baseLabel.x });
   /* 放得下就登记并返回 true；放不下返回 false 且不登记 */
   const place = (row, x, s, size) => {
     const w = tw(s, size) + 5, a = x - w / 2, b = x + w / 2;
@@ -2828,8 +2868,12 @@ function renderTrend(todayVal, todayCost) {
   order.forEach((i) => {
     if (KEY_PT.indexOf(i) < 0) return;
     const t = fmtPct(rateOf(pts[i]));
-    if (place("rate", px[i], t, 10))
-      svg += '<text x="' + P(px[i]) + '" y="' + Math.max(9, py[i] - 7) + '" text-anchor="middle" style="fill:var(--' + (pts[i].val - pts[i].cost >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + t + "</text>";
+    /* x 先夹进绘图区（2026-09-23）：末点贴着右边界，居中的标注有半个字被图边裁掉、
+       还压在自己的圆点上。夹住后它整块留在 [mL, W−mR] 内，同时自然让开圆点。 */
+    const w = tw(t, 10) + 5;
+    const lx = Math.max(mL + w / 2, Math.min(W - mR - w / 2, px[i]));
+    if (place("rate", lx, t, 10))
+      svg += '<text x="' + P(lx) + '" y="' + Math.max(9, py[i] - 7) + '" text-anchor="middle" style="fill:var(--' + (pts[i].val - pts[i].cost >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + t + "</text>";
   });
   /* 行 ②：投入线附近 —— 起点投入读数 + 事件**只画小三角**，不再标事件词。
    * 原先把「▲加仓 / ▼减仓」整词标在投入线上：420px 下 5 个标签挤成一排、还压住曲线本身。
@@ -2877,7 +2921,7 @@ function renderPnlView(box) {
     box.innerHTML = '<div class="trend-empty">暂无月度盈亏读数：在 data.js 的 ACCT_STATS.monthly 补 App 月度盈亏，即可生成建仓以来全程曲线。</div>';
     return;
   }
-  const W = box.clientWidth || 320, H = TREND_GEO.H, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
+  const W = box.clientWidth || 320, H = geoH(), mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
@@ -2939,7 +2983,7 @@ function renderPnlView(box) {
 /* 视图③：收益率（%）—— 组合 vs 基准。剔除规模影响，直接看效率与是否跑赢躺平 */
 function renderRateView(box, pts) {
   const rate = (p) => (p.cost ? (p.val - p.cost) / p.cost : 0);
-  const W = box.clientWidth || 320, H = TREND_GEO.H, mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
+  const W = box.clientWidth || 320, H = geoH(), mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
@@ -5231,6 +5275,7 @@ $("trend-chips").addEventListener("click", (e) => {
   if (!b || b.disabled || b.dataset.r === trendRange) return;
   trendRange = b.dataset.r;
   trendSel = [];   // 时间范围变了，下标失效
+  try { localStorage.setItem("trendRange", trendRange); } catch (err) { /* 隐私模式下忽略 */ }
   if (trendCtx) renderTrend(trendCtx.v, trendCtx.c);
 });
 function syncCostBtn() {
