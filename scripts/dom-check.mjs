@@ -97,6 +97,14 @@ const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
 check("汇总卡总资产 = 最新快照 " + money(snapTotal), near(sumText, snapTotal, 3), sumText.slice(0, 140));
 check("汇总卡浮盈亏 = 最新快照 " + money(latest.pl), near(sumText, latest.pl), sumText.slice(0, 140));
 
+/* ③b 汇总卡「当日盈亏」= 最新快照的 day（2026-09-23 加）
+   页面当日 = 场内估（DEFAULT.chg × 份数）+ 场外快（Σ OTC.funds[].day），必须与快照里留档的 day 对得上。
+   这是「当日」在渲染层唯一的校验点，也顺带看住两种偏差：
+   ① 报价或场外读数被改过、而快照没跟着改；② 当日栏的算法改动没同步到数据。
+   容差 5：场内/场外两段各自取整后相加，与未取整的合计天然差 1~2 元。 */
+const dayCell = sum ? [...sum.querySelectorAll(".sum-cell")].map((el) => el.textContent.replace(/\s+/g, "")).find((t) => t.includes("当日盈亏")) : null;
+check("汇总卡当日盈亏 = 最新快照 " + money(latest.day), !!dayCell && near(dayCell, latest.day, 5), dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
+
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
