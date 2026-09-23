@@ -327,6 +327,10 @@
   /* 原「合计 N 只」行已删：两个数字与上方「市场盈亏 / 累计盈亏」完全重复，只数由小节标题承载 */
   .snap-group-title { display: grid; grid-template-columns: 1fr 78px 84px; gap: 8px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); letter-spacing: .06em; margin-bottom: 2px; }
   .snap-group-title span:not(:first-child) { text-align: right; }
+  /* 列头两格与下方明细行的两个数字**同网格**（1fr 1fr + 12px）—— 字号不再区分主次后，
+     「哪个是哪个」就靠这行表头：市场盈亏对齐左半格、累计盈亏对齐右半格（2026-09-23）。 */
+  .snap-group-title .snap-tcol { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .snap-group-title .snap-tcol i { font-style: normal; text-align: right; }
   /* 场内 / 场外分组头：**默认全展开**（原折叠 + 可收起），只留一行标签。
      两个小计不再重复——它们就是上方「市场盈亏 / 累计盈亏」两行的场内·场外拆分；
      组小计与底部「合计」行同理，一并去掉（数字都在结论区，这里只回答「谁在动」）。
@@ -347,8 +351,11 @@
      读起来像一串数（用户反馈「挤在一起」）。改成**半格两列、各自右对齐**：跨行竖直对齐，
      格与格之间固定 8px 间隔，紧凑但不会撞上。 */
   .snap-line.item .d { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: baseline; }
-  .snap-line.item .d .dv { text-align: right; font-weight: 700; font-size: var(--fs-sm); }   /* 与名称同级＝本期事件 */
-  .snap-line.item .d .cv { text-align: right; font-weight: 400; font-size: var(--fs-xxs); }   /* 小一号＝持仓水平 */
+  /* 两个数**同一档字号、都不加粗**（2026-09-23 用户要求）：行面更安静、更密。
+     于是「哪个是哪个」不再靠字号，改由①位置（左＝市场盈亏 / 右＝累计盈亏）＋②对齐到两数上方的列头承担；
+     颜色仍保留语义（绿/红），"本期无变动"的行仍只把市场盈亏降灰。 */
+  .snap-line.item .d .dv,
+  .snap-line.item .d .cv { text-align: right; font-weight: 400; font-size: var(--fs-xxs); }
   /* 「本期无变动」的行：把**市场盈亏**降灰（累计盈亏保留自己的颜色 —— 它是持仓水平，不是本期事件） */
   .snap-line.item.snap-flat .d .dv { color: var(--tx3); font-weight: 400; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
@@ -3694,9 +3701,10 @@ function snapPairHtml(prev, cur) {
     holdHtml = '<div class="snap-sec">持仓变化 <span class="snap-cnt">' + codes.length + " 只</span></div>" +
       '<div class="snap-tbl">' +
       /* 列头（2026-09-23 两列合一）：原来「市场盈亏 / 累计盈亏」各占一列（64+72px），手机上挤掉名称列；
-         现在同一格内按字号分主次（左大右小），列头跟着缩成一格。 */
-      '<div class="snap-group-title"><span></span><span title="左＝市场盈亏：与上一期快照 ' + prev.d +
-        ' 之间的波动（跨 ' + spanDays + ' 天，含休市）；右＝累计盈亏：相对持仓成本，含已实现">市场盈亏 · 累计盈亏</span></div>' +
+         合并后与下方数字**同网格**（左半格 / 右半格），字号不再区分主次时它就是唯一的图例。 */
+      '<div class="snap-group-title"><span></span><span class="snap-tcol">' +
+        '<i title="市场盈亏：与上一期快照 ' + prev.d + ' 之间的波动（跨 ' + spanDays + ' 天，含休市）">市场盈亏</i>' +
+        '<i title="累计盈亏：相对持仓成本，含已实现">累计盈亏</i></span></div>' +
       lines.join("") + "</div>";
   }
   const actsHtml = snapActions(prev, cur);
