@@ -677,6 +677,8 @@
      数值为全流水复算值（与 App 可能有 <0.01 尾差），悬停给口径。 */
   .log-cost { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; cursor: help; }
   .log-cost b { font-weight: 700; }
+  /* 波段复盘表新增列：这趟往返对摊薄成本的影响（元/份）；颜色由 .up/.down 给（下降=绿） */
+  .sw-cost { font-family: var(--mono); font-size: var(--fs-xxs); white-space: nowrap; cursor: help; }
   .log-note { width: 100%; font-family: var(--sans); color: var(--tx3); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: break-word; }
   /* 配对角标：同一回路的买入行与卖出行同号（⇄①）；悬停给出配对双方的成交明细 */
   .log-pair { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 5px; white-space: nowrap; cursor: help; }
@@ -4398,6 +4400,27 @@ function renderSwing() {
   html += '<div class="sw-notes">' + notes.map((n) => "· " + n).join("<br>") +
     (feeEst ? '<br><span style="color:var(--tx3)">· ' + feeEst + " 次往返的手续费按 <b>" + CONFIG.FEE_PER_SIDE + "</b> 元/边估算（备注未记「费 X」），净额前标 ≈</span>" : "") +
   "</div>";
+  /* 每趟往返对摊薄成本的影响（2026-09-23 加）：取「这趟首腿之前 → 末腿之后」的复算成本价差值
+     （与「逐笔流水」每行的 Δ 是同一套 costTrace 复算值，只是这里取了跨这趟的两端）。
+     ⚠ 口径：配对可能只吃掉某条腿的一部分（x.qty 可小于腿的份数），这里**不按比例切分**，
+     所以它回答「这趟操作期间成本价从多少变成多少」，不是「这趟单独贡献了多少」。
+     元额 ＝ Δ × 末腿之后剩余份数 ＝ 那之后持仓成本总额的净变化。 */
+  const swingCostCell = (x) => {
+    /* 一趟往返的腿：卖出 1 条（x.si）＋ 买入可能多条（x.bis 是**数组**）。
+       按日期把全部腿排一遍，取最早的 before 与最晚的 after —— 反T（先卖后买）也能正确处理。 */
+    const es = (POSITIONS.log || []).filter((e) => e.sym === x.sym);
+    const legs = (x.bis || []).map((i) => es[i]).concat(es[x.si] ? [es[x.si]] : []).filter(Boolean)
+      .sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+    if (legs.length < 2) return "";
+    const f = costTrace().get(legs[0]), l = costTrace().get(legs[legs.length - 1]);
+    if (!f || !l || f.before === null || l.after === null) return "";
+    const dl = l.after - f.before, money = dl * l.qtyAfter;
+    return '<span class="sw-cost ' + (dl <= 0 ? "up" : "down") + '" title="这趟之后摊薄成本 ' +
+      f.before.toFixed(4) + " → " + l.after.toFixed(4) + "（" + (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "/份）；" +
+      "按当时剩余 " + fmtQty(l.qtyAfter) + " 份折算，持仓成本总额" + (money <= 0 ? "减少 " : "增加 ") + fmtAbs2(Math.abs(money)) + " 元。" +
+      "口径：整段跨度（配对只吃部分腿时不按比例切）；成本价下降＝成本被拉低（绿）" + '">Δ成本 ' +
+      (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "/份</span>";
+  };
   html += all.map((x) => '<div class="swing-row">' +
       '<span class="sw-no" title="与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致">' + roundMark(x.no) + "</span>" +
       '<span class="sw-date">' + mdOf(x.d1) + '→' + mdOf(x.d2) + "</span>" +
@@ -4405,6 +4428,7 @@ function renderSwing() {
       '<span class="sw-kind ' + kindCls(x.kind) + '">' + KIND_LABEL[x.kind] + "</span>" +
       '<span class="sw-qty">' + fmtQty(x.qty) + " 份</span>" +
       '<span class="sw-px">买 ' + x.bp + " 卖 " + x.sp + "</span>" +
+      swingCostCell(x) +
       '<span class="' + cls(x.pct) + '">' + fmtPct(x.pct) + "</span>" +
       '<span class="sw-days">' + x.days + " 天</span>" +
       '<span class="sw-net ' + cls(x.net) + '">' + (x.feeEst ? "≈" : "") + fmtAmt(x.net) + "</span>" +
@@ -4412,6 +4436,9 @@ function renderSwing() {
   html += '<div class="otc-note"><b>一次卖出 = 一个往返</b>：一次卖出若跨多笔买入批次，按加权买入均价合并为一条（批次构成见行悬停）。<br>' +
     "<b>顺T</b>＝先买后卖（低买高卖）；<b>反T</b>＝先卖后买（高抛低吸，回补后摊薄成本下降）；间隔超过 " + CONFIG.SWING_MAX_DAYS +
     " 天记「调仓」，不计入做T统计。净额 ＝（卖出价 − 买入价）× 配对份数 − 双边手续费，顺T 反T 同一公式。<br>" +
+    "<b>Δ成本</b>＝这趟首腿之前 → 末腿之后 的摊薄成本价净变化（元/份，悬停看按当时剩余份数折算的元额）——" +
+    "下降（绿）＝成本被拉低，做T、回调买入都会让它下降。<b>口径是整段跨度</b>：配对只吃掉某条腿的一部分时不按比例切分，" +
+    "所以它回答「这趟期间成本价从多少变成多少」，不是「这趟单独贡献了多少」。<br>" +
     "配对规则 <b>" + CONFIG.SWING_MATCH + "</b>（qty 同份额优先 / near 时间最近 / oldest 最早）；反T 自动识别：" + (CONFIG.SWING_REVERSE ? "<b>已开启</b>" : "关闭（可在 log 条目写 tag: \"反T\" 单笔开启）") +
     "。编号与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致。券商按 FIFO 结算，与这里的配对不同，差别只在「已实现 / 浮动」如何切分。</div>";
   el.innerHTML = html;
@@ -4808,9 +4835,19 @@ function posLogHtml(p, r, pl) {
     if (w && w !== wk) { wk = w; html += weekRowHtml(entries.filter((x) => x.d && weekOf(x.d) === w), w); }
     html += logItemHtml(e, true, pairBadge(i));
   });
+  /* 全程成本价变化（2026-09-23 加）：首笔之后 → 末笔之后 —— 回答「这一路操作把摊薄成本从多少拉到多少」。
+     与每行的单笔 Δ 是同一套复算值（costTrace），这里只取首末两端；清仓过再建仓的，取最后一个非空值。 */
+  const seq = entries.slice().reverse().map((e) => costTrace().get(e)).filter((t) => t && t.after !== null);
+  const spanChip = seq.length >= 2
+    ? (() => {
+        const a = seq[0].after, b = seq[seq.length - 1].after, dl = b - a;
+        return " · 成本价 <b>" + a.toFixed(4) + " → " + b.toFixed(4) + '</b> <b class="' + (dl <= 0 ? "up" : "down") + '">' +
+          (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "</b>";
+      })()
+    : "";
   out += '<details class="pos-log">' +
-    '<summary title="买卖额为累计成交金额（含已卖出部分）">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
-      (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") +
+    '<summary title="买卖额为累计成交金额（含已卖出部分）；成本价为该标的首笔 → 末笔的全程变化（逐笔明细见展开）">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
+      (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") + spanChip +
     '</summary>' +
     '<div class="log-list">' + html + '</div>' +
     '<div class="otc-note">成本价＝<b>全流水复算</b>的摊薄成本：（Σ买入含费 − Σ卖出净额）÷ 剩余份数，与券商 App 同一口径。'
