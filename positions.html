@@ -322,9 +322,14 @@
     font-size: var(--fs-xs); color: var(--tx2); line-height: 1.7; }
   .pf-concl b { font-family: var(--mono); font-feature-settings: "tnum"; }
   /* 折叠块：summary 直接复用 .snap-sec 的小节题样式，展开才铺出明细（全页一个版式） */
-  .pf-fold > summary.snap-sec { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  /* 折叠 summary（2026-09-23 修）：原来 ▾ 是 flex 子项，总结文字一长就被挤到**单独一行**
+     （「本金与收益」卡里三处折叠全如此，看着像坏掉的列表项 ✗）。
+     ⚠ 试过 nowrap + 截断：反把标题挤成逐字折行（「逐只 / XIRR / 与 / TWR」✗✗）——
+     因为标题是匿名 flex 子项、默认会被压缩。最终办法：正文照旧换行（预览完整可读），
+     ▾ 改为**绝对定位在右上角**，与有没有第二行无关。 */
+  .pf-fold > summary.snap-sec { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; position: relative; padding-right: 18px; }
   .pf-fold > summary.snap-sec::-webkit-details-marker { display: none; }
-  .pf-fold > summary.snap-sec::after { content: "▾"; color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
+  .pf-fold > summary.snap-sec::after { content: "▾"; position: absolute; right: 0; top: 0; color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
   .pf-fold[open] > summary.snap-sec::after { content: "▴"; }
   .pf-fold > summary.snap-sec .snap-cnt { flex: 1 1 auto; min-width: 0; }
   /* 原「合计 N 只」行已删：两个数字与上方「市场盈亏 / 累计盈亏」完全重复，只数由小节标题承载 */
@@ -522,8 +527,9 @@
      「说明类的、不重要的、太长的」一律走这里，正文只留结论与徽标。
      浮层固定在底部（手机友好），点别处 / 再点同一个 / Esc 关闭。 */
   .tip { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; margin-left: 4px;
+    position: relative;   /* 热区扩展的锚点，见下方 .tip::after */
     border-radius: 50%; border: 1px solid var(--line); background: var(--card2); color: var(--tx3);
-    font: italic 9px/1 var(--mono); cursor: pointer; vertical-align: middle; }
+    font: italic var(--fs-xxs)/1 var(--mono); cursor: pointer; vertical-align: middle; }   /* 9px → 10px（原低于全站最小字号一档） */
   .tip:hover, .tip:focus-visible { color: var(--blue); border-color: var(--accent-line); }
   .tip-pop { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 80; width: min(360px, 92vw); max-height: 46vh;
     overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
@@ -672,6 +678,11 @@
      它答「市值算到哪天」，与左边的同步胶囊（答「截图是哪天」）是两件事，常不同：QDII 发布节奏。 */
   .sync-cnt.ok { color: var(--green); }
   .strat-hint { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 4px; border: 1px solid var(--line); border-radius: 50%; background: none; color: var(--tx3); font-size: var(--fs-xxs); font-family: var(--sans); cursor: pointer; vertical-align: 1px; padding: 0; }
+  /* 移动端点击热区（2026-09-23）：这些「?」只有 14×14px（全页 64 个 .strat-hint + 若干 .sum-info/.tip），
+     手指根本点不准 ✗。用透明 ::after 把热区扩到 26×26（= 14 + 6×2），**视觉零变化**；
+     只取 6px 而不是 8px —— 相邻行间距约 22px，扩太多会越过行界、误触上一行的说明。 */
+  .strat-hint, .sum-info, .tip { position: relative; }
+  .strat-hint::after, .sum-info::after, .tip::after { content: ""; position: absolute; top: -6px; right: -6px; bottom: -6px; left: -6px; }
   .strat-note { display: none; font-size: var(--fs-xs); color: var(--tx3); margin-top: 6px; line-height: 1.55; padding: 7px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; }
   .strat-note.open { display: block; }
   .bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-top: 8px; font-feature-settings: "tnum"; }
@@ -3893,7 +3904,9 @@ function renderPrincipal() {
       '<div class="snap-part"><span class="pn">XIRR</span><span class="pv"><b>' + xCell + '</b>' +
         '<span class="snap-sub" title="资金加权年化：用每一笔出入金的日期与金额解 IRR，衡量你的钱实际赚了多少">资金加权 · 含出入金时点' +
         (gap !== null ? "；与 TWR 差 " + (gap >= 0 ? "+" : "−") + Math.abs(gap * 100).toFixed(2) + "pp＝出入金节奏的贡献" : "（跨度过短不做年化，与走势图同一规则）") + "</span></span></div>" +
-      (bTwr !== null ? '<div class="snap-part"><span class="pn">同节奏纳指</span><span class="pv"><b class="' + cls(bTwr) + '">' + pc(annT(bTwr)) + '</b>' +
+      /* 标签列窄屏只有 58px，「同节奏纳指」5 字（≈60px）会被省略成「同节奏纳…」→ 缩成「同节奏」，
+         完整名字与口径挂 title（2026-09-23 移动端审查）。 */
+      (bTwr !== null ? '<div class="snap-part"><span class="pn" title="同节奏纳指：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌，回答「同样的钱、同样的日期全买纳指今天是多少」">同节奏</span><span class="pv"><b class="' + cls(bTwr) + '">' + pc(annT(bTwr)) + '</b>' +
         '<span class="snap-sub" title="同节奏基准：把每一期的外部净流入在当天按纳指收盘买入（现金流与组合完全相同）">同样的钱、同样的日期全买纳指' +
         (bXirr !== null && ann ? "（XIRR " + pc(annT(bXirr)) + "）" : "") +
         (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") +
