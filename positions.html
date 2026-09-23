@@ -292,7 +292,10 @@
      「华安纳指C」显示成「华…」，认不出是哪只基金。允许换行后：名称整占一行，
      标签放不下就自己折到第二行（只有真放不下的行才多占一行，放得下的行不变）。 */
   .snap-line.item .n { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
-  .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  /* 名称列同用 10px、不加粗（2026-09-23 用户要求）：整张持仓变化表统一一档字号，
+     层级交给「留白 + 色彩」表达（绿/红仍表方向，「本期无变动」仍只把市场盈亏降灰）。
+     ⚠ 只有这一处例外：列头与两个数字都是 10px 时，名称若仍 12px/600 会重新变成"最重"的元素。 */
+  .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: var(--fs-xxs); font-weight: 400; }
   .snap-line.item .n .qty-tag { flex-shrink: 0; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); font-family: var(--mono); white-space: nowrap; font-feature-settings: "tnum"; }
   /* 快照明细行的来源短标签（场内 / 博时 / 华安 …）：与「盈亏总览」同款斜杠前缀，
      固定 2~3 字且不允许压缩——名称列窄，长标签会把名称挤成省略号 */
@@ -3702,9 +3705,11 @@ function snapPairHtml(prev, cur) {
       '<div class="snap-tbl">' +
       /* 列头（2026-09-23 两列合一）：原来「市场盈亏 / 累计盈亏」各占一列（64+72px），手机上挤掉名称列；
          合并后与下方数字**同网格**（左半格 / 右半格），字号不再区分主次时它就是唯一的图例。 */
+      /* 列头只写 2 字（2026-09-23）：每半格仅 ~52px，「市场盈亏」4 字在某些机型上会折成两行；
+         完整术语与口径放进 title，且卡片上方本来就有一整行「市场盈亏 / 累计盈亏」的正式读法。 */
       '<div class="snap-group-title"><span></span><span class="snap-tcol">' +
-        '<i title="市场盈亏：与上一期快照 ' + prev.d + ' 之间的波动（跨 ' + spanDays + ' 天，含休市）">市场盈亏</i>' +
-        '<i title="累计盈亏：相对持仓成本，含已实现">累计盈亏</i></span></div>' +
+        '<i title="本期＝市场盈亏：与上一期快照 ' + prev.d + ' 之间的波动（跨 ' + spanDays + ' 天，含休市）">本期</i>' +
+        '<i title="累计＝累计盈亏：相对持仓成本，含已实现">累计</i></span></div>' +
       lines.join("") + "</div>";
   }
   const actsHtml = snapActions(prev, cur);
