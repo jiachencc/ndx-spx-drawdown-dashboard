@@ -1244,7 +1244,7 @@ const SOURCE_META = {
     "status": "ok"
   },
   "etfNdx": {
-    "asOf": "2026-09-22",
+    "asOf": "2026-09-23",
     "source": "Tencent sz159941 qfq (latest price)",
     "fetchedAt": "2026-09-22T23:51:31.565Z",
     "status": "ok"
@@ -1258,7 +1258,7 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "hkus": {
-    "asOf": "2026-09-22",
+    "asOf": "2026-09-23",
     "source": "Tencent sz160644 qfq (latest price)",
     "fetchedAt": "2026-09-22T23:51:31.565Z",
     "status": "ok"
@@ -1272,7 +1272,7 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "kr": {
-    "asOf": "2026-09-22",
+    "asOf": "2026-09-23",
     "source": "Tencent sh513310 qfq (latest price)",
     "fetchedAt": "2026-09-22T23:51:31.565Z",
     "status": "ok"
@@ -1286,7 +1286,7 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "etfSpx": {
-    "asOf": "2026-09-22",
+    "asOf": "2026-09-23",
     "source": "Tencent sh513650 qfq (latest price)",
     "fetchedAt": "2026-09-22T23:51:31.565Z",
     "status": "ok"
@@ -1300,7 +1300,7 @@ const SOURCE_META = {
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "n225": {
-    "asOf": "2026-09-22",
+    "asOf": "2026-09-23",
     "source": "Tencent sh513880 qfq (latest price)",
     "fetchedAt": "2026-09-22T23:51:31.565Z",
     "status": "ok"
