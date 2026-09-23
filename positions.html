@@ -554,6 +554,15 @@
   .lad-line .lad-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; box-shadow: 0 0 0 3px var(--card); }
   .lad-name { font-size: var(--fs-xs); color: var(--tx3); flex: none; }
   .lad-val { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; }
+  /* 关系链（2026-09-23）：三档由「并列罗列」改为按值排序的链 —— 跨度直接写在相邻两项之间，
+     左→右阅读即「从这个数涨/跌多少到下一个数」，与下方分位条的左右方向一致。 */
+  .lad-chain { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .lad-hop { display: inline-flex; align-items: center; gap: 6px; }   /* 跨度＋箭头＋目标项：整组不可拆，折行只发生在跳与跳之间 */
+  .lad-gap { font-weight: 700; font-feature-settings: "tnum"; }
+  .lad-gap.up { color: var(--green); }
+  .lad-gap.down { color: var(--red); }
+  .lad-gap.warn { color: var(--yellow); }
+  .lad-arrow { color: var(--tx3); }
   .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
   .lad-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 6px; border: 1px solid; white-space: nowrap; font-feature-settings: "tnum"; }
   .lad-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
@@ -4538,8 +4547,23 @@ function holdCardHtml(row, i, ctx) {
   const quoteDate = mdOf(health.asOf) || mdOf(m.priceDate);
   const dateStr = quoteDate ? " (" + quoteDate + ")" : "（日期未核验）";
   const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
-  const chipCost = '<span class="lad-chip ' + cls(r) + '">' + (r >= 0 ? "▲" : "▼") + fmtPct(r) + ' 较成本</span>';
-  const chipHigh = '<span class="lad-chip ' + (m.close >= hi ? "up" : "warn") + '">' + (m.close >= hi ? "▲" : "▼") + fmtPct(m.close / hi - 1) + ' 距高点</span>';
+  /* 三档读数：按数值升序排成一条「关系链」（2026-09-23）—— 原来 高点/现价/成本 是固定顺序平铺 ＋
+     三个 chip，读者得自己把三个数比一遍才看得出关系；现在按值排序，相邻两项之间的跨度直接写在链上
+     （左→右：从这个数涨/跌多少到下一个数），方向与下方分位条一致；现价跌破成本时链条自己就翻过来。
+     原「较成本 / 距高点」两个 chip 的数值就是链上的两个跨度，故合并去掉（避免同一个数出现两次）。 */
+  const gapBetween = (a, b) => {
+    const g = b / a - 1;
+    /* 右端是成本 → 含义是「还要涨多少才回本」：琥珀，与「距成本位」同色，不用红（还没亏完）；
+       左端是成本 → 就是浮盈率（绿）；现价 ↔ 高点低于高点用琥珀，不当亏损看。 */
+    const c = (b === p.idxAtCost) ? "warn" : (a === p.idxAtCost ? (g >= 0 ? "up" : "down") : "warn");
+    const txt = fmtPct(g);   // fmtPct 自带正负号（用排版减号 −），不要再手工加 "+" → 否则会出 "++8.3%"
+    return '<span class="lad-gap ' + c + '" title="' + txt + '（' + fmtIdx(a) + ' → ' + fmtIdx(b) + '）">' + txt + '</span>';
+  };
+  const ladNodes = [
+    { v: p.idxAtCost, html: '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(3) + ' 元）"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtIdx(p.idxAtCost) + '</b></span>' },
+    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + (health.usable ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b></span>' },
+    { v: hi, html: '<span class="lad-item" title="52 周最高' + (m.athDate ? "（" + m.athDate + "）" : "") + '"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtIdx(hi) + '</b>' + athStr + '</span>' },
+  ].sort((x, y) => x.v - y.v);
   /* DCA 回撤加仓档 chip（成本口径：现价较成本每跌破一档即提示；POSITIONS.strategy.dipTiers 可覆盖 CONFIG 默认档） */
   const dipTiers = (POSITIONS.strategy && POSITIONS.strategy.dipTiers) || CONFIG.DCA_DIP_TIERS;
   const curDd = r * 100;
@@ -4556,6 +4580,20 @@ function holdCardHtml(row, i, ctx) {
       }
     }
   }
+  /* 链条拼装必须放在 chipDip 之后：初版把这段写在上面的三档代码里，引用了尚未初始化的 chipDip →
+     ReferenceError: Cannot access 'chipDip' before initialization，整卡渲染空白。
+     门禁与回归都只跑数据层、拦不住这种运行时错误；是 scripts/dom-check.mjs 抓到的。 */
+  const ladChain = (function () {
+    /* 每一跳（跨度 → 目标项）绑成不可拆的一组：手机上链条必然折行，若松着排就会出现
+       「…+3.4% →」光标悬在行尾、箭头指向的数值跑到下一行的情况（2026-09-23 手机截图抓到）。
+       inline-flex 设成整组，折行只能发生在跳与跳之间 —— 每行开头一定是「跨度 → 数值」。 */
+    const hop = (a, b, html) => '<span class="lad-hop">' + gapBetween(a, b) +
+      '<span class="lad-arrow" aria-hidden="true">→</span>' + html + '</span>';
+    return '<span class="lad-chain">' + ladNodes[0].html +
+      hop(ladNodes[0].v, ladNodes[1].v, ladNodes[1].html) +
+      hop(ladNodes[1].v, ladNodes[2].v, ladNodes[2].html) + '</span>' +
+      '<span class="lad-chips">' + chipDip + '</span>';
+  })();
   /* 原 ladRows（水位梯三行数据）已随水位梯合并为 .lad-line 一行而移除（2026-09-23） */
   /* 场内溢价 */
   /* 区间着色带：现价↔成本之间 = 当前浮盈(绿)/浮亏(红)区间；带内箭头从成本端指向现价端 */
@@ -4568,22 +4606,22 @@ function holdCardHtml(row, i, ctx) {
   if (prem && Number.isFinite(prem.pct)) {
     const pv = prem.pct;
     const pc = pv >= CONFIG.PREM_HIGH ? "prem-high" : pv >= CONFIG.PREM_WARN ? "prem-warn" : pv < 0 ? "prem-disc" : "prem-ok";
-    const tag = pv >= CONFIG.PREM_HIGH ? '<span class="prem-tag ' + pc + '"><span aria-hidden="true">⚠️</span> 明显高于净值，慎买</span>'
+    const tag = pv >= CONFIG.PREM_HIGH ? '<span class="prem-tag ' + pc + '"><span aria-hidden="true">⚠️</span> 溢价过高，慎买</span>'
       : pv >= CONFIG.PREM_WARN ? '<span class="prem-tag ' + pc + '">溢价偏高，买入留意</span>'
-      : pv < 0 ? '<span class="prem-tag prem-disc">折价</span>' : "";
+      : pv < 0 ? '<span class="prem-tag prem-disc">折价，场内买更划算</span>' : "";
     const premHealth = sourceHealth("premium:" + p.code);
-    /* 「价格/滞后净值差」＝场内收盘价 ÷ 基金**最近公布**的单位净值 − 1。
-       QDII 净值要晚 1~2 个交易日才出，两个数不同日 —— 脚本里对它的定性就是
-       "asynchronous price/NAV ratio, not contemporaneous premium"（不同步的价/净值比）。
-       正＝溢价（场内买贵了，买入即吃亏）；负＝折价（场内买更划算）。
-       逐日刷新的是那两个日期与净值，故 2026-09-23 把「价格日 / 净值」收进悬停：
-       行内只留「差值 ＋ 结论」，手机上少占一行（原来一行摆不下会折成两行）。 */
-    const premTip = "场内收盘价 ÷ 基金最近公布的单位净值 − 1。"
-      + (prem.priceDate ? "价格日 " + prem.priceDate + "；" : "")
+    /* 行名 2026-09-23 由「价格/滞后净值差（近似）」改为「溢价/折价（近似）」：
+       原先那名字是为了强调"两个数不同日、不是同期溢价"（脚本里的定性就是
+       "asynchronous price/NAV ratio, not contemporaneous premium"），但「差」是中性词，
+       看不出方向 —— 溢价＝买贵了、折价＝划算，术语本身就把结论带出来了，而且它与
+       data.js（AUTO：场内溢价率%）和本行结论标签同词。口径的保留都留给「（近似）」＋悬停。
+       算法：场内收盘价 ÷ 基金**最近公布**的单位净值 − 1；QDII 净值晚 1~2 个交易日。 */
+    const premTip = "溢价/折价（近似）＝场内收盘价 ÷ 基金最近公布的单位净值 − 1。"
+      + (prem.priceDate ? "本次：价格日 " + prem.priceDate + "；" : "")
       + "净值 " + (Number.isFinite(prem.nav) ? prem.nav.toFixed(4) : "--") + (prem.navDate ? "（" + prem.navDate + "）" : "") + "。"
-      + "QDII 净值要晚 1~2 个交易日才公布，所以这两个数不同日、只能算近似。"
-      + "正数＝溢价：场内买价比基金实际价值贵，买入即吃亏（卖出时溢价收窄同样吃亏）；负数＝折价，场内买更划算。";
-    premRow = '<div class="prem-row" title="' + esc(premTip) + '"><span>价格/滞后净值差（近似）</span>' +
+      + "QDII 的净值要晚 1~2 个交易日才公布，所以这两个数不同日、只能算近似（不是同期溢价）。"
+      + "正数＝溢价：场内买价比基金实际价值贵，买入即吃亏（卖出时溢价收窄同样吃亏）；负数＝折价：场内买更划算。";
+    premRow = '<div class="prem-row" title="' + esc(premTip) + '"><span>溢价/折价（近似）</span>' +
       '<b class="' + pc + '">' + (Number.isFinite(pv) ? fmtPct(pv / 100, 1) : "--") + '</b>' + (premHealth.usable ? tag : '<span class="prem-note">' + esc(premHealth.text) + '</span>') +
     '</div>';
   }
@@ -4598,7 +4636,7 @@ function holdCardHtml(row, i, ctx) {
       '<span class="held">' + (heldDays ? '持有 ' + heldDays + ' 天 · ' : '') + '市值 ' + fmtYuan(valAmt) + '</span>' +
     '</div>' +
     '<div class="kpi-row kpi3">' +
-      '<div class="kpi"><div class="k-label" title="按场内现价估算（含溢价），与 App 净值口径的差额≈本卡「价格/滞后净值差」">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + ' 元</div></div>' +
+      '<div class="kpi"><div class="k-label" title="按场内现价估算（含溢价），与 App 净值口径的差额≈本卡「溢价/折价」那一行">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + (pl >= 0 ? "+" : "") + fmtYuan(pl) + ' 元</div></div>' +
       /* 成本价并入本格副行（2026-09-23）：原「份数 / 成本价」独占一行 24px，且成本价在卡内出现 4 次 */
       '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">成本 ' + p.cost.toFixed(3) + ' 元 · ' + (backToCost >= 0 ? "需涨 " + fmtPct(backToCost).slice(1) + " 回本" : "跌 " + fmtPct(backToCost).slice(1) + " 回成本") + '</div></div>' +
       /* 份数并入本格副行（与「占比」同属「持有规模」那种量） */
@@ -4607,11 +4645,7 @@ function holdCardHtml(row, i, ctx) {
     /* 成本 / 现价 / 高点 三档读数（2026-09-23：原「水位梯」三行 ＋ 三根迷你轨道合并成这一行）
        —— 原来它与下面的分位条是同一份「区间位置」的两种画法，合计占 219px（整卡 46%）；
        位置信息统一交给分位条，这里只留数值与结论 chip（点的配色与条上的三个标记一致）。 */
-    '<div class="lad-line">' +
-      '<span class="lad-item"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtIdx(hi) + '</b>' + athStr + '</span>' +
-      '<span class="lad-item"><i class="lad-dot" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b>' + dateStr + chipCost + chipHigh + '</span>' +
-      '<span class="lad-item"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtIdx(p.idxAtCost) + '</b>' + chipDip + '</span>' +
-    '</div>' +
+    '<div class="lad-line">' + ladChain + '</div>' +
     premRow +
     '<div class="bar-wrap">' +
       '<div class="bar-title"><span>成本位置 · 分位 <b>' + pct.toFixed(0) + '%</b><span class="pos-tier ' + tier[0] + '"><span aria-hidden="true">' + tier[2] + '</span> ' + tier[1] + '</span></span></div>' +
@@ -4631,7 +4665,7 @@ function holdCardHtml(row, i, ctx) {
       '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>' +
       '规则：<b>' + ruleTxt + '</b>（见 data.js POSITIONS.strategy）；未触发时本行只显示「未触发」，不重复规则。<br>' +
       '条上的<b>绿点/红圈</b>是历次买入/卖出的成交价位置（<b>含已减仓的部分</b>，所以可能落在成本位下方）；当前持仓的成本分布看青色「成本」位。<br>' +
-      '卡内市值/浮盈按<b>场内现价</b>（含溢价）估算；「价格/滞后净值差」＝场内收盘价 ÷ 基金<b>最近公布</b>的单位净值 − 1：' +
+      '卡内市值/浮盈按<b>场内现价</b>（含溢价）估算；「溢价/折价（近似）」＝场内收盘价 ÷ 基金<b>最近公布</b>的单位净值 − 1：' +
       'QDII 净值晚 1~2 个交易日才出、两个数不同日，故为近似；正＝溢价（场内买贵了）、负＝折价。</div>' +
     '</div>' +
     posLogHtml(p, r, pl) +
