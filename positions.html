@@ -283,8 +283,10 @@
   .snap-line .n { font-weight: 600; color: var(--tx2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .snap-line .v { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
   .snap-line .v b { color: var(--tx); font-weight: 700; }
-  /* 持仓明细行：「名称(+仓位小标签) | 本期盈亏 | 累计盈亏」——重心在盈亏，仓位降为名称后缀 */
-  .snap-line.item { grid-template-columns: 1fr 78px 84px; }
+  /* 持仓明细行：「名称(+份数变化) | 市场盈亏 · 累计盈亏」——重心在盈亏，仓位降为名称后缀。
+     2026-09-23：盈亏由两列并为一列（原来 78+84px），手机上一列换成 116px、宽屏 124px，
+     腾出的宽度还给名称；两个数按字号分主次（见 .dv / .cv）。 */
+  .snap-line.item { grid-template-columns: 1fr 124px; }
   /* flex-wrap（2026-09-23）：名称是这一行里**唯一**可压缩的项（其余三个标签都 flex-shrink:0），
      手机上名称列只有 ~140px，被「/ 渠道 + 净值日 + 份数」三个标签挤到只剩 ~40px →
      「华安纳指C」显示成「华…」，认不出是哪只基金。允许换行后：名称整占一行，
@@ -340,8 +342,12 @@
      ① 本期有动作（份额变了 / 盈亏幅度 ≥1 元）：市场盈亏列加粗着色，排在组内最前（亏得最多在最上）；
      ② 本期无变动（场外净值滞后时整天不动很常见）：该列降为灰字常规字重，排到组内末尾。
      累计盈亏列不参与分级——它是持仓水平，本期无变动 ≠ 没事（港美 −5,368 就是长期浮亏）。 */
-  .snap-line.item .d { font-weight: 700; }
-  .snap-line.item.snap-flat .d, .snap-line.item.snap-flat .d span { color: var(--tx3); font-weight: 400; }
+  /* 合并列内的主次（2026-09-23）：左＝市场盈亏（本期事件，大一号、加粗、带色）；
+     右＝累计盈亏（持仓水平，小一号、常规字重）。同一列里靠字号区分，不再各占一列。 */
+  .snap-line.item .d .dv { font-weight: 700; font-size: var(--fs-sm); }   /* 与名称同级（13px）＝本期事件 */
+  .snap-line.item .d .cv { font-weight: 400; font-size: var(--fs-xxs); margin-left: 6px; }   /* 小一号（10px）＝持仓水平 */
+  /* 「本期无变动」的行：把**市场盈亏**降灰（累计盈亏保留自己的颜色 —— 它是持仓水平，不是本期事件） */
+  .snap-line.item.snap-flat .d .dv { color: var(--tx3); font-weight: 400; }
   .snap-line .v .snap-sub { color: var(--tx3); }   /* 内容列内的次级小注 */
   .snap-tag { font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 6px; border: 1px solid; white-space: nowrap; }
   .snap-tag.add { color: var(--cyan); border-color: var(--info-line); background: var(--info-bg); }
@@ -922,8 +928,8 @@
     .pl-amt { font-size: var(--fs-md); }
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
     .snap-part { grid-template-columns: 58px 1fr auto; }   /* 与 .snap-line 同步收窄，保持一致 */
-    .snap-line.item { grid-template-columns: 1fr 58px 64px; }   /* 两个数字列各收 6/8px，留给名称 */
-    .snap-group-title { grid-template-columns: 1fr 58px 64px; }
+    .snap-line.item { grid-template-columns: 1fr 116px; }   /* 合并列后同 116px，比原来的 64+72+间距更省 */
+    .snap-group-title { grid-template-columns: 1fr 116px; }
     .snap-group { grid-template-columns: 1fr 64px 72px; }
     .snap-line.item .n .qty-tag { font-size: var(--fs-xxs); }
     .snap-parts, .snap-tbl { padding-left: 10px; }   /* 标签列已统一 58px，此处不再重复定义 */
@@ -3597,7 +3603,10 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
   let qt = "";
   if (tag) qt = '<span class="snap-tag ' + tag + '">' + SNAP_TAG_TXT[tag] + "</span>";
   else if (dq !== null && Math.abs(dq) >= 0.5)
-    qt = '<span class="qty-tag">' + (dq > 0 ? "+" : "−") + fmtQty(Math.abs(dq)) + "份</span>";
+    /* 场外份额是小数（定投按金额确认份数）：0.6 份经 fmtQty（trunc）会显示成「+0份」，
+       看着像没变。10 份以下改保留小数（+0.6份 / +0.42份），10 份以上仍取整。2026-09-23。 */
+    qt = '<span class="qty-tag">' + (dq > 0 ? "+" : "−") +
+      (Math.abs(dq) < 10 ? String(+Math.abs(dq).toFixed(2)) : fmtQty(Math.abs(dq))) + "份</span>";
   const src = srcLabel(code);
   /* hideSrc：分组头已写明「场内」，行内不再逐条重复；场外仍标渠道（博时/华安/支付宝…）。
      2026-09-23 再加一条：**渠道已被名称包含时不再重复标** —— 手机上「华安纳指C / 华安」里那个
@@ -3605,11 +3614,18 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
      完整渠道名一直在 .n 的 title 里（src.f），信息没丢。 */
   const srcRedundant = src.s.length >= 2 && name.indexOf(src.s) === 0;
   const srcTag = (hideSrc || srcRedundant) ? "" : '<span class="snap-src">' + esc(src.s) + "</span>";
-  /* flat：本期份额没动、盈亏也不足 1 元 → 「市场盈亏」列降灰（.snap-flat），
-     与有动作的行拉开层次；「累计盈亏」不动，那是持仓水平不是本期事件。 */
-  return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
-    srcTag + (navHtml || "") + qt + "</span>" +
-    '<span class="d">' + snapSigned(dPlItem) + '</span><span class="v">' + snapSigned(plCum) + "</span></div>";
+  /* 逐只净值日不再占版面（2026-09-23）：场外 8 只里 7 只是同一天，分组头已写「净值日 09.21~09.22 混排」，
+     逐条重复只让名称列更窄。日期改挂进 .n 的 title（悬停可查，信息不丢）。 */
+  const navTxt = navHtml ? String(navHtml).replace(/<[^>]*>/g, "").trim() : "";
+  /* 两列合一列（2026-09-23）：左＝市场盈亏（本期波动，大而粗、带色），右＝累计盈亏（持仓水平，小一号、常规字重）。
+     原来两者同字号同字重、各占一列（64+72px），手机上既挤名称，又分不出主次。 */
+  const num = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);
+  return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) +
+      (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
+    srcTag + qt + "</span>" +
+    '<span class="d" title="市场盈亏 ' + num(dPlItem) + " 元（与上一期之间的波动）· 累计盈亏 " + num(plCum) + ' 元（相对持仓成本，含已实现）">' +
+      '<span class="dv ' + cls(dPlItem) + '">' + num(dPlItem) + '</span>' +
+      '<span class="cv ' + cls(plCum) + '">' + num(plCum) + "</span></span></div>";
 }
 function snapPairHtml(prev, cur) {
   const tp = snapTotal(prev), tc = snapTotal(cur);
@@ -3674,7 +3690,10 @@ function snapPairHtml(prev, cur) {
     /* 只数从小节标题承载（原由「合计 13 只」行承载）；列头只标两个数字列 */
     holdHtml = '<div class="snap-sec">持仓变化 <span class="snap-cnt">' + codes.length + " 只</span></div>" +
       '<div class="snap-tbl">' +
-      '<div class="snap-group-title"><span></span><span title="与上一期快照 ' + prev.d + ' 之间的盈亏变化（跨 ' + spanDays + ' 天，含休市）">市场盈亏' + (spanDays > 1 ? "·跨" + spanDays + "天" : "") + '</span><span>累计盈亏</span></div>' +
+      /* 列头（2026-09-23 两列合一）：原来「市场盈亏 / 累计盈亏」各占一列（64+72px），手机上挤掉名称列；
+         现在同一格内按字号分主次（左大右小），列头跟着缩成一格。 */
+      '<div class="snap-group-title"><span></span><span title="左＝市场盈亏：与上一期快照 ' + prev.d +
+        ' 之间的波动（跨 ' + spanDays + ' 天，含休市）；右＝累计盈亏：相对持仓成本，含已实现">市场盈亏 · 累计盈亏</span></div>' +
       lines.join("") + "</div>";
   }
   const actsHtml = snapActions(prev, cur);
