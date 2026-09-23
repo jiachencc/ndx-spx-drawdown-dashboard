@@ -84,7 +84,13 @@ ndx_spx_dashboard_handoff/
 3. `positions.html` → `OTC.updated`、`OTC.cash`（各渠道可用资金合计）
 4. `positions.html` → `OTC.funds[]`：每只场外的 `value`（资产）/ `pnl`（持仓收益）/ `day`（当日收益；**`null` = 该日未更新，勿用 0 冒充**）/ `rate` / `nav.close` + `nav.closeDate` / `upd`（**截图同步时间** `"YYYY-MM-DD HH:MM"`，取截图状态栏时刻；页面据此显示「✓时间/待更」徽章与「已同步 X/8」进度，各 App 更新时间不一致、截图分批发时一眼看出还欠哪家）
 5. `positions.html` → `SNAPSHOTS[]`：新增一期（完整快照带 `items`，或简快照带 `total`）
-6. `data.js` → `ACCT_STATS.updated` / `.pnl` / `.pnlPct` / `.monthly[当月].pnl`
+6. `data.js` → `DEFAULT.etfNdx / etfSpx / kr / n225 / hkus`：五只场内 ETF 自身场内价的 `close` / `chg`（`priceDate` = 券商收盘日）
+   ⚠ **`git push` 不触发行情抓取** —— 日更任务只在**定时**跑（cron `47 21 * * 1-5` = 北京 05:47），push 只触发**校验**（check-data / 回归 / eslint / dom-check）。
+   → **推送当天这五条不会自己更新**，页面（持仓卡 KPI、三档链条、分位条、快照）会停在上一交易日报价。
+   当天就要出当日数时，按券商截图**手填**这五条 + 在块内注释写明「手填、次日 05:47 定时任务会用同一源覆盖成一致值」
+   （2026-09-23 首次实操：手填 5 条）。手填后必自查两处一致：`positions.html` 快照 `items[].val` = 手填 `close` × `qty`，对不上说明有一处写错。
+   （AUTO 的 `premiums` 同样滞后一档：它由脚本按「场内收盘价 ÷ 天天基金净值」算，手填当天价会让**价格日 ≠ 净值日**——卡头溢价胶囊会照实显示两个日期，属正常，不是 bug。）
+7. `data.js` → `ACCT_STATS.updated` / `.pnl` / `.pnlPct` / `.monthly[当月].pnl`
 
 **易漏项**（2026-09-08 实操踩过，务必逐条核对）：
 - `OTC.cash`：券商「可用资金」变化要同步（它隐含当日银证转账净额，漏了会让归因对不上）
@@ -92,6 +98,7 @@ ndx_spx_dashboard_handoff/
 - 场外「在途」交易（定投/申购待确认）：**市值已含、盈亏未含**，须在当期 `note` 里注明金额
 - 未刷新的平台（如某只 App 当天没更新）：保留旧值 + `day: null`，并在注释里写明沿用日期
 - 新快照的 `items[].cost` 用「`val` − `pl`」反推，与 App 读数的分位误差属正常（≤ 几元）
+- **场内五只报价（条目 6）当天不会自动更新**：抓取只在定时（北京 05:47）跑，push 不会触发 —— 别以为推完就刷新了
 
 **隐私约束（勿违反）**：`FLOWS`（银证转账）**默认留空**——属收入侧指纹，不入库。留空后归因由「Δ累计投入」自动推导，与实锤值误差 <0.5%（2026-09-08 实测：推导 20,354 vs 实际 20,300，差 0.27%），不影响结论。用户如需本地银证实锤，记在 `data.private.backup.js`（已 .gitignore），**切勿提交**。
 
@@ -217,6 +224,7 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 - [x] ~~NDX 滞后 1 天~~：脚本现在直接抓 ^NDX / ^GSPC 官方指数，不再 QQQ 推导。
 - [x] ~~MONTHLY 无提醒机制~~：月度涨跌幅已由脚本按日 K 自动聚合（2026-08-28 起），不再是人工项。
 - [ ] **监控 Actions 健康度**：偶尔瞄一眼仓库 Actions 页 `update-data` 是否绿；连续红叉按 §3.3 兜底流程转人工。
+- [ ] **行情抓取只在定时跑、push 不触发**：`update-data` 的 cron = `47 21 * * 1-5`（北京 05:47），`git push` 只跑校验 → 推送当天的场内报价需按截图手填（见 §3.3 SOP **第 6 步**）。可选优化：给 workflow 加 `push` 触发（或 `workflow_dispatch`），让推完即刷；未加之前按 SOP 手填。
 - [ ] 可选优化：降低首屏信息密度。——部分完成（2026-09-19）：快照卡「期次解读」折叠（≈1928px）+ 卡片版式统一 + 空分隔行清理，首屏约省 2050px；走势卡的读数条三层结构与图内标注精简见 §4.5「资产走势」条。
 
 ---
