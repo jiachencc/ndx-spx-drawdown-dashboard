@@ -218,6 +218,21 @@
   .alloc-seg.global { background: linear-gradient(180deg, var(--tint-solid), var(--tint-fill)); }
   .alloc-seg.cash { background: linear-gradient(180deg, var(--tint-fill), var(--tint-line)); }
   .alloc-seg b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  /* ===== 组合占比图例（2026-09-23 加）=====
+     色带上放不下的名称与占比在这里全部可读（条内标签要按像素宽取舍，见 layoutAllocLabels），
+     而且图例项本身就是点击目标 —— 最窄的段只有 3px，手机上根本点不到（点它弹明细，见买入气泡处理）。 */
+  .alloc-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 7px; }
+  .alloc-key { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 1px 0; cursor: pointer; font-family: var(--sans); font-size: var(--fs-xs); color: var(--tx2); }
+  .alloc-key:hover { color: var(--tx); }
+  .alloc-key b { font-family: var(--mono); font-weight: 700; color: var(--tx); font-feature-settings: "tnum"; }
+  .alloc-key i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .alloc-key.ndx i { background: var(--accent-solid); }
+  .alloc-key.spx i { background: var(--purple-solid); }
+  .alloc-key.kr i { background: var(--info-solid); }
+  .alloc-key.n225 i { background: var(--warn-solid); }
+  .alloc-key.hkus i { background: var(--up-solid); }
+  .alloc-key.global i { background: var(--tint-solid); }
+  .alloc-key.cash i { background: var(--tx3); }   /* 不用 --tint-line：浅色主题下几乎看不见；与 MARKET_COLORS.cash 同色 */
 
   /* ===== 盈亏总览：移动优先的两行式列表 =====
      这里原先画「左亏右盈发散条」。条其实只是金额的另一种画法，却占掉近一半宽度，
@@ -992,6 +1007,7 @@ try {
   <div class="card">
     <div class="sum-grid" id="sum-grid"></div>
     <div class="alloc-bar" id="alloc-bar" role="img" aria-label="组合占比"></div>
+    <div class="alloc-legend" id="alloc-legend"></div>
   </div>
 
   <h2 class="sec-title" id="sec-pl"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
@@ -2144,15 +2160,28 @@ function renderImpl() {
   alloc.cash = (alloc.cash || 0) + OTC.cash;
   const allocTotal = Object.values(alloc).reduce((a, b) => a + b, 0);
   const ALLOC_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日本", hkus: "港美", global: "全球", cash: "现金" };
-  $("alloc-bar").innerHTML = Object.keys(alloc).map((k) => {
+  /* 每类资产的成员明细（写进弹框）：这类资产的 19.9 万里，场内有谁、场外有谁 */
+  const allocList = Object.keys(alloc).map((k) => {
     const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
-    const label = w >= 8 ? ALLOC_SHORT[k] + " " + w.toFixed(0) + "%" : w >= 3 ? w.toFixed(0) + "%" : "";
-    const tip = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + "）";
-    return '<button type="button" class="alloc-seg ' + k + '" style="width:' + w.toFixed(1) + '%"' +
-      (w < 1 ? " tabindex=\"-1\"" : "") + ' title="' + tip + '" aria-label="' + tip + '">' + label + "</button>";
-  }).join("");
-  $("alloc-bar").setAttribute("aria-label", "组合占比：" + Object.keys(alloc).map((k) =>
-    ALLOC_NAMES[k] + " " + (allocTotal ? (alloc[k] / allocTotal * 100).toFixed(1) : 0) + "%（" + fmtYuan(alloc[k]) + "）").join("，"));
+    const etf = rows.filter((r) => r.p.idx === k).map((r) => r.p.sym + " " + fmtYuan(r.valAmt));
+    const otc = otcRows.filter((r) => r.f.theme === k).map((r) => plDisplayName(r.f.name) + " " + fmtYuan(r.valAmt));
+    const member = [etf.length ? "场内 " + etf.join("、") : "", otc.length ? "场外 " + otc.join("、") : ""].filter(Boolean);
+    const head = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + " 元）";
+    return { k, name: ALLOC_SHORT[k] || k, w, amt: alloc[k], tip: head + (member.length ? " ｜ " + member.join("；") : "") };
+  }).sort((a, b) => b.w - a.w);   // 大块在前：色带与图例同序，读起来从大到小
+  /* 条内标签**不在渲染时写死**：写什么由像素宽决定，交给 layoutAllocLabels()（窗口变化时重算）。
+     段上带 data-w（原始占比）与 data-short（短名）供它使用；data-tip 是唯一的内容来源 ——
+     原来这里只写了 title/aria-label，而点击处理读的是 dataset.tip，于是弹出一个空框 ✗。 */
+  $("alloc-bar").innerHTML = allocList.map((x) =>
+    '<button type="button" class="alloc-seg ' + x.k + '" style="width:' + x.w.toFixed(1) + '%"' +
+    ' data-w="' + x.w.toFixed(1) + '" data-short="' + x.name + '" data-tip="' + esc(x.tip) + '"' +
+    (x.w < 1 ? ' tabindex="-1"' : "") + ' title="' + esc(x.tip) + '" aria-label="' + esc(x.tip) + '"></button>').join("");
+  layoutAllocLabels();
+  $("alloc-legend").innerHTML = allocList.map((x) =>
+    '<button type="button" class="alloc-key ' + x.k + '" data-tip="' + esc(x.tip) + '"' +
+    ' title="' + esc(x.tip) + '" aria-label="' + esc(x.tip) + '"><i></i>' + x.name + ' <b>' + x.w.toFixed(1) + "%</b></button>").join("");
+  $("alloc-bar").setAttribute("aria-label", "组合占比：" + allocList.map((x) =>
+    x.name + " " + x.w.toFixed(1) + "%（" + fmtYuan(x.amt) + " 元）").join("，"));
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
@@ -4976,6 +5005,24 @@ $("pos-list").addEventListener("keydown", (e) => {
   flashBuyMark(item);
 });
 
+/* ---- 组合占比条内标签 ----
+ * 写「纳指 40%」还是「40%」还是留空，取决于该段的**像素宽**（= 条的像素宽 × 占比），
+ * 而不是百分比 —— 同样的 15% 在桌面有 150px、在手机上只有 54px，写死阈值必然在手机上被
+ * .alloc-seg 的 overflow:hidden 裁掉（原来就是这么坏的：手机上看不到「中韩 15%」）。
+ * 窗口尺寸变化时重算；jsdom 下 clientWidth 为 0，退回 360 的估计值（不影响断言）。 */
+function layoutAllocLabels() {
+  const bar = $("alloc-bar");
+  if (!bar) return;
+  const bw = bar.clientWidth || 360;
+  bar.querySelectorAll(".alloc-seg").forEach((s) => {
+    const w = +s.dataset.w || 0;
+    const px = bw * w / 100;
+    s.textContent = px >= 62 ? (s.dataset.short || "") + " " + Math.round(w) + "%"
+      : px >= 26 ? Math.round(w) + "%" : "";
+  });
+}
+window.addEventListener("resize", layoutAllocLabels);
+
 /* ---- 买入气泡 ---- */
 const buyTip = document.createElement("div");
 buyTip.className = "buy-tip";
@@ -4983,12 +5030,15 @@ buyTip.style.display = "none";
 document.body.appendChild(buyTip);
 let lastBuyMark = null;
 document.addEventListener("click", (e) => {
-  const seg = e.target.closest(".alloc-seg");
+  /* 组合占比：色带段与图例项共用同一个弹框。原来只匹配 .alloc-seg、且读的是从未写过的
+     dataset.tip → 空框；现在两者都带 data-tip，并加一道 title 兜底。 */
+  const seg = e.target.closest(".alloc-seg, .alloc-key");
   if (seg) {
     if (seg === lastBuyMark) { buyTip.style.display = "none"; lastBuyMark = null; return; }
     lastBuyMark = seg;
-    buyTip.textContent = seg.dataset.tip;
-    buyTip.style.whiteSpace = "nowrap"; buyTip.style.maxWidth = ""; buyTip.style.textAlign = "";
+    buyTip.textContent = seg.dataset.tip || seg.getAttribute("title") || "";
+    /* 明细可能三四行（占比 + 金额 + 场内成员 + 场外成员），所以要允许换行、限宽居中 */
+    buyTip.style.whiteSpace = "normal"; buyTip.style.maxWidth = "280px"; buyTip.style.textAlign = "center";
     buyTip.style.display = "block";
     const sr = seg.getBoundingClientRect();
     const sw = buyTip.offsetWidth;
