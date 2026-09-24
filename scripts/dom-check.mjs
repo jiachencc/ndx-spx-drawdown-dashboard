@@ -97,13 +97,23 @@ const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
 check("汇总卡总资产 = 最新快照 " + money(snapTotal), near(sumText, snapTotal, 3), sumText.slice(0, 140));
 check("汇总卡浮盈亏 = 最新快照 " + money(latest.pl), near(sumText, latest.pl), sumText.slice(0, 140));
 
-/* ③b 汇总卡「当日盈亏」= 最新快照的 day（2026-09-23 加）
-   页面当日 = 场内估（DEFAULT.chg × 份数）+ 场外快（Σ OTC.funds[].day），必须与快照里留档的 day 对得上。
-   这是「当日」在渲染层唯一的校验点，也顺带看住两种偏差：
-   ① 报价或场外读数被改过、而快照没跟着改；② 当日栏的算法改动没同步到数据。
-   容差 5：场内/场外两段各自取整后相加，与未取整的合计天然差 1~2 元。 */
+/* ③b 汇总卡「当日盈亏」= 最新快照的 day（2026-09-23 加；2026-09-24 拆成两条）
+   页面当日 = 场内估（DEFAULT.chg × 份数）+ 场外快（Σ OTC.funds[].day）。两段的精度不同，必须分开断言：
+     ① 合计 ≈ 快照 day：场内那段是按 DEFAULT.chg 估的，而 chg 只留 2 位小数（手填 0.817 → 定时任务刷成 0.82），
+        误差 ≈ 持仓市值 × 0.005% ≈ 0.01% 总资产（2026-09-24 实测 5.2 元）→ 只能给宽容差，
+        否则定时任务一刷新报价就误报（当天 05:47 那次正是如此）。
+     ② 场外那一段单独对「快照 items 推出来的场外当日」（tol 5 元）—— 这一条才是有效的那条：
+        它把页面数字锚在**历史留档**上，而不是与自己的数据源比（与自己比永远自洽）。
+        2026-09-24 反向验证：把某只场外的 day 改 10.74 元，只有它拦得住。 */
 const dayCell = sum ? [...sum.querySelectorAll(".sum-cell")].map((el) => el.textContent.replace(/\s+/g, "")).find((t) => t.includes("当日盈亏")) : null;
-check("汇总卡当日盈亏 = 最新快照 " + money(latest.day), !!dayCell && near(dayCell, latest.day, 5), dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
+check("汇总卡当日盈亏 ≈ 最新快照 " + money(latest.day), !!dayCell && near(dayCell, latest.day, Math.max(10, Math.round(snapTotal * 0.0001))), dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
+const prevFull = ctx.rows.filter((s) => s.items).at(-2);
+const IN_CODES = ["159941", "513650", "513310", "513880", "160644"];   // 场内五只（同 SNAP_MKT）
+if (dayCell && prevFull) {
+  const otcDay = Object.entries(latest.items).filter(([c]) => !IN_CODES.includes(c))
+    .reduce((a, [c, it]) => { const p = prevFull.items[c]; return a + ((it.val - it.cost) - (p ? p.val - p.cost : 0)); }, 0);
+  check("汇总卡「场外快」= 快照推的场外当日 " + money(otcDay), near(dayCell, otcDay, 5), dayCell.slice(0, 140));
+}
 
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
