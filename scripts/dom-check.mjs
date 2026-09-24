@@ -75,7 +75,10 @@ await new Promise((r) => win.setTimeout(r, 400));   // 等首屏渲染
 const money = (n) => Math.abs(Math.round(n)).toLocaleString("en-US");
 /* 卡片显示会按需截断或取整（2,482.97 → 「2,482」），所以按数值容差比对，
    而不是拼一个字符串去 includes —— 那样一遇到四舍五入/单位（万）就假报警。 */
-const numsOf = (t) => (t.match(/-?\d[\d,]*(?:\.\d+)?/g) || []).map((s) => +s.replace(/,/g, ""));
+/* ⚠ 负号必须同时认 U+2212「−」（页面 fmtAmt/fmtYuan 用的就是它）：只写 ASCII 的 - 时，
+   2026-09-24 首次出现「负数当期盈亏」就集体误报 —— 取出的是 3,041 而快照是 −3,041.40，
+   |3041 − (−3041.4)| = 6082 → 四条断言全挂（浮盈亏 / 当日 / 场外快 / 走势卡读数）。 */
+const numsOf = (t) => (t.match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || []).map((s) => +s.replace(/,/g, "").replace("−", "-"));
 const near = (t, v, tol = 1) => numsOf(t).some((n) => Math.abs(n - v) <= tol);
 
 const checks = [];
