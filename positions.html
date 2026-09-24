@@ -411,23 +411,33 @@
   /* 数值后紧跟的小注一律留 5px 间隙（与 .snap-subblock 同值）：10px 小注贴着 12px 等宽数字会糊成一串，
      原先靠 .snap-subblock 的 margin-left 提供，改用 .snap-sub 后就没有间隙了，故在此统一补上。 */
   .snap-part .snap-sub { margin-left: 5px; }
-  /* 「银行进出」的构成小注（快照对比）：竖排小账本（2026-09-24 用户反馈）——
-     原是一条长 flex 公式「＝ 银证转账 X ＋ 场外申购 Y └ A +200 · B +100」，
-     折行点不可控、构成与明细混在一团，看不出「由什么组成」；
-     现每个构成项独占一行（名称 + 带符号金额），场外逐只明细为缩进一组。 */
-  .snap-part .snap-flow { margin-left: 0; }   /* 覆盖 .snap-part .snap-sub 的 5px（缩进统一由 padding-left 给） */
-  /* 小注独占一整行（grid-column: 1/-1）—— 用满卡片宽度，手机上明细才能两三个一行，
-     而不是被挤在 66px 标签列之后那 ~180px 里（那样区间卡会长到 10 行）。 */
-  .snap-flow { grid-column: 1 / -1; display: block; margin-top: 2px; padding-left: 14px; line-height: 1.7; }
-  .sf-line { white-space: nowrap; }
-  .sf-line b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; margin-left: 4px; }
-  .sf-line b.info { color: var(--info); }
-  .sf-line b.warn { color: var(--warn); }
-  /* 场外逐只明细（与「早期未拆」说明句）：缩进一组；项是 nowrap 原子，整组可折行。
+  /* 「银行进出」的构成小账本（快照对比）—— 2026-09-24 重做（用户反馈：组成关系不明显、缩进难看、
+     场外下面很长一串）。三处对症：
+       ① 金额右对齐成一列：构成项用 grid 两列（名称 | 金额），三行金额落在同一条竖线上，
+          「54,408 + 6,334 + 33,883 = 94,626」这种相加关系才一眼可见（原来金额紧跟名称、左对齐）。
+       ② 一条 2px 竖脊（border-left）把三项框成一组，表示「同属上面那个合计」；
+          明细不再靠「多缩进 12px」分层（那样两条边界线糊在一起、看着乱），
+          而是降为小一号 + 弱色的次级文字 —— 层次由字级与颜色表达，不靠缩进。
+       ③ 明细最多 2 项 + 「其余 N 项 净额」：手机上再多就会折成「很长一串」。 */
+  .snap-part .snap-flow { margin-left: 0; }   /* 覆盖 .snap-part .snap-sub 的 5px（缩进统一由竖脊给） */
+  /* 小账本独占一整行（grid-column: 1/-1）—— 用满卡片宽度，明细才不至于被挤在 66px 标签列之后。 */
+  .snap-flow { grid-column: 1 / -1; margin-top: 5px; line-height: 1.7; }
+  .sf-led { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 10px; row-gap: 1px; align-items: baseline;
+            margin-left: 9px; padding-left: 11px; border-left: 2px solid var(--line); }
+  .sf-row { display: contents; }   /* 名称/金额升为 .sf-led 的 grid 项 → 金额列自动对齐 */
+  .sf-k { color: var(--tx2); white-space: nowrap; }
+  /* 金额紧随标签列（两列 max-content）—— 与父行「银行进出 +94,626」同一种排法：
+     第一版把金额推到卡片最右（justify-self: end），三行数字确实成列了，但与父行的数字相隔半个卡片宽，
+     反而读不出「这三项是上面那个合计的组成」（2026-09-24 手机截图对照）。 */
+  .sf-row b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .sf-row b.info { color: var(--info); }
+  .sf-row b.warn { color: var(--warn); }
+  /* 明细（逐期/逐只）与「早期未拆」说明句：次级文字（小一号 + 弱色），整组可折行。
      ⚠ 长句用 .sfp（可折行），千万别套 .sfx —— nowrap 会让 min-content 等于整句宽度，
      把 .snap-part 的 1fr 列撑破、溢出被卡片裁掉（2026-09-22 踩过）。 */
-  .sf-det { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 8px; padding-left: 12px; }
-  .sf-det .sfx { white-space: nowrap; }
+  .sf-det { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px;
+            padding: 0 0 2px 10px; font-size: var(--fs-xxs); color: var(--tx3); }
+  .sf-det .sfx { white-space: nowrap; font-feature-settings: "tnum"; }
   .sf-det .sfp { white-space: normal; }
   /* 组成块与紧随其后的行（当日盈亏 / 当前浮亏）之间留分组间距 */
   .snap-parts + .snap-line, .snap-parts + .snap-part { margin-top: 6px; }
@@ -3419,50 +3429,49 @@ function snapFlowSplit(prev, cur, flow) {
     nSkip: nSkip, skipFrom: skipFrom, skipTo: skipTo, rows: rows, done: seq.length - nSkip,
   };
 }
-/* 行内小注：「银行进出」的构成竖排小账本（每项一行，紧跟各自的明细组）。
- * 逐只/逐期的完整口径仍留在「?」浮层里（见 snapFlowTip）。 */
+/* 行内小注：「银行进出」的构成小账本（名称 | 金额右对齐成一列，明细为次级文字一行）。
+ * 逐只/逐期的**完整**口径仍留在「?」浮层里（见 snapFlowTip）—— 行内只给前两项 + 其余净额。 */
 function snapFlowNote(flow, sp) {
   if (!sp || Math.abs(flow) < 1) return "";
-  /* 竖排小账本（2026-09-24 用户反馈）：每个构成项独占一行「名称 + 带符号金额」，
-     各行金额相加即上方总数；颜色沿用总数约定：流入 info、流出 warn（资金方向，不是盈亏）。
-     2026-09-24 再优化（用户要求「明细」）：
-       · 银证转账也给出**逐期**明细（原来只有一行合计 —— 区间卡上 +54,408 看不出是哪几天进的），
-         与「场外逐只」对称：日期 + 金额，最多 3 项、多出的归「等 N 期」；
-       · 场外那一项的名称随符号走（净申购 / 净赎回）—— 赎回期原来显示「场外申购 −400」，字面自相矛盾；
-       · 金额为 0 的项不再印成「+0」（fmtAmt(0) 会带正号），直接印 0。 */
+  /* 2026-09-24 重做（用户反馈：「罗列不好看、组成关系不明显、缩进难看、场外下面很长一串」）：
+     · 构成项走 grid 两列（CSS .sf-led/.sf-row），三行金额右对齐成一条竖线 → 相加关系一眼可见；
+     · 明细降为次级文字（小一号 + 弱色），层次由字级与颜色表达，不再靠「多缩进 12px」分层；
+     · 明细最多 2 项，其余归「其余 N 项 + 净额」（原来 3 项 + 「等 N 只」还会折成两行，且丢了净额）；
+     · 场外项名称随符号走（净申购 / 净赎回）—— 赎回期原来显示「场外申购 −400」，字面自相矛盾；
+     · 金额为 0 的项不印「+0」（fmtAmt(0) 会带正号），直接印 0。 */
   const line = (k, v) => {
     const tone = Math.abs(v) < 1 ? "" : (v > 0 ? "info" : "warn");
-    return '<div class="sf-line">' + k + (tone ? '<b class="' + tone + '">' : "<b>") + (Math.abs(v) < 1 ? "0" : fmtAmt(v)) + "</b></div>";
+    return '<div class="sf-row"><span class="sf-k">' + k + "</span>" + (tone ? '<b class="' + tone + '">' : "<b>") +
+      (Math.abs(v) < 1 ? "0" : fmtAmt(v)) + "</b></div>";
   };
-  const det = (atoms) => atoms.length ? '<div class="sf-det">' + atoms.join("") + "</div>" : "";
-  const MAXN = 3;   // 手机上每行只放得下 2~3 项；截断后归「等 N 项」，卡片高度可控
-  let html = line("银证转账", sp.inFlow);
+  const MAXN = 2;   // 明细最多 2 项：手机上再多就折成「很长一串」
+  /* 明细行：前 MAXN 项 + 「其余 N 期/只 + 净额」。截断时给净额很重要 ——
+     只写「其余 4 期」读者会以为剩下都是零头，而 09-23 那笔 −20,324 的转出正藏在里面（2026-09-24）。 */
+  const det = (list, field, unit, render) => {
+    if (!list.length) return "";
+    const atoms = list.slice(0, MAXN).map(render);
+    const rest = list.slice(MAXN);
+    if (rest.length) atoms.push('<span class="sfx">其余 ' + rest.length + " " + unit + " " +
+      fmtAmt(rest.reduce((a, m) => a + m[field], 0)) + "</span>");
+    return '<div class="sf-det">' + atoms.join("") + "</div>";
+  };
   /* 银证逐期明细：只有「多于一期可讲」时才印（两期卡里那一期的日期/金额与卡头重复，印了是噪音） */
   const im = sp.inMoves || [];
-  if (im.length > 1 || (sp.done > 1 && im.length)) {
-    const atoms = [];
-    im.slice(0, MAXN).forEach((m) => atoms.push('<span class="sfx">' + mdOf(m.d) + " " + fmtAmt(m.v) + "</span>"));
-    if (im.length > MAXN) atoms.push('<span class="sfx">等 ' + im.length + " 期</span>");
-    html += det(atoms);
-  }
-  html += line(Math.abs(sp.otc) < 1 ? "场外申购" : (sp.otc > 0 ? "场外净申购" : "场外净赎回"), sp.otc);
+  const imDet = (im.length > 1 || (sp.done > 1 && im.length))
+    ? det(im, "v", "期", (m) => '<span class="sfx">' + mdOf(m.d) + " " + fmtAmt(m.v) + "</span>") : "";
+  /* 场外逐只（区间卡自动变成区间累计；卡头已写「区间累计」，不再重复「N 期」前缀） */
+  const ms = sp.otcMoves || [];
+  let html = line("银证转账", sp.inFlow) + imDet +
+    line(Math.abs(sp.otc) < 1 ? "场外申购" : (sp.otc > 0 ? "场外净申购" : "场外净赎回"), sp.otc) +
+    det(ms, "dc", "只", (m) => '<span class="sfx">' + esc(m.name) + " " + fmtAmt(m.dc) + "</span>");
   if (sp.nSkip) html += line("早期未拆", sp.rest);   // 区间卡：起点是简快照，那几期拆不出来
   else if (Math.abs(sp.rest) >= 1) html += line("口径差", sp.rest);
-  /* 场外逐只（区间卡自动变成区间累计），|Δ|≥1 才列 */
-  const ms = sp.otcMoves || [];
-  if (ms.length) {
-    const atoms = [];
-    if (sp.done > 1) atoms.push('<span class="sfx">区间累计 ' + sp.done + " 期：</span>");
-    ms.slice(0, MAXN).forEach((m) => atoms.push('<span class="sfx">' + esc(m.name) + " " + fmtAmt(m.dc) + "</span>"));
-    if (ms.length > MAXN) atoms.push('<span class="sfx">等 ' + ms.length + " 只</span>");
-    html += det(atoms);
-  }
   if (sp.nSkip)
     /* ⚠ 这句**不能**加 .sfx：.sfx 是 nowrap 原子，整句 ≈400px 会把 grid 的 1fr 列撑到溢出
        （2026-09-22 实测：.snap-part 宽 277px、scrollWidth 501px，文字被卡片裁掉）。 */
-    html += '<div class="sf-det"><span class="sfp">' + "早期 " + sp.nSkip + " 期（" + mdOf(sp.skipFrom) + " ~ " + mdOf(sp.skipTo) +
-      "）是简快照，只有总额、无逐只明细（金额见上面那项）" + "</span></div>";
-  return '<div class="snap-sub snap-flow">' + html + "</div>";
+    html += '<div class="sf-det"><span class="sfp">' + mdOf(sp.skipFrom) + " ~ " + mdOf(sp.skipTo) + " 共 " + sp.nSkip +
+      " 期是简快照，只有总额、无逐只明细" + "</span></div>";
+  return '<div class="snap-sub snap-flow"><div class="sf-led">' + html + "</div></div>";
 }
 /* 期间外部资金进出：人工记录优先，否则按 Δ累计投入推导（恒等式：Δ总资产 = Δ浮盈亏 + 资金进出） */
 function snapFlow(prev, cur) {
@@ -3541,6 +3550,11 @@ function snapFlowTip(c) {
       ? "<br><b>逐期构成</b>：" + c.split.rows.map((r) => mdOf(r.d) + " " + fmtAmt(r.flow) +
           (r.inFlow === null ? "" : "（银证 " + fmtAmt2(r.inFlow) + " / 场外 " + fmtAmt2(r.otc) + "）")).join(" · ") +
         "（" + c.split.done + " 期可逐期拆；另有 " + c.split.nSkip + " 期是简快照，合计 " + fmtAmt(c.split.rest) + " 无法拆分）"
+      : "") +
+    /* 行内小注只列前 2 项（手机上排成一长串很难看），完整清单放这里（2026-09-24）——
+       银证的完整逐期清单就是上面「逐期构成」的银证列，不重复列。 */
+    (c.split && (c.split.otcMoves || []).length
+      ? "<br><b>场外逐只</b>（行内只列前 2 只）：" + c.split.otcMoves.map((m) => esc(m.name) + " " + fmtAmt(m.dc)).join(" · ")
       : "");
 }
 /* ===== 盈亏对照块（逐期对比与区间累计共用，保证口径、措辞、配色一致）=====
