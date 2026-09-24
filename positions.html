@@ -310,7 +310,11 @@
   /* 名称列同用 10px、不加粗（2026-09-23 用户要求）：整张持仓变化表统一一档字号，
      层级交给「留白 + 色彩」表达（绿/红仍表方向，「本期无变动」仍只把当日盈亏降灰）。
      ⚠ 只有这一处例外：列头与两个数字都是 10px 时，名称若仍 12px/600 会重新变成"最重"的元素。 */
-  .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: var(--fs-xxs); font-weight: 400; }
+  .snap-line.item .n .nn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: var(--fs-xs); font-weight: 400; }
+  /* 字号整档（2026-09-24 review）：明细名称原为 --fs-xxs（10px），于是「13 行的正主」成了整张卡里
+     最小的正文字号，而分组头 / 表头都是 11px 的 700 —— 主次反了。升到 11px/400：
+     与「本金与收益」里的名称（12px/600）更近，同时仍靠字重与颜色弱于分组头。
+     后缀保持 10px（份数 .qty-tag / 渠道 .snap-src）—— 名称与后缀的主次由此表达。 */
   .snap-line.item .n .qty-tag { flex-shrink: 0; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); font-family: var(--mono); white-space: nowrap; font-feature-settings: "tnum"; }
   /* 快照明细行的来源短标签（场内 / 博时 / 华安 …）：与「盈亏总览」同款斜杠前缀，
      固定 2~3 字且不允许压缩——名称列窄，长标签会把名称挤成省略号 */
@@ -379,7 +383,10 @@
      确实，KPI 格也是浅底色块，两者同属「有底色的盒子」。盈亏总览里一个底色块都没有，靠的是
      「行间细虚线 + 字重」。现在照它来：去掉底色 / 圆角 / 负缩进，改成组首一条浅虚线 + 加粗字，
      与 KPI 的「有框格子」彻底区分；组内仍是连续的行式列表（见上面的 .snap-tbl .snap-line）。 */
-  .snap-group { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding: 5px 0 3px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); font-weight: 700; color: var(--tx); }
+  .snap-group { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding: 5px 0 3px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xs); font-weight: 700; color: var(--tx); }
+  /* 字号整档（2026-09-24 review）：原为 --fs-xxs（10px），比同卡的列表头（.snap-tbl-key 11px/700）、
+     卡内小节题（.snap-sec 11px/700）都小一档 —— 三者都是「行标题」性质，统一到 11px/700；
+     层次改由颜色与位置表达（分组头用 --tx 最重、表头 --tx2、小节题 --tx2）。 */
   .snap-group .snap-group-key { white-space: nowrap; }
   .snap-group .snap-group-hint { margin-left: auto; white-space: nowrap; font-weight: 400; color: var(--tx3); }
   /* ===== 持仓明细的主次（原 13 行平铺，一眼看不出重点）=====
@@ -4226,6 +4233,20 @@ function renderSnapLog() {
     const NB = (t) => '<span style="white-space:nowrap">' + t + "</span>";
     snapRange = "<br>区间累计 " + NB(mdOf(a.d) + " → " + mdOf(b.d)) +
       " · " + NB("新投 " + fmtAmt(dTot - dPl)) + " · " + NB("区间盈亏 " + fmtAmt(dPl)) + " · " + NB("总资产 " + fmtAmt(dTot));
+    /* 区间「含已实现」（2026-09-24 用户要求）：区间里卖出兑现的盈亏会以「少算入金」的形式混进银证转账
+       （逐期卡的 ? 浮层里有同名条目），要对银行流水就得把这一截加回去。数据同样从数据层算：
+         区间卖出兑现 = Σ POSITIONS.log 里落在区间内的卖出记录 realized
+         区间银证转账 = Σ 逐期 snapFlowSplit(...).inFlow
+       → 「对银行流水」= 银证转账 − 卖出兑现。只在区间真有卖出时追加，没有就一个字符都不加。 */
+    const sellsR = (POSITIONS.log || []).filter((e) => /卖出|减仓|清仓/.test(String(e.act)) && e.d > a.d && e.d <= b.d);
+    const realizedR = sellsR.reduce((n, e) => n + (typeof e.realized === "number" ? e.realized : 0), 0);
+    let bnSum = 0;
+    for (let i = 1; i < snaps.length; i++) {
+      const sp = snapFlowSplit(snaps[i - 1], snaps[i], snapFlow(snaps[i - 1], snaps[i]));
+      if (sp) bnSum += sp.inFlow;
+    }
+    if (sellsR.length && Math.abs(realizedR) >= 1)
+      snapRange += " · " + NB("含卖出兑现 " + fmtAmt(realizedR)) + " · " + NB("对银行流水 " + fmtAmt(bnSum - realizedR));
   }
   $("snap-cnt").innerHTML = "(" + snaps.length + " 份快照 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")" + snapRange;
   if (!snaps.length) {
