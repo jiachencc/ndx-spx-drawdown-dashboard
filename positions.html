@@ -289,6 +289,12 @@
   .snap-vs { font-size: var(--fs-xs); color: var(--tx3); }
   /* 标签列固定宽 + 内容列自适应：多行之间的数值左边界对齐（原 flex-wrap 折行后锯齿错位） */
   .snap-line { display: grid; grid-template-columns: 66px 1fr; align-items: baseline; gap: 8px; padding: 2.5px 0; font-size: var(--fs-sm); min-width: 0; }
+  /* 持仓变化表的行（2026-09-24）：背景与分隔照「盈亏总览」—— 无底色块，行间一条 1px 虚线 var(--line-soft)
+     （那边是 .pl-row + .pl-row），只是「够分辨」，不与数值争视线。
+     限定在 .snap-tbl 内、且只看**紧邻**的两条明细行：跨分组时中间隔着 .snap-group，天然不连成一片。
+     顺带把行高放松到 5px（原 2.5px 是给「无分隔密排」用的，画了线就太挤）。 */
+  .snap-tbl .snap-line { padding: 5px 0; }
+  .snap-tbl .snap-line + .snap-line { border-top: 1px dashed var(--line-soft); }
   .snap-line .n { font-weight: 600; color: var(--tx2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .snap-line .v { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
   .snap-line .v b { color: var(--tx); font-weight: 700; }
@@ -363,10 +369,11 @@
      ~184px，「场外 8 只 净值日 09.17~09.18 混排」正好在词中间折行（场内行也贴着临界）。
      改 flex：左段（组名 + 只数）与右段（数据节奏）各自 nowrap、整体可换行 —— 折也只折在两段
      之间，不会从词中间断开；hint 推到行尾，与右侧两个数字列大致对齐。 */
-  /* 分组浅底带（2026-09-24 调色）：原来用 --card（浅色下＝纯白），而卡片本身也是白 → 底带在白卡上看不见边界，
-     整块与上面的 KPI 格（--card2 #f3f6fb）糊成一种颜色，用户反馈「看不出区别」。改用 --line-soft（比 --card2 再深一档：
-     浅色 #dfe6f1 / 深色 #1c2538）—— 既保住「卡内零横线、用浅底带分组」的既有约定，又与 KPI 格明确区分开。 */
-  .snap-group { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 8px; margin-left: -6px; padding: 3px 6px; background: var(--line-soft); border-radius: 6px; font-size: var(--fs-xxs); font-weight: 700; color: var(--tx); }
+  /* 分组头（2026-09-24 二次修改）：上一版用 --line-soft 浅底带，用户反馈「跟 KPI 格糊成一种颜色」——
+     确实，KPI 格也是浅底色块，两者同属「有底色的盒子」。盈亏总览里一个底色块都没有，靠的是
+     「行间细虚线 + 字重」。现在照它来：去掉底色 / 圆角 / 负缩进，改成组首一条浅虚线 + 加粗字，
+     与 KPI 的「有框格子」彻底区分；组内仍是连续的行式列表（见上面的 .snap-tbl .snap-line）。 */
+  .snap-group { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding: 5px 0 3px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); font-weight: 700; color: var(--tx); }
   .snap-group .snap-group-key { white-space: nowrap; }
   .snap-group .snap-group-hint { margin-left: auto; white-space: nowrap; font-weight: 400; color: var(--tx3); }
   /* ===== 持仓明细的主次（原 13 行平铺，一眼看不出重点）=====
@@ -399,7 +406,13 @@
   /* 组成项挂在「总变化」之下：整组缩进 + 左侧竖线，每行前缀箭头。
      原来只靠一个「变化组成」标题行表示从属，而列表本身毫无缩进，关系读不出来。
      只缩进标签+数值两列（右侧「?」列不动），? 在各行之间保持同一条竖线。 */
-  .snap-parts, .snap-tbl { margin-top: 5px; margin-left: 2px; padding-left: 13px; border-left: 2px solid var(--line-soft); }
+  .snap-parts { margin-top: 5px; margin-left: 2px; padding-left: 13px; border-left: 2px solid var(--line-soft); }
+  /* 持仓变化表（2026-09-24 用户要求「引用线去掉、表格背景参考盈亏总览、不要和 KPI 融为一体」）：
+     原先沿用「缩进 + 左 2px 竖线」的引用块样式，可它嵌在逐期子卡里，竖线与子卡自己的圆角描边并排，
+     看着就是多画了一条线。现在与卡头齐平（去掉缩进与竖线），改成盈亏总览那种**行式列表**：
+     层级全靠「行间细虚线 + 字重 + 留白」，没有任何底色块 —— 与 KPI 的「有框格子」一眼区分。
+     ⚠ .snap-parts（本金与收益的组成项）保持原样的引用块样式，不跟着改。 */
+  .snap-tbl { margin-top: 5px; }
   /* 原在此用「└→」/「└」前缀表示从属；块本身已有缩进 + 左侧竖线（引用块样式），
      前缀属重复，已删除——顺带把标签列从 70px 收回 66px，数值列更宽。 */
   /* 标签列宽与 .snap-line 一致（66px；窄屏统一 58px）→ 数值左边界跨行对齐。
@@ -991,7 +1004,7 @@
     .snap-group-title { grid-template-columns: 1fr 116px; }
     .snap-group { grid-template-columns: 1fr 64px 72px; }
     .snap-line.item .n .qty-tag { font-size: var(--fs-xxs); }
-    .snap-parts, .snap-tbl { padding-left: 10px; }   /* 标签列已统一 58px，此处不再重复定义 */
+    .snap-parts { padding-left: 10px; }   /* 标签列已统一 58px，此处不再重复定义；.snap-tbl 已无缩进（2026-09-24 去引用线） */
   }
   /* 高对比偏好：--tx3 与背景对比接近 WCAG AA 下限（≈ 3.5:1），开启高对比时拉到 ≈ 5.8:1 */
   @media (prefers-contrast: more) {
