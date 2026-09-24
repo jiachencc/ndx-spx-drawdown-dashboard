@@ -276,6 +276,15 @@
   .snap-more > summary .snap-more-range { font-family: var(--mono); font-feature-settings: "tnum"; color: var(--tx3); }
   .snap-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; font-size: var(--fs-sm); font-weight: 400; }   /* 后两项重置 h3 默认字重/字号 */
   .snap-head .snap-tag { margin-left: auto; }   /* 事件标签推到行尾：卡头左侧固定是「日期 + vs」，右侧固定是标签 */
+  /* 卡头关键数（2026-09-24 加，用户建议）：把「本期盈亏 / 总盈亏」从卡内两整行提到卡头这一行 ——
+     原来它们与「总变化」并列成三行，一眼分不出主次；提到卡头后与日期同级，
+     一行读完「哪一期 / 本期涨跌多少 / 累计多少」，卡内只留「总变化 → 银行进出」的组成关系。
+     箭头 + 颜色沿用「总变化」那一套（↑ 绿 --up / ↓ 红 --down），数值等宽。
+     位置：夹在「vs 前一期」与右侧事件标签之间（.snap-tag 的 margin-left:auto 会把它推到行尾）。 */
+  .snap-head .snap-head-k { display: inline-flex; align-items: baseline; gap: 4px; font-size: var(--fs-xs); color: var(--tx3); }
+  .snap-head .snap-head-k b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+  .snap-head .snap-head-k b.up { color: var(--up); }
+  .snap-head .snap-head-k b.down { color: var(--down); }
   .snap-date { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; font-feature-settings: "tnum"; }
   .snap-vs { font-size: var(--fs-xs); color: var(--tx3); }
   /* 标签列固定宽 + 内容列自适应：多行之间的数值左边界对齐（原 flex-wrap 折行后锯齿错位） */
@@ -3429,6 +3438,13 @@ function snapFlowSplit(prev, cur, flow) {
     nSkip: nSkip, skipFrom: skipFrom, skipTo: skipTo, rows: rows, done: seq.length - nSkip,
   };
 }
+/* 卡头关键数（2026-09-24，用户建议）：把「本期盈亏 / 总盈亏」从卡内两整行提到卡头那一行 ——
+   原来它们与「总变化」并列成三行，一眼分不出主次。箭头 + 颜色沿用「总变化」那一套（↑ 绿 --up / ↓ 红 --down），
+   数值等宽。两个调用方（逐期卡 snapPairHtml、区间卡）共用：写成 function 声明，靠提升在模块内任意位置可用。 */
+function snapHeadKpi(label, v) {
+  return '<span class="snap-head-k">' + label + '<b class="' + cls(v) + '"><span aria-hidden="true">' +
+    (v >= 0 ? "↑" : "↓") + "</span>" + fmtAmt2(v) + "</b></span>";
+}
 /* 行内小注：「银行进出」的构成小账本（名称 | 金额右对齐成一列，明细为次级文字一行）。
  * 逐只/逐期的**完整**口径仍留在「?」浮层里（见 snapFlowTip）—— 行内只给前两项 + 其余净额。 */
 function snapFlowNote(flow, sp) {
@@ -3579,29 +3595,11 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
   const prevHasItems = !!(prev && prev.items && Object.keys(prev.items).length);
   const curHasItems = !!(cur && cur.items && Object.keys(cur.items).length);
   const canTrace = prevHasItems && curHasItems && prevHold !== null && costHold !== null;
-  /* 场内 / 场外 拆分小注：跟在金额后面同一行（整块 nowrap，窄屏才整段折行） */
-  const splitLine = (vi, vo) => grp ? '<span class="snap-sub snap-subblock">场内 ' + snapSigned(vi) + " · 场外 " + snapSigned(vo) + "</span>" : "";
+  /* ① 本期盈亏 / ② 总盈亏：2026-09-24 起**提到卡头**（见 snapHeadKpi）——用户建议：
+     这两行原本与「总变化」并列成三行，主次不分；卡内只留「总变化 → 银行进出」的组成关系。
+     原来挂在这两行上的「?」口径说明随行移出（同类口径在「盈亏总览」卡里有），
+     行内的「场内 / 场外」拆分小注也一并移出（汇总卡的当日盈亏已给同样的拆分）。 */
   const parts = [];
-  /* ① 当日盈亏（原「市场盈亏」）：市场波动（= 两期总盈亏之差）。标签随跨度切换 ——
-     相邻两期就是「当日」，跨周末/断档时是「本期」（两期之间的累计波动） */
-  const plLabel = (trio && spanDays === 1) ? "当日盈亏" : (trio ? "本期盈亏" : "区间盈亏");
-  const qPl = qPair(
-    "这段时间持仓自身涨跌带来的赚亏（不含银行转入转出的钱）" + (spanDays > 1 ? "，跨度 " + spanDays + " 天（含休市）" : "") + "。" +
-    (typeof prev.pl === "number" && typeof cur.pl === "number"
-      ? "对应总盈亏 " + fmtAmt2(prev.pl) + " → " + fmtAmt2(cur.pl) + "，两个数之差就是本项。" : "") +
-    (grp ? "场内/场外拆分为两组各自的赚亏之和。" : "") +
-    "买卖只是账户内转换（现金 ↔ 持仓），不影响本项。", "盈亏口径");
-  parts.push(
-    '<div class="snap-part"><span class="pn">' + plLabel + '</span><span class="pv"><b class="' + cls(dPl) + '">' + fmtAmt2(dPl) + "</b>" +
-      (grp ? splitLine(grp.in.d, grp.ot.d) : "") + "</span>" + qPl.btn + "</div>" + qPl.note);
-  /* ② 总盈亏（原「累计盈亏」）：相对持仓成本（含已实现） */
-  const qCum = qPair(
-    "总盈亏 ＝ 当前市值 − 持仓成本（含已实现）。场内取券商 App 读数，场外取各基金 App 读数。" +
-    "每期卡片上的盈亏 ＝ 该期期末总盈亏 − 期初总盈亏（两期总盈亏之差）。" +
-    (costHold > 0 && typeof cur.pl === "number" ? "当前持仓成本 " + fmtYuan(costHold) + "，总盈亏率 " + fmtPct(cur.pl / costHold, 2) + "。" : ""), "总盈亏口径");
-  if (trio && typeof cur.pl === "number")
-    parts.push('<div class="snap-part"><span class="pn">总盈亏</span><span class="pv"><b class="' + cls(cur.pl) + '">' + fmtAmt2(cur.pl) + "</b>" +
-      (grp ? splitLine(grp.in.c, grp.ot.c) : "") + "</span>" + qCum.btn + "</div>" + qCum.note);
   /* ③ 银行进出（原「外部投入」）：与银行账户之间的净转入/转出（推导值；FLOWS 有手账时拆出银证实锤） */
   const zero = Math.abs(flow) < 1;
   const bn = flowsNet(prev.d, cur.d);             // 银证转账手账实锤；无记录期返回 null
@@ -3819,8 +3817,12 @@ function snapPairHtml(prev, cur) {
   }
   const actsHtml = snapActions(prev, cur);
   return '<article class="snap-item" data-d="' + cur.d + '">' +
+    /* 卡头带上本期盈亏与总盈亏（2026-09-24，用户建议）：这两行原本占卡内两整行、与「总变化」并列，主次不分；
+       提到卡头后与日期同级，一行读完「哪一期 / 本期涨跌 / 累计多少」。
+       标签用「本期」而非「当日盈亏」—— 卡头空间紧，跨度已由日期与 vs 说明（跨周末会写「跨 N 天」）。 */
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（跨 " + spanDays + " 天）" : "") + "</span>" +
+      snapHeadKpi("本期", dPl) + (typeof cur.pl === "number" ? snapHeadKpi("总盈亏", cur.pl) : "") +
       (cur.tag ? '<span class="snap-tag ' + snapTagCls(cur.tag) + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
     snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, sub, { trio: true }) +
     (actsHtml || "") +
@@ -4228,8 +4230,12 @@ function renderSnapLog() {
     const costHold = snapHoldCost(b);   // 持仓成本口径（剔现金，作浮亏%分母）；简快照无 cash → null
     const plNow = typeof b.pl === "number" ? b.pl : null;
     html.push('<article class="snap-item snap-sum">' +
+      /* 区间卡卡头带关键数（2026-09-24）：只提「区间盈亏」——
+         「总盈亏」不重复提，因为卡内最后一行「当前浮盈/浮亏」已经给了它（还带收益率与成本口径），
+         页面既有约定是同一个数不出现两次。 */
       '<h3 class="snap-head"><span class="snap-date">区间累计 ' + a.d.slice(5).replace("-", ".") + " → " + b.d.slice(5).replace("-", ".") + '</span>' +
-        '<span class="snap-vs">基线起 ' + snaps.length + " 份快照</span></h3>" +
+        '<span class="snap-vs">基线起 ' + snaps.length + " 份快照</span>" +
+        snapHeadKpi("区间盈亏", dPl) + "</h3>" +
       /* 区间卡保持原样：本期盈亏 / 资金 + 当前浮盈浮亏（三口径对照条只用于逐期卡） */
       snapPartsHtml(a, b, dTot, dPl, flow, Math.max(1, Math.round((Date.parse(b.d) - Date.parse(a.d)) / 86400000)), snapGrpSplit(a, b)) +
       (plNow !== null ? '<div class="snap-part"><span class="pn">' + (plNow >= 0 ? "当前浮盈" : "当前浮亏") + '</span><b class="pv ' + cls(plNow) + '">' + fmtAmt2(plNow) +
