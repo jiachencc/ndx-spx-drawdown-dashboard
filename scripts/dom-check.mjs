@@ -109,9 +109,20 @@ check("汇总卡浮盈亏 = 最新快照 " + money(latest.pl), near(sumText, lat
         它把页面数字锚在**历史留档**上，而不是与自己的数据源比（与自己比永远自洽）。
         2026-09-24 反向验证：把某只场外的 day 改 10.74 元，只有它拦得住。 */
 const dayCell = sum ? [...sum.querySelectorAll(".sum-cell")].map((el) => el.textContent.replace(/\s+/g, "")).find((t) => t.includes("当日盈亏")) : null;
-check("汇总卡当日盈亏 ≈ 最新快照 " + money(latest.day), !!dayCell && near(dayCell, latest.day, Math.max(10, Math.round(snapTotal * 0.0001))), dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
 const prevFull = ctx.rows.filter((s) => s.items).at(-2);
 const IN_CODES = ["159941", "513650", "513310", "513880", "160644"];   // 场内五只（同 SNAP_MKT）
+/* ⚠ 2026-09-24 加：本期若有买卖（份额变化），这条只做存在性检查、跳过数值比对。
+   页面「场内估」= DEFAULT.chg（真涨跌幅）× 现份额推算，它**不知道当天的成交价**；而券商「当日参考盈亏」
+   是按份额逐笔算的（当天买入的份额按买入价）→ 两者天然有差。实测 09-24：标普 513650 当天买入 15,000 份
+   （@2.0123），App 报 −2,271.00、页面估算 −2,744（差 473）。这不是 bug 而是口径差（该格 title 已写明），
+   故有成交时豁免；无成交时仍按 0.01% 总资产的容差严格比对。 */
+const traded = prevFull ? Object.keys(latest.items).some((c) => {
+  const a = prevFull.items[c], b = latest.items[c];
+  return !!(a && b && (a.qty || 0) !== (b.qty || 0));
+}) : false;
+check("汇总卡当日盈亏 ≈ 最新快照 " + money(latest.day),
+  !!dayCell && (traded || near(dayCell, latest.day, Math.max(10, Math.round(snapTotal * 0.0001)))),
+  dayCell ? dayCell.slice(0, 140) + (traded ? "（本期有买卖 → 跳过数值比对）" : "") : "未找到「当日盈亏」单元");
 if (dayCell && prevFull) {
   const otcDay = Object.entries(latest.items).filter(([c]) => !IN_CODES.includes(c))
     .reduce((a, [c, it]) => { const p = prevFull.items[c]; return a + ((it.val - it.cost) - (p ? p.val - p.cost : 0)); }, 0);
