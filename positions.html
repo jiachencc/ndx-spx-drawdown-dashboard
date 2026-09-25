@@ -778,6 +778,10 @@
      数值为全流水复算值（与 App 可能有 <0.01 尾差），悬停给口径。 */
   .log-cost { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; cursor: help; }
   .log-cost b { font-weight: 700; }
+  /* 卖出行的「减仓幅度」（2026-09-25 方案 B）：紧跟份数显示，读作「卖了 3,000 份（−58.8%）」。
+     弱一档色（tx3）—— 它与成本价的百分比是两件事（一个讲减了多少仓、一个讲成本怎么变），
+     且卖出行的成本 chip 已刻意不给百分比，这里也不上红绿，避免与盈亏色争视线。 */
+  .log-cut { font-style: normal; color: var(--tx3); }
   /* 波段复盘表新增列：这趟往返对摊薄成本的影响（元/份）；颜色由 .up/.down 给（下降=绿） */
   .sw-cost { font-family: var(--mono); font-size: var(--fs-xxs); white-space: nowrap; cursor: help; }
   .log-note { width: 100%; font-family: var(--sans); color: var(--tx3); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: break-word; }
@@ -5060,12 +5064,13 @@ function costTrace() {
   const map = new Map(), st = {};
   (POSITIONS.log || []).slice().reverse().forEach((e) => {
     const s = (st[e.sym] = st[e.sym] || { qty: 0, basis: 0 });
+    const qtyBefore = s.qty;                       // 操作前份数（卖出行算「减仓幅度」用；2026-09-25 方案 B）
     const before = s.qty > 0 ? s.basis / s.qty : null;
     const gross = (e.qty || 0) * (e.cost || 0);
     const rec = logFee(e), fee = rec === null ? CONFIG.FEE_PER_SIDE : rec;
     if (isSellAct(e)) { s.qty -= (e.qty || 0); s.basis -= gross - fee; }
     else { s.qty += (e.qty || 0); s.basis += gross + fee; }
-    map.set(e, { before, after: s.qty > 0 ? s.basis / s.qty : null, qtyAfter: s.qty, est: rec === null });
+    map.set(e, { before, after: s.qty > 0 ? s.basis / s.qty : null, qtyBefore: qtyBefore, qtyAfter: s.qty, est: rec === null });
   });
   _costTrace = map;
   return map;
@@ -5077,33 +5082,53 @@ function logItemHtml(e, hideSym, pair) {
   const a = String(e.act || "");
   const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
   const d = e.d ? e.d.slice(5).replace("-", ".") : "--";
-  const link = e.cost !== undefined && !/卖出|减仓|清仓/.test(a);
-  /* 成本价变化 chip：这一笔之后摊薄成本价变成多少、变了多少（口径见 costTrace 与折叠区底部说明） */
+  const isSell = /卖出|减仓|清仓/.test(a);
+  const link = e.cost !== undefined && !isSell;
+  /* 成本价 chip（2026-09-25 方案 B 重做）：
+     · 买入行 →「成本价 A → B（±X%）」：百分比 ＝ 相对**操作前**成本价的变化率（正=抬升、负=摊薄）。
+       原来只给 4 位绝对差（+0.0039），看不出「这笔加仓把成本抬了几个点」；绝对差改挂 title（行里已有 A、B 两端）。
+     · 卖出行 → **不给成本变化率**：摊薄口径下卖出会让剩余份额的单位成本**跳升**
+       （实测 09.18 港美卖 3,000 后 2.9241 → 4.4294 ＝ +51.5%），一个「+51%」会被读成「买贵了」。
+       所以卖出行只报「成本价 → B（摊薄）」，另在份数后给**减仓幅度**（本次卖出份 ÷ 操作前份）。
+     ⚠ 顺带订正原说明：原文写「卖出后成本价通常下降」是**反的** —— 摊薄口径下卖出必然上升（成本集中到剩余份额）。 */
   const t = costTrace().get(e);
   const f4 = (v) => (v === null ? "—" : v.toFixed(4));
   let costChip = "";
   if (t) {
     const w = t.est ? "≈" : "";
-    const tip = "这一笔之后的摊薄成本价（全流水复算：Σ买入含费 − Σ卖出净额，再 ÷ 剩余份数）。"
-      + "卖出按净回款冲减成本 → 卖出后成本价通常下降，那是把成本「取回来」，不是赚了。"
-      + (t.est ? " 费用按 " + CONFIG.FEE_PER_SIDE + " 元/边估算（备注未记「费 X」）。" : "")
-      + " 与券商 App 显示值可能有 <0.01 的尾差。";
+    const baseTip = "这一笔之后的摊薄成本价（全流水复算：Σ买入含费 − Σ卖出净额，再 ÷ 剩余份数）。"
+      + "与券商 App 显示值可能有 <0.01 的尾差。"
+      + (t.est ? " 费用按 " + CONFIG.FEE_PER_SIDE + " 元/边估算（备注未记「费 X」）。" : "");
     if (t.after === null) {
       costChip = '<span class="log-cost" title="清仓后无剩余份额，摊薄成本价不再有定义">成本价 —（清仓）</span>';
     } else if (t.before === null) {
       costChip = '<span class="log-cost" title="首次建仓：成本价 ＝（价×份 ＋ 费）÷ 份">成本价 ' + f4(t.after) + w + '（建仓）</span>';
+    } else if (isSell) {
+      costChip = '<span class="log-cost" title="' + esc(baseTip +
+        " ⚠ 卖出按净回款冲减成本、份数同时变少 → 剩余份额的单位成本会**上升**（成本集中到剩下的份额上）。" +
+        "这不是「买贵了」，也与盈亏无关，所以卖出行不给成本变化率，只给份数后的减仓幅度。") +
+        '">成本价 → <b>' + f4(t.after) + w + "</b>（摊薄）</span>";
     } else {
-      const dl = t.after - t.before;
-      /* dl < 0 = 成本价下降 = 好事（卖出冲减 / 买得更低）→ up 色；不要按「跌=红」读 */
-      costChip = '<span class="log-cost" title="' + esc(tip) + '">成本价 ' + f4(t.before) + " → <b>" + f4(t.after) + w +
-        '</b> <b class="' + (dl <= 0 ? "up" : "down") + '">' + (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "</b></span>";
+      const pct = (t.after / t.before - 1) * 100;
+      const dev = e.cost ? (e.cost / t.before - 1) * 100 : null;
+      /* pct ≤ 0 = 成本下降 = 摊薄（好事，如卖得高回补 / 买得低）→ up 色；不要按「跌=红」读 */
+      costChip = '<span class="log-cost" title="' + esc(baseTip +
+        " 括号里的百分比 ＝ 相对**操作前**成本价（" + f4(t.before) + "）的变化率：正=抬升、负=摊薄。" +
+        (dev === null ? "" : " 本次成交价 " + e.cost.toFixed(4) + " 比操作前成本" + (dev >= 0 ? "高 +" : "低 −") + Math.abs(dev).toFixed(2) + "% —— 这就是变化的原因。") +
+        " 绝对变化 " + (pct >= 0 ? "+" : "−") + Math.abs(t.after - t.before).toFixed(4) + "。") +
+        '">成本价 ' + f4(t.before) + " → <b>" + f4(t.after) + w + '</b> <b class="' + (pct <= 0 ? "up" : "down") + '">' +
+        (pct <= 0 ? "−" : "+") + Math.abs(pct).toFixed(2) + "%</b></span>";
     }
   }
+  /* 减仓幅度（卖出行，2026-09-25 方案 B）：本次卖出份 ÷ 操作前份 —— 挨着份数读作「卖了 3,000 份（−58.8%）」 */
+  const cutPct = (isSell && t && t.qtyBefore > 0 && e.qty) ? (e.qty / t.qtyBefore) * 100 : null;
   return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
     '<span class="log-date">' + d + '</span>' +
     '<span class="act-badge ' + c + '">' + e.act + '</span>' +
     (hideSym ? "" : '<span class="log-sym">' + e.sym + '</span>') +
-    '<span class="log-nums">' + fmtQty(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + ' 元</span>' +
+    '<span class="log-nums">' + fmtQty(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + " 元" +
+      (cutPct === null ? "" : ' <i class="log-cut" title="减仓幅度：本次卖出 ' + fmtQty(e.qty) + " 份 ÷ 操作前 " + fmtQty(t.qtyBefore) + " 份\">−" + cutPct.toFixed(1) + "%</i>") +
+      "</span>" +
     costChip +
     (pair || "") +
     (e.note ? '<div class="log-note">' + e.note + '</div>' : '') +
