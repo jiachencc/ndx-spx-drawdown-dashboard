@@ -135,6 +135,44 @@ try {
 "use strict";
 const $ = (id) => document.getElementById(id);
 
+/* ================= 导航：改什么 → 看哪个函数 =================
+ * 2026-09-27 加。这不是文档，是**索引** —— 本文件 4,300 行、103 个函数平铺无分区；
+ * 想改某处时先看这里，比 grep 猜关键词快。（MANUAL 数据在 positions-data.js、样式在 positions.css、
+ * 行情与经济数据在 data.js —— 本文件只剩结构与渲染逻辑。）
+ *
+ * ▸ 骨架与总装
+ *   render()              启动：渲染全部卡片（所有 renderXxx 的总入口）
+ *   renderImpl()          行情/持仓的「实现」层：场内行 → 场外行 → 汇总 → 盈亏总览 → 持仓卡
+ *     ├─ implEtfRows()      场内行（纯计算）        ├─ implOtcRows()    场外行（纯计算）
+ *     ├─ renderAlloc()      组合占比瘦条 + 图例     ├─ renderPnlView()  盈亏总览（左亏右盈条）
+ *     └─ holdCardHtml()     场内持仓卡（单张）
+ *   renderPrincipal()     本金 / 累计收益 / 收益率口径（TWR·XIRR）+ 逐只 XIRR 表 + 逐只体检
+ *   renderSnapLog()       快照对比日志（每期一节）    └─ snapPairHtml()  相邻两期 diff 段
+ *   renderAcctStats()     账户统计        renderCheckup()  操作体检表（数据来自 opCheckup()）
+ *   renderFees()          费率体检        renderAlt()      标的替换回测      renderSwing() 波段复盘
+ *
+ * ▸ 走势图（KPI / 图例 / 绘制 / 交互各自独立，改一处不会牵动别处）
+ *   renderTrend()         总入口（SVG 绘制就在它内部 —— 没有单独的 drawTrend）
+ *   renderTrendKpis()     顶部 KPI 行     renderTrendChips() 时间范围 chips     renderTrendLegend() 图例
+ *   bindTrendCrosshair()  crosshair / 悬停 / 区间选点交互     trendXTicks() x 轴刻度
+ *   buildTrendPts()       数据点（快照各期 + 今日估算）· filterTrendPts()/rangeFilterPts() 区间过滤
+ *
+ * ▸ 体检与计算（无副作用，改动风险最低）
+ *   opCheckup()           单只三项档位与结论（买点 / 成本 / 调仓）
+ *   costTrace()           摊薄成本全程复算        swingData() / swingStats()  波段统计
+ *   calcTWR() / calcXIRR() 两个收益率口径         snapFlow()  快照间资金流
+ *
+ * ▸ 工具
+ *   $() = getElementById · esc() 转义 · fmtYuan/fmtAmt 金额 · mdOf 日期
+ *   tipBtn() ⓘ 浮层 · srcLabel() 来源标签 · plDisplayName() 场外简称
+ *   ⚠ sourceHealth()（数据有效性）在 **data.js**，不在本文件；行情/回测数据同样在 data.js。
+ *
+ * ⚠ 两条约定
+ *   · 渲染函数只读全局常量并写 DOM；**纯计算函数不碰 DOM**（implEtfRows / implOtcRows / opCheckup /
+ *     costTrace / calcTWR / calcXIRR …）—— 要改口径优先改这些，影响面最小。
+ *   · 拆大函数时的验收标准：**页面渲染 DOM 逐字节不变**（剔掉 <script> 后比 sha256；做法见 git 历史）。
+ * ============================================================ */
+
 /* ---- 主题（与主看板共用同一 localStorage 键；未设置时跟随系统） ---- */
 const THEME_KEY = "wb_ndxspx_theme";
 const themeBtn = $("theme-toggle");
@@ -463,6 +501,64 @@ function etfRowTag(row) {
     : '<span class="date-chip stale" title="该只报价日缺失，未做猜测">⚠ 场内 未记录</span>';
 }
 
+/* 组合占比：按市场聚合（场内估值 + 场外快照 + 现金），瘦条只显示短名 + 百分比，明细进 aria-label。
+   2026-09-27 从 renderImpl 提出 —— 输入只有 rows / otcRows（两个纯计算函数的结果），
+   产出只写进 #alloc-bar / #alloc-legend，与 renderImpl 的其它部分零耦合，所以整段搬出来最清楚。
+   （验收标准同前：页面渲染 DOM 逐字节不变。） */
+function renderAlloc(rows, otcRows) {
+  const alloc = {};
+  rows.forEach((row) => { alloc[row.p.idx] = (alloc[row.p.idx] || 0) + row.valAmt; });
+  otcRows.forEach((row) => { alloc[row.f.theme] = (alloc[row.f.theme] || 0) + row.valAmt; });
+  alloc.cash = (alloc.cash || 0) + OTC.cash;
+  const allocTotal = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const ALLOC_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日本", hkus: "港美", global: "全球", cash: "现金" };
+  /* 每类资产的成员明细（写进弹框）：这类资产的 19.9 万里，场内有谁、场外有谁 */
+  const allocList = Object.keys(alloc).map((k) => {
+    const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
+    const etf = rows.filter((r) => r.p.idx === k).map((r) => r.p.sym + " " + fmtYuan(r.valAmt));
+    const otc = otcRows.filter((r) => r.f.theme === k).map((r) => plDisplayName(r.f.name) + " " + fmtYuan(r.valAmt));
+    const member = [etf.length ? "场内 " + etf.join("、") : "", otc.length ? "场外 " + otc.join("、") : ""].filter(Boolean);
+    const head = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + " 元）";
+    return { k, name: ALLOC_SHORT[k] || k, w, amt: alloc[k], tip: head + (member.length ? " ｜ " + member.join("；") : "") };
+  }).sort((a, b) => b.w - a.w);   // 大块在前：色带与图例同序，读起来从大到小
+  /* 条内标签**不在渲染时写死**：写什么由像素宽决定，交给 layoutAllocLabels()（窗口变化时重算）。
+     段上带 data-w（原始占比）与 data-short（短名）供它使用；data-tip 是唯一的内容来源 ——
+     原来这里只写了 title/aria-label，而点击处理读的是 dataset.tip，于是弹出一个空框 ✗。 */
+  $("alloc-bar").innerHTML = allocList.map((x) =>
+    '<button type="button" class="alloc-seg ' + x.k + '" style="width:' + x.w.toFixed(1) + '%"' +
+    ' data-w="' + x.w.toFixed(1) + '" data-short="' + x.name + '" data-tip="' + esc(x.tip) + '"' +
+    (x.w < 1 ? ' tabindex="-1"' : "") + ' title="' + esc(x.tip) + '" aria-label="' + esc(x.tip) + '"></button>').join("");
+  layoutAllocLabels();
+  $("alloc-legend").innerHTML = allocList.map((x) =>
+    '<button type="button" class="alloc-key ' + x.k + '" data-tip="' + esc(x.tip) + '"' +
+    ' title="' + esc(x.tip) + '" aria-label="' + esc(x.tip) + '"><i></i>' + x.name + ' <b>' + x.w.toFixed(1) + "%</b></button>").join("");
+  $("alloc-bar").setAttribute("aria-label", "组合占比：" + allocList.map((x) =>
+    x.name + " " + x.w.toFixed(1) + "%（" + fmtYuan(x.amt) + " 元）").join("，"));
+}
+/* 场内行：市值 / 成本估算（口径统一为 ETF 自身场内价）。
+   2026-09-27 从 renderImpl 提出 —— 纯计算、只读全局常量、无副作用、产出只被后续汇总消费，
+   所以能离开那个 212 行的大函数单独理解。（拆分的验收标准是「页面 DOM 逐字节不变」。） */
+function implEtfRows() {
+  return (POSITIONS.hold || []).map((p) => {
+    const m = DEFAULT[QUOTE_KEY[p.idx] || p.idx] || {};
+    const r = m.close && p.idxAtCost ? m.close / p.idxAtCost - 1 : 0;
+    const nav = p.cost * (1 + r);
+    const costAmt = p.qty * p.cost;
+    const valAmt = p.qty * nav;
+    return { p, m, r, nav, costAmt, valAmt };
+  });
+}
+/* 场外行：同上，纯计算。成本净值按持有收益率反推（App 的 rate 是它自己的口径）。 */
+function implOtcRows() {
+  return OTC.funds.map((f) => {
+    const n = f.nav;
+    const costNav = n.close / (1 + f.rate / 100);
+    const r = f.rate / 100;
+    const shares = n.close ? f.value / n.close : null;
+    const costAmt = f.value - f.pnl;
+    return { f, n, costNav, r, shares, costAmt, valAmt: f.value };
+  });
+}
 function renderImpl() {
   closeIdxPop();
   if (typeof DEFAULT === "undefined" || typeof POSITIONS === "undefined") {
@@ -522,24 +618,10 @@ function renderImpl() {
   (POSITIONS.hold || []).forEach((h) => { symIdx[h.sym] = h.idx; });
 
   /* ===== 场内行：市值/成本估算（口径统一为 ETF 自身场内价） ===== */
-  const rows = (POSITIONS.hold || []).map((p) => {
-    const m = DEFAULT[QUOTE_KEY[p.idx] || p.idx] || {};
-    const r = m.close && p.idxAtCost ? m.close / p.idxAtCost - 1 : 0;
-    const nav = p.cost * (1 + r);
-    const costAmt = p.qty * p.cost;
-    const valAmt = p.qty * nav;
-    return { p, m, r, nav, costAmt, valAmt };
-  });
+  const rows = implEtfRows();
 
   /* ===== 场外行 ===== */
-  const otcRows = OTC.funds.map((f) => {
-    const n = f.nav;
-    const costNav = n.close / (1 + f.rate / 100);   // 成本净值（按持有收益率反推）
-    const r = f.rate / 100;
-    const shares = n.close ? f.value / n.close : null;
-    const costAmt = f.value - f.pnl;
-    return { f, n, costNav, r, shares, costAmt, valAmt: f.value };
-  });
+  const otcRows = implOtcRows();
 
   /* ===== 汇总 ===== */
   const etfVal = rows.reduce((a, b) => a + b.valAmt, 0);
@@ -588,35 +670,8 @@ function renderImpl() {
       '<div class="s-sub src-muted">合计 <b class="' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</b>' + (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + '</div>' +
       '<div class="s-asof">' + etfTag(" 日涨跌") + " " + otcTag(" 入账") + '</div></div>';
 
-  /* 组合占比：按市场聚合（场内估值 + 场外快照 + 现金），瘦条只显示短名+百分比，明细进 aria-label */
-  const alloc = {};
-  rows.forEach((row) => { alloc[row.p.idx] = (alloc[row.p.idx] || 0) + row.valAmt; });
-  otcRows.forEach((row) => { alloc[row.f.theme] = (alloc[row.f.theme] || 0) + row.valAmt; });
-  alloc.cash = (alloc.cash || 0) + OTC.cash;
-  const allocTotal = Object.values(alloc).reduce((a, b) => a + b, 0);
-  const ALLOC_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日本", hkus: "港美", global: "全球", cash: "现金" };
-  /* 每类资产的成员明细（写进弹框）：这类资产的 19.9 万里，场内有谁、场外有谁 */
-  const allocList = Object.keys(alloc).map((k) => {
-    const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
-    const etf = rows.filter((r) => r.p.idx === k).map((r) => r.p.sym + " " + fmtYuan(r.valAmt));
-    const otc = otcRows.filter((r) => r.f.theme === k).map((r) => plDisplayName(r.f.name) + " " + fmtYuan(r.valAmt));
-    const member = [etf.length ? "场内 " + etf.join("、") : "", otc.length ? "场外 " + otc.join("、") : ""].filter(Boolean);
-    const head = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + " 元）";
-    return { k, name: ALLOC_SHORT[k] || k, w, amt: alloc[k], tip: head + (member.length ? " ｜ " + member.join("；") : "") };
-  }).sort((a, b) => b.w - a.w);   // 大块在前：色带与图例同序，读起来从大到小
-  /* 条内标签**不在渲染时写死**：写什么由像素宽决定，交给 layoutAllocLabels()（窗口变化时重算）。
-     段上带 data-w（原始占比）与 data-short（短名）供它使用；data-tip 是唯一的内容来源 ——
-     原来这里只写了 title/aria-label，而点击处理读的是 dataset.tip，于是弹出一个空框 ✗。 */
-  $("alloc-bar").innerHTML = allocList.map((x) =>
-    '<button type="button" class="alloc-seg ' + x.k + '" style="width:' + x.w.toFixed(1) + '%"' +
-    ' data-w="' + x.w.toFixed(1) + '" data-short="' + x.name + '" data-tip="' + esc(x.tip) + '"' +
-    (x.w < 1 ? ' tabindex="-1"' : "") + ' title="' + esc(x.tip) + '" aria-label="' + esc(x.tip) + '"></button>').join("");
-  layoutAllocLabels();
-  $("alloc-legend").innerHTML = allocList.map((x) =>
-    '<button type="button" class="alloc-key ' + x.k + '" data-tip="' + esc(x.tip) + '"' +
-    ' title="' + esc(x.tip) + '" aria-label="' + esc(x.tip) + '"><i></i>' + x.name + ' <b>' + x.w.toFixed(1) + "%</b></button>").join("");
-  $("alloc-bar").setAttribute("aria-label", "组合占比：" + allocList.map((x) =>
-    x.name + " " + x.w.toFixed(1) + "%（" + fmtYuan(x.amt) + " 元）").join("，"));
+  /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
+  renderAlloc(rows, otcRows);
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
