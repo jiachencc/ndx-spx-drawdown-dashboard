@@ -850,7 +850,7 @@
   .chk-tbl b.oc-c { color: var(--yellow); }
   .chk-tbl b.oc-d { color: var(--red); }
   .chk-tbl b.oc-na { color: var(--tx3); font-weight: 400; }
-  .chk-tbl .c-note { color: var(--tx3); }
+  .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
   /* 列内小标签（"买点 / 成本 / 调仓"）：桌面有表头 → 隐藏；手机隐去表头后 → 显示（见下面的媒体查询） */
   .chk-tbl .c-lb { display: none; }
   .c-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
@@ -858,17 +858,22 @@
   .c-dot.otc { background: var(--purple); }
   .chk-note { margin-top: 11px; }
   @media (max-width: 767px) {
-    /* 手机（2026-09-27 修）：原来隐去「买点」列（理由写的是"信息量最低"）—— 判断错了，
-       买点是三项之一，用户直接发现"没有买点了"。现在改为**四列都留、说明换到第二行**：
-         ● 港美互联网LOF   买点 C 68%   成本 D −229pp   调仓 D −5,072
-             成本位高于现价位 229 个百分点（套牢中）· 5 笔卖出合计 −5,072（0/5 笔盈利）
-       表头在手机上隐去（列序固定、每个数字自带 % / pp / 元 单位，配合列内小标签 c-lb 就看得懂）。 */
+    /* 手机（2026-09-27 二改：用户反馈"有点乱"）：每只做成**固定的四段**，段落位置不再随字数浮动 ——
+         ● 港美互联网LOF                     ← ① 名称独占一行
+         买点      成本        调仓            ← ② 三个分项等宽三列（标签独立一行）
+         C 68%    D −229pp    D −5,072
+         成本位高于现价位 229 个百分点（套牢中）  ← ③ 说明：每条问题单独一行（渲染时把「 · 」换成 <br>）
+         5 笔卖出合计 −5,072（0/5 笔盈利）
+         买点均位 68%，偏区间上部
+       原来三段挤在一行、"不适用/赎回 1 笔"长短不一 → 每行的折行点都不同，看着就乱。 */
     .chk-tbl thead { display: none; }
     .chk-tbl, .chk-tbl tbody, .chk-tbl tr { display: block; }
-    .chk-tbl tr { padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }
-    .chk-tbl td { display: inline-block; padding: 0 10px 0 0; border: none; vertical-align: baseline; }
-    .chk-tbl .c-note { display: block; font-size: var(--fs-xxs); margin-top: 3px; padding: 0; }
-    .chk-tbl .c-lb { display: inline; font-style: normal; color: var(--tx3); font-size: var(--fs-xxs); margin-right: 3px; }
+    .chk-tbl tr { padding: 9px 0; border-bottom: 1px dashed var(--line-soft); }
+    .chk-tbl .c-nm { display: block; margin-bottom: 5px; }
+    .chk-tbl .c-buy, .chk-tbl .c-cost, .chk-tbl .c-swing { display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; }
+    .chk-tbl .c-note { display: block; margin-top: 5px; padding: 0; border: none; font-size: var(--fs-xxs); }
+    /* 手机上隐去表头，所以列内小标签显示出来、并独立成行（与数字上下对齐，比挤在数字前更好认） */
+    .chk-tbl .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--fs-xxs); margin-bottom: 1px; }
   }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }
@@ -5417,7 +5422,8 @@ function renderCheckup() {
         '<td class="c-buy"><i class="c-lb">买点</i>' + buy + "</td>" +
         '<td class="c-cost"><i class="c-lb">成本</i>' + cost + "</td>" +
         '<td class="c-swing"><i class="c-lb">调仓</i>' + swing + "</td>" +
-        '<td class="c-note">' + esc(d.note) + "</td>" +
+        /* 说明：多个问题**各占一行**（原来用「 · 」挤成一坨，手机和桌面都难扫） */
+        '<td class="c-note">' + esc(d.note).replace(/ · /g, "<br>") + "</td>" +
       "</tr>";
     }).join("") + "</tbody></table>" +
     '<div class="otc-note chk-note">' +
