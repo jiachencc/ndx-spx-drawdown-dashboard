@@ -214,13 +214,18 @@ const OTC_MAP = [
   { code: "018738", group: "spx" },
 ];
 
-/* 页面内联数据（SNAPSHOTS / OTC 在 positions.html，不在 data.js）：常量名 → 括号配平扫描 → vm 求值 */
+/* 持仓页的 MANUAL 数据（SNAPSHOTS / OTC 在 positions-data.js，不在 data.js）：
+   常量名 → 括号配平扫描 → vm 求值。⚠ 2026-09-27 前这两个常量内联在 positions.html。 */
 function pageData() {
-  const src = readFileSync(join(ROOT, "positions.html"), "utf8");
+  const src = readFileSync(join(ROOT, "positions-data.js"), "utf8");
   const grab = (name) => {
+    /* ⚠ 必须用**行首**锚点定位，不能用 indexOf：positions-data.js 的文件头注释里为说明「常量要写在行首」
+       而引用了这些声明的字面量，indexOf 会命中注释里的那一处，于是从注释开始做括号配平 → 提取到垃圾。
+       （2026-09-27 抽出该文件时正是这么踩的：报 "Unexpected token '}'"。） */
     const head = "const " + name + " = ";
-    const i = src.indexOf(head);
-    if (i < 0) throw new Error("positions.html 里找不到 " + head.trim());
+    const m = new RegExp("^" + head.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "m").exec(src);
+    const i = m ? m.index : -1;
+    if (i < 0) throw new Error("positions-data.js 里找不到行首的 " + head.trim());
     let j = i + head.length, depth = 0, inStr = null, end = -1;
     for (; j < src.length; j++) {
       const c = src[j], p = src[j - 1];

@@ -243,7 +243,14 @@ export function atomicWrite(target, content) {
 export function auditFiles(root) {
   const data = readFileSync(new URL("data.js", root), "utf8");
   const pos = readFileSync(new URL("positions.html", root), "utf8");
+  /* ⚠ 持仓页的 MANUAL 数据（SNAPSHOTS / OTC / OTC_LOG）2026-09-27 移到了 positions-data.js。
+     快照校验必须读**那个**文件 —— 否则 snapshotIssues 找不到 `const SNAPSHOTS = [` 会抛错或
+     静默放过，门禁看着绿、其实没检。 */
+  const posData = readFileSync(new URL("positions-data.js", root), "utf8");
   compileHtml(pos, "positions.html");
   compileHtml(readFileSync(new URL("index.html", root), "utf8"), "index.html");
-  return [...validateModel(readModel(data)), ...snapshotIssues(pos)];
+  /* ⚠ positions-data.js 是**纯 JS**、没有 <script> 标签 —— compileHtml 对这种文件抽不到内容会静默跳过，
+     所以直接交给 vm.Script 做语法检查。 */
+  new vm.Script(posData, { filename: "positions-data.js" });
+  return [...validateModel(readModel(data)), ...snapshotIssues(posData)];
 }

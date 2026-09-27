@@ -19,13 +19,16 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const QUIET = process.argv.includes("--quiet");
 
 const dataJs = readFileSync(path.join(root, "data.js"), "utf8");
+/* 持仓页的 MANUAL 数据层（2026-09-27 从 positions.html 抽出）：它是纯 JS、无需抽取内联脚本，
+   直接读全文 —— 但必须拼在 positions 的内联脚本**之前**，因为后者用到 OTC / OTC_LOG / SNAPSHOTS。 */
+const positionsDataJs = readFileSync(path.join(root, "positions-data.js"), "utf8");
 const inlineOf = (file) => {
   const html = readFileSync(path.join(root, file), "utf8");
   return [...html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).join("\n;\n");
 };
 const units = [
   ["data.js", dataJs],
-  ["positions.inline.js", dataJs + "\n;\n" + inlineOf("positions.html")],
+  ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + inlineOf("positions.html")],
   ["index.inline.js", dataJs + "\n;\n" + inlineOf("index.html")],
 ];
 

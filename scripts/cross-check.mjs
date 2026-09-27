@@ -122,7 +122,8 @@ function main() {
   const diag = process.argv.includes("--diag");
   const root = new URL("../", import.meta.url);
   const model = readModel(readFileSync(new URL("data.js", root), "utf8"));
-  const html = readFileSync(new URL("positions.html", root), "utf8");
+  // ⚠ 2026-09-27 起 SNAPSHOTS / OTC 在 positions-data.js（原先内联在 positions.html）
+  const html = readFileSync(new URL("positions-data.js", root), "utf8");
   const { issues, lines } = crossIssues(model, html, diag);
   if (diag) lines.forEach((l) => console.log("  " + l));
   if (issues.length) {

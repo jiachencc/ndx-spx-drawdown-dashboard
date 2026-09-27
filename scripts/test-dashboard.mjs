@@ -11,6 +11,9 @@ import { main, series } from "./fetch_and_update.mjs";
 const root = new URL("../", import.meta.url);
 const data = readFileSync(new URL("data.js", root), "utf8");
 const positions = readFileSync(new URL("positions.html", root), "utf8");
+/* ⚠ 2026-09-27 起 OTC / OTC_LOG / SNAPSHOTS 在 positions-data.js 里（原先内联在 positions.html）——
+   fixture 里替换快照要改这个文件，而 positions.html 本身原样复制即可。 */
+const positionsData = readFileSync(new URL("positions-data.js", root), "utf8");
 const index = readFileSync(new URL("index.html", root), "utf8");
 const ctx = vm.createContext({});
 vm.runInContext(data, ctx);
@@ -227,7 +230,8 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     writeFileSync(join(dir, "data.js"), fixtureData);
     writeFileSync(join(dir, "index.html"), index);
     const minimalSnapshots = 'const SNAPSHOTS = [\n{d:"2026-09-10",total:100,pl:0}\n];';
-    writeFileSync(join(dir, "positions.html"), positions.replace(/^const SNAPSHOTS = \[[\s\S]*?^\];/m, minimalSnapshots));
+    writeFileSync(join(dir, "positions.html"), positions);
+    writeFileSync(join(dir, "positions-data.js"), positionsData.replace(/^const SNAPSHOTS = \[[\s\S]*?^\];/m, minimalSnapshots));
     globalThis.fetch = async url => {
       calls++; const u = String(url);
       if (u.includes("frankfurter")) return new Response(JSON.stringify({ date: "2026-09-11", rates: { CNY: 7 } }));
@@ -285,7 +289,7 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     const before = readFileSync(join(dir, "data.js"), "utf8");
     await assert.rejects(main({ root: fixtureRoot, now, seriesProvider: async () => { throw new Error("core outage"); } }), /Both core/);
     assert.equal(readFileSync(join(dir, "data.js"), "utf8"), before);
-    writeFileSync(join(dir, "positions.html"), positions.replace(/^const SNAPSHOTS = \[[\s\S]*?^\];/m, 'const SNAPSHOTS = [\n{d:"2026-09-10",items:{"000001":{val:200,cost:100,pl:95}}}\n];'));
+    writeFileSync(join(dir, "positions-data.js"), positionsData.replace(/^const SNAPSHOTS = \[[\s\S]*?^\];/m, 'const SNAPSHOTS = [\n{d:"2026-09-10",items:{"000001":{val:200,cost:100,pl:95}}}\n];'));
     const priorCalls = calls;
     await assert.rejects(main({ root: fixtureRoot, now, seriesProvider: provider }), /Pre-update quality gate/);
     assert.equal(calls, priorCalls); assert.equal(readFileSync(join(dir, "data.js"), "utf8"), before);

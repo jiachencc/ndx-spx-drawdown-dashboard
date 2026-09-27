@@ -14,7 +14,7 @@
  *   · 没有 OTC_LOG 的基金（支付宝渠道那两只）**不算 buyPct** —— 缺的是申购日期，不是净值
  *
  * 用法：node scripts/refresh-otc.mjs          只打印（dry-run）
- *      node scripts/refresh-otc.mjs --write  写回 positions.html
+ *      node scripts/refresh-otc.mjs --write  写回 positions-data.js（2026-09-27 前是 positions.html）
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -22,7 +22,10 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FILE = path.join(ROOT, "positions.html");
+/* ⚠ 2026-09-27 起 OTC / OTC_LOG 在 positions-data.js 里（原先内联在 positions.html）——
+   本脚本只读 OTC_LOG、只写 OTC.funds[].nav，两处都在数据文件里，故整份读写都指向它。
+   正则锚点 `^const OTC = {` / `^const OTC_LOG = {` 照旧可用（数据文件的三个常量都在行首）。 */
+const FILE = path.join(ROOT, "positions-data.js");
 const WRITE = process.argv.includes("--write");
 const H = { "User-Agent": "Mozilla/5.0", Referer: "https://fundf10.eastmoney.com/" };
 const WEEKS52_MS = 364 * 86400000;

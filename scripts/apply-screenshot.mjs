@@ -54,7 +54,10 @@ if (!inputPath) {
   process.exit(2);
 }
 const ROOT = new URL("../", import.meta.url);
-const DATA_PATH = new URL("data.js", ROOT), POS_PATH = new URL("positions.html", ROOT);
+/* ⚠ 2026-09-27 起持仓页的 MANUAL 数据（OTC / OTC_LOG / SNAPSHOTS）在 positions-data.js ——
+   本脚本改的全在这三块里（OTC.updated / cash / funds、SNAPSHOTS 追加期间区块），
+   故读写都指向数据文件；positions.html 本身不再被本脚本改。 */
+const DATA_PATH = new URL("data.js", ROOT), POSDATA_PATH = new URL("positions-data.js", ROOT);
 const ETF_KEYS = { etfNdx: "ndx", etfSpx: "spx", kr: "kr", n225: "n225", hkus: "hkus" };
 const isDate = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -85,7 +88,7 @@ for (const e of input.trades || []) {
   if (!Number.isInteger(e.qty) || !Number.isFinite(e.cost)) errors.push("trade 缺 qty/cost");
   if (/卖出|减仓|清仓/.test(String(e.act)) && !Number.isFinite(e.realized)) errors.push("卖出行 " + e.d + " " + e.act + " 必须带 realized（门禁强制）");
 }
-const dataSrc0 = readFileSync(DATA_PATH, "utf8"), posSrc0 = readFileSync(POS_PATH, "utf8");
+const dataSrc0 = readFileSync(DATA_PATH, "utf8"), posSrc0 = readFileSync(POSDATA_PATH, "utf8");
 const model = readModel(dataSrc0);
 const evalBlock = (src, re, expr) => {
   const m = src.match(re);
@@ -245,13 +248,13 @@ if (hardFail) { console.error("\n✗ 有锚点没找到 → 未写盘。请检�
 if (!WRITE) { console.log("\n（干跑：未写盘。确认无误后加 --write 落盘并跑门禁）"); process.exit(0); }
 
 const backup = { data: dataSrc0, pos: posSrc0 };
-writeFileSync(DATA_PATH, dataSrc); writeFileSync(POS_PATH, posSrc);
+writeFileSync(DATA_PATH, dataSrc); writeFileSync(POSDATA_PATH, posSrc);
 const tryRun = (file, args) => { try { execFileSync("node", [file, ...args], { stdio: "pipe" }); return null; } catch (e) { return String(e.stdout || "") + String(e.stderr || ""); } };
 const bad = [];
 const g1 = tryRun("scripts/check-data.mjs", []); if (g1) bad.push("check-data：\n" + g1.trim());
 const g2 = tryRun("scripts/dom-check.mjs", []); if (g2) bad.push("dom-check：\n" + g2.trim().split("\n").filter((l) => l.includes("✗")).slice(0, 6).join("\n"));
 if (bad.length) {
-  writeFileSync(DATA_PATH, backup.data); writeFileSync(POS_PATH, backup.pos);
+  writeFileSync(DATA_PATH, backup.data); writeFileSync(POSDATA_PATH, backup.pos);
   console.error("\n✗ 门禁未通过 → 已回滚（两个文件均已还原）：\n" + bad.join("\n"));
   process.exit(1);
 }

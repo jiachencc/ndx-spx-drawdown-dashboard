@@ -1,6 +1,6 @@
 # NDX / SPX 指数回撤决策看板 — 交接说明
 
-> 用途：本文件 + `index.html` + `positions.html` + `data.js` 构成完整交接包。新窗口/新任务直接读这四份即可继续干活，无需翻历史对话。
+> 用途：本文件 + `index.html` + `positions.html`（+ 样式 `positions.css`、持仓数据 `positions-data.js`）+ `data.js` 构成完整交接包。新窗口/新任务直接读这几份即可继续干活，无需翻历史对话。
 >
 > **2026-09-12 本地评审修复（未发布）**：页头/矩阵改用 `data.js` 内 `evaluateDecision()` 统一规则；-5% 仅关注，-15% 起检查加仓资格；T+1 按原矩阵 18% 与距高点规则，并明确 >10% 暂停、无跨日滞回。场外 8 只明细恢复；XIRR 使用区间期初市值、缺现金流不按零处理；DCA 固定截至 2026-08-26。新增 `SOURCE_META` 分来源日期与状态，旧读数没有来源证据时显示未核验并暂停动作结论，不应伪造时间戳填充。更新脚本依赖 `scripts/data-quality.mjs`，来源失败逐项保留、原子写入；`scripts/test-dashboard.mjs` 是离线合成回归测试，`scripts/check-data.mjs` 是真实数据审计。CI 先测试再审计，审计通过才允许定时任务提交；手动推送的 Pages 部署设置未改。
 >
@@ -20,7 +20,7 @@
 | 托管方式 | **GitHub Pages**（静态托管） |
 | 远程仓库 | `https://github.com/jiachencc/ndx-spx-drawdown-dashboard.git` |
 | 在线地址 | **https://jiachencc.github.io/ndx-spx-drawdown-dashboard/** |
-| 本地文件 | `index.html`（~106KB）+ `positions.html`（~90KB）+ `data.js`（数据层，~42KB）+ `font.css`（共享字体，~53KB），日常维护只改 data.js |
+| 本地文件 | `index.html`（2,030 行 / 133KB）+ `positions.html`（4,316 行 / 329KB，含长注释与长 note）+ `positions.css`（1,126 行 / 102KB）+ `positions-data.js`（781 行 / 86KB）+ `data.js`（2,561 行 / 115KB）+ `font.css`（53KB）。日常维护：行情/流水改 `data.js`、持仓页 MANUAL 数据改 `positions-data.js`、样式改 `positions.css` |
 
 ---
 
@@ -31,7 +31,8 @@ ndx_spx_dashboard_handoff/
 ├── handoff.md      ← 本文件（交接 + 部署指南）
 ├── index.html      ← 看板本体：结构 + CSS + 渲染逻辑（GitHub Pages 入口）
 ├── positions.html  ← 持仓水位页：结构 + 渲染逻辑（从看板页头「💼 持仓」进入）
-├── positions.css   ← 持仓页的样式表（2026-09-27 从 positions.html 的内联 <style> 抽出，1,110 行）
+├── positions.css   ← 持仓页的样式表（2026-09-27 从 positions.html 的内联 <style> 抽出，1,126 行）
+├── positions-data.js ← 持仓页的 MANUAL 数据层：OTC / OTC_LOG / SNAPSHOTS（2026-09-27 从 positions.html 抽出，~780 行）
 ├── font.css        ← JetBrains Mono @font-face（base64 内嵌），index/positions 两页共享
 ├── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR / POSITIONS，每日更新只改此文件
 ├── scripts/
@@ -81,14 +82,18 @@ ndx_spx_dashboard_handoff/
 > ⚠ 这是**本地文件**，与上一段「不外链」的三条理由（国内 CDN 不稳 / 隐私 / 供应链）**不冲突** —— 那三条针对第三方 CDN，且本项目本来就有 `font.css` 与 `data.js` 两个外链。
 > ⚠ **别再往 `positions.html` 里塞 `<style>`**：改样式一律改 `positions.css`；加载顺序为 `font.css` → `positions.css`。
 
+> **持仓页的数据也已独立（2026-09-27）**：`positions.html` 的 MANUAL 数据段（`OTC` / `OTC_LOG` / `SNAPSHOTS`，757 行）抽到 `positions-data.js`。同样是按变更频率切 —— 这三块每次发截图都要改，而渲染逻辑很少动；抽完 `positions.html` 5,073 → 4,316 行。副作用之一正是想要的：**改数据不再推移逻辑文件的行号**。
+> ⚠ 有脚本依赖它的**形状**（都用行首正则/锚点定位）：`lint` · `refresh-otc` · `apply-screenshot` · `test-dashboard` · `dom-check` · `check-data` · `cross-check` · `data-quality`(auditFiles) · `alt-etf-backtest`。红线：三个常量的**声明必须在行首**、结束行必须是行首的 `};` / `];`，**且不要在文件里（含注释）写这三个声明的原文当例子** —— 有脚本做字符串查找，注释里的字面量会被误命中（2026-09-27 就是这么踩的）。
+> 加载顺序：`data.js` → `positions-data.js` → `positions.html` 的主 `<script>`（三个都是普通 `<script>`，共享同一全局词法环境）。
+
 **📸 截图同步 SOP（用户发 App 截图 → AI 按此清单更新）**
 用户习惯直接发 App 截图（券商持仓页 + 各基金平台持仓页），**不填模板**。AI 收到截图后按以下清单逐项更新：
 
 1. `data.js` → `POSITIONS.hold`：每只场内 ETF 的 `qty` / `cost`（成本价，`idxAtCost` = `cost`）
 2. `data.js` → `POSITIONS.log`：顶部追加当日成交（买入/卖出 + 份数 + 成交价）
-3. `positions.html` → `OTC.updated`、`OTC.cash`（各渠道可用资金合计）
-4. `positions.html` → `OTC.funds[]`：每只场外的 `value`（资产）/ `pnl`（持仓收益）/ `day`（当日收益；**`null` = 该日未更新，勿用 0 冒充**）/ `rate` / `nav.close` + `nav.closeDate` / `upd`（**截图同步时间** `"YYYY-MM-DD HH:MM"`，取截图状态栏时刻；页面据此显示「✓时间/待更」徽章与「已同步 X/8」进度，各 App 更新时间不一致、截图分批发时一眼看出还欠哪家）
-5. `positions.html` → `SNAPSHOTS[]`：新增一期（完整快照带 `items`，或简快照带 `total`）
+3. `positions-data.js` → `OTC.updated`、`OTC.cash`（各渠道可用资金合计）
+4. `positions-data.js` → `OTC.funds[]`：每只场外的 `value`（资产）/ `pnl`（持仓收益）/ `day`（当日收益；**`null` = 该日未更新，勿用 0 冒充**）/ `rate` / `nav.close` + `nav.closeDate` / `upd`（**截图同步时间** `"YYYY-MM-DD HH:MM"`，取截图状态栏时刻；页面据此显示「✓时间/待更」徽章与「已同步 X/8」进度，各 App 更新时间不一致、截图分批发时一眼看出还欠哪家）
+5. `positions-data.js` → `SNAPSHOTS[]`：新增一期（完整快照带 `items`，或简快照带 `total`）
 6. `data.js` → `DEFAULT.etfNdx / etfSpx / kr / n225 / hkus`：五只场内 ETF 自身场内价的 `close` / `chg`（`priceDate` = 券商收盘日）
    ⚠ **`chg` 填「真涨跌幅」（相对前一交易日收盘），别抄券商 App 的「当日盈亏%」** —— 2026-09-24 实测踩到：
       平安 App 那个百分比是**按你的成本 / 买入价**算的（当天有买入时偏差最大），而页面「场内估当日盈亏」用的是涨跌幅口径。
@@ -101,7 +106,7 @@ ndx_spx_dashboard_handoff/
    ⚠ **`git push` 不触发行情抓取** —— 日更任务只在**定时**跑（cron `47 21 * * 1-5` = 北京 05:47），push 只触发**校验**（check-data / 回归 / eslint / dom-check）。
    → **推送当天这五条不会自己更新**，页面（持仓卡 KPI、三档链条、分位条、快照）会停在上一交易日报价。
    当天就要出当日数时，按券商截图**手填**这五条 + 在块内注释写明「手填、次日 05:47 定时任务会用同一源覆盖成一致值」
-   （2026-09-23 首次实操：手填 5 条）。手填后必自查两处一致：`positions.html` 快照 `items[].val` = 手填 `close` × `qty`，对不上说明有一处写错。
+   （2026-09-23 首次实操：手填 5 条）。手填后必自查两处一致：`positions-data.js` 快照 `items[].val` = 手填 `close` × `qty`，对不上说明有一处写错。
    （AUTO 的 `premiums` 同样滞后一档：它由脚本按「场内收盘价 ÷ 天天基金净值」算，手填当天价会让**价格日 ≠ 净值日**——卡头溢价胶囊会照实显示两个日期，属正常，不是 bug。同一天也可顺手按同一算法把溢价刷到当日：`curl api.fund.eastmoney.com/f10/lsjz?fundCode=<code>` 取最新净值，÷ 手填收盘价。）
    **更省事的做法（2026-09-23 加）**：把当天读数写成一份 JSON，交给录入器 ——
    `node scripts/apply-screenshot.mjs day.json`（干跑，只打印改动）→ `--write` 落盘并跑门禁、不通过自动回滚。
@@ -260,7 +265,7 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 
 ## 7. 重新开干 · 检查清单
 1. 读 `handoff.md`（本文件）确认约定与部署命令。
-2. 改数据 → `data.js`（持仓页的快照 / OTC / OTC_LOG 等 MANUAL 常量仍在 `positions.html` 顶部，尚未分离）；
+2. 改数据 → `data.js`（行情 / 持仓流水 / 回测）或 `positions-data.js`（持仓页的 OTC / OTC_LOG / SNAPSHOTS）；
    改样式 → `index.html` 的内联 `<style>` 或 `positions.css`；改结构/逻辑 → 对应的 `.html`。
 3. 改完按第 5.2 节 `git push` 发布。
 4. 用第 5.3 节 curl 验证关键特性已上线。

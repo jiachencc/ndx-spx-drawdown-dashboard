@@ -48,13 +48,15 @@ if (!JSDOM) {
 /* 最新一期含持仓明细的快照：页面上的汇总数字应当与它一致。
    ⚠ 地面真值必须是**快照里的现金**，不能拿 OTC.cash 当基准 —— 那样页面永远和自己一致，
    2026-09-22 那个「现金滞后一期」就照样通过（本脚本初版就是这么写的，是负例测试把它暴露的）。 */
-const src = readFileSync(path.join(root, "positions.html"), "utf8");
+/* ⚠ 2026-09-27 起 SNAPSHOTS / OTC 在 positions-data.js 里（原先内联在 positions.html）——
+   取地面真值要读那个文件；下面喂给 JSDOM 的仍是 positions.html（它会自己加载两个数据文件）。 */
+const dataSrc = readFileSync(path.join(root, "positions-data.js"), "utf8");
 const ctx = vm.createContext({});
-vm.runInContext(src.match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m)[0] + "\nthis.rows = SNAPSHOTS;", ctx, { timeout: 500 });
+vm.runInContext(dataSrc.match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m)[0] + "\nthis.rows = SNAPSHOTS;", ctx, { timeout: 500 });
 const latest = ctx.rows.filter((s) => s.items).at(-1);
 const snapCash = latest.cash;                                                        // 真值
 const snapTotal = Object.values(latest.items).reduce((a, it) => a + it.val, 0) + snapCash;
-const otcCash = +src.match(/cash:\s*([\d.]+)/)[1];                                    // 页面实际在用的值
+const otcCash = +dataSrc.match(/cash:\s*([\d.]+)/)[1];                                // 页面实际在用的值
 
 const errors = [];
 const dom = await JSDOM.fromFile(path.join(root, "positions.html"), {

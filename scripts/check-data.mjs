@@ -9,7 +9,8 @@ try {
      为什么需要：这类错只错一处时 schema 全对、页面照常渲染、肉眼也未必看出来 ——
      2026-09-23 当天是靠临时脚本人工对账「快照场外 Σ ↔ OTC.funds Σ」才敢提交的，现固化为门禁。 */
   const model = readModel(readFileSync(new URL("data.js", root), "utf8"));
-  const html = readFileSync(new URL("positions.html", root), "utf8");
+  /* ⚠ 2026-09-27 起 SNAPSHOTS / OTC 在 positions-data.js（原先内联在 positions.html） */
+  const html = readFileSync(new URL("positions-data.js", root), "utf8");
   issues.push(...crossIssues(model, html).issues);
   if (issues.length) {
     console.error("Data audit failed; do not auto-correct historical records:\n" + issues.map(s => "- " + s).join("\n"));
