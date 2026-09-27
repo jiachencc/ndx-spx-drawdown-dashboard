@@ -5450,13 +5450,28 @@ function renderCheckup() {
     data.push({ p, otc: false, val: p.qty * (Number.isFinite(m.close) ? m.close : p.idxAtCost) });
   });
   funds.forEach((f) => data.push({ p: { sym: f.name, code: f.code, idx: f.theme }, otc: true, val: f.value }));
-  const rank = { D: 0, C: 1, B: 2, A: 3 };
+  /* 排序（2026-09-27 用户要求「操作越差的放上面、越好的放下面」，本次细化了同档内的先后）：
+     ① 最弱档位：D → C → B → A → 无数据（原逻辑，保留 —— 它决定"最刺眼的那一项"是什么）
+     ② 同档位内按**三项档位的平均分**（A=3 / B=2 / C=1 / D=0，**只当排序键、不显示**）——
+        这样「D+D+D」(0.0) 排在「D+A+A」(2.0) 之前：三项都差，更该先看。
+        ⚠ 必须用**平均**而不是求和：求和会让"只有 1 项有数据"的显得更差（摩根日本精选只有成本项 C = 1，
+          而日经 225 是买点 C + 成本 C = 2）→ 反了。平均后两者都是 1.0，交给下一级（问题项数）判定 ✓
+     ③ 再按"有几个 C/D"（问题项数），多者在前
+     ④ 末序仍按现值降序（同档里先看金额大的）
+     ⚠ 之所以坚持「不显示总分」（见 opCheckup 头部）：单一分数会把矛盾信息压平（例如「成本位很好但调仓全亏」），
+        所以分值只在这里参与排序，页面上仍只给分项。 */
+  const RANK = { D: 0, C: 1, B: 2, A: 3 };
+  const SCORE = { A: 3, B: 2, C: 1, D: 0 };
   data.forEach((r) => {
     r.d = opCheckup(r.p);
     const gs = [r.d.gBuy, r.d.gCost, r.d.gSwing].filter(Boolean);
     r.worst = gs.length ? gs.slice().sort().pop() : null;
+    r.score = gs.length ? gs.reduce((a, g) => a + SCORE[g], 0) / gs.length : null;   // 平均分，越小越差
+    r.bad = gs.filter((g) => g === "C" || g === "D").length;                         // 问题项数
   });
-  data.sort((a, b) => (rank[a.worst] === undefined ? 4 : rank[a.worst]) - (rank[b.worst] === undefined ? 4 : rank[b.worst]) || b.val - a.val);
+  const key = (r) => (RANK[r.worst] === undefined ? 4 : RANK[r.worst]);
+  const avg = (r) => (r.score === null ? 9 : r.score);   // 无数据项的排在同档最后
+  data.sort((a, b) => key(a) - key(b) || avg(a) - avg(b) || b.bad - a.bad || b.val - a.val);
   const cnt = $("chk-cnt");
   if (cnt) cnt.innerHTML = "(" + data.length + " 只 · 场内 " + holds.length + " · 场外 " + funds.length + ")";
   const gb = (g) => (g ? '<b class="oc-' + g.toLowerCase() + '">' + g + "</b>" : '<b class="oc-na">—</b>');
@@ -5520,7 +5535,7 @@ function renderCheckup() {
       "<b>成本</b>＝<b>成本位 → 现价位</b>（同为该标的的区间分位）—— 箭头向右＝现价高于成本（摊薄成功 / 已浮盈），与市场涨跌无关；" +
       "⚠ 成本用的是<b>摊薄成本</b>（Σ买入含费 − Σ卖出净额），卖出回收后可能被抬到区间之外，那时只标「超区间」、不给分位（给了也没有意义）；" +
       "<b>调仓</b>＝有卖出记录才评（实现盈亏 + 盈利笔数）；场外的赎回记录只有笔数、没有实现盈亏 → 只报笔数、不给档位。" +
-      "排序：按最弱档位（D → C → B → A），同档按现值降序 —— 需要看的排前面。" +
+      "排序：<b>越差的越靠前</b> —— 先按最弱档位（D → C → B → A，无数据最后），同档位再按三项合计（都差的在前）、问题项数，最后按现值降序。" +
       "<b>不给单一总分</b>：单一分数会把矛盾信息压平（一只可能「成本位很好但调仓全亏」），所以只给分项。" +
       /* 数据来源与缺口（2026-09-27 加）：让"缺数据"和"没有卖出"一眼可辨 —— 两者的空值含义完全不同 */
       " <b>数据来源</b>：场内 5 只用券商全流水（日期 / 份数 / 成交价 / 费用，共 43 笔）；" +
