@@ -13,7 +13,12 @@
 import fs from 'node:fs';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
-const TODAY = '2026-09-17';
+/* 当天（按北京时区；+8h 换算，不依赖运行环境的时区设置）。
+   ⚠ 原来这里硬编码成 '2026-09-17'（调试留下的），后果很隐蔽：
+   它被拼进 Nasdaq 历史接口的 todate → NDX / SOX 两条序列**永远停在 09-17**，
+   而 SPX 走的是 historyofmarket、不受影响 → 页面照常渲染、verify 照常通过，
+   只在「纳指/费半少了最近一周」这种地方露馅（2026-09-27 用户发现）。 */
+const TODAY = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 const get = async (u, accept = 'application/json') => {
   const r = await fetch(u, { headers: { 'User-Agent': UA, Accept: accept } });
   if (!r.ok) throw new Error(u + ' → HTTP ' + r.status);

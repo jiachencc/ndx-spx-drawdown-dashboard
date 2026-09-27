@@ -68,3 +68,26 @@ const allHtml = Object.values(byId).map((e) => e._h).join('') + allBoxes.map((b)
 console.log('  「—」以外的占位符: ' + (/undefined|NaN|\[object/.test(allHtml) ? '✗ 有' : '✓ 无'));
 console.log('  各分区是否都有内容: ' + ['head-sub', 'sec-now', 'sec-summary', 'sec-table', 'sec-cycles', 'footer', 'legend'].map((k) => k + (byId[k] && byId[k]._h ? '✓' : '✗')).join(' '));
 console.log('  图表数: ' + allBoxes.length + '（全部叠加模式＝3 个指数）');
+
+/* ── 数据新鲜度（2026-09-27 加）──
+   教训：fetch.mjs 里 TODAY 曾被硬编码成 '2026-09-17'，Nasdaq 接口的 todate 于是永远停在那天 →
+   NDX / SOX 悄悄落后 SPX 整整一周，而本脚本只检渲染（占位符 / 分区 / 折线条数都正常），
+   于是"绿灯"放行了一份残缺数据。下面两条专门盯这类静默降级：
+     ① 三条序列的最新交易日必须一致（这天事故里正是这里露馅：NDX/SOX 比 SPX 晚 6 个交易日）；
+     ② 最新交易日距今不得超过 5 个自然日（容周末 + 假日；超了说明抓取静默失败了）。
+   任一条不过就把退出码设为 1 —— update.sh 用的是 `set -e`，会当场失败，不再绿着糊过去。 */
+const S = JSON.parse(fs.readFileSync('data/series.json', 'utf8'));
+const lastOf = (k) => (Array.isArray(S[k]) && S[k].length ? S[k][S[k].length - 1].d : null);
+const L = { spx: lastOf('spx'), ndx: lastOf('ndx'), sox: lastOf('sox') };
+const uniq = [...new Set(Object.values(L).filter(Boolean))].sort();
+const newest = uniq[uniq.length - 1] || null;
+const calDays = newest ? Math.round((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse(newest)) / 86400000) : NaN;
+const problems = [];
+if (Object.values(L).some((v) => !v)) problems.push('有条序列是空的：' + JSON.stringify(L));
+else if (uniq.length !== 1) problems.push('三条序列最新日期不一致 ' + JSON.stringify(L) + '（事故原型：NDX/SOX 落后 SPX 一周）');
+if (Number.isFinite(calDays) && calDays > 5) problems.push('最新交易日 ' + newest + ' 距今 ' + calDays + ' 天（> 5）→ 抓取可能静默失败了');
+console.log('\n=== 数据新鲜度 ===');
+console.log('  spx ' + L.spx + ' · ndx ' + L.ndx + ' · sox ' + L.sox + '  → 最新 ' + newest + '（距今 ' + calDays + ' 天）' + (problems.length ? '  ✗' : '  ✓'));
+problems.forEach((p) => console.log('    ✗ ' + p));
+if (problems.length) process.exitCode = 1;
+
