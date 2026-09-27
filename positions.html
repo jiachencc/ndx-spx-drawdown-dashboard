@@ -2295,10 +2295,15 @@ function renderImpl() {
     const md = f.upd.slice(5, 10).replace("-", ".");
     /* ⚠ 2026-09-25：与 dayVals 同一处放宽 —— upd 日期**不早于**快照日即算「本期已同步」；
        晚于快照日的属**补录**（本期支付宝两只到 09-25 10:16 才出净值），不该标成「待更」。 */
+    /* 2026-09-27 精简（用户反馈「左边的标签太长了」）：文案里**不再重复截图日** ——
+       顶部「· 同步 8/8」与「截至 …」已经表达，完整截图时刻仍在 title 里可查。
+       行内只留「渠道 · 净值日」（净值日才是这一只的读数口径，QDII 逐只滞后的差异就在这儿）。
+       长度从 ~144px 收到 ~90px，与场内那枚「场内 09.24」接近 —— 两列宽度也就齐了。 */
     if (f.upd.slice(0, 10) >= OTC.updated)
       return '<span class="date-chip otc" title="场外 App 截图：' + esc(f.upd) + '（状态栏时刻）· 渠道 ' + esc(ch) + esc(nav.title) + '">' +
-        esc(ch) + " " + md + esc(nav.text) + "</span>";
-    return '<span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " " + md + " 待更" + esc(nav.text) + "</span>";
+        esc(ch) + esc(nav.text) + "</span>";
+    /* 「待更」是状态、必须留；日期同样移进 title */
+    return '<span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " 待更" + esc(nav.text) + "</span>";
   };
   const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) >= OTC.updated).length;   // 同 dayVals：≥ 快照日即算本期（含补录）
   $("otc-updated").innerHTML = (OTC.updated ? otcTag() : "未记录") + freshBadge(OTC.updated) +
@@ -2423,7 +2428,11 @@ function renderImpl() {
   const plRows = [];
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
   /* 来源标签统一走 srcLabel()：场内→「场内」、场外→渠道简称，与快照明细同一套取值 */
-  rows.forEach((row) => plRows.push({ code: row.p.code, name: row.p.sym, badge: etfRowTag(row), pl: row.valAmt - row.costAmt, r: row.r, cost: row.costAmt, sel: ".card[data-sym='" + row.p.sym + "']" }));
+  /* 场内行也挂操作体检的紧凑版（2026-09-27 用户要求「场内其他的总结也可以汇总到盈亏总览」）——
+     与场外走**同一套计算**（opCheckup），所以两边数值永远一致；
+     持仓卡里那份是完整版（三项 + 一句结论），这里是摘要（成本 + 调仓）。 */
+  rows.forEach((row) => plRows.push({ code: row.p.code, name: row.p.sym, badge: etfRowTag(row), pl: row.valAmt - row.costAmt, r: row.r, cost: row.costAmt, sel: ".card[data-sym='" + row.p.sym + "']",
+    chk: opCheckupBrief(row.p) }));
   /* 场外明细卡已取消 → 不挂跳转目标；净值日已并入来源胶囊。
      另挂 opCheckup 的紧凑版（2026-09-27 方案 A）：场外没有明细卡，「操作体检」就近放在这一行里。
      ⚠ 场外按金额定投 → 买点项不适用；赎回记录（OTC_LOG）只有笔数、没有实现盈亏 → 调仓项不给档位、只报事实。 */
@@ -5321,12 +5330,19 @@ function opCheckup(p) {
 /* 场外赎回记录（OTC_LOG）：只有笔数、没有实现盈亏 → 调仓项**不给档位**，只报事实，别硬评 */
 function opCheckupBrief(p) {
   const d = opCheckup(p);
-  const sells = ((typeof OTC_LOG !== "undefined" && OTC_LOG[p.code]) || []).filter((e) => /赎回/.test(String(e.act)));
   const g = (v) => (v ? '<b class="oc-' + v.toLowerCase() + '">' + v + "</b>" : '<b class="oc-na">—</b>');
+  /* 调仓项：场内有 POSITIONS.log 的实现盈亏 → 照常给档位；
+     场外的赎回记录（OTC_LOG）**只有笔数、没有实现盈亏** → 只报事实、不给档位（给了就是编的）。 */
+  let swing;
+  if (d.isOtc) {
+    const s = ((typeof OTC_LOG !== "undefined" && OTC_LOG[p.code]) || []).filter((e) => /赎回/.test(String(e.act)));
+    swing = s.length ? "赎回 " + s.length + " 笔" : "—";
+  } else {
+    swing = d.sells.length ? g(d.gSwing) + " " + fmtAmt(d.realized) : "—";
+  }
   return '<span class="oc-brief" title="' + esc(d.tip) + '">成本 ' + g(d.gCost)
     + " " + (d.gap === null ? "—" : (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp")
-    + ' · 调仓 ' + (sells.length ? "赎回 " + sells.length + " 笔" : "—")
-    + "</span>";
+    + " · 调仓 " + swing + "</span>";
 }
 function opCheckupHtml(p) {
   const { nowPct, costPct, gap, gBuy, gCost, gSwing, avgB, bps, sells, realized, win, pct, item, note, tip } = opCheckup(p);
