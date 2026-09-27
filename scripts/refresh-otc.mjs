@@ -63,6 +63,26 @@ async function navSeries(code, from, to) {
   return out;
 }
 
+/* 末值交叉校验（2026-09-27 加）：东财是网页版数据接口（免费、无 key，但非官方、无 SLA，靠 Referer 校验，
+   随时可能变），而净值的**逐日历史**免费源目前基本只有它一家 —— 所以主源不动，
+   改用**新浪**（另一家公司，真正独立的源）来校验最新一天的净值：
+     新浪 https://hq.sinajs.cn/list=f_<code> → var hq_str_f_007280="名称,净值,累计,昨日净值,日期,…"
+   ⚠ 新浪只有**最新一天**、没有历史 → 它不能当主源，只能当"报警器"：
+     两边差 > 0.5% 就打印警告（不阻断写入 —— 单个源抽风不该让整件事停摆，这与主看板
+     "非阻断式交叉校验"的口径一致）。 */
+async function sinaLatest(code) {
+  try {
+    const r = await fetch("https://hq.sinajs.cn/list=f_" + code, { headers: { "User-Agent": H["User-Agent"], Referer: "https://finance.sina.com.cn" } });
+    if (!r.ok) return null;
+    const t = await r.text();
+    const m = t.match(/="([^"]*)"/);
+    if (!m) return null;
+    const parts = m[1].split(",");
+    const nav = Number(parts[1]), d = parts[4];
+    return (Number.isFinite(nav) && nav > 0) ? { nav, d } : null;
+  } catch { return null; }
+}
+
 const today = new Date();
 const from = iso(new Date(today.getTime() - WEEKS52_MS)), to = iso(today);
 console.log("窗口 " + from + " → " + to + (WRITE ? "（写回）" : "（dry-run）") + "\n");
@@ -86,10 +106,20 @@ for (const f of OTC.funds) {
   }
   const buyPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
   const old = (f.nav && (f.nav.hi + "/" + f.nav.lo)) || "—";
+  /* 与新浪的末值对一遍（非阻断：只打印，不影响写入）—— series[0] 是最新一天（接口按新→旧返回） */
+  const sn = await sinaLatest(code);
+  let cross;
+  if (!sn) cross = " · 新浪校验：取不到，跳过";
+  else {
+    const dev = Math.abs(sn.nav - series[0].v) / series[0].v * 100;
+    cross = dev < 0.5
+      ? " · 新浪校验 ✓ " + sn.nav + "@" + sn.d
+      : " · ⚠ 新浪差异 " + dev.toFixed(2) + "%（新浪 " + sn.nav + "@" + sn.d + " vs 东财 " + series[0].v + "@" + series[0].d + "）";
+  }
   console.log(code.padEnd(7) + (f.name || "").slice(0, 14).padEnd(15) +
     " 样本 " + String(series.length).padStart(3) + " 条 · " + series.at(-1).d + "~" + series[0].d +
     " · hi/lo " + hi.toFixed(4) + "/" + lo.toFixed(4) + "（原 " + old + "）" +
-    " · 申购 " + String(log.length).padStart(3) + " 笔 → 买点 " + (buyPct === null ? "（无记录，不算）" : buyPct + "%"));
+    " · 申购 " + String(log.length).padStart(3) + " 笔 → 买点 " + (buyPct === null ? "（无记录，不算）" : buyPct + "%") + cross);
   /* 写回：只替换该只的 hi / lo / buyPct 三个数，其余字段一字不动 */
   if (!WRITE) continue;
   const before = src;
