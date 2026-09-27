@@ -851,6 +851,9 @@
   .chk-tbl b.oc-d { color: var(--red); }
   .chk-tbl b.oc-na { color: var(--tx3); font-weight: 400; }
   .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
+  /* 「数据不全」标记（2026-09-27 加）：3 项里有的"不适用/无记录"时给个 ⓘ ——
+     这类行的档位来自更少的证据，但排序照旧（数据少不等于操作好），只提示、不降级。 */
+  .chk-tbl .chk-partial { margin-left: 4px; color: var(--tx3); font-size: 10px; cursor: help; vertical-align: 1px; }
   /* 列内小标签（"买点 / 成本 / 调仓"）：桌面有表头 → 隐藏；手机隐去表头后 → 显示（见下面的媒体查询） */
   .chk-tbl .c-lb { display: none; }
   .c-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
@@ -5450,24 +5453,37 @@ function renderCheckup() {
     data.push({ p, otc: false, val: p.qty * (Number.isFinite(m.close) ? m.close : p.idxAtCost) });
   });
   funds.forEach((f) => data.push({ p: { sym: f.name, code: f.code, idx: f.theme }, otc: true, val: f.value }));
-  /* 排序（2026-09-27 用户要求「操作越差的放上面、越好的放下面」，本次细化了同档内的先后）：
-     ① 最弱档位：D → C → B → A → 无数据（原逻辑，保留 —— 它决定"最刺眼的那一项"是什么）
-     ② 同档位内按**三项档位的平均分**（A=3 / B=2 / C=1 / D=0，**只当排序键、不显示**）——
-        这样「D+D+D」(0.0) 排在「D+A+A」(2.0) 之前：三项都差，更该先看。
-        ⚠ 必须用**平均**而不是求和：求和会让"只有 1 项有数据"的显得更差（摩根日本精选只有成本项 C = 1，
-          而日经 225 是买点 C + 成本 C = 2）→ 反了。平均后两者都是 1.0，交给下一级（问题项数）判定 ✓
-     ③ 再按"有几个 C/D"（问题项数），多者在前
-     ④ 末序仍按现值降序（同档里先看金额大的）
-     ⚠ 之所以坚持「不显示总分」（见 opCheckup 头部）：单一分数会把矛盾信息压平（例如「成本位很好但调仓全亏」），
-        所以分值只在这里参与排序，页面上仍只给分项。 */
+  /* 排序与权重（2026-09-27 用户要求「越差越前」，随后把权重的判断交给我定 —— 以下是我的决策与理由）：
+     ① 最弱档位：D → C → B → A → 无数据（决定"最刺眼的那一项"，保留原语义）
+        ⚠ 但**买点封顶在 C**：它衡量的是"买入时点"，而页面自己也标注它「上涨趋势里偏高是必然，仅作参考」；
+          更关键的是它与「成本」**高度重叠**（买得贵 ⇒ 成本位也高）—— 若让它等权产生 D，就成了对同一件事双重惩罚。
+          封顶后受影响的实际只有博时标普E（买点 D 82% 但成本 A：买得贵、结果已浮盈）→ 它落回 C 档。
+     ② 同档内按**三项加权平均分**（A=3 / B=2 / C=1 / D=0；权重 **买点 0.5 / 成本 1 / 调仓 1**，只当排序键、不显示）：
+        成本与调仓衡量"结果"（摊薄成没成功、卖出赚没赚），买点只作参考故减半。
+        →「D+D+D」排在「D+A+A」之前：三项都差，更该先看。
+        ⚠ 必须用**平均**而不是求和：求和会让"只有 1 项有数据"的显得更差（摩根日本精选只有成本项 C，
+          而日经 225 是买点 C + 成本 C）→ 反了；平均后两者都是 1.00，交给下一级判定 ✓
+     ③ 问题项数（有几个 C/D，按同一套权重：买点算半项），多者在前
+     ④ 现值降序（同档里先看金额大的）
+     ⚠ 「数据不足」**不参与排序降级**：只有 1 项数据的（中欧港股A / 摩根日本精选A，支付宝渠道无流水）
+        不代表"操作好"—— 中欧成本 D（56%→20%，套得最深）排第一是对的；只在标的旁挂一个 ⓘ 标记，
+        提示"这一行的档位来自更少的证据"。
+     ⚠ 坚持「不显示总分」（见 opCheckup 头部）：单一分数会把矛盾信息压平（例如「成本位很好但调仓全亏」），
+        所以分值只参与排序，页面上仍只给分项。 */
   const RANK = { D: 0, C: 1, B: 2, A: 3 };
   const SCORE = { A: 3, B: 2, C: 1, D: 0 };
+  const W = { buy: 0.5, cost: 1, swing: 1 };
+  const capBuy = (g) => (g === "D" ? "C" : g);   // 买点封顶在 C
   data.forEach((r) => {
     r.d = opCheckup(r.p);
-    const gs = [r.d.gBuy, r.d.gCost, r.d.gSwing].filter(Boolean);
-    r.worst = gs.length ? gs.slice().sort().pop() : null;
-    r.score = gs.length ? gs.reduce((a, g) => a + SCORE[g], 0) / gs.length : null;   // 平均分，越小越差
-    r.bad = gs.filter((g) => g === "C" || g === "D").length;                         // 问题项数
+    const items = [["buy", r.d.gBuy], ["cost", r.d.gCost], ["swing", r.d.gSwing]].filter(([, g]) => g);
+    r.nItems = items.length;                                          // 有几项有数据（仅诊断用）
+    const worstOf = items.map(([k, g]) => (k === "buy" ? capBuy(g) : g));
+    r.worst = worstOf.length ? worstOf.slice().sort().pop() : null;
+    const wsum = items.reduce((a, [k, g]) => a + SCORE[g] * W[k], 0);
+    const wden = items.reduce((a, [k]) => a + W[k], 0);
+    r.score = wden > 0 ? wsum / wden : null;                          // 加权平均，越小越差
+    r.bad = items.reduce((a, [k, g]) => a + ((g === "C" || g === "D") ? W[k] : 0), 0);   // 问题"项数"（买点算半项）
   });
   const key = (r) => (RANK[r.worst] === undefined ? 4 : RANK[r.worst]);
   const avg = (r) => (r.score === null ? 9 : r.score);   // 无数据项的排在同档最后
@@ -5521,7 +5537,13 @@ function renderCheckup() {
       } else swing = d.sells.length ? gb(d.gSwing) + " " + fmtAmt(d.realized) : na("没有卖出记录 → 本项不适用（不是 0 分）");
       return "<tr>" +
         '<td class="c-nm"><span class="c-dot ' + (r.otc ? "otc" : "etf") + '" title="' + (r.otc ? "场外基金" : "场内 ETF") + '"></span>' +
-          esc(d.isOtc ? plDisplayName(r.p.sym) : r.p.sym) + "</td>" +
+          esc(d.isOtc ? plDisplayName(r.p.sym) : r.p.sym) +
+          /* 「数据不全」只指**真的缺流水**（买点算不出来）。⚠ 第一版按「3 项里少了几项」判断，
+             结果 13 只里 10 只都挂了 ⓘ —— 因为「没有卖出记录」也被算成缺项，可那是"没发生过"、
+             不是缺数据（页面本来就用「—」表达），不属于"证据更少"。收紧成只在买点不可用时挂：
+             实测只剩支付宝渠道那两只（摩根日本精选A / 中欧港股A，无任何流水）。 */
+          (d.avgB === null ? '<span class="chk-partial" title="数据不全：该渠道没有任何申赎流水记录 → 买点算不出来（标「不适用」）、调仓标「无记录」。'
+            + '⚠ 这**不代表没操作过**；排序仍按成本那一项走，不因数据少而放宽或加重。">ⓘ</span>' : "") + "</td>" +
         '<td class="c-buy"><i class="c-lb">买点</i>' + buy + "</td>" +
         '<td class="c-cost"><i class="c-lb">成本</i>' + cost + "</td>" +
         '<td class="c-swing"><i class="c-lb">调仓</i>' + swing + "</td>" +
@@ -5535,7 +5557,10 @@ function renderCheckup() {
       "<b>成本</b>＝<b>成本位 → 现价位</b>（同为该标的的区间分位）—— 箭头向右＝现价高于成本（摊薄成功 / 已浮盈），与市场涨跌无关；" +
       "⚠ 成本用的是<b>摊薄成本</b>（Σ买入含费 − Σ卖出净额），卖出回收后可能被抬到区间之外，那时只标「超区间」、不给分位（给了也没有意义）；" +
       "<b>调仓</b>＝有卖出记录才评（实现盈亏 + 盈利笔数）；场外的赎回记录只有笔数、没有实现盈亏 → 只报笔数、不给档位。" +
-      "排序：<b>越差的越靠前</b> —— 先按最弱档位（D → C → B → A，无数据最后），同档位再按三项合计（都差的在前）、问题项数，最后按现值降序。" +
+      "<b>排序</b>：越差的越靠前 —— 依次比 ① 最弱档位（D → C → B → A，无数据最后）② 三项加权平均分（成本与调仓各算 1 份、<b>买点算半份</b>；都差的在前）③ 问题项数 ④ 现值降序。" +
+      "⚠ <b>买点封顶在 C</b>：它衡量「买入时点」，且与成本高度重叠（买得贵 ⇒ 成本位也高），不单独把一只打成 D。" +
+      "⚠ 标的旁的 <b>ⓘ</b> 表示<b>该渠道没有任何流水记录</b>（买点算不出来）—— 档位来自更少的证据，但不因此放宽或加重，只作提示。" +
+      "另：<b>「没有卖出记录」不算数据缺口</b>（那是「没发生过」，页面用「—」表示），所以不打 ⓘ。" +
       "<b>不给单一总分</b>：单一分数会把矛盾信息压平（一只可能「成本位很好但调仓全亏」），所以只给分项。" +
       /* 数据来源与缺口（2026-09-27 加）：让"缺数据"和"没有卖出"一眼可辨 —— 两者的空值含义完全不同 */
       " <b>数据来源</b>：场内 5 只用券商全流水（日期 / 份数 / 成交价 / 费用，共 43 笔）；" +
