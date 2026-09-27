@@ -846,8 +846,12 @@
   .oc-brief b.oc-na { color: var(--tx3); }
   /* 「操作体检」表（2026-09-27）：13 只集中对比。表头小而弱、行间细虚线（与盈亏总览同一套视觉），
      档位字母沿用 .oc-* 那套色；手机隐去「买点」列 —— 那里场内基本都是 C，信息量最低。 */
-  .chk-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
-  .chk-tbl th { text-align: left; font-weight: 700; color: var(--tx3); font-size: var(--fs-xxs);
+  /* ⚠ 本表字号走**局部变量**，不要改全站的 --fs-xs / --fs-xxs（分别被引用 58 / 70 次，
+     牵连图例、小注、来源行等处）。--chk-fs 管正文与数字，--chk-fs-mini 管表头 / 列内小标签 / ⓘ / gap 小字。
+     2026-09-27 用户要求「再小一点」：11→10、10→9；手机端的 .c-note / .c-lb 也从 mini 取，一并变小。 */
+  .chk-tbl { --chk-fs: 10px; --chk-fs-mini: 9px;
+    width: 100%; border-collapse: collapse; font-size: var(--chk-fs); }
+  .chk-tbl th { text-align: left; font-weight: 700; color: var(--tx3); font-size: var(--chk-fs-mini);
     letter-spacing: .06em; padding: 0 8px 7px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .chk-tbl td { padding: 7px 8px 7px 0; border-bottom: 1px dashed var(--line-soft); vertical-align: baseline; }
   .chk-tbl tr:last-child td { border-bottom: none; }
@@ -861,13 +865,14 @@
   .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
   /* 「数据不全」标记（2026-09-27 加）：3 项里有的"不适用/无记录"时给个 ⓘ ——
      这类行的档位来自更少的证据，但排序照旧（数据少不等于操作好），只提示、不降级。 */
-  .chk-tbl .chk-partial { margin-left: 4px; color: var(--tx3); font-size: 10px; cursor: help; vertical-align: 1px; }
+  .chk-tbl .chk-partial { margin-left: 4px; color: var(--tx3); font-size: var(--chk-fs-mini); cursor: help; vertical-align: 1px; }
   /* 成本列尾部的 gap 小字（2026-09-27 加）：它是本表的**排序依据**（同档内按它升序），
      摆出来就不必"现价位 − 成本位"心算。刻意压小压淡 —— 主信息仍是「成本位 → 现价位」，gap 只当量级提示。
      ⚠ 成本价超区间、或 gap 算不出的行不显示（那些值语义无意义）。
-     ⚠ 余量很紧：390px 下成本列 110px、内容 104px —— 只剩 6px。若调大本行字号/margin，
-       或让 gap 变成 3 位数，**必须重测手机端是否溢出**（实测方法见 git 历史里的四档检查）。 */
-  .chk-tbl .c-gap { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--tx3); margin-left: 3px; }
+     ⚠ 余量曾很紧：本行字号 10→9 之前，390px 下成本列 110px、内容 104px 只剩 6px；
+       缩小后压力缓解，但余量仍不多 —— 若再调大字号/margin、或让 gap 变成 3 位数，
+       **必须重测手机端是否溢出**（实测方法见 git 历史里的四档检查）。 */
+  .chk-tbl .c-gap { font-style: normal; font-family: var(--mono); font-size: var(--chk-fs-mini); color: var(--tx3); margin-left: 3px; }
   /* 列内小标签（"买点 / 成本 / 调仓"）：桌面有表头 → 隐藏；手机隐去表头后 → 显示（见下面的媒体查询） */
   .chk-tbl .c-lb { display: none; }
   .c-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
@@ -888,9 +893,9 @@
     .chk-tbl tr { padding: 9px 0; border-bottom: 1px dashed var(--line-soft); }
     .chk-tbl .c-nm { display: block; margin-bottom: 5px; }
     .chk-tbl .c-buy, .chk-tbl .c-cost, .chk-tbl .c-swing { display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; }
-    .chk-tbl .c-note { display: block; margin-top: 5px; padding: 0; border: none; font-size: var(--fs-xxs); }
+    .chk-tbl .c-note { display: block; margin-top: 5px; padding: 0; border: none; font-size: var(--chk-fs-mini); }
     /* 手机上隐去表头，所以列内小标签显示出来、并独立成行（与数字上下对齐，比挤在数字前更好认） */
-    .chk-tbl .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--fs-xxs); margin-bottom: 1px; }
+    .chk-tbl .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); margin-bottom: 1px; }
   }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }
