@@ -851,13 +851,24 @@
   .chk-tbl b.oc-d { color: var(--red); }
   .chk-tbl b.oc-na { color: var(--tx3); font-weight: 400; }
   .chk-tbl .c-note { color: var(--tx3); }
+  /* 列内小标签（"买点 / 成本 / 调仓"）：桌面有表头 → 隐藏；手机隐去表头后 → 显示（见下面的媒体查询） */
+  .chk-tbl .c-lb { display: none; }
   .c-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
   .c-dot.etf { background: var(--cyan); }
   .c-dot.otc { background: var(--purple); }
   .chk-note { margin-top: 11px; }
   @media (max-width: 767px) {
-    .chk-tbl .c-buy, .chk-tbl th.c-buy { display: none; }
-    .chk-tbl .c-note { font-size: var(--fs-xxs); }
+    /* 手机（2026-09-27 修）：原来隐去「买点」列（理由写的是"信息量最低"）—— 判断错了，
+       买点是三项之一，用户直接发现"没有买点了"。现在改为**四列都留、说明换到第二行**：
+         ● 港美互联网LOF   买点 C 68%   成本 D −229pp   调仓 D −5,072
+             成本位高于现价位 229 个百分点（套牢中）· 5 笔卖出合计 −5,072（0/5 笔盈利）
+       表头在手机上隐去（列序固定、每个数字自带 % / pp / 元 单位，配合列内小标签 c-lb 就看得懂）。 */
+    .chk-tbl thead { display: none; }
+    .chk-tbl, .chk-tbl tbody, .chk-tbl tr { display: block; }
+    .chk-tbl tr { padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }
+    .chk-tbl td { display: inline-block; padding: 0 10px 0 0; border: none; vertical-align: baseline; }
+    .chk-tbl .c-note { display: block; font-size: var(--fs-xxs); margin-top: 3px; padding: 0; }
+    .chk-tbl .c-lb { display: inline; font-style: normal; color: var(--tx3); font-size: var(--fs-xxs); margin-right: 3px; }
   }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }
@@ -5327,13 +5338,16 @@ function opCheckup(p) {
   const item = (label, g, val, tip) => '<span class="oc-i" title="' + esc(tip) + '"><i>' + label + "</i>" +
     (g ? '<b class="oc-' + g.toLowerCase() + '">' + g + "</b>" : '<b class="oc-na">—</b>') +
     (val ? "<em>" + val + "</em>" : "") + "</span>";
-  /* 结论句：挑最弱的一项说人话（没有弱项就说维持） */
-  const items = [["买点", gBuy, avgB], ["成本", gCost, gap], ["调仓", gSwing, realized]];
-  const weak = items.filter((x) => x[1] === "D")[0] || items.filter((x) => x[1] === "C")[0];
+  /* 结论句：**把 D/C 的问题都列出来**（2026-09-27 改进 —— 原来只挑最弱那一项，
+     于是「港美」只说了成本、漏了"5 次调仓全亏"这种同样要紧的事实）。
+     只陈述事实、不给投资建议（这份体检只描述已发生的操作，不替你做决定）。 */
+  const issues = [];
+  if (gCost === "D") issues.push("成本位高于现价位 " + Math.abs(Math.round(gap)) + " 个百分点（套牢中）");
+  else if (gCost === "C") issues.push("成本位略高于现价位 " + Math.abs(Math.round(gap)) + " 个百分点");
+  if (gSwing === "D" || gSwing === "C") issues.push(sells.length + " 笔卖出合计 " + fmtAmt(realized) + "（" + win + "/" + sells.length + " 笔盈利）");
+  if (gBuy === "D" || gBuy === "C") issues.push("买点均位 " + Math.round(avgB) + "%，偏区间上部");
   let note;
-  if (weak && weak[0] === "成本") note = "成本位高于现价位 " + Math.abs(Math.round(gap)) + " 个百分点（套牢中）";
-  else if (weak && weak[0] === "调仓") note = sells.length + " 笔卖出合计 " + fmtAmt(realized) + "（" + win + "/" + sells.length + " 笔盈利）";
-  else if (weak && weak[0] === "买点") note = "买点均位 " + Math.round(avgB) + "%，偏区间上部";
+  if (issues.length) note = issues.join(" · ");
   else if (gBuy || gCost || gSwing) note = "三项均无短板";
   else note = "数据不足，暂不评";
   const tip = "操作体检：只描述**已经发生的操作**，不预测涨跌、也不评价基金本身好坏。"
@@ -5400,9 +5414,9 @@ function renderCheckup() {
       return "<tr>" +
         '<td class="c-nm"><span class="c-dot ' + (r.otc ? "otc" : "etf") + '" title="' + (r.otc ? "场外基金" : "场内 ETF") + '"></span>' +
           esc(d.isOtc ? plDisplayName(r.p.sym) : r.p.sym) + "</td>" +
-        '<td class="c-buy">' + buy + "</td>" +
-        "<td>" + cost + "</td>" +
-        "<td>" + swing + "</td>" +
+        '<td class="c-buy"><i class="c-lb">买点</i>' + buy + "</td>" +
+        '<td class="c-cost"><i class="c-lb">成本</i>' + cost + "</td>" +
+        '<td class="c-swing"><i class="c-lb">调仓</i>' + swing + "</td>" +
         '<td class="c-note">' + esc(d.note) + "</td>" +
       "</tr>";
     }).join("") + "</tbody></table>" +
