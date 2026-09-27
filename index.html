@@ -520,19 +520,23 @@
   .mchart-summary b { font-family: var(--mono); }
   .mchart-cross { margin-top: 8px; font-size: 12px; color: var(--tx3); }
   .mchart-cross b { font-family: var(--mono); }
-  /* 近 1 个月日线卡（2026-09-27 加）：两张独立小图并排（桌面两列 / 手机一列）。
-     各用真实点位、独立 Y 轴，不做归一化 —— 这卡回答的是「点位在哪、这一个月怎么走的」。 */
+  /* 近 1 个月日线卡（2026-09-27 改版）：整宽单图（与回撤深度尺同尺度，viewBox 620 宽）+ NDX/SPX tab + 悬停/点击交互。
+     图高 200 比深度尺（620×110）高一档 —— 折线需要纵向空间；宽度一致（都是 .xxx-svg{width:100%}）。 */
+  .recent-tabs { display: inline-flex; gap: 4px; margin-left: 6px; }
+  .recent-tabs .rtab { font: inherit; font-size: 11px; font-weight: 600; color: var(--tx2); background: transparent;
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: pointer; line-height: 1.5; }
+  .recent-tabs .rtab:hover { color: var(--tx); border-color: var(--tx3); }
+  .recent-tabs .rtab.on { color: #0b0e14; background: var(--purple); border-color: var(--purple); }
+  body.light .recent-tabs .rtab.on { color: #fff; }
   .recent-asof { margin-left: auto; color: var(--tx3); font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0; }
-  .recent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 2px; }
-  @media (max-width: 680px) { .recent-grid { grid-template-columns: 1fr; } }
-  .recent-box { min-width: 0; }
-  .recent-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 12px; margin-bottom: 1px; }
-  .recent-h b { font-weight: 700; }
-  .recent-n { font-family: var(--mono); font-feature-settings: "tnum"; font-size: 12px; }
-  .recent-h .rng { color: var(--tx3); font-size: 11px; font-family: var(--mono); font-feature-settings: "tnum"; margin-left: auto; white-space: nowrap; }
-  .recent-h .rng.up { color: var(--green); }
-  .recent-h .rng.down { color: var(--red); }
-  .recent-svg { display: block; width: 100%; height: auto; }
+  .recent-svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; }
+  .recent-readout { font-family: var(--mono); font-size: 11px; color: var(--tx3); font-feature-settings: "tnum";
+    min-height: 17px; margin-top: 2px; text-align: center; line-height: 1.55; }
+  .recent-readout b { color: var(--tx); font-weight: 700; }
+  .recent-readout .up { color: var(--green); }
+  .recent-readout .down { color: var(--red); }
+  .recent-readout .sep { opacity: .45; margin: 0 6px; }
+  .recent-readout .pin { color: var(--purple); }
 </style>
 </head>
 <body>
@@ -633,10 +637,16 @@
     </div>
   </div>
 
-  <!-- 近 1 个月日线（2026-09-27 加）：数据 = data.js 的 RECENT（抓取脚本从 10 年日线里顺手留下的尾巴）-->
+  <!-- 近 1 个月日线（2026-09-27）：整宽单图 + NDX/SPX 切换 + 悬停/点击交互（数据 = data.js 的 RECENT）-->
   <div class="card" id="card-recent">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">🕘</span> 近 1 个月日线<span class="src-tag auto">AUTO</span><span class="recent-asof" id="recent-asof">--</span></div>
-    <div class="recent-grid" id="recent-grid"></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">🕘</span> 近 1 个月日线
+      <span class="recent-tabs" id="recent-tabs" role="tablist">
+        <button type="button" class="rtab on" data-k="ndx" role="tab" aria-selected="true">纳指100</button>
+        <button type="button" class="rtab" data-k="spx" role="tab" aria-selected="false">标普500</button>
+      </span>
+      <span class="src-tag auto">AUTO</span><span class="recent-asof" id="recent-asof">--</span></div>
+    <svg class="recent-svg" id="recent-svg" viewBox="0 0 620 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="近 1 个月日线收盘"></svg>
+    <div class="recent-readout" id="recent-readout"></div>
   </div>
 
   <!-- Scale card -->
@@ -1360,45 +1370,133 @@ function renderBanner(ndxDD) {
 }
 
 /* ================= Data staleness ================= */
-/* 近 1 个月日线（2026-09-27 加）：数据 = data.js 的 RECENT（抓取脚本从 10 年日线里留下的尾巴，22 个交易日）。
-   两张独立小图并排：各自真实点位 + 独立 Y 轴（不归一化 —— 这卡回答的是「点位在哪、这个月怎么走」）。
-   RECENT 缺失或为空时整张卡隐藏（不留空壳）。数值口径与 DEFAULT.ndx / spx.close 同源（同一份 raw 的收盘价）。 */
-function renderRecent() {
-  const grid = $("recent-grid"), card = $("card-recent");
-  if (!grid || !card) return;
+/* 近 1 个月日线（2026-09-27 加；同日按用户反馈改版为「整宽单图 + tab + 悬停交互」）：
+   数据 = data.js 的 RECENT（抓取脚本从 10 年日线里留下的尾巴，22 个交易日，与 DEFAULT.ndx/spx.close 同源）。
+   交互设计（一次点击 = 钉住 A，之后移动鼠标看 A → 当前 的两点变化率；点空白/同一点清除）：
+     · 默认（未钉）：该日收盘 · 相对**区间首日**的涨跌% · 相对前一日的日涨跌%
+     · 钉住 A 后：A 日期 → 当前日期 的两点变化率 + 相隔交易日数（用户要的「选两个点的变化率」）
+   键盘 ← → 移动读数点；RECENT 缺失或为空时整张卡隐藏（不留空壳）。 */
+let recentKey = "ndx";      // 当前 tab：ndx | spx
+let recentHover = null;     // 悬停/键盘所在的点索引（null = 停在最新）
+let recentPin = null;       // 钉住的 A 点索引（null = 未钉）
+function recentData() {
   const R = (typeof RECENT !== "undefined") ? RECENT : null;
-  const usable = (k) => !!(R && R[k] && Array.isArray(R[k].pts) && R[k].pts.length > 1);
-  if (!usable("ndx") || !usable("spx")) { card.style.display = "none"; return; }
-  const asof = $("recent-asof");
-  if (asof) asof.textContent = "截至 " + (R.asOf || R.ndx.asOf || "");
-  const num = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  const one = (key, label, color) => {
-    const pts = R[key].pts, cs = pts.map((p) => p.c);
-    const hi = Math.max(...cs), lo = Math.min(...cs);
-    const pad = (hi - lo) * 0.15 || Math.max(1, hi * 0.01);
-    const yHi = hi + pad, yLo = lo - pad;
-    const W = 460, H = 126, mL = 56, mR = 10, mT = 10, mB = 20;
-    const px = (i) => mL + (i / (pts.length - 1)) * (W - mL - mR);
-    const py = (v) => mT + (yHi - v) / (yHi - yLo) * (H - mT - mB);
-    let s = '<svg class="recent-svg" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + label + ' 近 1 个月日线收盘">';
-    [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
-      s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
-        + '<text x="' + (mL - 6) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + num(t) + "</text>";
-    });
-    s += '<polyline fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linejoin="round" points="'
-      + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
-    const last = pts.length - 1;
-    s += '<circle cx="' + px(last).toFixed(1) + '" cy="' + py(pts[last].c).toFixed(1) + '" r="2.6" fill="' + color + '"/>';
-    s += '<text x="' + mL + '" y="' + (H - 5) + '" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[0].d.slice(5) + "</text>";
-    s += '<text x="' + (W - mR) + '" y="' + (H - 5) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[last].d.slice(5) + "</text>";
-    s += "</svg>";
-    const pct = (pts[last].c / pts[0].c - 1) * 100;
-    return '<div class="recent-box"><div class="recent-h"><b style="color:' + color + '">' + label + "</b>"
-      + '<span class="recent-n">' + num(pts[last].c) + "</span>"
-      + '<span class="rng ' + (pct >= 0 ? "up" : "down") + '">' + (pct >= 0 ? "+" : "−") + Math.abs(pct).toFixed(2) + "% · 1 个月</span></div>" + s + "</div>";
-  };
-  grid.innerHTML = one("ndx", "纳斯达克100", "var(--cyan)") + one("spx", "标普500", "var(--blue)");
+  const ok = (k) => !!(R && R[k] && Array.isArray(R[k].pts) && R[k].pts.length > 1);
+  return (R && ok("ndx") && ok("spx")) ? R : null;
 }
+function recentPct(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%"; }
+function drawRecent() {
+  const R = recentData(), svg = $("recent-svg"), out = $("recent-readout");
+  if (!R || !svg) return;
+  const pts = R[recentKey].pts, cs = pts.map((p) => p.c), n = pts.length;
+  const hi = Math.max(...cs), lo = Math.min(...cs);
+  const pad = (hi - lo) * 0.18 || Math.max(1, hi * 0.005);
+  const yHi = hi + pad, yLo = lo - pad;
+  const W = 620, H = 200, mL = 64, mR = 16, mT = 14, mB = 26;
+  const px = (i) => mL + (i / (n - 1)) * (W - mL - mR);
+  const py = (v) => mT + (yHi - v) / (yHi - yLo) * (H - mT - mB);
+  const line = recentKey === "ndx" ? "var(--cyan)" : "var(--blue)";
+  const fmt = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const fmt2 = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const iNow = recentHover === null ? n - 1 : recentHover;
+  let s = "";
+  [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
+    s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
+      + '<text x="' + (mL - 7) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + fmt(t) + "</text>";
+  });
+  s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.8" stroke-linejoin="round" points="'
+    + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
+  /* 钉住 A：从 A 到当前点重描一段紫色（这就是「两点变化率」的可视化），并在 A 上画个圆点 */
+  if (Number.isInteger(recentPin)) {
+    const a = Math.min(recentPin, iNow), b = Math.max(recentPin, iNow);
+    if (b > a) s += '<polyline fill="none" stroke="var(--purple)" stroke-width="2.6" stroke-linejoin="round" points="'
+      + pts.slice(a, b + 1).map((p, k) => px(a + k).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
+    s += '<circle cx="' + px(recentPin).toFixed(1) + '" cy="' + py(pts[recentPin].c).toFixed(1) + '" r="3.6" fill="var(--purple)"/>';
+  }
+  if (recentHover !== null)
+    s += '<line x1="' + px(iNow).toFixed(1) + '" y1="' + mT + '" x2="' + px(iNow).toFixed(1) + '" y2="' + (H - mB) + '" stroke="var(--tx3)" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>';
+  s += '<circle cx="' + px(iNow).toFixed(1) + '" cy="' + py(pts[iNow].c).toFixed(1) + '" r="' + (recentHover !== null ? 3.6 : 2.8) + '" fill="' + line + '"/>';
+  s += '<text x="' + mL + '" y="' + (H - 6) + '" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[0].d.slice(5) + "</text>";
+  s += '<text x="' + (W - mR) + '" y="' + (H - 6) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[n - 1].d.slice(5) + "</text>";
+  svg.innerHTML = s;
+  if (!out) return;
+  const p = pts[iNow], d0 = pts[0];
+  let t = "<b>" + (recentHover === null && iNow === n - 1 ? "最新 " : "") + p.d.slice(5) + "</b>"
+    + '<span class="sep">·</span><b>' + fmt2(p.c) + "</b>";
+  if (Number.isInteger(recentPin) && recentPin !== iNow) {
+    const a = pts[recentPin], dv = (p.c / a.c - 1) * 100;
+    t += '<span class="sep">·</span><span class="pin">A ' + a.d.slice(5) + "（" + fmt2(a.c) + "）</span> → <b>"
+      + fmt2(p.c) + '</b> <b class="' + (dv >= 0 ? "up" : "down") + '">' + recentPct(dv) + "</b>"
+      + '<span class="sep">·</span>相隔 ' + Math.abs(iNow - recentPin) + " 个交易日";
+  } else {
+    const vs0 = (p.c / d0.c - 1) * 100;
+    t += '<span class="sep">·</span>vs 起点（' + d0.d.slice(5) + '）<b class="' + (vs0 >= 0 ? "up" : "down") + '">' + recentPct(vs0) + "</b>";
+    if (iNow > 0) {
+      const day = (p.c / pts[iNow - 1].c - 1) * 100;
+      t += '<span class="sep">·</span>日 <span class="' + (day >= 0 ? "up" : "down") + '">' + recentPct(day) + "</span>";
+    }
+  }
+  t += '<span class="sep">·</span>' + (Number.isInteger(recentPin)
+    ? "移动鼠标看两点变化率 · 点空白清除"
+    : "点一下钉住 A（再移动 = 两点变化率）");
+  out.innerHTML = t;
+}
+function renderRecent() {
+  const card = $("card-recent"), svg = $("recent-svg");
+  if (!card || !svg) return;
+  if (!recentData()) { card.style.display = "none"; return; }
+  const R = recentData(), asof = $("recent-asof");
+  if (asof) asof.textContent = "截至 " + (R.asOf || R[recentKey].asOf || "");
+  [...document.querySelectorAll("#recent-tabs .rtab")].forEach((b) => {
+    const on = b.getAttribute("data-k") === recentKey;
+    b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  drawRecent();
+}
+/* 交互：事件委托挂在卡片上（SVG 每次重画都会换 innerHTML，直接挂到 svg 上会丢监听） */
+(function bindRecent() {
+  const card = $("card-recent");
+  if (!card) return;
+  card.setAttribute("tabindex", "0");
+  const idxAt = (clientX) => {
+    const R = recentData(), svg = $("recent-svg");
+    if (!R || !svg) return null;
+    const n = R[recentKey].pts.length, r = svg.getBoundingClientRect();
+    if (!r.width) return null;
+    const W = 620, mL = 64, mR = 16;
+    const x = (clientX - r.left) / r.width * W;
+    if (x < mL - 10 || x > W - mR + 10) return null;
+    return Math.max(0, Math.min(n - 1, Math.round((x - mL) / (W - mL - mR) * (n - 1))));
+  };
+  card.addEventListener("pointermove", (e) => {
+    const i = idxAt(e.clientX);
+    if (i === null) { if (recentHover !== null) { recentHover = null; drawRecent(); } return; }
+    if (i !== recentHover) { recentHover = i; drawRecent(); }
+  });
+  card.addEventListener("pointerleave", () => { if (recentHover !== null) { recentHover = null; drawRecent(); } });
+  card.addEventListener("click", (e) => {
+    const tab = e.target.closest && e.target.closest("#recent-tabs .rtab");
+    if (tab) {
+      recentKey = tab.getAttribute("data-k") || "ndx";
+      recentHover = null; recentPin = null;
+      renderRecent();
+      return;
+    }
+    const i = idxAt(e.clientX);
+    if (i === null) { if (recentPin !== null) { recentPin = null; drawRecent(); } return; }
+    recentPin = (recentPin === i) ? null : i;   // 同点再点 = 清除；否则钉住/移动 A
+    drawRecent();
+  });
+  card.addEventListener("keydown", (e) => {
+    const R = recentData(); if (!R) return;
+    const n = R[recentKey].pts.length;
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const cur = recentHover === null ? n - 1 : recentHover;
+    recentHover = Math.max(0, Math.min(n - 1, cur + (e.key === "ArrowRight" ? 1 : -1)));
+    drawRecent();
+  });
+})();
 
 function renderStale() {
   const sc = $("stale-chip");
