@@ -1521,8 +1521,19 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   ];
   const exit = exits.filter(x => x.hit).at(-1) || null;
   const entry = level < 1 ? "standby" : level < 2 ? "observe" : count >= R.entryMinConfirm && bandReady ? "eligible" : "unconfirmed";
-  confirmations.forEach(c => { c.warning = ruleInputs(c.inputs); });
-  exits.forEach(x => { x.warning = ruleInputs(x.inputs); });
+  /* 「输入不新鲜」的两种呈现（2026-09-27 用户要求：页面上一整句黄字太长，改成小标签、完整说明放 title）：
+       warning    完整口径（title / 读屏用，保持原样不动）
+       warningTag 短标签文本（页面直接显示）：
+                     仍在容忍期、只是早于主数据 → 「滞后 N 个交易日」
+                     超过容忍期 / 抓取失败       → h.text 的短句（「超过有效期」/「抓取失败，沿用旧值」）
+     多个滞后输入时取同样顺序拼接（与 warning 一致），手机上看不到 title 也能读出关键结论。 */
+  const ruleTags = keys => keys.map(k => health[k]).filter(h => h && (!h.usable || (h.asOf && d.date && h.asOf < d.date)))
+    .map(h => {
+      const lag = h.asOf && d.date ? tradingDaysBetween(h.asOf, d.date) : null;
+      return h.usable ? (lag !== null ? "滞后 " + lag + " 个交易日" : "日期早于主数据") : h.text;
+    }).join("；");
+  confirmations.forEach(c => { c.warning = ruleInputs(c.inputs); c.warningTag = ruleTags(c.inputs); });
+  exits.forEach(x => { x.warning = ruleInputs(x.inputs); x.warningTag = ruleTags(x.inputs); });
   const base = !healthy ? "数据未核验，暂停动作结论" : exit && entry === "eligible" ? "规则冲突，需人工复核" : exit ? exit.id + " 已触发" : entry === "eligible" ? "回撤档位与确认条件满足" : entry === "unconfirmed" ? "回撤已到档，确认不足" : entry === "observe" ? "关注区，仅观察" : "待机区，未到加仓档位";
   /* 面向非专业读者的一句话解释：说清"结论是什么意思"，而不是重复技术状态。 */
   const plain = (!healthy
