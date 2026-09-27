@@ -99,6 +99,10 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     }
   }
   let core = 0;
+  /* 近 1 个月日线（2026-09-27 加）：raw 本来就是 10 年日线，这里只留最后 RECENT_N 根 —— 零额外请求。
+     给主看板新增的「近 1 个月日线」小图用；口径与 DEFAULT.ndx / spx.close 同源（同一份 raw 的收盘价）。 */
+  const RECENT_N = 22;
+  const recent = {};
   const coreResults = await Promise.allSettled([["ndx", "^NDX", "^ndx"], ["spx", "^GSPC", "^spx"]].map(async ([key, symbol, fallback]) => {
     const raw = await seriesProvider(symbol, fallback), result = metrics(raw);
     if (result.date > dayNY) throw new Error("future US date");
@@ -111,9 +115,16 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     try {
       rec.success(key, result.date, raw.source, { methodology: "10y available high; 52w intraday range; simple-window RSI14" });
       const { date, rows, ...quote } = result; d[key] = quote; core++;
+      recent[key] = {
+        asOf: result.date,
+        pts: raw.dates.map((dt, i2) => ({ d: dt, c: raw.close[i2] }))
+          .filter((x) => isDate(x.d) && Number.isFinite(x.c)).slice(-RECENT_N),
+      };
     } catch (e) { rec.failure(key, raw.source, e.message); }
   }
   if (!core) throw new Error("Both core indices unavailable; original file untouched");
+  /* 近 1 个月日线：只在两条核心指数**都成功**时整体替换 —— 一条失败就保留旧值，绝不写半份。 */
+  if (core === 2) next.RECENT = { asOf: recent.ndx.asOf === recent.spx.asOf ? recent.ndx.asOf : null, ndx: recent.ndx, spx: recent.spx };
   // Independent cross-check of the two core closes. Non-blocking by design: a mismatch is
   // information to surface, not a reason to publish stale numbers instead.
   if (core === 2) await attempt(["crosscheck"], "Sina gb_$ndx / gb_$inx", async () => {
@@ -241,6 +252,8 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   // The single stamp comment inside DEFAULT is refreshed here; per-source provenance lives in SOURCE_META.
   src = src.replace(/(\n  intraday: [^\n]*?)\/\/[^\n]*/, "$1// AUTO：美股 " + d.date + " 收盘（" + now.toISOString().slice(0, 16) + "Z 抓取）");
   src = src.replace(/^const MONTHLY = \[[\s\S]*?^\];/m, () => "const MONTHLY = " + JSON.stringify(next.MONTHLY, null, 2) + ";");
+  /* 近 1 个月日线：与 MONTHLY 同款整体重写（data.js 里那块带注释的空占位会被换成真实数据）。 */
+  src = src.replace(/^const RECENT = \{[\s\S]*?^\};/m, () => "const RECENT = " + JSON.stringify(next.RECENT, null, 2) + ";");
   src = replaceMember(src, "premiums", next.POSITIONS.premiums);
   if (!/\/\* AUTO_META_START:[\s\S]*?\/\* AUTO_META_END \*\//.test(src)) throw new Error("provenance anchor missing");
   src = src.replace(/\/\* AUTO_META_START:[\s\S]*?\/\* AUTO_META_END \*\//, () => "/* AUTO_META_START: source dates, not fetch dates. */\nconst SOURCE_META = " + JSON.stringify(rec.meta, null, 2) + ";\n/* AUTO_META_END */");

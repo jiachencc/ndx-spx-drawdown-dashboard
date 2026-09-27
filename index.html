@@ -520,6 +520,19 @@
   .mchart-summary b { font-family: var(--mono); }
   .mchart-cross { margin-top: 8px; font-size: 12px; color: var(--tx3); }
   .mchart-cross b { font-family: var(--mono); }
+  /* 近 1 个月日线卡（2026-09-27 加）：两张独立小图并排（桌面两列 / 手机一列）。
+     各用真实点位、独立 Y 轴，不做归一化 —— 这卡回答的是「点位在哪、这一个月怎么走的」。 */
+  .recent-asof { margin-left: auto; color: var(--tx3); font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0; }
+  .recent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 2px; }
+  @media (max-width: 680px) { .recent-grid { grid-template-columns: 1fr; } }
+  .recent-box { min-width: 0; }
+  .recent-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 12px; margin-bottom: 1px; }
+  .recent-h b { font-weight: 700; }
+  .recent-n { font-family: var(--mono); font-feature-settings: "tnum"; font-size: 12px; }
+  .recent-h .rng { color: var(--tx3); font-size: 11px; font-family: var(--mono); font-feature-settings: "tnum"; margin-left: auto; white-space: nowrap; }
+  .recent-h .rng.up { color: var(--green); }
+  .recent-h .rng.down { color: var(--red); }
+  .recent-svg { display: block; width: 100%; height: auto; }
 </style>
 </head>
 <body>
@@ -618,6 +631,12 @@
       <div class="kpi"><div class="k-label"><span aria-hidden="true">🔋</span> RSI(14)<button class="hint-i" type="button" aria-label="查看释义" data-h="rsi">?</button></div><div class="k-val" id="spx-rsi">--</div></div>
       <div class="kpi"><div class="k-label"><span aria-hidden="true">📍</span> 52周位置<button class="hint-i" type="button" aria-label="查看释义" data-h="pos52w">?</button></div><div class="k-val small" id="spx-52w">--</div></div>
     </div>
+  </div>
+
+  <!-- 近 1 个月日线（2026-09-27 加）：数据 = data.js 的 RECENT（抓取脚本从 10 年日线里顺手留下的尾巴）-->
+  <div class="card" id="card-recent">
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">🕘</span> 近 1 个月日线<span class="src-tag auto">AUTO</span><span class="recent-asof" id="recent-asof">--</span></div>
+    <div class="recent-grid" id="recent-grid"></div>
   </div>
 
   <!-- Scale card -->
@@ -1101,6 +1120,7 @@ function renderAll() {
   renderGolden(ndxDD, spxDD);
 
   /* data staleness */
+  renderRecent();
   renderStale();
   renderSourceHealth();
 
@@ -1340,6 +1360,46 @@ function renderBanner(ndxDD) {
 }
 
 /* ================= Data staleness ================= */
+/* 近 1 个月日线（2026-09-27 加）：数据 = data.js 的 RECENT（抓取脚本从 10 年日线里留下的尾巴，22 个交易日）。
+   两张独立小图并排：各自真实点位 + 独立 Y 轴（不归一化 —— 这卡回答的是「点位在哪、这个月怎么走」）。
+   RECENT 缺失或为空时整张卡隐藏（不留空壳）。数值口径与 DEFAULT.ndx / spx.close 同源（同一份 raw 的收盘价）。 */
+function renderRecent() {
+  const grid = $("recent-grid"), card = $("card-recent");
+  if (!grid || !card) return;
+  const R = (typeof RECENT !== "undefined") ? RECENT : null;
+  const usable = (k) => !!(R && R[k] && Array.isArray(R[k].pts) && R[k].pts.length > 1);
+  if (!usable("ndx") || !usable("spx")) { card.style.display = "none"; return; }
+  const asof = $("recent-asof");
+  if (asof) asof.textContent = "截至 " + (R.asOf || R.ndx.asOf || "");
+  const num = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const one = (key, label, color) => {
+    const pts = R[key].pts, cs = pts.map((p) => p.c);
+    const hi = Math.max(...cs), lo = Math.min(...cs);
+    const pad = (hi - lo) * 0.15 || Math.max(1, hi * 0.01);
+    const yHi = hi + pad, yLo = lo - pad;
+    const W = 460, H = 126, mL = 56, mR = 10, mT = 10, mB = 20;
+    const px = (i) => mL + (i / (pts.length - 1)) * (W - mL - mR);
+    const py = (v) => mT + (yHi - v) / (yHi - yLo) * (H - mT - mB);
+    let s = '<svg class="recent-svg" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' + label + ' 近 1 个月日线收盘">';
+    [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
+      s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
+        + '<text x="' + (mL - 6) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + num(t) + "</text>";
+    });
+    s += '<polyline fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linejoin="round" points="'
+      + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
+    const last = pts.length - 1;
+    s += '<circle cx="' + px(last).toFixed(1) + '" cy="' + py(pts[last].c).toFixed(1) + '" r="2.6" fill="' + color + '"/>';
+    s += '<text x="' + mL + '" y="' + (H - 5) + '" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[0].d.slice(5) + "</text>";
+    s += '<text x="' + (W - mR) + '" y="' + (H - 5) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[last].d.slice(5) + "</text>";
+    s += "</svg>";
+    const pct = (pts[last].c / pts[0].c - 1) * 100;
+    return '<div class="recent-box"><div class="recent-h"><b style="color:' + color + '">' + label + "</b>"
+      + '<span class="recent-n">' + num(pts[last].c) + "</span>"
+      + '<span class="rng ' + (pct >= 0 ? "up" : "down") + '">' + (pct >= 0 ? "+" : "−") + Math.abs(pct).toFixed(2) + "% · 1 个月</span></div>" + s + "</div>";
+  };
+  grid.innerHTML = one("ndx", "纳斯达克100", "var(--cyan)") + one("spx", "标普500", "var(--blue)");
+}
+
 function renderStale() {
   const sc = $("stale-chip");
   if (!sc) return;
