@@ -5413,8 +5413,16 @@ function renderCheckup() {
       const cost = gb(d.gCost) + " " + (d.gap === null ? na() : (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp");
       let swing;
       if (d.isOtc) {
-        const s = ((typeof OTC_LOG !== "undefined" && OTC_LOG[r.p.code]) || []).filter((e) => /赎回/.test(String(e.act)));
-        swing = s.length ? '<b class="oc-na" title="场外赎回记录只有笔数、没有实现盈亏 → 不评好坏">赎回 ' + s.length + " 笔</b>" : na("没有卖出记录 → 本项不适用（不是 0 分）");
+        /* ⚠ 三种情况必须分开写（2026-09-27 用户问到才发现的缺陷）：
+             ① 该渠道**根本没有流水记录**（支付宝 2 只：摩根 / 中欧）→「无记录」
+             ② 有记录、也赎回过的 →「赎回 N 笔」（场外赎回只有笔数、没有实现盈亏 → 不给档位）
+             ③ 有记录、但从未卖出 →「—」（这才是"本项不适用"）
+           原来 ①③ 共用「—」，把"没有记录"伪装成了"没有卖出" ✗ */
+        const log = (typeof OTC_LOG !== "undefined" && OTC_LOG[r.p.code]) || [];
+        const s = log.filter((e) => /赎回/.test(String(e.act)));
+        if (!log.length) swing = '<b class="oc-na" title="该渠道（支付宝）没有记录任何操作流水，本项无从评 —— 不是「没有卖出」">无记录</b>';
+        else if (s.length) swing = '<b class="oc-na" title="场外赎回记录只有笔数、没有实现盈亏 → 只报事实、不给档位">赎回 ' + s.length + " 笔</b>";
+        else swing = na("有 " + log.length + " 笔申购 / 定投记录、从未卖出 → 本项不适用（不是 0 分）");
       } else swing = d.sells.length ? gb(d.gSwing) + " " + fmtAmt(d.realized) : na("没有卖出记录 → 本项不适用（不是 0 分）");
       return "<tr>" +
         '<td class="c-nm"><span class="c-dot ' + (r.otc ? "otc" : "etf") + '" title="' + (r.otc ? "场外基金" : "场内 ETF") + '"></span>' +
@@ -5433,6 +5441,10 @@ function renderCheckup() {
       "<b>调仓</b>＝有卖出记录才评（实现盈亏 + 盈利笔数）；场外的赎回记录只有笔数、没有实现盈亏 → 只报笔数、不给档位。" +
       "排序：按最弱档位（D → C → B → A），同档按现值降序 —— 需要看的排前面。" +
       "<b>不给单一总分</b>：单一分数会把矛盾信息压平（一只可能「成本位很好但调仓全亏」），所以只给分项。" +
+      /* 数据来源与缺口（2026-09-27 加）：让"缺数据"和"没有卖出"一眼可辨 —— 两者的空值含义完全不同 */
+      " <b>数据来源</b>：场内 5 只用券商全流水（日期 / 份数 / 成交价 / 费用，共 43 笔）；" +
+      "场外 6 只有「日期 / 金额 / 状态」的定投·申购记录（<b>没有净值与份额</b> → 买点项算不出，标「不适用」）；" +
+      "支付宝渠道 2 只（摩根日本精选 A、中欧港股 A）<b>没有任何流水记录</b> → 调仓项标「无记录」，不代表没操作过。" +
     "</div>";
 }
 function opCheckupHtml(p) {
