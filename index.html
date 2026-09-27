@@ -255,7 +255,14 @@
     .g-top { grid-auto-rows: auto; }
     .trig-row { flex-wrap: wrap; }
     .trig-band { width: 46px; }
-    .trig-right { min-width: 86px; }
+    /* 手机上把「状态标签 + 说明」整体换到下一行、占满宽度并左对齐（2026-09-27 修横向溢出 241px）。
+       真因：.trig-dist 里可能带长警告（「PE分位 74/90；RSI 66/75；两项均须满足 ｜ 输入不新鲜：
+       SPX PE分位 2026-08-05（早于主数据 2026-09-25）」），而 .trig-right 是 flex-shrink: 0
+       + 只给了 min-width，宽度只能跟着内容走 → .trig-right / .trig-dist 被撑到 596px，
+       超出 320px 的卡片（实测页面横向溢出 241px，用 git show HEAD 对照过：是既有问题）。
+       现在它 flex: 1 0 100% 独占一行 → 说明文字在最宽处折行，不再溢出。 */
+    .trig-right { flex: 1 0 100%; max-width: 100%; min-width: 0; align-items: flex-start; margin-top: 3px; }
+    .trig-dist { text-align: left; overflow-wrap: anywhere; }
     .signal-banner { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; }
     .signal-banner .sig-tag { align-self: flex-start; }
     .scale-stats { flex-wrap: wrap; gap: 10px; }
