@@ -30,7 +30,8 @@
 ndx_spx_dashboard_handoff/
 ├── handoff.md      ← 本文件（交接 + 部署指南）
 ├── index.html      ← 看板本体：结构 + CSS + 渲染逻辑（GitHub Pages 入口）
-├── positions.html  ← 持仓水位页：成本位置视角 + 操作日志（从看板页头「💼 持仓」进入）
+├── positions.html  ← 持仓水位页：结构 + 渲染逻辑（从看板页头「💼 持仓」进入）
+├── positions.css   ← 持仓页的样式表（2026-09-27 从 positions.html 的内联 <style> 抽出，1,110 行）
 ├── font.css        ← JetBrains Mono @font-face（base64 内嵌），index/positions 两页共享
 ├── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR / POSITIONS，每日更新只改此文件
 ├── scripts/
@@ -75,6 +76,10 @@ ndx_spx_dashboard_handoff/
 兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连 Yahoo（403）与 stooq（JS 挑战页）会被拦，但**腾讯这条腿在国内直连可用**（本机 `node scripts/fetch_and_update.mjs` 能跑通，2026-09-27 实测），故 NDX / SPX 一般不必再人工填数；只有 VIX / TNX 拿不到时才需查网页人工补。
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
+
+> **持仓页的样式已独立（2026-09-27）**：`positions.html` 的内联 `<style>`（1,110 行 / 82KB）抽到 `positions.css`。理由是**按变更频率切**：样式几乎不变，而 `<script>` 里的渲染逻辑天天动 —— 原来混在一个 6,200 行的文件里，改逻辑要滚过整段样式、改样式也要穿过逻辑（抽完 6,182 → 5,073 行）。
+> ⚠ 这是**本地文件**，与上一段「不外链」的三条理由（国内 CDN 不稳 / 隐私 / 供应链）**不冲突** —— 那三条针对第三方 CDN，且本项目本来就有 `font.css` 与 `data.js` 两个外链。
+> ⚠ **别再往 `positions.html` 里塞 `<style>`**：改样式一律改 `positions.css`；加载顺序为 `font.css` → `positions.css`。
 
 **📸 截图同步 SOP（用户发 App 截图 → AI 按此清单更新）**
 用户习惯直接发 App 截图（券商持仓页 + 各基金平台持仓页），**不填模板**。AI 收到截图后按以下清单逐项更新：
@@ -255,6 +260,7 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 
 ## 7. 重新开干 · 检查清单
 1. 读 `handoff.md`（本文件）确认约定与部署命令。
-2. 改数据 → 只编辑 `data.js`；改结构/样式/逻辑 → 编辑 `index.html`（持仓页改 `positions.html`）。
+2. 改数据 → `data.js`（持仓页的快照 / OTC / OTC_LOG 等 MANUAL 常量仍在 `positions.html` 顶部，尚未分离）；
+   改样式 → `index.html` 的内联 `<style>` 或 `positions.css`；改结构/逻辑 → 对应的 `.html`。
 3. 改完按第 5.2 节 `git push` 发布。
 4. 用第 5.3 节 curl 验证关键特性已上线。
