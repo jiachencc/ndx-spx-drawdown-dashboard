@@ -1430,6 +1430,15 @@ const SOURCE_POLICY = {
   etfNdx: { label: "159941 报价", maxDays: 1 }, etfSpx: { label: "513650 报价", maxDays: 1 },
   kr: { label: "513310 报价", maxDays: 1 }, n225: { label: "513880 报价", maxDays: 1 }, hkus: { label: "160644 报价", maxDays: 1 }
 };
+/* 交易日差（跳过周末；不含节假日 —— 估值序列本来就是周/月度，够用）。
+   2026-09-27 抽出：评「输入不新鲜」时要给用户**滞后多少**，光写「早于主数据」看不出严重程度。 */
+function tradingDaysBetween(from, to) {
+  if (!from || !to) return null;
+  let n = 0;
+  const d = new Date(from + "T00:00:00Z"), end = Date.parse(to + "T00:00:00Z");
+  while (d.getTime() < end) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) n++; }
+  return n;
+}
 function sourceHealth(key, now = new Date(), meta = SOURCE_META) {
   const policy = SOURCE_POLICY[key] || { label: key, maxDays: 2 };
   const m = meta[key];
@@ -1439,9 +1448,7 @@ function sourceHealth(key, now = new Date(), meta = SOURCE_META) {
   if (!m || !validDate(m.asOf) || !validDate(today) || m.asOf > today) {
     return { key, label: policy.label, usable: false, status: "unverified", text: "未核验来源日期", asOf: m?.asOf || null, source: m?.source || "未记录" };
   }
-  let days = 0;
-  const d = new Date(m.asOf + "T00:00:00Z"), end = Date.parse(today + "T00:00:00Z");
-  while (d.getTime() < end) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) days++; }
+  const days = tradingDaysBetween(m.asOf, today);
   const status = m.status === "ok" && days <= policy.maxDays ? "ok" : m.status === "unverified" ? "unverified" : "stale";
   return { key, label: policy.label, usable: status === "ok", status, days, asOf: m.asOf, source: m.source || "未记录",
     text: status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? (m.error ? "抓取失败：" + m.error.slice(0, 48) : "抓取失败，沿用旧值") : "超过有效期" };
@@ -1476,8 +1483,18 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
   const degraded = advisory.map(k => health[k]).filter(h => !h.usable);
   // Flag an input when it is unusable, or merely older than the core data date: a source
   // inside its publication tolerance (a 40-day-old valuation) must still not pass silently.
+  /* 「输入不新鲜」的文案（2026-09-27 按用户 review 改进）：原来只写「早于主数据 2026-09-25」，
+     看不出**滞后多少**；现在给出滞后交易日数，一眼能判断这条规则结论的可信度：
+       「SPX PE分位 2026-08-05（滞后 37 个交易日 · 主数据 2026-09-25）」
+     两类触发都覆盖：① 已过容忍期（!usable → 用 h.text：超过有效期 / 抓取失败，沿用旧值）
+                     ② 仍在容忍期内、但早于主数据（软提示 —— 正是本次 review 的那两条）。 */
   const ruleInputs = keys => keys.map(k => health[k]).filter(h => h && (!h.usable || (h.asOf && d.date && h.asOf < d.date)))
-    .map(h => h.label + " " + (h.asOf || "日期未知") + "（" + (h.usable ? "早于主数据 " + d.date : h.text) + "）").join("；");
+    .map(h => {
+      const lag = h.asOf && d.date ? tradingDaysBetween(h.asOf, d.date) : null;
+      return h.label + " " + (h.asOf || "日期未知") + "（" + (h.usable
+        ? (lag !== null ? "滞后 " + lag + " 个交易日 · " : "") + "主数据 " + d.date
+        : h.text) + "）";
+    }).join("；");
   const numeric = [d.ndx.close, d.ndx.ath, d.ndx.prevYr, d.ndx.ma200, d.ndx.rsi, d.vix, d.peFwd, d.pePct, d.tnx];
   const healthy = !invalid.length && numeric.every(Number.isFinite) && d.ndx.close > 0 && d.ndx.ath > 0 && d.ndx.prevYr > 0 && d.peFwd > 0;
   const bands = [d.thresholds.t1, d.thresholds.t2, d.thresholds.t3, d.thresholds.t4];

@@ -104,7 +104,8 @@ test("a valuation inside its tolerance but older than the core data is still fla
   const lagged = { ...meta, peFwd: { ...meta.peFwd, asOf: shift(-10) }, pePct: { ...meta.pePct, asOf: shift(-10) } };
   const s = ctx.evaluateDecision(base.DEFAULT, now, lagged);
   assert.equal(s.health.peFwd.usable, true, "inside the 45-day tolerance");
-  assert.match(s.exits[3].warning, /早于主数据/, "T+4 must disclose its lagging valuation");
+  // 警告文案 2026-09-27 起给出滞后交易日数（原来只写「早于主数据 <日期>」，看不出滞后多少）。
+  assert.match(s.exits[3].warning, /滞后 \d+ 个交易日 · 主数据/, "T+4 must disclose how stale its valuation is");
 });
 test("freshness handles weekends, future dates and retained observations", () => {
   assert.equal(ctx.sourceHealth("ndx", now, meta).usable, true);
