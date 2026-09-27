@@ -775,7 +775,11 @@
   .log-nums { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); font-feature-settings: "tnum"; min-width: 0; }
   /* 逐笔流水的「成本价变化」（2026-09-23 加）：这一笔之后摊薄成本价变成多少、变了多少。
      卖出是按净回款冲减成本 → 成本价下降是常态，且下降是**好事** → 差值用 up 色，别按「跌=红」读。
-     数值为全流水复算值（与 App 可能有 <0.01 尾差），悬停给口径。 */
+     数值为全流水复算值（与 App 可能有 <0.01 尾差），悬停给口径。
+     ⚠ 2026-09-27：只靠颜色会被读成「涨跌色用反了」（用户就是这么报上来的 —— 而且同一张卡里
+     「调仓 / 顺T」那几行确实按符号上色，两种规则并存更难分辨）。现在行尾加方向符号：
+       **↓ 成本被摊薄（绿）· ↑ 成本被抬高（红）** —— 方向由箭头直说、颜色只作辅助。
+     「波段复盘」的 Δ成本 列同语义，已同步加箭头。 */
   .log-cost { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; cursor: help; }
   .log-cost b { font-weight: 700; }
   /* 卖出行的「减仓幅度」（2026-09-25 方案 B）：紧跟份数显示，读作「卖了 3,000 份（−58.8%）」。
@@ -4738,8 +4742,9 @@ function renderSwing() {
     return '<span class="sw-cost ' + (dl <= 0 ? "up" : "down") + '" title="这趟之后摊薄成本 ' +
       f.before.toFixed(4) + " → " + l.after.toFixed(4) + "（" + (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "/份）；" +
       "按当时剩余 " + fmtQty(l.qtyAfter) + " 份折算，持仓成本总额" + (money <= 0 ? "减少 " : "增加 ") + fmtAbs2(Math.abs(money)) + " 元。" +
-      "口径：整段跨度（配对只吃部分腿时不按比例切）；成本价下降＝成本被拉低（绿）" + '">Δ成本 ' +
-      (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "/份</span>";
+      "口径：整段跨度（配对只吃部分腿时不按比例切）；成本价下降＝成本被拉低（绿）。" +
+      " ⚠ 颜色与 ↑/↓ 讲的是**成本方向**，不是涨跌" + '">Δ成本 ' +
+      (dl <= 0 ? "↓" : "↑") + Math.abs(dl).toFixed(4) + "/份</span>";
   };
   html += all.map((x) => '<div class="swing-row">' +
       '<span class="sw-no" title="与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致">' + roundMark(x.no) + "</span>" +
@@ -5124,9 +5129,10 @@ function logItemHtml(e, hideSym, pair) {
       costChip = '<span class="log-cost" title="' + esc(baseTip +
         " 括号里的百分比 ＝ 相对**操作前**成本价（" + f4(t.before) + "）的变化率：正=抬升、负=摊薄。" +
         (dev === null ? "" : " 本次成交价 " + e.cost.toFixed(4) + " 比操作前成本" + (dev >= 0 ? "高 +" : "低 −") + Math.abs(dev).toFixed(2) + "% —— 这就是变化的原因。") +
-        " 绝对变化 " + (pct >= 0 ? "+" : "−") + Math.abs(t.after - t.before).toFixed(4) + "。") +
+        " 绝对变化 " + (pct >= 0 ? "+" : "−") + Math.abs(t.after - t.before).toFixed(4) + "。" +
+        " ⚠ 颜色与 ↑/↓ 讲的是**成本方向**（↓ 成本被摊薄＝绿 · ↑ 成本被抬高＝红），不是涨跌。") +
         '">成本价 ' + f4(t.before) + " → <b>" + f4(t.after) + w + '</b> <b class="' + (pct <= 0 ? "up" : "down") + '">' +
-        (pct <= 0 ? "−" : "+") + Math.abs(pct).toFixed(2) + "%</b></span>";
+        (pct <= 0 ? "↓" : "↑") + Math.abs(pct).toFixed(2) + "%</b></span>";
     }
   }
   /* 减仓幅度（卖出行，2026-09-25 方案 B）：本次卖出份 ÷ 操作前份 —— 挨着份数读作「卖了 3,000 份（−58.8%）」 */
