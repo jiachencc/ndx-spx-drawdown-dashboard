@@ -1498,21 +1498,31 @@ function drawRecent() {
   const q = (typeof D !== "undefined" && D) ? D[recentKey] : null;
   const th = (typeof D !== "undefined" && D && D.thresholds) ? D.thresholds : null;
   const refs = [];
+  /* ⚠ 标签不写 t1 / t2（2026-09-27 用户问到命名）：看板里「T+1~T+4」是**止盈**档位的编号，
+     而这里的阈值是**回撤**档位（thresholds.t1~t4 = −5 / −15 / −25 / −35%），两套编号撞名容易误读。
+     直接写「−5% 档」，并用 SVG <title> 带上文档（handoff.md）里的口径：
+       −5% 仅关注、−15% 起检查加仓资格（且需同时满足确认条件）。 */
+  const neg = (n) => String(n).replace("-", "−");   // 全角减号，与页面其它数字符号一致
   if (q) {
-    if (Number.isFinite(q.ma50)) refs.push({ v: q.ma50, label: "MA50", color: "var(--tx2)", side: "l" });
-    if (Number.isFinite(q.ma200)) refs.push({ v: q.ma200, label: "MA200", color: "var(--tx2)", side: "l" });
+    if (Number.isFinite(q.ma50)) refs.push({ v: q.ma50, label: "MA50", color: "var(--tx2)", side: "l",
+      tip: "50 日均线（现价在其" + (q.close > q.ma50 ? "上" : "下") + "方）" });
+    if (Number.isFinite(q.ma200)) refs.push({ v: q.ma200, label: "MA200", color: "var(--tx2)", side: "l",
+      tip: "200 日均线（现价在其" + (q.close > q.ma200 ? "上" : "下") + "方" + (q.close > q.ma200 ? "，趋势完好" : "") + "）" });
     if (th && Number.isFinite(q.ath)) {
-      refs.push({ v: q.ath * (1 + th.t1 / 100), label: "t1 " + th.t1 + "%", color: "var(--yellow)", side: "r" });
-      refs.push({ v: q.ath * (1 + th.t2 / 100), label: "t2 " + th.t2 + "%", color: "var(--red)", side: "r" });
+      refs.push({ v: q.ath * (1 + th.t1 / 100), label: neg(th.t1) + "% 档", color: "var(--yellow)", side: "r",
+        tip: "回撤 " + neg(th.t1) + "%（距历史高点）：仅关注，不生成动作结论" });
+      refs.push({ v: q.ath * (1 + th.t2 / 100), label: neg(th.t2) + "% 档", color: "var(--red)", side: "r",
+        tip: "回撤 " + neg(th.t2) + "%（距历史高点）：起检查加仓资格，且需同时满足确认条件" });
     }
   }
   refs.filter((r) => r.v >= yLo && r.v <= yHi).forEach((r) => {
     const y = py(r.v).toFixed(1), ty = (py(r.v) - 3).toFixed(1);
+    const ttl = r.tip ? "<title>" + esc(r.tip) + "</title>" : "";
     s += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" stroke="' + r.color +
       '" stroke-width="1" stroke-dasharray="5 4" opacity=".7"/>' +
       (r.side === "l"
-        ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono)">' + r.label + "</text>"
-        : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono)">' + r.label + "</text>");
+        ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono)">' + ttl + r.label + "</text>"
+        : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono)">' + ttl + r.label + "</text>");
   });
   s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.8" stroke-linejoin="round" points="'
     + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
