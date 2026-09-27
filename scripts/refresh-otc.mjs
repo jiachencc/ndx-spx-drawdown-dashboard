@@ -96,15 +96,29 @@ for (const f of OTC.funds) {
   const ups = series.map((x) => x.v);
   const hi = Math.max(...ups), lo = Math.min(...ups);
   const hiDate = (series.find((x) => x.v === hi) || {}).d;   // ⚠ hi 改了就必须同步 hiDate，否则页面上的"高点日期"与新区间对不上
-  const log = OTC_LOG[code] || [];
+  /* ⚠ 只算「成功」的申购/定投：OTC_LOG 头部明写「非『成功』一律**不计入**计算」——
+     第一版用了全部记录（把失败/已撤单也算进了买点），2026-09-27 随加权口径一并修正。 */
+  const log = (OTC_LOG[code] || []).filter((e) => e.status === "成功" && /申购|定投/.test(String(e.act)));
   /* 每笔申购取「该日或之前最近一个交易日」的净值 —— 遇非交易日（周末/节假日）顺延到前一日 */
   const sorted = series.slice().sort((a, b) => (a.d < b.d ? 1 : -1));   // 新 → 旧
   const pcts = [];
+  let amtSum = 0, shareSum = 0;
   for (const e of log) {
     const hit = sorted.find((x) => x.d <= e.d);
-    if (hit) pcts.push((hit.v - lo) / (hi - lo) * 100);
+    if (!hit) continue;
+    pcts.push((hit.v - lo) / (hi - lo) * 100);
+    amtSum += e.amt;
+    shareSum += e.amt / hit.v;                     // 该笔按当日净值能买到的份额
   }
+  /* 两种平均口径（买点项）：
+       算术平均 —— 一笔一票，回答「我每次买在区间的什么位置」（页面主数，2026-09-27 前就这一个）
+       金额加权 —— 权重＝金额，等价于「加权平均成本的区间分位」，与「成本」项同一套数学
+     ⚠ 两者**都不更准**，只是回答不同问题，故并排给出、由页面 title 说明：
+       定投固定金额时低净值那些天买到更多份额 → 加权偏低（博时标普E 82% → 78.8%）；
+       各期金额悬殊时（广发纳指F 从 1,000/日降到 30/日）→ 加权偏向大额那几天，反而偏高（79% → 83%）。
+       实测 6 只的差在 −2.9 ~ +4.0pp，多数在 ±2pp 内。 */
   const buyPct = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+  const buyPctW = shareSum > 0 ? Math.round(((amtSum / shareSum) - lo) / (hi - lo) * 100) : null;
   const old = (f.nav && (f.nav.hi + "/" + f.nav.lo)) || "—";
   /* 与新浪的末值对一遍（非阻断：只打印，不影响写入）—— series[0] 是最新一天（接口按新→旧返回） */
   const sn = await sinaLatest(code);
@@ -119,7 +133,8 @@ for (const f of OTC.funds) {
   console.log(code.padEnd(7) + (f.name || "").slice(0, 14).padEnd(15) +
     " 样本 " + String(series.length).padStart(3) + " 条 · " + series.at(-1).d + "~" + series[0].d +
     " · hi/lo " + hi.toFixed(4) + "/" + lo.toFixed(4) + "（原 " + old + "）" +
-    " · 申购 " + String(log.length).padStart(3) + " 笔 → 买点 " + (buyPct === null ? "（无记录，不算）" : buyPct + "%") + cross);
+    " · 申购 " + String(log.length).padStart(3) + " 笔 → 买点 " + (buyPct === null ? "（无记录，不算）" : buyPct + "%")
+    + (buyPctW === null ? "" : "（金额加权 " + buyPctW + "%）") + cross);
   /* 写回：只替换该只的 hi / lo / buyPct 三个数，其余字段一字不动 */
   if (!WRITE) continue;
   const before = src;
@@ -130,11 +145,17 @@ for (const f of OTC.funds) {
   if (!m) { console.log("      ⚠ 未定位到 nav 块，跳过写入"); continue; }
   let body = m[2]
     .replace(/\bhi:\s*[\d.]+/, "hi: " + hi)
-    .replace(/\blo:\s*[\d.]+/, "lo: " + lo)
+    .replace(/\blo:\s*[\d.]+\s*/, "lo: " + lo)   // ⚠ 尾部 \s* 一并吃掉：否则 lo 与后面的「, buyPct」之间会留一个多余空格
     .replace(/,\s*buyPct:\s*[\d.]+/, "")
-    .replace(/,\s*buyPct:\s*null/, "");
+    .replace(/,\s*buyPct:\s*null/, "")
+    .replace(/,\s*buyPctW:\s*[\d.]+/, "")
+    .replace(/,\s*buyPctW:\s*null/, "");
   if (hiDate) body = /\bhiDate:/.test(body) ? body.replace(/\bhiDate:\s*"[^"]*"/, 'hiDate: "' + hiDate + '"') : body;
-  if (buyPct !== null) body = body.replace(/\s*\}\s*$/, "") + ", buyPct: " + buyPct;   // 顺手去掉 lo 后面遗留的空格
+  /* 两个买点口径一起追加（先清掉旧值、再在末尾补上，避免重复键）；顺手去掉 lo 后面遗留的空格 */
+  const extra = [];
+  if (buyPct !== null) extra.push("buyPct: " + buyPct);
+  if (buyPctW !== null) extra.push("buyPctW: " + buyPctW);
+  if (extra.length) body = body.replace(/\s*\}\s*$/, "") + ", " + extra.join(", ");
   const after = src.replace(re, "$1" + body + "$3");
   if (after !== before) { src = after; changed++; }
 }
