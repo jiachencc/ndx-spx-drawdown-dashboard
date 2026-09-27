@@ -813,6 +813,18 @@
   .op-chk .oc-d { color: var(--red); }
   .op-chk .oc-na { color: var(--tx3); }
   .op-chk .oc-note { color: var(--tx3); }
+  /* 「盈亏总览」场外行里的紧凑版体检（2026-09-27 方案 A）：一行放得下，形态压弱一档，
+     不跟右边的「本金 / 收益率」争视线；完整口径在 title 里。 */
+  /* ⚠ 项内每个原子各自 nowrap、整块可折行 —— 整块 nowrap 会在 390px 撑出横向溢出（实测 4px） */
+  .oc-brief { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px;
+    font-size: var(--fs-xxs); color: var(--tx3); cursor: help; }
+  .oc-brief > * { white-space: nowrap; }
+  .oc-brief b { font-family: var(--mono); font-weight: 800; padding: 0 3px; border-radius: 3px; }
+  .oc-brief b.oc-a { color: var(--green); background: var(--up-bg); }
+  .oc-brief b.oc-b { color: var(--up); }
+  .oc-brief b.oc-c { color: var(--yellow); }
+  .oc-brief b.oc-d { color: var(--red); }
+  .oc-brief b.oc-na { color: var(--tx3); }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }
   .pos-log > summary b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
@@ -2395,7 +2407,11 @@ function renderImpl() {
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
   /* 来源标签统一走 srcLabel()：场内→「场内」、场外→渠道简称，与快照明细同一套取值 */
   rows.forEach((row) => plRows.push({ code: row.p.code, name: row.p.sym, badge: etfRowTag(row), pl: row.valAmt - row.costAmt, r: row.r, cost: row.costAmt, sel: ".card[data-sym='" + row.p.sym + "']" }));
-  otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, cost: row.costAmt }));   // 场外明细卡已取消 → 不挂跳转目标；净值日已并入来源胶囊
+  /* 场外明细卡已取消 → 不挂跳转目标；净值日已并入来源胶囊。
+     另挂 opCheckup 的紧凑版（2026-09-27 方案 A）：场外没有明细卡，「操作体检」就近放在这一行里。
+     ⚠ 场外按金额定投 → 买点项不适用；赎回记录（OTC_LOG）只有笔数、没有实现盈亏 → 调仓项不给档位、只报事实。 */
+  otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, cost: row.costAmt,
+    chk: opCheckupBrief({ sym: row.f.name, code: row.f.code, idx: row.f.theme }) }));
   plRows.sort((a, b) => b.pl - a.pl);
   $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · " + etfTag() + " · " + otcTag() + ")";
   $("pl-list").innerHTML =
@@ -2411,6 +2427,8 @@ function renderImpl() {
         '</span>' +
         '<span class="pl-sub">' +
           '<span class="pl-src" title="' + esc(src.f) + '">' + (x.badge || esc(src.s)) + '</span>' +
+          /* 场外行的操作体检（2026-09-27 方案 A）：紧凑版，口径全文在 title 里 */
+          (x.chk || "") +
           '<span class="pl-right">' +
             /* 本金 = 该只累计投入（成本口径 = 市值 − 浮盈亏，不含现金）。它正是右边收益率的分母——
                原来只给「盈亏 + 收益率」，看不出是拿多少钱赚的；场外这一层更是全页无处可查。 */
@@ -5227,9 +5245,18 @@ function swingRowHtml(x) {
          调仓  只有卖过才评：实现盈亏合计 + 盈利笔数。**没卖过 = 不适用（—）**，不是 0 分。
      · 场外按金额定投，没有成交价 → 买点项显示「不适用」，不拿 0 分冒充。
    数据来源：DEFAULT[QUOTE_KEY[idx]]（场内区间）/ OTC.funds[].nav（场外净值区间）/ POSITIONS.log（成交价）。 */
-function opCheckupHtml(p) {
-  const isOtc = !(typeof QUOTE_KEY !== "undefined" && QUOTE_KEY[p.idx]) && !p.idxAtCost;
-  const m = (typeof DEFAULT !== "undefined" && QUOTE_KEY) ? (DEFAULT[QUOTE_KEY[p.idx] || p.idx] || {}) : {};
+/* 计算与渲染分开：opCheckup(p) 只算数据，opCheckupHtml 给场内卡的整条体检条，
+   opCheckupBrief 给「盈亏总览」场外行的紧凑版（2026-09-27 方案 A）—— 三者共用同一份计算，
+   不会出现"两个地方口径不一致"。 */
+function opCheckup(p) {
+  /* 场内一定带 idxAtCost（成本价）；场外没有这个字段 —— 用它判断最准。
+     ⚠ 别用 QUOTE_KEY[p.idx] 判定：场外的 idx 是 theme（如 "global"），而 QUOTE_KEY 里恰好也有同名键，
+     会把场外误判成场内 → 区间取成指数/ETF 的价位 → 场外的成本/现价位全算不出来（2026-09-27 踩过）。 */
+  const isOtc = !p.idxAtCost;
+  /* ⚠ 场外**不能**看 m：它的 idx 是 theme（如 "global"），而 QUOTE_KEY / DEFAULT 里恰好有同名键，
+     会取到指数或别的 ETF 的价位表 → 区间错成 2 万点 → 成本/现价位算出 −1200pp 那种荒谬值（2026-09-27 踩过）。
+     场内才取 m，场外一律走 OTC.funds[].nav 的净值区间。 */
+  const m = (!isOtc && typeof DEFAULT !== "undefined" && QUOTE_KEY) ? (DEFAULT[QUOTE_KEY[p.idx] || p.idx] || {}) : {};
   const f = (isOtc && typeof OTC !== "undefined") ? (OTC.funds || []).find((x) => x.code === p.code) : null;
   const nv = f && f.nav ? f.nav : null;
   const lo = Number.isFinite(m.low52) ? m.low52 : (nv ? nv.lo : null);
@@ -5272,6 +5299,20 @@ function opCheckupHtml(p) {
     + "分项口径 —— 买点：各笔成交价在「52周低~历史高」里的平均分位（越靠底部越好；上涨趋势中偏高属正常，仅作参考）；"
     + "成本：现价位 − 成本位（同为该标的区间分位），越大说明摊薄越成功，与市场涨跌无关；"
     + "调仓：有卖出记录才算，看实现盈亏与盈利笔数。场外按金额定投、没有成交价，买点项不适用。";
+  return { isOtc, f, nv, lo, hi, now, cost, pq, costPct, nowPct, gap, gBuy, gCost, gSwing, avgB, bps, sells, realized, win, pct, item, note, tip };
+}
+/* 场外赎回记录（OTC_LOG）：只有笔数、没有实现盈亏 → 调仓项**不给档位**，只报事实，别硬评 */
+function opCheckupBrief(p) {
+  const d = opCheckup(p);
+  const sells = ((typeof OTC_LOG !== "undefined" && OTC_LOG[p.code]) || []).filter((e) => /赎回/.test(String(e.act)));
+  const g = (v) => (v ? '<b class="oc-' + v.toLowerCase() + '">' + v + "</b>" : '<b class="oc-na">—</b>');
+  return '<span class="oc-brief" title="' + esc(d.tip) + '">成本 ' + g(d.gCost)
+    + " " + (d.gap === null ? "—" : (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp")
+    + ' · 调仓 ' + (sells.length ? "赎回 " + sells.length + " 笔" : "—")
+    + "</span>";
+}
+function opCheckupHtml(p) {
+  const { nowPct, costPct, gap, gBuy, gCost, gSwing, avgB, bps, sells, realized, win, pct, item, note, tip } = opCheckup(p);
   return '<div class="op-chk" title="' + esc(tip) + '"><span class="oc-h">操作体检</span>'
     + item("买点", gBuy, pct(avgB), "各笔成交价在「52周低 ~ 历史高」里的平均分位：" + pct(avgB)
         + (bps.length ? "（" + bps.length + " 笔，最低 " + Math.round(Math.min(...bps)) + "% / 最高 " + Math.round(Math.max(...bps)) + "%）" : "")
