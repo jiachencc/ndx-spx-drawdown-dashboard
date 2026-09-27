@@ -99,9 +99,12 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     }
   }
   let core = 0;
-  /* 近 1 个月日线（2026-09-27 加）：raw 本来就是 10 年日线，这里只留最后 RECENT_N 根 —— 零额外请求。
-     给主看板新增的「近 1 个月日线」小图用；口径与 DEFAULT.ndx / spx.close 同源（同一份 raw 的收盘价）。 */
-  const RECENT_N = 22;
+  /* 近 6 个月日线（2026-09-27 加，同日由「近 1 个月」扩为 1M/3M/6M 可切、默认 3M）：
+     raw 本来就是 10 年日线，这里只留最后 RECENT_N 根 —— 零额外请求。
+     页面按档位从尾部切片（1M=22 / 3M=65 / 6M=130），统计条与参考线都跟着切出来的区间重算；
+     口径与 DEFAULT.ndx / spx.close 同源（同一份 raw 的收盘价）。
+     ⚠ 130 根 ≈ 6 个月：够覆盖一次典型中级调整的全过程，又不至于和「回撤深度尺 / 历史回撤表」重复。 */
+  const RECENT_N = 130;
   const recent = {};
   const coreResults = await Promise.allSettled([["ndx", "^NDX", "^ndx"], ["spx", "^GSPC", "^spx"]].map(async ([key, symbol, fallback]) => {
     const raw = await seriesProvider(symbol, fallback), result = metrics(raw);

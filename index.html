@@ -552,12 +552,22 @@
   /* 近 1 个月日线卡（2026-09-27 改版）：整宽单图（与回撤深度尺同尺度，viewBox 620 宽）+ NDX/SPX tab + 悬停/点击交互。
      图高 200 比深度尺（620×110）高一档 —— 折线需要纵向空间；宽度一致（都是 .xxx-svg{width:100%}）。 */
   .recent-tabs { display: inline-flex; gap: 4px; margin-left: 6px; }
-  .recent-tabs .rtab { font: inherit; font-size: 11px; font-weight: 600; color: var(--tx2); background: transparent;
+  /* 区间档位（1M / 3M / 6M，2026-09-27 加）：与指数切换同一套按钮样式，只把选中态压弱一档做层次
+     —— 指数（紫底）是主切换，区间（浅底）是次切换，避免两个都被当主按钮。 */
+  .recent-spans { display: inline-flex; gap: 4px; margin-left: 10px; }
+  .recent-tabs .rtab, .recent-spans .rtab { font: inherit; font-size: 11px; font-weight: 600; color: var(--tx2); background: transparent;
     border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: pointer; line-height: 1.5; }
-  .recent-tabs .rtab:hover { color: var(--tx); border-color: var(--tx3); }
+  .recent-tabs .rtab:hover, .recent-spans .rtab:hover { color: var(--tx); border-color: var(--tx3); }
   .recent-tabs .rtab.on { color: #0b0e14; background: var(--purple); border-color: var(--purple); }
+  .recent-spans .rtab.on { color: var(--tx); background: var(--line-soft); border-color: var(--tx3); }
   body.light .recent-tabs .rtab.on { color: #fff; }
   .recent-asof { margin-left: auto; color: var(--tx3); font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0; }
+  /* 手机上标题栏要塞「标题 + 指数切换 + 档位切换 + AUTO + 截至日期」，一行放不下（实测 390px 溢出 19px）
+     → 允许折行。⚠ 只作用于这张卡：.card-title 是全页通用组件，不在这里改它；
+     折行后 .recent-asof 的 margin-left: auto 仍把它推到行尾，观感上依旧靠右。 */
+  @media (max-width: 767px) {
+    #card-recent .card-title { flex-wrap: wrap; row-gap: 5px; }
+  }
   .recent-svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; }
   /* 整行铺满（2026-09-27 用户要求「和止盈触发矩阵一样大」）：原来这张卡在 .grid 里只占 1 列 → 1440px 下宽 497、
      图只有 455px 显得小；止盈矩阵那种宽 1244（整行）才是对照物。
@@ -684,15 +694,22 @@
     </div>
   </div>
 
-  <!-- 近 1 个月日线（2026-09-27）：整宽单图 + NDX/SPX 切换 + 悬停/点击交互（数据 = data.js 的 RECENT）-->
+  <!-- 日线与回撤参考（2026-09-27）：整宽单图 + 两组切换（指数 NDX/SPX · 区间 1M/3M/6M）+ 悬停/点击交互。
+       数据 = data.js 的 RECENT（130 根日线，按档位从尾部切片）；
+       图上另叠 MA50 / MA200 与回撤档位线 t1 / t2（阈值取自 DEFAULT.thresholds，与看板主逻辑同源）。 -->
   <div class="card" id="card-recent">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">🕘</span> 近 1 个月日线
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">🕘</span> 日线与回撤参考
       <span class="recent-tabs" id="recent-tabs" role="tablist">
         <button type="button" class="rtab on" data-k="ndx" role="tab" aria-selected="true">纳指100</button>
         <button type="button" class="rtab" data-k="spx" role="tab" aria-selected="false">标普500</button>
       </span>
+      <span class="recent-spans" id="recent-spans" role="group" aria-label="区间长度">
+        <button type="button" class="rtab" data-n="22">1M</button>
+        <button type="button" class="rtab on" data-n="65">3M</button>
+        <button type="button" class="rtab" data-n="130">6M</button>
+      </span>
       <span class="src-tag auto">AUTO</span><span class="recent-asof" id="recent-asof">--</span></div>
-    <svg class="recent-svg" id="recent-svg" viewBox="0 0 620 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="近 1 个月日线收盘"></svg>
+    <svg class="recent-svg" id="recent-svg" viewBox="0 0 620 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="日线收盘与均线、回撤档位参考线"></svg>
     <div class="recent-readout" id="recent-readout"></div>
     <!-- 图下常用数据（2026-09-27 加）：内容由 renderRecentStats() 从 RECENT 现算，两个 tab 各一套 -->
     <div class="recent-stats" id="recent-stats"></div>
@@ -1433,6 +1450,7 @@ function renderBanner(ndxDD) {
      · 钉住 A 后：A 日期 → 当前日期 的两点变化率 + 相隔交易日数（用户要的「选两个点的变化率」）
    键盘 ← → 移动读数点；RECENT 缺失或为空时整张卡隐藏（不留空壳）。 */
 let recentKey = "ndx";      // 当前 tab：ndx | spx
+let recentSpan = 65;        // 区间档位（根数）：22 = 1M / 65 = 3M / 130 = 6M（默认 3M）
 let recentHover = null;     // 悬停/键盘所在的点索引（null = 停在最新）
 let recentPin = null;       // 钉住的 A 点索引（null = 未钉）
 function recentData() {
@@ -1440,11 +1458,19 @@ function recentData() {
   const ok = (k) => !!(R && R[k] && Array.isArray(R[k].pts) && R[k].pts.length > 1);
   return (R && ok("ndx") && ok("spx")) ? R : null;
 }
+/* 当前区间 = 从尾部切 recentSpan 根（2026-09-27）：RECENT 统一存 130 根（≈6 个月），
+   1M / 3M / 6M 都从同一份数据切片 —— 切换档位只换切片长度，不重新取数、也不再请求。
+   ⚠ 图上的点索引（hover / 钉住的 A）都是相对当前区间的，切档位时必须清空（见下面的事件处理）。
+   ⚠ 统计条与参考线也都用这个切片，所以它们跟着"当前看到的区间"走，而不是固定按全部 130 根。 */
+function recentPts() {
+  const R = recentData();
+  return R ? R[recentKey].pts.slice(-recentSpan) : [];
+}
 function recentPct(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%"; }
 function drawRecent() {
   const R = recentData(), svg = $("recent-svg"), out = $("recent-readout");
   if (!R || !svg) return;
-  const pts = R[recentKey].pts, cs = pts.map((p) => p.c), n = pts.length;
+  const pts = recentPts(), cs = pts.map((p) => p.c), n = pts.length;
   const hi = Math.max(...cs), lo = Math.min(...cs);
   const pad = (hi - lo) * 0.18 || Math.max(1, hi * 0.005);
   const yHi = hi + pad, yLo = lo - pad;
@@ -1459,6 +1485,34 @@ function drawRecent() {
   [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
     s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
       + '<text x="' + (mL - 7) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + fmt(t) + "</text>";
+  });
+  /* 参考线（2026-09-27 加）：让这张图从「看形态」变成「看位置」—— 直接对着加仓时机说话。
+     两类线：
+       · MA50 / MA200 —— 趋势锚，值取自 DEFAULT[ndx|spx].ma50 / ma200（现成字段，与收盘价同单位）
+       · 回撤档位 t1 / t2 —— 加仓锚，= ATH × (1 + 阈值/100)，阈值取自 DEFAULT.thresholds
+         （t1 −5 / t2 −15），**与看板主逻辑同源**，不在这张图里写死数字
+     ⚠ 只画落在当前 y 轴范围内的线：落在区间外的（例如短区间里的 t2）会强行撑开 y 轴、把趋势压扁，
+        宁可暂不画 —— 档位数值在别处（回撤深度尺、触发矩阵）都能看到。
+     ⚠ 均线标签贴左、档位标签贴右 —— 两者经常几乎重合（例：NDX 6M 的 MA50 29,287 与 t1 29,232 只差
+        55 点，在 7,800 点的区间里不到 1.5px），贴同一侧必然叠字。 */
+  const q = (typeof D !== "undefined" && D) ? D[recentKey] : null;
+  const th = (typeof D !== "undefined" && D && D.thresholds) ? D.thresholds : null;
+  const refs = [];
+  if (q) {
+    if (Number.isFinite(q.ma50)) refs.push({ v: q.ma50, label: "MA50", color: "var(--tx2)", side: "l" });
+    if (Number.isFinite(q.ma200)) refs.push({ v: q.ma200, label: "MA200", color: "var(--tx2)", side: "l" });
+    if (th && Number.isFinite(q.ath)) {
+      refs.push({ v: q.ath * (1 + th.t1 / 100), label: "t1 " + th.t1 + "%", color: "var(--yellow)", side: "r" });
+      refs.push({ v: q.ath * (1 + th.t2 / 100), label: "t2 " + th.t2 + "%", color: "var(--red)", side: "r" });
+    }
+  }
+  refs.filter((r) => r.v >= yLo && r.v <= yHi).forEach((r) => {
+    const y = py(r.v).toFixed(1), ty = (py(r.v) - 3).toFixed(1);
+    s += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" stroke="' + r.color +
+      '" stroke-width="1" stroke-dasharray="5 4" opacity=".7"/>' +
+      (r.side === "l"
+        ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono)">' + r.label + "</text>"
+        : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono)">' + r.label + "</text>");
   });
   s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.8" stroke-linejoin="round" points="'
     + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
@@ -1507,6 +1561,11 @@ function renderRecent() {
     const on = b.getAttribute("data-k") === recentKey;
     b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
   });
+  /* 档位按钮（1M/3M/6M）：用 aria-pressed（这是按钮组不是 tablist） */
+  [...document.querySelectorAll("#recent-spans .rtab")].forEach((b) => {
+    const on = +b.getAttribute("data-n") === recentSpan;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
   drawRecent();
   renderRecentStats();
 }
@@ -1523,7 +1582,7 @@ function renderRecent() {
 function renderRecentStats() {
   const R = recentData(), box = $("recent-stats");
   if (!R || !box) return;
-  const pts = R[recentKey].pts, cs = pts.map((p) => p.c), n = cs.length;
+  const pts = recentPts(), cs = pts.map((p) => p.c), n = cs.length;
   const md = (d) => d.slice(5);                       // 与图上 x 轴、读数行同一写法（09-22）
   const f2 = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sg = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
@@ -1573,7 +1632,7 @@ function renderRecentStats() {
   const idxAt = (clientX) => {
     const R = recentData(), svg = $("recent-svg");
     if (!R || !svg) return null;
-    const n = R[recentKey].pts.length, r = svg.getBoundingClientRect();
+    const n = recentPts().length, r = svg.getBoundingClientRect();
     if (!r.width) return null;
     const W = 620, mL = 64, mR = 16;
     const x = (clientX - r.left) / r.width * W;
@@ -1587,6 +1646,14 @@ function renderRecentStats() {
   });
   card.addEventListener("pointerleave", () => { if (recentHover !== null) { recentHover = null; drawRecent(); } });
   card.addEventListener("click", (e) => {
+    const span = e.target.closest && e.target.closest("#recent-spans .rtab");
+    if (span) {
+      recentSpan = +span.getAttribute("data-n") || 65;
+      /* ⚠ hover / 钉住的 A 都是相对旧区间的点索引，换区间后必须清空，否则会指到奇怪的位置 */
+      recentHover = null; recentPin = null;
+      renderRecent();
+      return;
+    }
     const tab = e.target.closest && e.target.closest("#recent-tabs .rtab");
     if (tab) {
       recentKey = tab.getAttribute("data-k") || "ndx";
@@ -1601,7 +1668,7 @@ function renderRecentStats() {
   });
   card.addEventListener("keydown", (e) => {
     const R = recentData(); if (!R) return;
-    const n = R[recentKey].pts.length;
+    const n = recentPts().length;
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
     const cur = recentHover === null ? n - 1 : recentHover;
