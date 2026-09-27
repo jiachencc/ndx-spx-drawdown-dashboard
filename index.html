@@ -530,6 +530,10 @@
   body.light .recent-tabs .rtab.on { color: #fff; }
   .recent-asof { margin-left: auto; color: var(--tx3); font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0; }
   .recent-svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; }
+  /* 整行铺满（2026-09-27 用户要求「和止盈触发矩阵一样大」）：原来这张卡在 .grid 里只占 1 列 → 1440px 下宽 497、
+     图只有 455px 显得小；止盈矩阵那种宽 1244（整行）才是对照物。
+     铺满后 SVG 按 viewBox 620×200 等比放大 → 高 ≈387px，与止盈矩阵卡的 375 基本一致 ✓ */
+  #card-recent { grid-column: 1 / -1; }
   .recent-readout { font-family: var(--mono); font-size: 11px; color: var(--tx3); font-feature-settings: "tnum";
     min-height: 17px; margin-top: 2px; text-align: center; line-height: 1.55; }
   .recent-readout b { color: var(--tx); font-weight: 700; }
