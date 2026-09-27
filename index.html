@@ -216,6 +216,14 @@
   .grid > .card + .card { margin-top: 0; }
   .grid-two { grid-template-columns: 1fr 1fr; }
   .g-top { grid-template-columns: 1fr 1fr 1.4fr; align-items: stretch; }
+  /* 桌面端（真 3 列）把「回撤深度尺」提回第 1 行第 3 列（2026-09-27 修排版）：
+     .g-top 第 3 列是 1.4fr（最宽的一列），但近 1 个月日线卡设了 grid-column: 1/-1（整行 —— 用户要求
+     「和止盈触发矩阵一样大」）→ auto-placement 只能把它放到下一行，于是**第 1 行第 3 列整列空着**
+     （实测 497×428 的空洞）；而回撤深度尺被挤到第 3 行、单卡只占 1 列 → 右侧又空 852px。
+     现在显式把深度尺放到 (row 1, col 3)：第 1 行 = 纳指 + 标普 + 深度尺（填满），第 2 行 = 整行的日线卡。
+     ⚠ 只对 ≥1024px（真正 3 列的档：默认 & 1024~1279）生效；≤1023px 是 2 列、且 .scale-wrap 已在自己
+        的断点里设成整行，不受这条影响。 */
+  @media (min-width: 1024px) { .scale-wrap { grid-row: 1; grid-column: 3; } }
   .g-mid { grid-template-columns: repeat(4, 1fr); }
 
   /* ===== Device-optimized layout ===== */
