@@ -862,6 +862,12 @@
   /* 「数据不全」标记（2026-09-27 加）：3 项里有的"不适用/无记录"时给个 ⓘ ——
      这类行的档位来自更少的证据，但排序照旧（数据少不等于操作好），只提示、不降级。 */
   .chk-tbl .chk-partial { margin-left: 4px; color: var(--tx3); font-size: 10px; cursor: help; vertical-align: 1px; }
+  /* 成本列尾部的 gap 小字（2026-09-27 加）：它是本表的**排序依据**（同档内按它升序），
+     摆出来就不必"现价位 − 成本位"心算。刻意压小压淡 —— 主信息仍是「成本位 → 现价位」，gap 只当量级提示。
+     ⚠ 成本价超区间、或 gap 算不出的行不显示（那些值语义无意义）。
+     ⚠ 余量很紧：390px 下成本列 110px、内容 104px —— 只剩 6px。若调大本行字号/margin，
+       或让 gap 变成 3 位数，**必须重测手机端是否溢出**（实测方法见 git 历史里的四档检查）。 */
+  .chk-tbl .c-gap { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--tx3); margin-left: 3px; }
   /* 列内小标签（"买点 / 成本 / 调仓"）：桌面有表头 → 隐藏；手机隐去表头后 → 显示（见下面的媒体查询） */
   .chk-tbl .c-lb { display: none; }
   .c-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }

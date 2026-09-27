@@ -3719,7 +3719,12 @@ function renderCheckup() {
             + "此时区间分位没有意义，故不摆出来。档位仍按 现价位 − 成本位 计（" + (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp）：「成本远高于现价」本身是真的。"
           : "成本位 " + d.pct(d.costPct) + " → 现价位 " + d.pct(d.nowPct) + "，相减 = " + (d.gap >= 0 ? "+" : "−")
             + Math.abs(Math.round(d.gap)) + "pp。箭头向右 = 摊薄成功 / 已浮盈；向左 = 套牢。")
-          + '">' + gb(d.gCost) + " " + (out ? "成本价超区间" + out + "沿" : d.pct(d.costPct) + " → " + d.pct(d.nowPct)) + "</span>";
+          + '">' + gb(d.gCost) + " " + (out ? "成本价超区间" + out + "沿" : d.pct(d.costPct) + " → " + d.pct(d.nowPct))
+          /* gap 也摆到页面上（2026-09-27 用户要求）：它是**排序依据**，之前只能在 title 里靠两数相减才看到。
+             压成小字、弱色 —— 主信息仍是「成本位 → 现价位」，gap 只作量级提示。
+             ⚠ 「成本价超区间」的不显示（那个数是极端值、语义无意义）；gap 算不出（缺区间）也不显示。 */
+          + (out || d.gap === null ? "" : '<em class="c-gap">' + (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "</em>")
+          + "</span>";
       }
       let swing;
       if (d.isOtc) {
@@ -3756,7 +3761,7 @@ function renderCheckup() {
       "<b>成本</b>＝<b>成本位 → 现价位</b>（同为该标的的区间分位）—— 箭头向右＝现价高于成本（摊薄成功 / 已浮盈），与市场涨跌无关；" +
       "⚠ 成本用的是<b>摊薄成本</b>（Σ买入含费 − Σ卖出净额），卖出回收后可能被抬到区间之外，那时只标「超区间」、不给分位（给了也没有意义）；" +
       "<b>调仓</b>＝有卖出记录才评（实现盈亏 + 盈利笔数）；场外的赎回记录只有笔数、没有实现盈亏 → 只报笔数、不给档位。" +
-      "<b>排序</b>：越差的越靠前 —— 依次比 ① 最弱档位（D → C → B → A，无数据最后）② 三项加权平均分（成本与调仓各算 1 份、<b>买点算半份</b>；都差的在前）③ 问题项数 ④ <b>成本 gap 升序</b>（摊薄越弱的越前；⚠ 档位是粗标签，同档里 gap 才看得出量级差）⑤ 现值降序。" +
+      "<b>排序</b>：越差的越靠前 —— 依次比 ① 最弱档位（D → C → B → A，无数据最后）② 三项加权平均分（成本与调仓各算 1 份、<b>买点算半份</b>；都差的在前）③ 问题项数 ④ <b>成本 gap 升序</b>（摊薄越弱的越前；⚠ 档位是粗标签，同档里 gap 才看得出量级差 —— gap 值以小字跟在成本列后）⑤ 现值降序。" +
       "⚠ <b>买点封顶在 C</b>：它衡量「买入时点」，且与成本高度重叠（买得贵 ⇒ 成本位也高），不单独把一只打成 D。" +
       "⚠ 标的旁的 <b>ⓘ</b> 表示<b>该渠道没有任何流水记录</b>（买点算不出来）—— 档位来自更少的证据，但不因此放宽或加重，只作提示。" +
       "另：<b>「没有卖出记录」不算数据缺口</b>（那是「没发生过」，页面用「—」表示），所以不打 ⓘ。" +
@@ -3775,7 +3780,8 @@ function opCheckupHtml(p) {
   return '<div class="op-chk" title="' + esc(tip) + '"><span class="oc-h">操作体检</span>'
     + item("买点", gBuy, pct(avgB), buyPointTip(d))
     + item("成本", gCost, (costPct === null || nowPct === null) ? ""
-        : (costPct > 100 || costPct < 0 ? "成本价超区间" + (costPct > 100 ? "上" : "下") + "沿" : pct(costPct) + " → " + pct(nowPct)),
+        : (costPct > 100 || costPct < 0 ? "成本价超区间" + (costPct > 100 ? "上" : "下") + "沿" : pct(costPct) + " → " + pct(nowPct))
+          + (Number.isFinite(gap) && costPct <= 100 && costPct >= 0 ? '<em class="c-gap">' + (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap)) + "</em>" : ""),
         "成本位 " + pct(costPct) + " → 现价位 " + pct(nowPct) + "（都是该标的「52周低 ~ 历史高」里的分位），相减 = "
         + (gap === null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap)) + "pp")
         + "。箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈）；向左 = 成本反被现价压制（套牢）。与市场涨跌无关。")
