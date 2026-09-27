@@ -46,7 +46,7 @@ ndx_spx_dashboard_handoff/
 ## 3. 核心约定（改数据前必读，避免破坏模型）
 
 ### 3.1 数据源与口径
-- **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。
+- **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。**三级降级链（2026-09-27 补上第三条腿）**：Yahoo（10y）→ stooq（10y）→ **腾讯 `usfqkline`（`usNDX` / `usINX`，≈1000 根 / 4 年）**。腾讯这条与项目里场内 ETF 日K 用**同一个接口**，已逐点核对与 Yahoo 完全一致（2026-09-22 高 30770.63 = `ath`、09-25 收 30608.13 = `close`；新浪 `gb_$ndx` 30608.1343 第三方互证）。⚠ 但它只给 ≈4 年 → `ath` / `athDate` / `days` 会退化成「4 年最高」，因此脚本把 `Tencent usNDX qfq (≈4y window, not 10y)` 写进 `SOURCE_META.source`、`methodology` 同步改写 → **「数据有效性」面板会直接显示这条降级原因**（不允许静默降级）。VIX / TNX **刻意不接腾讯**：实测 `usVIX` 停在 2026-09-15 的 21.67（过期 10 天且与现值 15.x 差很大）、`usTNX` 不存在 → 接了反而把好数据换成过期值；这两项拿不到时照旧 `retained`，并在引用它的规则旁标注。
 - **年内最大回撤 `ddYtd`**：脚本从 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
 - **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值（peFwd/peTtm/cape/pePct + NDX 的 ndxPeFwd/ndxPePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json` + `/api/ndx/forward-pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位；`ndxPePct` 口径同法但样本自 2001 年起（NDX 远期PE 数据起点）。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
 - **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
@@ -72,7 +72,7 @@ ndx_spx_dashboard_handoff/
 
 **第二个 AUTO 块 `ALT_BACKTEST`（标的替换回测，2026-09-20 加）**：把「选哪只标的」单独量化——同一批流水（同样日期、同样金额）换成同类别的另一只产品，到期末差多少。由 [scripts/alt-etf-backtest.mjs](scripts/alt-etf-backtest.mjs) 抓腾讯前复权日K + 东财历史净值后**整块重写**（与 `MONTHLY` 同手法：先 `validateModel` 再 `auditFiles` 再原子写，任一不过就不写、保留旧值）。候选清单与综合费率是该脚本顶部 `UNIVERSE` 的 MANUAL 常量，**换候选只改那一处**。CI 在行情更新之后、终审之前跑它（`continue-on-error`：失败不阻断日更，只是页面上的期末日期会落后，`?debug` 会提示）。
 
-兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连数据源会被反爬拦截，改用查网页人工填数即可。
+兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连 Yahoo（403）与 stooq（JS 挑战页）会被拦，但**腾讯这条腿在国内直连可用**（本机 `node scripts/fetch_and_update.mjs` 能跑通，2026-09-27 实测），故 NDX / SPX 一般不必再人工填数；只有 VIX / TNX 拿不到时才需查网页人工补。
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
 

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readModel, compileHtml, snapshotIssues, validateModel, metrics, createRecorder, stableBusiness, replaceConst, replaceMember } from "./data-quality.mjs";
-import { main } from "./fetch_and_update.mjs";
+import { main, series } from "./fetch_and_update.mjs";
 const root = new URL("../", import.meta.url);
 const data = readFileSync(new URL("data.js", root), "utf8");
 const positions = readFileSync(new URL("positions.html", root), "utf8");
@@ -181,6 +181,33 @@ test("OHLC null filtering preserves alignment; unordered dates rejected", () => 
   const b = syntheticBars(); b.close[5] = null; const m = metrics(b); assert.equal(m.date, "2026-09-11"); assert.equal(m.rows.length, b.dates.length - 1);
   b.dates[10] = b.dates[9]; assert.throws(() => metrics(b), /ordering/);
 });
+/* 2026-09-27：Yahoo ^NDX/^GSPC 全 403、stooq 被 JS 挑战页拦住 → 加腾讯兜底。
+   钉住三件事：① 降级顺序 Yahoo → stooq → 腾讯；② 腾讯的 bar 能喂给 metrics；
+   ③ 「只有 ≈4 年窗口」必须写进 source —— 数据健康区靠它提示用户，不允许静默降级。 */
+test("index fallback: Yahoo → stooq → Tencent, with the shorter window disclosed", async () => {
+  const saved = globalThis.fetch, asked = [];
+  const b = syntheticBars();
+  const tencentBars = b.dates.map((d, i) => [d, "1", String(b.close[i]), String(b.high[i]), String(b.low[i])]);
+  globalThis.fetch = async url => {
+    const u = String(url);
+    if (u.includes("usfqkline")) { asked.push("tencent"); return new Response(JSON.stringify({ data: { usNDX: { qfqday: tencentBars } } })); }
+    if (u.includes("stooq.com")) { asked.push("stooq"); return new Response("<html>please enable JS</html>"); }
+    if (u.includes("yahoo.com")) { asked.push("yahoo"); return new Response("Forbidden", { status: 403 }); }
+    asked.push("other");
+    return new Response("", { status: 404 });
+  };
+  try {
+    const raw = await series("^NDX", "^ndx");
+    assert.deepEqual([...new Set(asked)], ["yahoo", "stooq", "tencent"], "must degrade in that order");
+    assert.match(raw.source, /Tencent usNDX/);
+    assert.match(raw.source, /not 10y/, "the ≈4-year window must be disclosed in provenance");
+    const m = metrics(raw); assert.ok(m.rows.length >= 260, "fallback bars must satisfy the metrics minimum");
+    // VIX / TNX 没有验证过的腾讯代码 → 必须抛错让上层 retained，而不是悄悄换成别的数。
+    // 错误文案刻意保持短（它会显示在页面上），所以只断言"没有可用源"这个结论。
+    await assert.rejects(() => series("^VIX", "^vix"), /no index provider available/);
+  } finally { globalThis.fetch = saved; }
+});
+
 test("candidate schema rejects non-finite quotes", () => { const m = structuredClone(base); m.DEFAULT.vix = NaN; assert.ok(validateModel(m).length); });
 
 test("updater transaction: partial source failure, no-change, invalid candidate and audit gate", async () => {

@@ -42,6 +42,31 @@ async function yahooAuth() {
   })();
   return authPromise;
 }
+/* 腾讯美股指数兜底（2026-09-27 加）—— 起因：Yahoo ^NDX/^GSPC 全 403（两个 host 都一样）、
+   stooq 兜底被 JS 挑战页拦住（返回 HTML 而非 CSV）→ 定时任务连续失败，主看板数据会停在 09-25。
+   这条与项目里**已有**的场内 ETF 日K 走同一个接口（web.ifzq.gtimg.cn/appstock/app/usfqkline/get），
+   已逐点核对与 Yahoo 口径一致：
+     2026-09-22 高 30770.63 = DEFAULT.ndx.ath、收 30732.40 = RECENT 区间最高
+     2026-09-25 收 30608.13 = DEFAULT.ndx.close ✓（新浪 gb_$ndx 30608.1343 第三方互证）
+   ⚠ 必须让用户看得见的差别，所以 source 名里明写（数据健康区会显示）：
+     · 腾讯只给到 **1000 根（≈4 年）**，Yahoo 是 10y → ath / athDate / days 是「≈4 年最高」而非「10 年最高」；
+     · 因此它是**兜底**而不是替换（项目原则：宁可给降级口径并明示，也不保留过期的数）——
+       Yahoo 恢复后自动回到 Yahoo，无需改代码。
+   ⚠ 只覆盖这两个核心指数：VIX / TNX 没有验证过的腾讯代码，拿不到就照旧 retained 并在健康区明示。 */
+const TENCENT_US = { "^NDX": "usNDX", "^GSPC": "usINX" };
+export async function tencentSeries(symbol) {
+  const code = TENCENT_US[symbol];
+  if (!code) throw new Error("no verified Tencent code for " + symbol);
+  const j = await json("https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param=" + code + ",day,,,1000,qfq");
+  const b = j.data?.[code], bars = b?.qfqday || b?.day;
+  if (!Array.isArray(bars) || bars.length < 260) throw new Error("Tencent bars missing");
+  // 与 ETF 那段同一套形状校验（[日期, 开, 收, 高, 低]，收/高/低必须自洽且日期严格递增）。
+  if (bars.some((r, i) => !isDate(r[0]) || ![r[2], r[3], r[4]].every(v => Number.isFinite(+v) && +v > 0) || +r[3] < +r[2] || +r[4] > +r[2] || (i && r[0] <= bars[i - 1][0]))) throw new Error("invalid Tencent bars");
+  return {
+    dates: bars.map(r => r[0]), close: bars.map(r => +r[2]), high: bars.map(r => +r[3]), low: bars.map(r => +r[4]),
+    source: "Tencent " + code + " qfq (≈4y window, not 10y)",
+  };
+}
 export async function series(symbol, fallback, range = "10y") {
   const auth = await yahooAuth();
   for (const host of ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]) {
@@ -53,10 +78,19 @@ export async function series(symbol, fallback, range = "10y") {
       return { dates: r.timestamp.map(ts => new Date(ts * 1000).toISOString().slice(0, 10)), close: quote.close, high: quote.high, low: quote.low, source: "Yahoo " + symbol };
     } catch (e) { console.warn("source warning:", symbol, host, e.message); }
   }
-  const text = await (await get("https://stooq.com/q/d/l/?s=" + encodeURIComponent(fallback) + "&i=d")).text();
-  if (!/^Date,/.test(text)) throw new Error("stooq data unavailable " + symbol);
-  const rows = text.trim().split(/\r?\n/).slice(1).map(r => r.split(","));
-  return { dates: rows.map(r => r[0]), close: rows.map(r => +r[4]), high: rows.map(r => +r[2]), low: rows.map(r => +r[3]), source: "Stooq " + fallback };
+  // stooq 不再直接抛：它挂掉时下面还有腾讯（原来是 stooq 一失败整个 series 就失败）。
+  try {
+    const text = await (await get("https://stooq.com/q/d/l/?s=" + encodeURIComponent(fallback) + "&i=d")).text();
+    if (/^Date,/.test(text)) {
+      const rows = text.trim().split(/\r?\n/).slice(1).map(r => r.split(","));
+      return { dates: rows.map(r => r[0]), close: rows.map(r => +r[4]), high: rows.map(r => +r[2]), low: rows.map(r => +r[3]), source: "Stooq " + fallback };
+    }
+    console.warn("source warning:", symbol, "stooq non-CSV payload (JS challenge page?)");
+  } catch (e) { console.warn("source warning:", symbol, "stooq", e.message); }
+  try { return await tencentSeries(symbol); }
+  // 错误信息保持**短**：它会经 SOURCE_META.error 显示到页面上（`sourceHealth.text` 限 48 字符），
+  // 冗长的句子会把窄屏标签撑爆；每个源具体的失败原因已经由上面的 console.warn 写进日志。
+  catch { throw new Error("no index provider available"); }
 }
 export function sourceDate(value) {
   if (typeof value === "string") { const s = value.slice(0, 10); if (isDate(s)) return s; }
@@ -116,7 +150,11 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     if (r.status === "rejected") { rec.failure(key, "Yahoo/Stooq", r.reason.message); continue; }
     const { raw, result } = r.value;
     try {
-      rec.success(key, result.date, raw.source, { methodology: "10y available high; 52w intraday range; simple-window RSI14" });
+      /* methodology 必须跟着实际用的源走：走腾讯兜底时 ath 只是「≈4 年最高」，
+         若还写 10y 就等于在溯源里说假话（2026-09-27 同步加）。 */
+      rec.success(key, result.date, raw.source, { methodology: /^Tencent/.test(raw.source)
+        ? "ATH from a ≈4-year Tencent window (Yahoo unavailable), NOT a 10-year high; 52w intraday range; simple-window RSI14"
+        : "10y available high; 52w intraday range; simple-window RSI14" });
       const { date, rows, ...quote } = result; d[key] = quote; core++;
       recent[key] = {
         asOf: result.date,
