@@ -5475,11 +5475,22 @@ function renderCheckup() {
       /* 成本列由「+12pp」改成「79% → 91%」（2026-09-27 用户要求）：与页面既有的「成本位置条」同构 ——
          平端＝成本位、尖角端＝现价位；两数相减就是原来的 pp 值，不丢信息，但还多告诉了「在哪」。
          悬停给出 pp 差值与箭头方向的含义。 */
-      const cost = (d.costPct === null || d.nowPct === null)
-        ? gb(d.gCost) + " " + na("成本位或现价位算不出来（缺该标的的 52 周区间）")
-        : '<span title="成本位 ' + d.pct(d.costPct) + " → 现价位 " + d.pct(d.nowPct) + "，相减 = "
-            + (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + 'pp。箭头向右 = 摊薄成功 / 已浮盈；向左 = 套牢。">'
-          + gb(d.gCost) + " " + d.pct(d.costPct) + " → " + d.pct(d.nowPct) + "</span>";
+      /* ⚠ 摊薄成本可能落在 52 周区间**之外**：港美互联网LOF 多次卖出后成本价 4.4315 高于上沿 2.508
+         → 分位算出 278%（数学对、语义无意义）。这时改标「超区间上/下沿」并说明缘由，
+         不把 278% 这种数摆在表里（档位仍按 现价位 − 成本位 计 —— 「成本远高于现价」这件事本身是真的）。 */
+      let cost;
+      if (d.costPct === null || d.nowPct === null) {
+        cost = gb(d.gCost) + " " + na("成本位或现价位算不出来（缺该标的的 52 周区间）");
+      } else {
+        const out = d.costPct > 100 ? "上" : d.costPct < 0 ? "下" : null;
+        cost = '<span title="' + (out
+          ? "成本价已" + (out === "上" ? "高于" : "低于") + "该标的 52 周区间" + out + "沿（算出来是 " + d.pct(d.costPct)
+            + "）—— 本页的「成本」是**摊薄成本**（Σ买入含费 − Σ卖出净额），卖出回收后会把它抬高、甚至超过历史价格，"
+            + "此时区间分位没有意义，故不摆出来。档位仍按 现价位 − 成本位 计（" + (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp）：「成本远高于现价」本身是真的。"
+          : "成本位 " + d.pct(d.costPct) + " → 现价位 " + d.pct(d.nowPct) + "，相减 = " + (d.gap >= 0 ? "+" : "−")
+            + Math.abs(Math.round(d.gap)) + "pp。箭头向右 = 摊薄成功 / 已浮盈；向左 = 套牢。")
+          + '">' + gb(d.gCost) + " " + (out ? "成本价超区间" + out + "沿" : d.pct(d.costPct) + " → " + d.pct(d.nowPct)) + "</span>";
+      }
       let swing;
       if (d.isOtc) {
         /* ⚠ 三种情况必须分开写（2026-09-27 用户问到才发现的缺陷）：
@@ -5505,8 +5516,9 @@ function renderCheckup() {
     }).join("") + "</tbody></table>" +
     '<div class="otc-note chk-note">' +
       "<b>这份体检只描述已经发生的操作</b> —— 不预测涨跌、也不评价基金本身好坏（一只「烂操作的好基金」同样会得 D）。" +
-      "<b>买点</b>＝各笔成交价在「52周低 ~ 历史高」里的平均分位（越靠底部越好；⚠ <b>上涨趋势里偏高是必然</b>，故仅作参考）；" +
-      "<b>成本</b>＝现价位 − 成本位（同为该标的的区间分位）—— 正值＝成本比现价更靠底部（摊薄成功），与市场涨跌无关；" +
+      "<b>买点</b>＝各笔成交价在「52周低 ~ 历史高」里的<b>算术平均</b>分位（一笔一票；越靠底部越好，⚠ <b>上涨趋势里偏高是必然</b>，故仅作参考）—— 悬停可看<b>金额加权</b>口径及其差异；" +
+      "<b>成本</b>＝<b>成本位 → 现价位</b>（同为该标的的区间分位）—— 箭头向右＝现价高于成本（摊薄成功 / 已浮盈），与市场涨跌无关；" +
+      "⚠ 成本用的是<b>摊薄成本</b>（Σ买入含费 − Σ卖出净额），卖出回收后可能被抬到区间之外，那时只标「超区间」、不给分位（给了也没有意义）；" +
       "<b>调仓</b>＝有卖出记录才评（实现盈亏 + 盈利笔数）；场外的赎回记录只有笔数、没有实现盈亏 → 只报笔数、不给档位。" +
       "排序：按最弱档位（D → C → B → A），同档按现值降序 —— 需要看的排前面。" +
       "<b>不给单一总分</b>：单一分数会把矛盾信息压平（一只可能「成本位很好但调仓全亏」），所以只给分项。" +
@@ -5523,7 +5535,8 @@ function opCheckupHtml(p) {
   const { nowPct, costPct, gap, gBuy, gCost, gSwing, avgB, sells, realized, win, pct, item, note, tip } = d;
   return '<div class="op-chk" title="' + esc(tip) + '"><span class="oc-h">操作体检</span>'
     + item("买点", gBuy, pct(avgB), buyPointTip(d))
-    + item("成本", gCost, (costPct === null || nowPct === null) ? "" : pct(costPct) + " → " + pct(nowPct),
+    + item("成本", gCost, (costPct === null || nowPct === null) ? ""
+        : (costPct > 100 || costPct < 0 ? "成本价超区间" + (costPct > 100 ? "上" : "下") + "沿" : pct(costPct) + " → " + pct(nowPct)),
         "成本位 " + pct(costPct) + " → 现价位 " + pct(nowPct) + "（都是该标的「52周低 ~ 历史高」里的分位），相减 = "
         + (gap === null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap)) + "pp")
         + "。箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈）；向左 = 成本反被现价压制（套牢）。与市场涨跌无关。")
