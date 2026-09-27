@@ -40,6 +40,10 @@ const iso = (d) => d.toISOString().slice(0, 10);
 async function navSeries(code, from, to) {
   const out = [];
   for (let pi = 1; pi <= 16; pi++) {
+    /* 每翻一页之间留 150ms（2026-09-27 加）：不加间隔时 110 个请求 4.7 秒跑完 ≈ 23 req/s，
+       对公开的 f10 接口算偏快，万一被限流脚本会中途失败。加完约 25 秒 —— 但这是"改数据才跑"
+       的低频任务，慢一点换来稳，值得。 */
+    if (pi > 1) await new Promise((r) => setTimeout(r, 150));
     const url = "https://api.fund.eastmoney.com/f10/lsjz?fundCode=" + code + "&pageIndex=" + pi + "&pageSize=20";
     const r = await fetch(url, { headers: H });
     if (!r.ok) throw new Error("HTTP " + r.status);
