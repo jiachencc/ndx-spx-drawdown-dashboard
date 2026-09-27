@@ -251,6 +251,23 @@
   .pl-nm { font-size: var(--fs-md); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pl-amt { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; }
   .pl-sub { margin-top: 3px; }
+  /* 第二行的三段（来源胶囊 / 操作体检 / 本金+收益率）原来靠 flex + space-between 排，
+     每段位置**随来源长度浮动** —— 实测来源宽 70px（场内）vs 154px（场外，如「支付宝 09.25 · 净值 09.23」），
+     体检左边界 670~697、本金 955~968，每一行都不同，竖向看参差不齐（用户反馈「不耐看」）。
+     桌面（≥768）改三列 grid：来源列固定 172px（最长那条 154px，留余量），
+     体检紧跟其后，本金+收益率右对齐 —— 三段的起点 / 终点在每一行都对齐。 */
+  @media (min-width: 768px) {
+    .pl-sub { display: grid; grid-template-columns: 172px minmax(0, max-content) 1fr; column-gap: 10px; }
+    .pl-sub > .pl-right { justify-self: end; }
+  }
+  /* 手机（≤767）一行放不下：实测「南方 09.24 · 净值 09.23」被 ellipsis 截成「净值 09.」、
+     右侧 +3.1% 也被切。改为允许换行，且**来源独占一行**（它最长，被折行反而看不清）——
+     第二行留给「操作体检 + 本金/收益率」。 */
+  @media (max-width: 767px) {
+    .pl-sub { flex-wrap: wrap; row-gap: 3px; }
+    .pl-sub > .pl-src { flex: 1 1 100%; }
+    .pl-sub > .pl-right { margin-left: auto; }
+  }
   /* 第二行右侧成对：本金 + 收益率。放一起的理由——本金就是收益率的分母，
      分开两处看不出「拿多少钱赚到的」；本金用更小一号，明确它是基准而非结论。 */
   .pl-sub > .pl-right { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
