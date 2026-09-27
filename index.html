@@ -239,7 +239,12 @@
     .header h1 { font-size: 20px; }
     .header .meta { flex-wrap: wrap; gap: 8px; }
     .chip { font-size: 10.5px; padding: 4px 10px; }
+    /* 单列时重置「行等高」（2026-09-27 修）：1023px 断点给 .g-top 设了 grid-auto-rows: 1fr
+       （那时是 2 列，为让同行的卡等高），但切到单列后这一条还留着 → 手机上 4 张卡被统一拉成
+       「最高那张」的高度，内容少的卡（近 1 个月日线、回撤深度尺）下面空出一大片
+       （实测行高 438px vs 卡内内容 175px）。单列没有「同行对齐」的需求，行高应回到按内容走。 */
     .g-top, .g-mid, .grid-two { grid-template-columns: 1fr; }
+    .g-top { grid-auto-rows: auto; }
     .trig-row { flex-wrap: wrap; }
     .trig-band { width: 46px; }
     .trig-right { min-width: 86px; }
@@ -541,6 +546,20 @@
   .recent-readout .down { color: var(--red); }
   .recent-readout .sep { opacity: .45; margin: 0 6px; }
   .recent-readout .pin { color: var(--purple); }
+  /* 图下「常用数据」统计条（2026-09-27 用户要求「下面还有一些空位，根据数据给一些算好的常用的数据」）——
+     范式照本页既有的 .mchart-summary（月图那块）：无底色块、一条上边线分隔、数值走等宽字体、flex 折行。
+     每项 = 标签（弱色 i）+ 数值（b）+ 注解（.an 小一号弱色）；项与项 nowrap，断行只发生在项之间。 */
+  .recent-stats { display: flex; flex-wrap: wrap; gap: 7px 18px; margin-top: 12px; padding-top: 11px;
+    border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--tx2); }
+  /* ⚠ 项内**每个原子**各自 nowrap、项本身可折行：手机上「最大单日 +2.83% 09-21 / 09-01 · 最差 −1.29%」
+     这类长项若整项 nowrap，会把卡片撑出横向溢出（2026-09-27 实测 390px 溢出 241px 后改成这样）。 */
+  .recent-stats .st { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; max-width: 100%; }
+  .recent-stats .st > i, .recent-stats .st > b, .recent-stats .st > .an { white-space: nowrap; }
+  .recent-stats .st i { font-style: normal; color: var(--tx3); }
+  .recent-stats .st b { font-family: var(--mono); font-weight: 700; color: var(--tx); font-feature-settings: "tnum"; }
+  .recent-stats .st b.up { color: var(--green); }
+  .recent-stats .st b.down { color: var(--red); }
+  .recent-stats .st .an { font-family: var(--mono); font-size: 11px; color: var(--tx3); }
 </style>
 </head>
 <body>
@@ -651,6 +670,8 @@
       <span class="src-tag auto">AUTO</span><span class="recent-asof" id="recent-asof">--</span></div>
     <svg class="recent-svg" id="recent-svg" viewBox="0 0 620 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="近 1 个月日线收盘"></svg>
     <div class="recent-readout" id="recent-readout"></div>
+    <!-- 图下常用数据（2026-09-27 加）：内容由 renderRecentStats() 从 RECENT 现算，两个 tab 各一套 -->
+    <div class="recent-stats" id="recent-stats"></div>
   </div>
 
   <!-- Scale card -->
@@ -1456,6 +1477,62 @@ function renderRecent() {
     b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
   });
   drawRecent();
+  renderRecentStats();
+}
+/* 图下「常用数据」统计条（2026-09-27 加，用户要求「下面还有一些空位，根据数据给一些算好的常用的数据」）：
+   全部从 RECENT 的收盘序列**现算**，不写死任何一个数；两个 tab 各一套。
+   挂在 renderRecent 里（而不是 drawRecent）：它与 hover / 钉点无关，没必要每帧重算。
+   口径（每项都有 title 说明，尽量保守、可核对）：
+     · 区间最高 / 最低 —— 22 个交易日内的极值 + 极值日 + 它距最新价多少
+     · 最大回撤 —— 区间内「峰 → 之后谷」的最大跌幅（峰谷各注日期，并标是否已收复）
+     · 区间位置 —— 最新价在 [最低, 最高] 里的分位（0 = 贴着最低，100 = 贴着最高）
+     · 涨跌 —— 涨 / 跌天数（平盘不计）；最大单日 —— 最大单日涨 / 跌 + 日期
+     · 年化波动 —— 日收益样本标准差 × √252
+   ⚠ 样本只有 22 个交易日（21 个日收益），所以「年化波动」只是近月尺度的粗估，不要当长期波动率读。 */
+function renderRecentStats() {
+  const R = recentData(), box = $("recent-stats");
+  if (!R || !box) return;
+  const pts = R[recentKey].pts, cs = pts.map((p) => p.c), n = cs.length;
+  const md = (d) => d.slice(5);                       // 与图上 x 轴、读数行同一写法（09-22）
+  const f2 = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sg = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  const last = cs[n - 1];
+  const hi = Math.max(...cs), lo = Math.min(...cs);
+  const iHi = cs.indexOf(hi), iLo = cs.indexOf(lo);
+  /* 最大回撤：走一遍，记住「到过的最高点」与它之后的最低点 */
+  let mdd = 0, iPeak = 0, iTrough = 0, peak = cs[0], iPk = 0;
+  for (let i = 1; i < n; i++) {
+    if (cs[i] > peak) { peak = cs[i]; iPk = i; }
+    const dd = cs[i] / peak - 1;
+    if (dd < mdd) { mdd = dd; iPeak = iPk; iTrough = i; }
+  }
+  const rets = [];
+  for (let i = 1; i < n; i++) rets.push(cs[i] / cs[i - 1] - 1);
+  const upN = rets.filter((r) => r > 0).length, dnN = rets.filter((r) => r < 0).length;
+  const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
+  const sd = Math.sqrt(rets.reduce((a, r) => a + (r - avg) ** 2, 0) / (rets.length - 1));
+  const vol = sd * Math.sqrt(252) * 100;
+  const pos = (last - lo) / ((hi - lo) || 1) * 100;
+  const iUp = rets.indexOf(Math.max(...rets)), iDn = rets.indexOf(Math.min(...rets));
+  const item = (label, val, vCls, note, tip) =>
+    '<span class="st" title="' + tip + '"><i>' + label + "</i><b" + (vCls ? ' class="' + vCls + '"' : "") + ">" +
+      val + '</b><span class="an">' + note + "</span></span>";
+  box.innerHTML =
+    item("区间最高", f2(hi), "", md(pts[iHi].d) + " · 距现价 " + sg((last / hi - 1) * 100),
+      "区间内最高收盘 " + f2(hi) + "（" + md(pts[iHi].d) + "）；距现价 = 最新收盘相对它差多少（负 = 还在高点下方）") +
+    item("最大回撤", sg(mdd * 100), "down", md(pts[iPeak].d) + " → " + md(pts[iTrough].d) + " · " + (last >= cs[iPeak] ? "已收复" : "未收复"),
+      "区间内「峰 → 之后谷」的最大跌幅：峰 " + f2(cs[iPeak]) + "（" + md(pts[iPeak].d) + "）→ 谷 " + f2(cs[iTrough]) +
+      "（" + md(pts[iTrough].d) + "）；" + (last >= cs[iPeak] ? "最新收盘已回到峰之上" : "最新收盘仍低于峰 " + sg((last / cs[iPeak] - 1) * 100))) +
+    item("区间最低", f2(lo), "", md(pts[iLo].d) + " · 距现价 " + sg((last / lo - 1) * 100),
+      "区间内最低收盘 " + f2(lo) + "（" + md(pts[iLo].d) + "）；距现价 = 最新收盘相对它高出多少") +
+    item("区间位置", pos.toFixed(0) + "%", "", "0 = 最低 · 100 = 最高",
+      "最新收盘在区间 [最低 " + f2(lo) + ", 最高 " + f2(hi) + "] 里的分位；越接近 100 = 越贴近一个月来的高位") +
+    item("涨跌", upN + " 涨 / " + dnN + " 跌", "", "共 " + rets.length + " 个交易日",
+      "区间内上涨 / 下跌天数（平盘不计），样本 " + rets.length + " 个交易日") +
+    item("年化波动", vol.toFixed(1) + "%", "", "日 σ " + (sd * 100).toFixed(2) + "%",
+      "日收益的样本标准差 × √252；样本只有 " + rets.length + " 个交易日，只是近月尺度的粗估，不代表长期波动率") +
+    item("最大单日", sg(rets[iUp] * 100), "up", md(pts[iUp + 1].d) + " · 最差 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）",
+      "区间内单日涨幅最大 " + sg(rets[iUp] * 100) + "（" + md(pts[iUp + 1].d) + "）、跌幅最大 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）");
 }
 /* 交互：事件委托挂在卡片上（SVG 每次重画都会换 innerHTML，直接挂到 svg 上会丢监听） */
 (function bindRecent() {
