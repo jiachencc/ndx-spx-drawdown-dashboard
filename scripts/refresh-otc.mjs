@@ -142,8 +142,12 @@ for (const f of OTC.funds) {
   if (!WRITE) continue;
   const before = src;
   /* ⚠ positions.html 里是 **JS 对象字面量**（code: "023402"，键不带引号），不是 JSON ——
-     第一版按 JSON 写正则（"code": …）结果一处都没匹配上，白跑一轮。 */
-  const re = new RegExp("(\\bcode:\\s*\"" + code + "\"[\\s\\S]{0,600}?\\bnav:\\s*\\{)([^}]*)(\\})");
+     第一版按 JSON 写正则（"code": …）结果一处都没匹配上，白跑一轮。
+     ⚠⚠ 2026-09-28 订正：原来写的是 `[\\s\\S]{0,600}?`（600 字符窗口），本项目的基金条目注释动辄上千字符，
+        于是「code → nav」的距离一旦超过 600 就静默找不到 → 打印「未定位到 nav 块」跳过写入，**自动刷新失效而没人发现**
+        （当天 007280 的 lo 该从 1.9056 变 1.8821，就是这么被跳过的）。
+        改成「一直往前找，但**不许跨过下一个 `code:`**」—— 注释写多长都不再影响定位，也不会串到下一条基金。 */
+  const re = new RegExp("(\\bcode:\\s*\"" + code + "\"(?:(?!\\bcode:)[\\s\\S])*?\\bnav:\\s*\\{)([^}]*)(\\})");
   const m = src.match(re);
   if (!m) { console.log("      ⚠ 未定位到 nav 块，跳过写入"); continue; }
   let body = m[2]
