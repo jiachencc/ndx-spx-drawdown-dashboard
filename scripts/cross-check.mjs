@@ -25,7 +25,10 @@ import { readModel } from "./data-quality.mjs";
    留 1 元是因为 App 的市值/收益各自四舍五入过）。④ 用相对 + 绝对双阈值：
    相对 0.25% 是为了容忍「手填收盘价 vs 脚本前复权价」的 0.1% 级源差异
    （2026-09-23 纳指 159941：真实 1.728 vs 脚本 1.730），同时仍能抓住转录错（通常 ≥1%）。 */
-const TOL = { sum: 1.0, flow: 1.0, day: 1.0, otc: 0.02, holdRel: 0.0025, holdAbs: 5 };
+const TOL = { sum: 1.0, flow: 1.0, day: 1.0, otc: 0.02, holdRel: 0.0025, holdAbs: 5,
+  /* ⑤ 场外「市值 ↔ 净值」：val = qty × nav.close + 在途，在途 ≥ 0 且不该超过千元量级。
+     -0.5 的负向容差是给「商 × 净值」与 val 各自四舍五入留的。 */
+  navSlack: 0.5, navSlackMax: 1000 };
 
 const evalBlock = (html, re, expr) => {
   const m = html.match(re);
@@ -68,6 +71,40 @@ export function crossIssues(model, html, diag = false) {
     if (Math.abs(it.val - f.value) > TOL.otc || Math.abs(it.pl - f.pnl) > TOL.otc)
       issues.push("① " + f.code + "（" + f.name + "）快照 items val/pl " + money(it.val) + "/" + money(it.pl) +
         " ≠ OTC.funds " + money(f.value) + "/" + money(f.pnl));
+  }
+
+  /* ⑤ 场外「市值 ↔ nav.close」自洽（2026-09-29 加，起因是一次真事故）
+     基金条目里 value（市值）与 nav.close / nav.closeDate（净值与净值日）是**同一件事的两种表示**，
+     改一个忘一个就会出「市值是今天的、净值日还是 5 天前」——页面照旧渲染，①②③④ 也全部通过
+     （那些校验只看 val/pl/cost，不看 nav），只有人眼看卡片才发现。实测事故就是如此：
+     09-29 期把 7 只的 value/day/pnl/rate/upd 都更新了，唯独 nav 留在 09-24。
+     判据用本页已有的恒等式：val = qty × nav.close + 在途（在途 ≥ 0、且是最近几笔定投扣款的量级）。
+     ⚠ 负向最灵：nav 比市值「还新」几乎只可能是漏改；正向只设上限，另用「在途必须是该只定投额的倍数」
+       兜住「旧净值恰好比新净值低」那种漏改（当时 021000 就是这样溜过去的：slack 213 而非 0/200/400）。 */
+  let otcLog = null;
+  try { otcLog = evalBlock(html, /^const OTC_LOG = \{[\s\S]*?^\};/m, "OTC_LOG"); } catch { otcLog = null; }
+  const stakeAmts = (code) => {
+    const list = (otcLog && otcLog[code]) || [];
+    return [...new Set(list.filter((r) => r.status === "成功" && (r.act === "定投" || r.act === "申购")).map((r) => r.amt))];
+  };
+  for (const f of funds) {
+    const it = last.items[f.code];
+    if (!it || !f.nav || !Number.isFinite(f.nav.close) || !Number.isFinite(f.nav.close) || !Number.isFinite(it.qty)) continue;
+    const slack = it.val - it.qty * f.nav.close;
+    if (diag) lines.push("  ⑤ " + f.code + " " + money(it.val) + " − qty(" + it.qty + ") × nav.close(" + f.nav.close + ") = " + money(slack) + "（= 在途）");
+    if (slack < -TOL.navSlack)
+      issues.push("⑤ " + f.code + "（" + f.name + "）市值 " + money(it.val) + " 比「份额 × 净值」" + money(it.qty * f.nav.close) +
+        " 还小 " + money(-slack) + " → nav.close(" + f.nav.close + " / " + f.nav.closeDate + ") 没跟着 value 更新" +
+        "（页面会把净值日显示成旧的；改数据时 value 与 nav 必须一起改）");
+    else if (slack > TOL.navSlackMax)
+      issues.push("⑤ " + f.code + "（" + f.name + "）推得的「在途」" + money(slack) + " 超过 " + TOL.navSlackMax + " → nav.close 或 qty 可疑");
+    else if (slack > TOL.navSlack) {
+      const amts = stakeAmts(f.code);
+      const okMulti = amts.length > 0 && amts.some((a) => a > 0 && Math.abs(slack / a - Math.round(slack / a)) < 0.01);
+      if (!okMulti)
+        issues.push("⑤ " + f.code + "（" + f.name + "）推得的「在途」" + money(slack) + " 既不是 0、也不是该只定投额（" +
+          (amts.join(" / ") || "无记录") + "）的整数倍 → 多半是 nav.close 没跟着 value 更新（旧净值恰好偏低时就会这样）");
+    }
   }
 
   /* ② flow ↔ ΔΣ成本 + Δ现金 ；③ day ↔ Σ(Δ市值 − Δ成本) */
@@ -129,6 +166,6 @@ function main() {
   if (issues.length) {
     console.error("交叉门禁未通过（同一份数据在几处不一致）：\n" + issues.map((s) => "  - " + s).join("\n"));
     process.exitCode = 1;
-  } else console.log("交叉一致性：① 快照场外 ↔ OTC.funds · ② flow ↔ Δ成本+Δ现金 · ④ 场内快照 ↔ 报价×份数 —— 全部通过（③ 当日口径改由渲染层校验，见 dom-check）。");
+  } else console.log("交叉一致性：① 快照场外 ↔ OTC.funds · ② flow ↔ Δ成本+Δ现金 · ④ 场内快照 ↔ 报价×份数 · ⑤ 场外市值 ↔ nav.close —— 全部通过（③ 当日口径改由渲染层校验，见 dom-check）。");
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

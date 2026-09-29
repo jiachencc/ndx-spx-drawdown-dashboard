@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readModel, compileHtml, snapshotIssues, validateModel, metrics, createRecorder, stableBusiness, replaceConst, replaceMember } from "./data-quality.mjs";
 import { main, series } from "./fetch_and_update.mjs";
+import { crossIssues } from "./cross-check.mjs";
 const root = new URL("../", import.meta.url);
 const data = readFileSync(new URL("data.js", root), "utf8");
 const positions = readFileSync(new URL("positions.html", root), "utf8");
@@ -209,6 +210,42 @@ test("index fallback: Yahoo → stooq → Tencent, with the shorter window discl
     // 错误文案刻意保持短（它会显示在页面上），所以只断言"没有可用源"这个结论。
     await assert.rejects(() => series("^VIX", "^vix"), /no index provider available/);
   } finally { globalThis.fetch = saved; }
+});
+
+/* 2026-09-29：真事故的回归。09-29 期把 7 只场外的 value/day/pnl/rate/upd 都更新了，
+   唯独 nav.close / nav.closeDate 留在 09-24 → 页面照旧渲染「净值 09.24」，
+   而 ①②③④ 全过（那些校验只看 val/pl/cost，不看 nav）—— 是用户肉眼发现的。
+   ⑤ 用恒等式 val = qty × nav.close + 在途 补上这道缝。 */
+test("cross-check ⑤: 场外 nav 没跟着 value 更新时必须拦下", () => {
+  const html = (navA, navB) => [
+    "const SNAPSHOTS = [",
+    '  { d: "2026-09-28", cash: 0, items: { "159941": { name: "纳指ETF广发", qty: 10, cost: 9, val: 10, pl: 1 } } },',
+    '  { d: "2026-09-29", cash: 0, items: {',
+    '      "159941": { name: "纳指ETF广发", qty: 10, cost: 9, val: 10, pl: 1 },',
+    '      "023402": { name: "全球精选", qty: 3552.72, cost: 24500, val: 22429.39, pl: -2070.61 },',
+    '      "021000": { name: "南方纳指I", qty: 10251, cost: 23800, val: 24330.96, pl: 530.96 } } },',
+    "];",
+    'const OTC = { updated: "2026-09-29", cash: 0, funds: [',
+    '  { code: "023402", name: "全球精选", value: 22429.39, pnl: -2070.61, nav: { close: ' + navA + ', closeDate: "2026-09-28" } },',
+    '  { code: "021000", name: "南方纳指I", value: 24330.96, pnl: 530.96, nav: { close: ' + navB + ', closeDate: "2026-09-28" } },',
+    "],",
+    "};",
+    "const OTC_LOG = {",
+    '  "023402": [],',
+    '  "021000": [{ d: "2026-09-28", act: "定投", amt: 200, status: "成功" }],',
+    "};",
+  ].join("\n");
+  const model = { POSITIONS: { hold: [{ code: "159941", idx: "ndx", qty: 10 }] }, DEFAULT: {} };
+  // 正确：023402 slack = 0；021000 slack = 400 = 2 × 200（在途）→ 都不该报
+  const ok = crossIssues(model, html(6.3133, 2.3345), false);
+  assert.equal(ok.issues.filter((s) => s.startsWith("⑤")).length, 0, "正确数据不该报 ⑤：" + ok.issues.join(" | "));
+  // 漏改：023402 用旧净值 6.4175（slack −370.19，负向最灵）；
+  //       021000 用旧净值 2.3527（slack +213.43，非 200 的整数倍 → 靠「倍数」判据拦下）
+  const stale = crossIssues(model, html(6.4175, 2.3527), false);
+  const hits = stale.issues.filter((s) => s.startsWith("⑤"));
+  assert.equal(hits.length, 2, "两只漏改 nav 的都应被拦下，实际：" + JSON.stringify(stale.issues));
+  assert.match(hits.join(" "), /023402/);
+  assert.match(hits.join(" "), /021000/);
 });
 
 test("candidate schema rejects non-finite quotes", () => { const m = structuredClone(base); m.DEFAULT.vix = NaN; assert.ok(validateModel(m).length); });
