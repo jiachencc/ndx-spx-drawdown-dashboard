@@ -946,6 +946,14 @@
   .xr-tbl .c-nm .c-dot { margin-right: 5px; }
   /* 体检的四枚灯：左对齐（与表头同一左边界），列宽自然由内容定 —— 竖着扫就是「哪一项普遍不达标」 */
   .xr-tbl td.lamp { white-space: nowrap; }
+  /* ===== 备注列（2026-09-30 二改）===================================================
+     用户：「电脑端还是有点拥挤，备注可以精简一些 或者 可以隐藏到图标里，点击再显示」。
+     于是两步：① 渲染侧先把文案精简；② 整列收成一枚 ⓘ（点击在屏幕底部弹出浮层）。
+     ⚠ 浮层**复用页面既有的 .tip / .tip-pop**：点击委托、同时只开一个、✕ 与 Esc 都能关、
+       data-tip 走 white-space: pre-line 所以能"一条一行"、手机上是底部浮层也不会被裁 ——
+       不另造一套开关，也不做贴列的绝对定位浮层（表格里容易顶到卡片边缘被裁）。
+     ⚠ 只收「口径说明」这类**可查**信息；**⚠ 警示不外收**：它要一眼看见，仍留在格子里。 */
+  .xr-tbl td.c-info { white-space: nowrap; }
   @media (max-width: 767px) {
     /* 手机：与 .chk-tbl 完全同构。
        ⚠ 各 <td> 之间**不能出现空白字符**（inline-block 三列各 33%，多一个空格就挤成两列）——
@@ -955,6 +963,8 @@
     .xr-tbl td.lamp { display: inline-block; width: 25%; padding: 0; border: none; vertical-align: top; text-align: left; }
     .xr-tbl td.num { text-align: left; }        /* 手机上是分项格子，左对齐比右对齐更好读 */
     .xr-tbl tr.xr-grp-row td { padding: 14px 0 3px; }
+    /* 备注：手机列已堆叠 → 这一格单独成行（ⓘ 仍在行内，点开是底部浮层） */
+    .xr-tbl td.c-info { display: block; margin-top: 4px; padding: 0; border: none; }
   }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }

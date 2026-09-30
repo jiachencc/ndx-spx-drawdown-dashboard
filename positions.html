@@ -2613,7 +2613,7 @@ function renderPrincipal() {
           '<th class="num" title="' + esc("场外＝Σ申购（成功后进成本的金额，含在途补记）；场内＝Σ买入成交额 ＋ 买入费（费后口径）") + '">投入</th>' +
           '<th class="num" title="期末市值：场外按份额×净值（在途另计），场内按收盘市值">现值</th>' +
           '<th class="num" title="简单收益率＝（现值 ＋ 已赎回/已卖 − 投入）÷ 投入，不做年化 —— 年化在样本期很短时会被放大，这个数才是「实际赚了多少」">简单</th>' +
-          '<th title="这一只的金额口径（场外看在途补记、场内看买入费与已卖回收），以及数据自检">备注</th>' +
+          '<th class="c-info" title="这一只的金额口径（场外看在途补记、场内看买入费与已卖回收）与数据自检：点行内 ⓘ 展开；⚠ ＝ 需核对（悬停看详情）">备注</th>' +
         "</tr></thead><tbody>" +
         groups.map((g) => grpRow(g, 8) + g.rows.map((r) => {
           const gd = gradeOf(r);
@@ -2640,15 +2640,19 @@ function renderPrincipal() {
           const twrCell = Number.isFinite(r.twr)
             ? '<span class="' + cls(r.twr) + '">' + fmtPct(r.twr, 2) + "</span>"
             : '<span class="oc-na">—</span>';
-          /* 备注：一条一行（渲染时用 <br> 断，与操作体检的「说明」列同一落法）。
-             写的是**这只的金额口径** —— 场外能看到在途补记、场内能看到买入费与已卖回收，
-             两者本就不是一个口径，摆出来才不会被读成同一回事。 */
+          /* 备注（2026-09-30 二改）：桌面端 8 列偏挤，用户要「精简一些，或收进图标、点击再显示」——
+             于是两步走：① 文案先精简（去掉「（已计入现金流）」这类冗词）；
+             ② 整列收进一枚 ⓘ（原生 <details>，零依赖、键盘可操作，点开是贴着列的浮层）。
+             **⚠ 类警示不外收**：它要一眼看见，仍留在格子里，全文进 title（悬停即见）。
+             写的是**这只的金额口径**：场外看得到在途补记、场内看得到买入费与已卖回收，本就不是一个口径。 */
+          const warn = (!r.miss && r.drift !== null && r.drift < -0.05)
+            ? "⚠ 流水比快照成本多 " + fmtYuan(-r.drift) + "（App 成本滞后一期），需核对" : "";
           const notes = [
-            r.miss ? "缺成交流水 → 不参与年化" : "",
-            !r.miss && r.mkt === "etf" && r.fee > 0.5 ? "含买入费 " + fmtAmt2(r.fee) : "",
-            !r.miss && r.mkt === "etf" && r.sold > 0.5 ? "已卖 " + fmtYuan(r.sold) + "（已计入现金流）" : "",
-            !r.miss && r.mkt !== "etf" && r.transit > 0.05 ? "含在途 " + fmtAmt2(r.transit) : "",
-            !r.miss && r.drift !== null && r.drift < -0.05 ? "⚠ 流水比快照成本多 " + fmtYuan(-r.drift) + "，需核对" : ""
+            r.miss ? "缺成交流水 → 不参与年化、不评级" : "",
+            !r.miss && r.mkt === "etf" && r.fee > 0.5 ? "投入已含买入费 " + fmtAmt2(r.fee) : "",
+            !r.miss && r.mkt === "etf" && r.sold > 0.5 ? "其中已卖 " + fmtYuan(r.sold) + "（已在现金流里扣回）" : "",
+            !r.miss && r.mkt !== "etf" && r.transit > 0.05 ? "投入已含在途 " + fmtAmt2(r.transit) : "",
+            warn
           ].filter(Boolean);
           return "<tr>" +
             '<td class="c-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm) + "</td>" +
@@ -2658,7 +2662,10 @@ function renderPrincipal() {
             '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) + "</td>" +
             '<td class="c-val num">' + lb("现值") + fmtYuan(r.val) + "</td>" +
             '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
-            '<td class="c-note">' + notes.join("<br>") + "</td>" +
+            /* 备注列：⚠ 留在明面上（要一眼看见），其余收进页面既有的 ⓘ 浮层（.tip + .tip-pop，
+               点击在屏幕底部弹出、同时只开一个、Esc 可关；data-tip 支持换行 → 一条一行）。 */
+            '<td class="c-info">' + (warn ? '<b class="watch" title="' + esc(warn) + '">⚠</b> ' : "") +
+              (notes.length ? tipBtn(notes.join("\n"), "这一只的金额口径与数据自检") : "") + "</td>" +
           "</tr>";
         }).join("")).join("") +
         "</tbody></table>" +
