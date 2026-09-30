@@ -1190,11 +1190,11 @@ const POSITIONS = {
   // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）＝ ETF 场内买入价相对基金实际价值的偏离；
   // 由脚本从天天基金净值接口自动计算。QDII 净值滞后 1-2 个交易日，溢价为近似值。折价为负。
   premiums: { // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）；QDII 净值滞后 1-2 个交易日
-    "159941": { pct: 12.2, nav: 1.5227, navDate: "2026-09-28", priceDate: "2026-09-29" },
-    "160644": { pct: 0.6, nav: 1.9267, navDate: "2026-09-28", priceDate: "2026-09-29" },
-    "513310": { pct: 5, nav: 4.508, navDate: "2026-09-29", priceDate: "2026-09-29" },
-    "513650": { pct: 6.9, nav: 1.8658, navDate: "2026-09-28", priceDate: "2026-09-29" },
-    "513880": { pct: 4.2, nav: 2.0427, navDate: "2026-09-29", priceDate: "2026-09-29" },
+    "159941": { pct: 13.7, nav: 1.5259, navDate: "2026-09-29", priceDate: "2026-09-30" },
+    "160644": { pct: 1.9, nav: 1.9418, navDate: "2026-09-29", priceDate: "2026-09-30" },
+    "513310": { pct: 5.6, nav: 4.4484, navDate: "2026-09-30", priceDate: "2026-09-30" },
+    "513650": { pct: 7.6, nav: 1.863, navDate: "2026-09-29", priceDate: "2026-09-30" },
+    "513880": { pct: 4.9, nav: 2.0864, navDate: "2026-09-30", priceDate: "2026-09-30" },
   },
   /* ⚠ 09-23 这五条是**手填**（脚本只在定时跑、push 不触发行情抓取 → 见 handoff.md §3.3 SOP 第 6 步）：
      按脚本同一算法「当日收盘价 ÷ 天天基金最新已公布净值」手算，价格日 = 2026-09-23，净值日见各条。
@@ -2346,73 +2346,73 @@ const SOURCE_META = {
     "status": "ok"
   },
   "etfNdx": {
-    "asOf": "2026-09-29",
-    "source": "Tencent sz159941 qfq (latest price)",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "平安证券 App 09-30 收盘手填（159941 纳指ETF广发；AUTO 源为 Tencent sz159941 qfq (latest price)，次日 05:47 定时任务复核覆盖）",
+    "fetchedAt": "2026-09-30T12:55:00.000Z",
     "status": "ok"
   },
   "premium:159941": {
-    "asOf": "2026-09-28",
-    "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-29",
+    "source": "Eastmoney NAV + 平安证券 App 09-30 收盘手填",
+    "fetchedAt": "2026-09-30T13:00:00.000Z",
     "status": "ok",
-    "priceDate": "2026-09-29",
+    "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "hkus": {
-    "asOf": "2026-09-29",
-    "source": "Tencent sz160644 qfq (latest price)",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "平安证券 App 09-30 收盘手填（160644 港美互联网LOF；AUTO 源为 Tencent sz160644 qfq (latest price)，次日 05:47 定时任务复核覆盖）",
+    "fetchedAt": "2026-09-30T12:55:00.000Z",
     "status": "ok"
   },
   "premium:160644": {
-    "asOf": "2026-09-28",
-    "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-29",
+    "source": "Eastmoney NAV + 平安证券 App 09-30 收盘手填",
+    "fetchedAt": "2026-09-30T13:00:00.000Z",
     "status": "ok",
-    "priceDate": "2026-09-29",
+    "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "kr": {
-    "asOf": "2026-09-29",
-    "source": "Tencent sh513310 qfq (latest price)",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "平安证券 App 09-30 收盘手填（513310 中韩半导体ETF华泰；AUTO 源为 Tencent sh513310 qfq (latest price)，次日 05:47 定时任务复核覆盖）",
+    "fetchedAt": "2026-09-30T12:55:00.000Z",
     "status": "ok"
   },
   "premium:513310": {
-    "asOf": "2026-09-29",
-    "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "Eastmoney NAV + 平安证券 App 09-30 收盘手填",
+    "fetchedAt": "2026-09-30T13:00:00.000Z",
     "status": "ok",
-    "priceDate": "2026-09-29",
+    "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "etfSpx": {
-    "asOf": "2026-09-29",
-    "source": "Tencent sh513650 qfq (latest price)",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "平安证券 App 09-30 收盘手填（513650 标普500ETF南方；AUTO 源为 Tencent sh513650 qfq (latest price)，次日 05:47 定时任务复核覆盖）",
+    "fetchedAt": "2026-09-30T12:55:00.000Z",
     "status": "ok"
   },
   "premium:513650": {
-    "asOf": "2026-09-28",
-    "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-29",
+    "source": "Eastmoney NAV + 平安证券 App 09-30 收盘手填",
+    "fetchedAt": "2026-09-30T13:00:00.000Z",
     "status": "ok",
-    "priceDate": "2026-09-29",
+    "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "n225": {
-    "asOf": "2026-09-29",
-    "source": "Tencent sh513880 qfq (latest price)",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "平安证券 App 09-30 收盘手填（513880 日经225ETF华安；AUTO 源为 Tencent sh513880 qfq (latest price)，次日 05:47 定时任务复核覆盖）",
+    "fetchedAt": "2026-09-30T12:55:00.000Z",
     "status": "ok"
   },
   "premium:513880": {
-    "asOf": "2026-09-29",
-    "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-09-30T00:46:58.218Z",
+    "asOf": "2026-09-30",
+    "source": "Eastmoney NAV + 平安证券 App 09-30 收盘手填",
+    "fetchedAt": "2026-09-30T13:00:00.000Z",
     "status": "ok",
-    "priceDate": "2026-09-29",
+    "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "crosscheck": {
