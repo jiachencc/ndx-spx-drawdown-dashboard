@@ -2273,17 +2273,43 @@ function renderClosed() {
   }).filter((g) => g.n);
   const low = rows.filter((r) => r.cat === "债基"), eq = rows.filter((r) => r.cat !== "债基");
   const lowSum = low.reduce((a, r) => a + r.pnl, 0), eqSum = eq.reduce((a, r) => a + r.pnl, 0);
+  /* ---- 结果侧汇总（2026-09-30 加，用户要「回顾用的汇总」）----
+     全部由 items **现算**：补录或订正一条明细，这里就跟着变（本页纪律：汇总不许写死）。
+     只做**金额口径**：这 17 笔只留了盈亏，没留「投入本金 / 清仓日」→ 收益率、年化、以及
+     「并入总账」都还算不了 —— 不拿估算冒充，如实标「—」并指向 ? 里的缺口说明。 */
+  const ups = rows.filter((r) => r.pnl > 0), dns = rows.filter((r) => r.pnl < 0);
+  const sumUp = ups.reduce((a, r) => a + r.pnl, 0), sumDn = dns.reduce((a, r) => a + r.pnl, 0);
+  const topUp = ups.slice().sort((a, b) => b.pnl - a.pnl)[0] || null;
+  const topDn = dns.slice().sort((a, b) => a.pnl - b.pnl)[0] || null;
+  const shareOf = (v, base) => (base ? (Math.abs(v) / Math.abs(base) * 100).toFixed(1) + "%" : "—");
+  const brief = [
+    ["赚亏分解", "总赚 <b class=\"up\">" + fmt2(sumUp) + "</b>（" + ups.length + " 笔）｜ 总亏 <b class=\"down\">" + fmt2(sumDn) +
+      "</b>（" + dns.length + " 笔）→ 净 <b class=\"" + cls(sum) + "\">" + fmt2(sum) + "</b>"],
+    ["平均每笔", "<b class=\"" + cls(sum) + "\">" + fmt2(sum / rows.length) + "</b> 元（净额 ÷ " + rows.length + " 笔）"],
+    ["结果集中", (topUp ? "最赚 <b>" + esc(topUp.name) + " " + fmt2(topUp.pnl) + "</b> 占总赚 <b>" + shareOf(topUp.pnl, sumUp) + "</b>" : "") +
+      (topDn ? "；最亏 <b>" + esc(topDn.name) + " " + fmt2(topDn.pnl) + "</b> 占总亏 <b>" + shareOf(topDn.pnl, sumDn) + "</b>" : "") +
+      " —— 成败几乎由这两只决定"],
+    ["收益率", "—　缺「投入本金 / 清仓日」→ 收益率 / 年化 / 并入总账暂不可得（见上方 ? 的缺口说明）", true],
+  ];
+  const briefHtml = '<div class="closed-brief">' + brief.map((b) =>
+    '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("") + "</div>";
   const cnt = $("closed-cnt");
   if (cnt) cnt.textContent = "（支付宝 · " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 平均持有 " +
     (C.avgHoldDays || "—") + " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）";
   const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
   const qNote = '<div class="strat-note" id="closed-q">'
-    + "来源：支付宝「清仓分析」（覆盖「最赚 TOP」与「最亏 TOP」两栏，即全部 " + rows.length + " 笔）。"
-    + "<b>已清仓</b>＝该基金份额已全部卖出，不再持有、也不再加仓。<br>"
+    + "来源：支付宝「清仓分析」（覆盖「最赚 TOP」与「最亏 TOP」两栏，即全部 " + rows.length + " 笔）；"
+    + "平台直销的四个渠道（广发基金 / 南方基金 / 博时APP / 华安基金）<b>从未清仓过</b>（2026-09-30 用户确认）"
+    + "→ 这 " + rows.length + " 笔就是<b>全部清仓史</b>。<br>"
+    + "<b>已清仓</b>＝该基金份额已全部卖出，不再持有、也不再加仓。"
+    + "清仓动机：支付宝渠道<b>限额缩紧 + 费率相对直销偏高</b>，已统一转到平台直销继续持有同类标的 ——"
+    + "其中 4 只与现在在持的是同一只基金的不同渠道（广发全球精选 / 广发纳指100 / 博时标普500 / 华安纳斯达克100），"
+    + "属<b>换渠道，不是看空</b>。<br>"
     + "统计区间 " + (C.updated ? "2025-09-19 ~ " + C.updated : "最近一年") + "，App 注明「仅支持 2020.08 之后建仓的记录」；"
     + "盈亏为清仓时兑现额（含费，App 口径）。<br>"
     + "⚠ 这些盈亏都发生在首份快照（2026-08-28）之前，所以<b>不在</b>本金 / 累计收益 / 走势归因里——"
-    + "本金是从快照推导的，快照之前的事它看不到。若要把这段并入「总账」，需补清仓日期与当时的投入金额。<br>"
+    + "本金是从快照推导的，快照之前的事它看不到。若要把这段并入「总账」，需补清仓日期与当时的投入金额"
+    + "（顺带才能算收益率 / 年化；这 17 笔当时没留这两个字段，故汇总里「收益率」一栏暂为「—」）。<br>"
     + "类别为手工标注（债基 / 美股QDII / 日本QDII / A股行业），仅用于看清「钱是从哪类资产上赚赔的」。</div>";
   const detail = rows.map((r) =>
       '<div class="closed-row"><span class="c-nm"><b>' + esc(r.name) + "</b>" +
@@ -2295,8 +2321,10 @@ function renderClosed() {
     byCat.map((g) => '<div class="closed-row"><span class="c-nm"><b>' + esc(g.label) + '</b><span class="c-code">' + g.n + ' 只</span></span><span class="c-v ' + cls(g.sum) + '">' + fmt2(g.sum) + "</span></div>").join("") +
     '<div class="closed-total"><span>合计清仓盈亏' + qBtn + "（" + rows.length + " 只）</span><b class=\"" + cls(sum) + '">' + fmt2(sum) + "</b></div>" +
     qNote +
-    '<div class="closed-lead">这段历史里<b>赚钱的全部来自低风险债基（' + fmt2(lowSum) + "，" + low.length + " 只）</b>；" +
-      "权益类（QDII / 行业指数，" + eq.length + " 只）合计 <b class=\"" + cls(eqSum) + '">' + fmt2(eqSum) + "</b>，两者相抵才是 " + fmt2(sum) + "。</div>" +
+    briefHtml +
+    '<div class="closed-lead">这段历史里<b>赚钱的全部来自低风险债基（' + fmt2(lowSum) + "，" + low.length + " 只，全赚）</b>；" +
+      "权益类（QDII / 行业指数，" + eq.length + " 只：" + eq.filter((r) => r.pnl > 0).length + " 赚 " +
+      eq.filter((r) => r.pnl <= 0).length + " 亏）合计 <b class=\"" + cls(eqSum) + '">' + fmt2(eqSum) + "</b>，两者相抵才是 " + fmt2(sum) + "。</div>" +
     '<details class="closed-all"><summary>展开全部 ' + rows.length + " 只明细（按盈亏排序）</summary>" + detail + "</details>";
 }
 
