@@ -182,10 +182,10 @@
 
   /* ===== 汇总 ===== */
   .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-  /* 2026-09-30：汇总卡 9 格 → 5 格（本金并入总资产、场内外盈亏并入浮盈亏、盈/亏持仓挪去总览）。
-     5 格在 3 列下会剩单数 → 末格（当日盈亏，内部本就是「场内估 ＋ 场外快」两分栏）跨 2 列把第二行占满。
-     「跨 2」在 2 列窄屏下正好＝整行，故两种断点用同一条规则（原来只在窄屏写了 1 / -1）。 */
-  .sum-grid .sum-cell:last-child { grid-column: span 2; }
+  /* 2026-09-30 二次排版：9 格 → 4 格（总资产 / 累计浮盈亏·场内 / 累计浮盈亏·场外 / 当日盈亏）。
+     日期胶囊只在「总资产」里出现（它同时含场内报价日与场外快照日）；末格（当日盈亏，三分栏
+     「场内 ＋ 场外 ＝ 合计」）**跨整行**——三分栏在 1/3 行宽里会挤成一团。 */
+  .sum-grid .sum-cell:last-child { grid-column: 1 / -1; }
   .sum-cell { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 8px; text-align: center; min-width: 0; }
   .sum-cell .s-label { font-size: var(--fs-xs); color: var(--tx3); margin-bottom: 4px; }
   .sum-cell .s-val { font-family: var(--mono); font-size: var(--fs-lg); font-weight: 700; font-feature-settings: "tnum"; }

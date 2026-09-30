@@ -638,7 +638,8 @@ function renderImpl() {
   const totalCost = etfCost + otcCost;
   /* 持仓浮盈亏口径：剔现金——现金计入资产但无成本，混入会虚增盈亏（与快照 pl「不含现金」同口径） */
   const totalPl = totalVal - totalCost - OTC.cash;
-  const totalR = totalCost ? totalPl / totalCost : 0;
+  /* ⚠ 合计收益率 totalR 已于 2026-09-30 删除：汇总卡改成「场内 / 场外各一格」后，
+     合计百分比不再出现（它可由两格相加得到；合计金额在「总资产」副标里）。 */
   /* ===== 本金（净转入）拆成场内 / 场外两格（2026-09-30 加，用户要求「加上场内 场外净转入(本金)的 KPI」）=====
      本金 ≡ 外部净转入 ≡ Σ持仓成本 + 现金（与「本金与收益」卡片同一口径，见那边的注释）。
      场内那一份是**可对账**的，不是估算：券商给的是**摊薄成本**（已把已实现盈亏折进剩余仓位），
@@ -698,25 +699,27 @@ function renderImpl() {
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
   $("sum-grid").innerHTML =
-    /* 5 格（2026-09-30 由 9 格精简）：**同一批数不在两处各说一遍** ——
-       · 「本金（净转入）」格删 → 并入「总资产」格副标（总资产 ＝ 本金 ＋ 累计浮盈亏，本是一个恒等式）
-       · 「场内盈亏 / 场外盈亏」两格删 → 并入「累计浮盈亏」格副标（连各自的收益率一起）
-       · 「盈 / 亏持仓」格删 → 挪到「盈亏总览」标题（它数的就是那张清单的 13 行）
-       末格（当日盈亏，内部本就是两分栏）在栅格里跨 2 列，把第二行占满（见 positions.css 的 .sum-grid 规则）。 */
+    /* 4 格（2026-09-30 二次排版，按用户口径「这些就够了」）：
+       · 日期胶囊**只在「总资产」里出现**一次 —— 它的 mixTag 本来就同时含场内报价日与场外快照日，
+         其余格子不再重复日期戳（口径靠副标的文字说，例如「场内估值 ＋ 场外快照」）。
+       · 「本金 ＋ 收益」按**场内 / 场外各一格**：主数＝该通道累计收益率，副标＝本金 ＋ 收益金额。
+       · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
+       · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
+       末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。 */
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金。总资产 ＝ 本金 ＋ 累计浮盈亏 —— 与「本金与收益」卡同一口径。">本金 ' + fmtYuan(principal) + ' ＋ 浮盈亏 <span class="' + cls(totalPl) + '">' + fmtAmt(totalPl) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 累计浮盈亏（估）</div><div class="s-val ' + cls(totalPl) + '">' + fmtPct(totalR) + '</div><div class="s-sub ' + cls(totalPl) + '" title="场内＝快照摊薄口径（Σ份数×现价 − Σ摊薄成本，含可用现金）；场外＝App 持仓成本口径。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。">' + fmtAmt(totalPl) + ' 元 · 场内 <span class="' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</span>（' + fmtPct(etfCost ? etfPl / etfCost : 0) + '）／ 场外 <span class="' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</span>（' + fmtPct(otcCost ? otcPl / otcCost : 0) + '）</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="场内本金 ＝ Σ五只摊薄成本 ＋ 券商可用现金。券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓"><div class="s-label"><span aria-hidden="true">🏦</span> 场内本金</div><div class="s-val">' + fmtYuan(pInEtf) + '</div><div class="s-sub" style="color:var(--tx3)">' + rows.length + ' 只 · 占 ' + (principal ? (pInEtf / principal * 100).toFixed(1) : "0.0") + '%</div><div class="s-asof">' + etfTag("", true) + '</div></div>' +
-    '<div class="sum-cell" title="场外本金 ＝ Σ八只的 App「持仓成本」（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（南方 400 ＝ 已扣款、尚未并入 App 成本；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；其余六只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 场外本金</div><div class="s-val">' + fmtYuan(pInOtc) + '</div><div class="s-sub" style="color:var(--tx3)">' + otcRows.length + ' 只 · 占 ' + (principal ? (pInOtc / principal * 100).toFixed(1) : "0.0") + '% · 已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
+    '<div class="sum-cell" title="场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtPct(etfCost ? etfPl / etfCost : 0) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + ' ＋ 收益 <span class="' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</span></div></div>' +
+    '<div class="sum-cell" title="场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（南方 400 ＝ 已扣款、尚未并入 App 成本；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；其余六只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtPct(otcCost ? otcPl / otcCost : 0) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + ' ＋ 收益 <span class="' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</span> · 已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="口径是**两半拼接**、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝App「日收益」快照读数（截图日那天）。"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
-      /* 上一版先写“合计”、后写“场内+场外”——但场内为盘中估算、场外为 App 快照，可靠性不同。
-       * 调为“分量为主、合计为辅”：盘中看到大数字时，不会把“盘中估值 + 隔日快照”当成一个同口径的精确值。 */
+      /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 按用户口径）：分量在前、合计在后，
+         盘中看到大数字时不会把「盘中估值 ＋ 隔日快照」当成一个同口径的精确值。 */
       '<div class="s-split">' +
-        '<div class="s-split-cell"><div class="s-split-k">场内估</div><div class="s-split-v ' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + '</div></div>' +
+        '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v ' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + '</div></div>' +
         '<div class="s-split-plus">+</div>' +
-        '<div class="s-split-cell"><div class="s-split-k">场外快</div><div class="s-split-v ' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + '</div></div>' +
+        '<div class="s-split-cell"><div class="s-split-k">场外</div><div class="s-split-v ' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + '</div></div>' +
+        '<div class="s-split-plus">=</div>' +
+        '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>' +
       '</div>' +
-      '<div class="s-sub src-muted">合计 <b class="' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</b>' + (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + ' · 场内估值 ＋ 场外快照</div>' +
-      '<div class="s-asof">' + etfTag(" 日涨跌") + " " + otcTag(" 入账") + '</div></div>';
+      '<div class="s-sub src-muted">场内为当日估值（涨跌幅 × 持仓）· 场外为 App 快照读数' + (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + '</div></div>';
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
