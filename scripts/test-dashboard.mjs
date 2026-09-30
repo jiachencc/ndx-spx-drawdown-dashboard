@@ -163,7 +163,10 @@ test("fetch-only timestamps do not alter business identity", () => {
 test("automated rewrite keeps hand-written comments, key style and values", () => {
   // A writer that re-serialises DEFAULT would delete these annotations and quote every key.
   const out = replaceConst(data, "DEFAULT", base.DEFAULT);
-  ["MANUAL：盈利增速预期", "kr 持仓（场内价口径；09-24 券商收盘）", "字段与 ndx/spx 同构", "AUTO：S&P500 估值"].forEach(c => assert.ok(out.includes(c), c));
+  /* ⚠ 用**不含日期**的前缀做样本（2026-09-30 改）：这几句行尾注释的日期是人工跟着券商报价日改的
+     （见 handoff.md §3.3 SOP 第 6 步「它不动注释……需要时手工一句」），硬编码 "09-24 券商收盘"
+     会在每次手工订正注释时误报「注释丢了」。本测试要守的是**注释本身存活**，不是那个日期。 */
+  ["MANUAL：盈利增速预期", "kr 持仓（场内价口径", "字段与 ndx/spx 同构", "AUTO：S&P500 估值"].forEach(c => assert.ok(out.includes(c), c));
   // 只在 DEFAULT 块内检查：文件里的 SOURCE_META 段本来就是 JSON，带引号键名属正常
   const at = out.indexOf("const DEFAULT = {"), block = out.slice(at, out.indexOf("\n};", at));
   assert.ok(!block.includes('"ndx": {') && !block.includes('"spx": {'), "keys must stay unquoted");
