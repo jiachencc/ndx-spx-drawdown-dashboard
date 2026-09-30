@@ -617,6 +617,10 @@
     box-shadow: 0 14px 44px -8px rgba(15, 23, 42, .18), 0 0 0 1px rgba(91, 163, 255, .22); }
   @keyframes tipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   .tip-pop .tip-x { float: right; margin-left: 8px; padding: 0 2px; border: 0; background: none; color: var(--tx3); font-size: var(--fs-xs); cursor: pointer; }
+  /* 弹层里的**结论头**（2026-09-30 加）：逐只表「说明」列的调用方会传一句结论 ——
+     先给结论、再给依据；加粗 + 下方虚线与正文隔开。不传 head 的其它 ⓘ 观感不变。 */
+  .tip-pop .tip-head { font-weight: 700; color: var(--tx); margin: 0 0 7px; padding-bottom: 7px;
+    border-bottom: 1px dashed var(--line); }
   /* 徽标：一个词说明一档事实（假设 / 已是最低 / 你持有），比整句说明省 80% 宽度 */
   .pill { display: inline-block; padding: 0 5px; margin-left: 4px; border: 1px solid var(--line); background: var(--card2);
     border-radius: 999px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx2); white-space: nowrap; }

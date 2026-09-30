@@ -2677,6 +2677,26 @@ function renderPrincipal() {
               /* ④ 数据自检 */
               warn ? "数据：" + warn : "数据：Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平 ✓"
             ];
+          /* 结论（用户要求「给一个结论」）：一句话把这一行说清楚 —— 跑赢/没跑赢、在同类里第几、
+             年化是不是外推值、数据有没有要核对的。放在弹层**最上面**（先给结论，再给依据）。
+             ⚠ 措辞遵守操作体检那条规矩：只描述已发生的事实，不预测涨跌、不评价基金本身好坏。
+             ⚠ 必须是 return 之前的**语句**，不能塞进 return 的表达式里（那样是语法错误）。 */
+          let concl;
+          if (r.miss) {
+            concl = "结论：这只没有逐笔成交流水，钱赚得如何无从评价 —— 只能看标的本身（TWR 列）与「盈亏总览」。";
+          } else {
+            const pos = rank.findIndex((x) => x.nm === r.nm);            // rank 按超额**升序** → 0 是最差
+            const nG = rank.length;
+            const rk = pos < 0 ? "" : pos === nG - 1 ? "是已评级的 " + nG + " 只里最好的一只"
+              : pos === 0 ? "是已评级的 " + nG + " 只里最差的一只" : "在已评级的 " + nG + " 只里排第 " + (nG - pos);
+            const yTxt = (r.ann && r.xirr !== null) ? "年化 " + fmtPct(r.xirr, 1) + " 是按在场期外推的，别当预期收益"
+              : "年化未做（跨度不足 90 天）";
+            concl = exv === null ? "结论：样本不足，暂不评级。"
+              : exv >= 0.03 ? "结论：明显跑赢无风险利率（" + ppTxt(exv) + "）" + rk + "；" + yTxt + "。"
+              : exv >= 0 ? "结论：勉强跑赢无风险利率（" + ppTxt(exv) + "）" + rk + "；" + yTxt + "。"
+              : "结论：没跑赢无风险利率（" + ppTxt(exv) + "，累计只" + (r.gain >= 0 ? "赚到 " : "亏掉 ") + fmtYuan(Math.abs(r.gain)) + "）" + rk + "；" + yTxt + "。";
+            if (warn) concl += " 另有 " + warn.replace(/^⚠ /, "") + "。";
+          }
           return "<tr>" +
             '<td class="c-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm) + "</td>" +
             '<td class="c-gr">' + lb("评级") + '<b class="oc-' + gd.k + '" title="' + esc(r.nm + "：" + gd.why) + '">' + gd.t + "</b></td>" +
@@ -2685,10 +2705,8 @@ function renderPrincipal() {
             '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) + "</td>" +
             '<td class="c-val num">' + lb("现值") + fmtYuan(r.val) + "</td>" +
             '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
-            /* 说明列：⚠ 留在明面上（要一眼看见），正文收进页面既有的 ⓘ 浮层（.tip + .tip-pop：
-               贴着按钮弹出、同时只开一个、✕ 与 Esc 可关；data-tip 走 pre-line → 一条一行）。 */
-            '<td class="c-info">' + (warn ? '<b class="watch" title="' + esc(warn) + '">⚠</b> ' : "") +
-              (notes.length ? tipBtn(notes.join("\n"), "这一行的说明：评级依据 / 年化外推 / 金额口径 / 数据自检") : "") + "</td>" +
+            /* 说明列：全文收进 ⓘ（结论在最上面，四条依据跟在后面）。 */
+            '<td class="c-info">' + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检", concl) + "</td>" +
           "</tr>";
         }).join("")).join("") +
         "</tbody></table>" +
@@ -2965,9 +2983,11 @@ function renderAcctStats() {
  * 全页只有一个浮层实例：点 ⓘ 打开、点别处 / 再点同一个 / Esc 关闭。零依赖、无状态机。 */
 let tipPop = null;
 function closeTipPop() { if (tipPop) { tipPop.remove(); tipPop = null; } }
-function tipBtn(text, label) {
-  return '<button type="button" class="tip" data-tip="' + esc(text) + '" title="' + esc(label || "说明") +
-    '" aria-label="' + esc(label || "说明") + '">i</button>';
+function tipBtn(text, label, head) {
+  /* head（可选）：弹层**最上面**的一句结论 —— 加粗、与正文之间一条虚线隔开。
+     只有个别调用方传它（逐只表的"说明"列），其它 ⓘ 的观感不变。 */
+  return '<button type="button" class="tip" data-tip="' + esc(text) + '"' + (head ? ' data-tip-head="' + esc(head) + '"' : "") +
+    ' title="' + esc(label || "说明") + '" aria-label="' + esc(label || "说明") + '">i</button>';
 }
 document.addEventListener("click", (e) => {
   const hit = (sel) => (e.target && e.target.closest ? e.target.closest(sel) : null);
@@ -2982,7 +3002,8 @@ document.addEventListener("click", (e) => {
   tipPop.className = "tip-pop";
   tipPop.dataset.src = t.dataset.tip;
   tipPop.setAttribute("role", "note");
-  tipPop.innerHTML = '<button type="button" class="tip-x" aria-label="关闭">✕</button>' + esc(t.dataset.tip);
+  tipPop.innerHTML = '<button type="button" class="tip-x" aria-label="关闭">✕</button>' +
+    (t.dataset.tipHead ? '<div class="tip-head">' + esc(t.dataset.tipHead) + "</div>" : "") + esc(t.dataset.tip);
   document.body.appendChild(tipPop);
   /* 贴按钮弹出（2026-09-30，与 index.html 的 .hint-pop 同一套行为）：
      优先放在按钮**下方** 8px 处；下方盛不下（含 8px 边距）就翻到按钮**上方**；
