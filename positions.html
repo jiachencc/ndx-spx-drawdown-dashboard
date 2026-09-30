@@ -661,12 +661,17 @@ function renderImpl() {
         · 本值      = 其中**还没进成本**的那部分（南方 400；华安的 20 已并入成本，故不计）
      华安的 App「持仓成本」= 资产 − 收益，本身就把在途算进去了；南方那只是成本滞后一格，才差出 400。
      ⚠ 没有流水的两只（摩根 / 中欧）不参与 —— 与 refresh-otc.mjs 的判定一致（不能用 0 冒充）。 */
+  /* ⚠ 逐只先把残差**四舍五入到分**再求和（2026-09-30 修一处 1 元显示差）：
+     (value − pnl) 是浮点减法，如 007280 的 9,904.11 − 157.30 = 9,746.810000000001 → 残差 −1.8e−12，
+     累加后总和成了 499.9999999999982，被 fmtAmt 的 Math.trunc 截成「+499」——
+     而真值恰好是 500（= 南方 400 ＋ 中欧 100），与同一条 tooltip 里的分项自相矛盾。
+     这里不是要改「显示取整」的规矩（那条是有意的），是先把**计算**落到分位再交给显示层。 */
   const otcLogGap = OTC.funds.reduce((a, f) => {
     const log = (typeof OTC_LOG !== "undefined" && OTC_LOG[f.code]) || null;
     if (!log || !log.length) return a;
     const sum = log.filter((t) => t.status === "成功")
       .reduce((x, t) => x + (/赎回/.test(String(t.act)) ? -t.amt : t.amt), 0);
-    return a + (sum - (f.value - f.pnl));
+    return a + Math.round((sum - (f.value - f.pnl)) * 100) / 100;
   }, 0);
   /* 当日盈亏只合计「与本次快照同日」的读数：截图日早于快照日的基金，其 day 是旧日期的值，
    * 混进来会把 09-11 的涨跌当成 09-16 的（原判定只看「有没有值」，漏了「值是哪天的」）。
