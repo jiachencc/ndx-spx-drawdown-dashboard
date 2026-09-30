@@ -602,9 +602,20 @@
     border-radius: 50%; border: 1px solid var(--line); background: var(--card2); color: var(--tx3);
     font: italic var(--fs-xxs)/1 var(--mono); cursor: pointer; vertical-align: middle; }   /* 9px → 10px（原低于全站最小字号一档） */
   .tip:hover, .tip:focus-visible { color: var(--blue); border-color: var(--accent-line); }
-  .tip-pop { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 80; width: min(360px, 92vw); max-height: 46vh;
-    overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
-    font-size: var(--fs-xs); line-height: 1.75; color: var(--tx2); box-shadow: 0 10px 30px rgba(0,0,0,.45); white-space: pre-line; }
+  /* 弹层（2026-09-30 改）：用户「index.html 的 ? 点击弹窗更好看，可以借鉴到 positions」→ 照搬它的观感：
+     深色卡片（#1a2436）+ 蓝色光环描边 + 12px 圆角 + 入场动画 + backdrop 模糊；浅色主题单独覆盖
+     （与 index 的 body.light .hint-pop 同一组色值）。
+     ⚠ 位置也从「屏幕底部居中」改成**贴着按钮弹出**：JS 里用 getBoundingClientRect 定位，
+       下方盛不下就翻到按钮上方、左右做视口夹取 —— 与 index 同一套行为（见本文件的 click 委托）。
+     ⚠ 保留 white-space: pre-line：本页不少 tip 文案是多行的（逐只表的备注就是"一条一行"）。 */
+  .tip-pop { position: fixed; z-index: 99999; width: min(340px, 92vw); max-height: 46vh; overflow-y: auto;
+    background: #1a2436; border: 1px solid #33415e; border-radius: 12px; padding: 10px 13px;
+    box-shadow: 0 14px 44px -8px rgba(0, 0, 0, .75), 0 0 0 1px rgba(91, 163, 255, .18);
+    font-size: 11.5px; line-height: 1.65; color: var(--tx); white-space: pre-line;
+    animation: tipIn .15s ease; backdrop-filter: blur(6px); }
+  body.light .tip-pop { background: #fff; border-color: #cbd5e1;
+    box-shadow: 0 14px 44px -8px rgba(15, 23, 42, .18), 0 0 0 1px rgba(91, 163, 255, .22); }
+  @keyframes tipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   .tip-pop .tip-x { float: right; margin-left: 8px; padding: 0 2px; border: 0; background: none; color: var(--tx3); font-size: var(--fs-xs); cursor: pointer; }
   /* 徽标：一个词说明一档事实（假设 / 已是最低 / 你持有），比整句说明省 80% 宽度 */
   .pill { display: inline-block; padding: 0 5px; margin-left: 4px; border: 1px solid var(--line); background: var(--card2);

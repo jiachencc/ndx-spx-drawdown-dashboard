@@ -2450,8 +2450,9 @@ function renderPrincipal() {
       const has = lastItems[f.code] && typeof lastItems[f.code].val === "number";
       const val = has ? lastItems[f.code].val : f.value;
       const nm = SHORT[f.code] || String(f.name).slice(0, 8);
-      if (!log.length) { rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, val: val, miss: true, expo: null, twr: twrOf(f.code),
-        v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null }); return; }
+      if (!log.length) { rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, val: val, miss: true, expo: null, n: 0,
+        cost: (has && typeof lastItems[f.code].cost === "number") ? lastItems[f.code].cost : null,
+        twr: twrOf(f.code), v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null }); return; }
       const inv = log.filter((t) => t.act !== "赎回").reduce((a, t) => a + t.amt, 0);
       const redeemed = log.filter((t) => t.act === "赎回").reduce((a, t) => a + t.amt, 0);
       const t0 = Date.parse(log.map((t) => t.d).sort()[0]);
@@ -2480,7 +2481,7 @@ function renderPrincipal() {
       cfs.push({ t: (Date.parse(lastD) - t0) / 86400000, amt: val });
       const gain = val + redeemed - invAll;
       rows.push({ code: f.code, theme: f.theme, nm: nm, full: f.name, inv: inv, invAll: invAll, val: val, gain: gain, rate: invAll ? gain / invAll : 0,
-        xirr: calcXIRR(cfs), days: days, ann: days >= 90, expo: expo, twr: twrOf(f.code), transit: transit,
+        n: log.length, xirr: calcXIRR(cfs), days: days, ann: days >= 90, expo: expo, twr: twrOf(f.code), transit: transit,
         v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null,
         drift: gapSnap === null ? null : (gapSnap < -0.05 ? gapSnap : 0) });
     });
@@ -2507,7 +2508,8 @@ function renderPrincipal() {
         const v0 = (full[0] && full[0].items && full[0].items[code]) ? full[0].items[code].val : null;
         const logs = (POSITIONS.log || []).filter((e) => e.sym === h.sym).slice().sort((a, b) => (a.d < b.d ? -1 : 1));
         if (!logs.length) { etfRows.push({ code: code, mkt: "etf", theme: ETF_THEME[code], nm: nm, full: fullName,
-          val: it.val, miss: true, expo: null, twr: twrOf(code), v0: v0 }); return; }
+          val: it.val, miss: true, expo: null, n: 0, cost: (typeof it.cost === "number") ? it.cost : null,
+          twr: twrOf(code), v0: v0 }); return; }
         const buys = logs.filter((e) => !isSellAct(e));
         const sells = logs.filter((e) => isSellAct(e));
         const buyGross = buys.reduce((a, e) => a + e.qty * e.cost, 0);
@@ -2529,7 +2531,7 @@ function renderPrincipal() {
           : 0;
         etfRows.push({ code: code, mkt: "etf", theme: ETF_THEME[code], nm: nm, full: fullName,
           inv: buyAmt, invAll: buyAmt, sold: sellAmt, fee: buyAmt - buyGross, val: it.val, gain: gain,
-          rate: buyAmt ? gain / buyAmt : 0, xirr: calcXIRR(cfs), days: days, ann: days >= 90, expo: expo,
+          rate: buyAmt ? gain / buyAmt : 0, n: logs.length, xirr: calcXIRR(cfs), days: days, ann: days >= 90, expo: expo,
           twr: twrOf(code), transit: 0, v0: v0, drift: (gap === null || gap > -tol) ? 0 : gap });
       });
     }
@@ -2613,7 +2615,7 @@ function renderPrincipal() {
           '<th class="num" title="' + esc("场外＝Σ申购（成功后进成本的金额，含在途补记）；场内＝Σ买入成交额 ＋ 买入费（费后口径）") + '">投入</th>' +
           '<th class="num" title="期末市值：场外按份额×净值（在途另计），场内按收盘市值">现值</th>' +
           '<th class="num" title="简单收益率＝（现值 ＋ 已赎回/已卖 − 投入）÷ 投入，不做年化 —— 年化在样本期很短时会被放大，这个数才是「实际赚了多少」">简单</th>' +
-          '<th class="c-info" title="这一只的金额口径（场外看在途补记、场内看买入费与已卖回收）与数据自检：点行内 ⓘ 展开；⚠ ＝ 需核对（悬停看详情）">备注</th>' +
+          '<th class="c-info" title="逐行**汇总说明**：① 评级怎么来的（不外推）② 年化为什么偏大 ③ 金额口径（笔数 / 含费 / 在途 / 已卖）④ 数据自检是否对平 —— 点行内 ⓘ 展开；⚠ ＝ 需核对（悬停看详情）">说明</th>' +
         "</tr></thead><tbody>" +
         groups.map((g) => grpRow(g, 8) + g.rows.map((r) => {
           const gd = gradeOf(r);
@@ -2640,20 +2642,41 @@ function renderPrincipal() {
           const twrCell = Number.isFinite(r.twr)
             ? '<span class="' + cls(r.twr) + '">' + fmtPct(r.twr, 2) + "</span>"
             : '<span class="oc-na">—</span>';
-          /* 备注（2026-09-30 二改）：桌面端 8 列偏挤，用户要「精简一些，或收进图标、点击再显示」——
-             于是两步走：① 文案先精简（去掉「（已计入现金流）」这类冗词）；
-             ② 整列收进一枚 ⓘ（原生 <details>，零依赖、键盘可操作，点开是贴着列的浮层）。
-             **⚠ 类警示不外收**：它要一眼看见，仍留在格子里，全文进 title（悬停即见）。
-             写的是**这只的金额口径**：场外看得到在途补记、场内看得到买入费与已卖回收，本就不是一个口径。 */
-          const warn = (!r.miss && r.drift !== null && r.drift < -0.05)
+          /* 说明（2026-09-30 三改，用户建议：「这列改为说明，针对这行数据做一个汇总说明」）：
+             从"零散的口径片段"改成**这一行的完整解读**，固定四条 ——
+               ① 评级怎么来的（不外推：简单收益对照同期无风险，按有效在场期折算）
+               ② 年化为什么偏大（钱平均在场多少天 → 放大几倍）
+               ③ 金额口径（场外／场内各说各的：笔数、含费、在途、已卖）
+               ④ 数据自检（与快照成本是否对平）
+             仍然收在 ⓘ 里（点击弹出，不占表格宽度）；⚠ 类数据问题**不外收**，仍留在格子里。 */
+          const warn = (r.drift !== null && r.drift < -0.05)
             ? "⚠ 流水比快照成本多 " + fmtYuan(-r.drift) + "（App 成本滞后一期），需核对" : "";
-          const notes = [
-            r.miss ? "缺成交流水 → 不参与年化、不评级" : "",
-            !r.miss && r.mkt === "etf" && r.fee > 0.5 ? "投入已含买入费 " + fmtAmt2(r.fee) : "",
-            !r.miss && r.mkt === "etf" && r.sold > 0.5 ? "其中已卖 " + fmtYuan(r.sold) + "（已在现金流里扣回）" : "",
-            !r.miss && r.mkt !== "etf" && r.transit > 0.05 ? "投入已含在途 " + fmtAmt2(r.transit) : "",
-            warn
-          ].filter(Boolean);
+          const baseRv = rfPer(r.expo);                                    // 同期无风险（按有效在场期折算）
+          const exv = (r.miss || baseRv === null) ? null : r.rate - baseRv; // 超额
+          const ppTxt = (x) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(2) + "pp";
+          const notes = r.miss
+            ? ["没有逐笔成交流水（该只在支付宝渠道，App 不提供申赎记录）→ 不参与年化与评级，只按现值列入",
+              "现值 " + fmtYuan(r.val) + (typeof r.cost === "number" ? "（快照成本 " + fmtYuan(r.cost) + "）" : "")]
+            : [
+              /* ① 评级依据 */
+              "评级 " + gd.t + "：" + (exv === null ? gd.why
+                : "简单收益 " + fmtPct(r.rate, 2) + " − 同期无风险 " + fmtPct(baseRv, 2) + "（按有效在场期 " + Math.round(r.expo) + " 天折算）＝ " +
+                  ppTxt(exv) + (exv >= 0.10 ? "（≥ +10pp）" : exv >= 0.03 ? "（≥ +3pp）" : exv >= 0 ? "（≥ 0，达标线）" : "（< 0，没跑赢无风险）")),
+              /* ② 年化为什么偏大 */
+              (r.ann && r.xirr !== null)
+                ? "年化 " + fmtPct(r.xirr, 1) + " 是外推值：" + r.n + " 笔钱平均只在场 " + Math.round(r.expo) + " 天" +
+                  ((infl !== null && infl > 1.05) ? " → 约为「整段年化」的 " + infl.toFixed(2) + " 倍，仅供参考" : "，与整段口径接近")
+                : r.days + " 天跨度未达 90 天门槛 → 不做年化（这是护栏，不是缺数据）",
+              /* ③ 金额口径 */
+              /* ⚠ 嵌在句子里的金额一律用**无符号**的 fmtYuan：「含买入费 65」比「含买入费 +65」读起来顺 */
+              "口径：" + (r.mkt === "etf"
+                ? r.n + " 笔买入共 " + fmtYuan(r.invAll) + (r.fee > 0.5 ? "（含买入费 " + fmtYuan(r.fee) + "）" : "") +
+                  (r.sold > 0.5 ? "；已卖 " + fmtYuan(r.sold) + " 已从现金流扣回" : "")
+                : r.n + " 笔申购共 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtYuan(r.transit) + "）" : "")) +
+                "；现值 " + fmtYuan(r.val) + "，简单 " + fmtPct(r.rate, 2),
+              /* ④ 数据自检 */
+              warn ? "数据：" + warn : "数据：Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平 ✓"
+            ];
           return "<tr>" +
             '<td class="c-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm) + "</td>" +
             '<td class="c-gr">' + lb("评级") + '<b class="oc-' + gd.k + '" title="' + esc(r.nm + "：" + gd.why) + '">' + gd.t + "</b></td>" +
@@ -2662,10 +2685,10 @@ function renderPrincipal() {
             '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) + "</td>" +
             '<td class="c-val num">' + lb("现值") + fmtYuan(r.val) + "</td>" +
             '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
-            /* 备注列：⚠ 留在明面上（要一眼看见），其余收进页面既有的 ⓘ 浮层（.tip + .tip-pop，
-               点击在屏幕底部弹出、同时只开一个、Esc 可关；data-tip 支持换行 → 一条一行）。 */
+            /* 说明列：⚠ 留在明面上（要一眼看见），正文收进页面既有的 ⓘ 浮层（.tip + .tip-pop：
+               贴着按钮弹出、同时只开一个、✕ 与 Esc 可关；data-tip 走 pre-line → 一条一行）。 */
             '<td class="c-info">' + (warn ? '<b class="watch" title="' + esc(warn) + '">⚠</b> ' : "") +
-              (notes.length ? tipBtn(notes.join("\n"), "这一只的金额口径与数据自检") : "") + "</td>" +
+              (notes.length ? tipBtn(notes.join("\n"), "这一行的说明：评级依据 / 年化外推 / 金额口径 / 数据自检") : "") + "</td>" +
           "</tr>";
         }).join("")).join("") +
         "</tbody></table>" +
@@ -2961,8 +2984,22 @@ document.addEventListener("click", (e) => {
   tipPop.setAttribute("role", "note");
   tipPop.innerHTML = '<button type="button" class="tip-x" aria-label="关闭">✕</button>' + esc(t.dataset.tip);
   document.body.appendChild(tipPop);
+  /* 贴按钮弹出（2026-09-30，与 index.html 的 .hint-pop 同一套行为）：
+     优先放在按钮**下方** 8px 处；下方盛不下（含 8px 边距）就翻到按钮**上方**；
+     左右按按钮中心对齐后再夹进视口（12px 边距）—— 所以贴边上的按钮也不会把弹层顶出屏幕。 */
+  const r = t.getBoundingClientRect();
+  const w = Math.min(340, window.innerWidth - 24);
+  tipPop.style.width = w + "px";
+  const ph = tipPop.offsetHeight;
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(12, Math.min(window.innerWidth - w - 12, left));
+  let top = r.bottom + 8;
+  if (top + ph + 8 > window.innerHeight) top = Math.max(8, r.top - ph - 8);
+  tipPop.style.left = left + "px";
+  tipPop.style.top = top + "px";
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTipPop(); });
+window.addEventListener("resize", closeTipPop);   /* 位置是算出来的：窗口一变就可能落到屏幕外，直接关掉 */
 
 /* ================= 费率体检（FEES，由 scripts/fetch-fees.mjs 抓东财基金档案写入） =================
  * 它回答的是「确定性成本」这一半：费率不影响今天赚多少，只决定长期少赚多少 —— 而它是唯一
