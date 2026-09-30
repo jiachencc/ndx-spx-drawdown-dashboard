@@ -2604,6 +2604,51 @@ function renderPrincipal() {
           '<span class="g-t">' + g.t + '</span><span class="g-s">' + g.rows.length + " 只 · 市值 " + fmtYuan(gv) +
           (sumVal > 0 ? " · 占持仓 " + Math.round(gv / sumVal * 100) + "%" : "") + "</span></td></tr>";
       };
+      /* ---- 历史极值（2026-09-30 加，用户要求「每只加历史最大收益 / 最大亏损」）----------------
+         放「说明」弹层第⑤条：它属于"这一行的解读"，不值得为它加一列（表格已经 8 列）。
+         · **最大浮盈**＝当前份额 × 区间最高价 − 成本。**要求高点发生在持有期内**（高点日期 ≥ 首笔买入日，
+           首笔日由 r.days 反推）：场内高点＝52 周高（DEFAULT[QUOTE_KEY[idx]].ath/athDate），
+           场外＝历史最高净值（nav.hi/hiDate）。不满足就明说「不可得」，绝不拿建仓前的高点硬凑
+           （纳指ETF广发的 52 周高在 06-01、首笔 06-23 —— 凑出来就是假的最大收益）。
+         · **最深浮亏**：真正的"历史最深"**给不出** —— 没有逐日价格，52 周低点连日期都没有、
+           大概率在建仓前。退而求其次用**快照口径**（首份带明细的快照 → 最新，当前 09.07→09.29 共 22 天）
+           取逐期 pl 的最小值，并写明窗口 —— 是「这段窗口内的最深」，不是全历史，绝不冒充。
+         · **已实现单笔最好 / 最差**：场内 POSITIONS.log 的 realized（有卖出才有）；场外无赎回记录，恒为空。 */
+      const qByCode = {}, symByCode = {}, navByCode = {};
+      ((typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) ? POSITIONS.hold : []).forEach((h) => {
+        qByCode[h.code] = DEFAULT[QUOTE_KEY[h.idx] || h.idx] || {}; symByCode[h.code] = h.sym; });
+      ((typeof OTC !== "undefined" && OTC.funds) ? OTC.funds : []).forEach((f) => { navByCode[f.code] = f.nav || {}; });
+      const isSellActX = (e) => /卖出|减仓|清仓/.test(String(e.act));
+      const extOf = (r) => {
+        const it = lastItems[r.code] || {};
+        const q = (r.mkt === "etf" ? qByCode[r.code] : navByCode[r.code]) || {};
+        const hi = (typeof q.ath === "number") ? q.ath : ((typeof q.hi === "number") ? q.hi : null);
+        const hiDate = q.athDate || q.hiDate || null;
+        const kind = (r.mkt === "etf") ? "52 周高" : "历史最高净值";
+        const firstT = Number.isFinite(r.days) ? Date.parse(cur.d) - r.days * 86400000 : null;
+        let up = null, upWhy = "";
+        if (hi === null || !Number.isFinite(it.qty) || !Number.isFinite(it.cost)) upWhy = "缺区间价或份额";
+        else if (hiDate && firstT !== null && Date.parse(hiDate) < firstT) upWhy = "区间高@" + mdOf(hiDate) + " 在首笔买入前";
+        else { up = it.qty * hi - it.cost; upWhy = kind + "@" + (mdOf(hiDate) || "?") + (firstT === null ? "，买入日期不详、按现份额估" : ""); }
+        let loPl = null, loD = null;
+        full.forEach((s) => { const xx = s.items ? s.items[r.code] : null; if (!xx || typeof xx.pl !== "number") return;
+          if (loPl === null || xx.pl < loPl) { loPl = xx.pl; loD = s.d; } });
+        const sells = (r.mkt === "etf" && symByCode[r.code])
+          ? ((POSITIONS.log || []).filter((e) => e.sym === symByCode[r.code] && isSellActX(e) && typeof e.realized === "number")) : [];
+        return { up: up, upWhy: upWhy, kind: kind, loPl: loPl, loD: loD,
+          best: sells.length ? Math.max.apply(null, sells.map((e) => e.realized)) : null,
+          worst: sells.length ? Math.min.apply(null, sells.map((e) => e.realized)) : null, nSell: sells.length };
+      };
+      const extLine = (x) => {
+        const bits = [];
+        bits.push(x.up === null ? "最大浮盈不可得（" + x.upWhy + "）"
+          : "最大浮盈 " + (x.up >= 0 ? "+" : "−") + fmtYuan(Math.abs(x.up)) + "（" + x.upWhy + "）");
+        bits.push(x.loPl === null ? "快照窗口无逐期盈亏记录"
+          : x.loPl >= 0 ? "快照窗口内未出现浮亏（最浅 +" + fmtYuan(x.loPl) + " @" + mdOf(x.loD) + "）"
+          : "最深浮亏 −" + fmtYuan(-x.loPl) + "（@" + mdOf(x.loD) + "，快照口径 " + twrWin + "，非全历史）");
+        if (x.nSell) bits.push("已实现单笔最好 " + fmtAmt2(x.best) + " / 最差 " + fmtAmt2(x.worst) + "（" + x.nSell + " 笔卖出）");
+        return "极值：" + bits.join("；");
+      };
       perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实成交 / 申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
         '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
         " · " + (allRows.length - miss) + " 只已录流水" +
@@ -2686,6 +2731,7 @@ function renderPrincipal() {
               /* ④ 数据自检 */
               warn ? "数据：" + warn : "数据：Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平 ✓"
             ];
+          notes.push(extLine(extOf(r)));   /* ⑤ 历史极值（最大浮盈 / 最深浮亏 / 已实现单笔最好·最差） */
           /* 结论（用户要求「给一个结论」）：一句话把这一行说清楚 —— 跑赢/没跑赢、在同类里第几、
              年化是不是外推值、数据有没有要核对的。放在弹层**最上面**（先给结论，再给依据）。
              ⚠ 措辞遵守操作体检那条规矩：只描述已发生的事实，不预测涨跌、不评价基金本身好坏。
@@ -2715,7 +2761,7 @@ function renderPrincipal() {
             '<td class="c-val num">' + lb("现值") + fmtYuan(r.val) + "</td>" +
             '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
             /* 说明列：全文收进 ⓘ（结论在最上面，四条依据跟在后面）。 */
-            '<td class="c-info">' + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检", concl) + "</td>" +
+            '<td class="c-info">' + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值", concl) + "</td>" +
           "</tr>";
         }).join("")).join("") +
         "</tbody></table>" +
