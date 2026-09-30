@@ -654,6 +654,20 @@ function renderImpl() {
     const nav = (x.n && Number.isFinite(x.n.close)) ? x.n.close : null;
     return a + (qty !== null && nav !== null ? Math.max(0, x.valAmt - qty * nav) : 0);
   }, 0);
+  /* 「已扣款、但还没并入成本」的净额（场外本金口径的一个**可对账残差**，2026-09-30 加）：
+     Σ(OTC_LOG 成功笔) − 该只 App 成本，逐只求和 —— 有流水的那几只能逐分对平，残差就是它。
+     ⚠ 与上面的 inTransit（市值 − 份额×净值）**不是一回事**，别再混着写：
+        · inTransit = 市值里已含、但还没变成份额的钱（南方 400 ＋ 华安 A/C 各 10 = 420）
+        · 本值      = 其中**还没进成本**的那部分（南方 400；华安的 20 已并入成本，故不计）
+     华安的 App「持仓成本」= 资产 − 收益，本身就把在途算进去了；南方那只是成本滞后一格，才差出 400。
+     ⚠ 没有流水的两只（摩根 / 中欧）不参与 —— 与 refresh-otc.mjs 的判定一致（不能用 0 冒充）。 */
+  const otcLogGap = OTC.funds.reduce((a, f) => {
+    const log = (typeof OTC_LOG !== "undefined" && OTC_LOG[f.code]) || null;
+    if (!log || !log.length) return a;
+    const sum = log.filter((t) => t.status === "成功")
+      .reduce((x, t) => x + (/赎回/.test(String(t.act)) ? -t.amt : t.amt), 0);
+    return a + (sum - (f.value - f.pnl));
+  }, 0);
   /* 当日盈亏只合计「与本次快照同日」的读数：截图日早于快照日的基金，其 day 是旧日期的值，
    * 混进来会把 09-11 的涨跌当成 09-16 的（原判定只看「有没有值」，漏了「值是哪天的」）。
    * 累计浮盈亏（pnl）是持仓水平、不随日期失真，故仍全额合计，日期差异由各行的同步徽章披露。 */
@@ -680,7 +694,7 @@ function renderImpl() {
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">⚖️</span> 盈 / 亏持仓</div><div class="s-val"><span class="up">' + winCnt + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> 盈 / </span><span class="down">' + lossCnt + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> 亏</span></div><div class="s-sub" style="color:var(--tx3)">共 ' + plNums.length + ' 项</div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）。买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金 —— 所以它是唯一不受交易噪声影响的数。"><div class="s-label"><span aria-hidden="true">💵</span> 本金（净转入）</div><div class="s-val">' + fmtYuan(principal) + '</div><div class="s-sub" style="color:var(--tx3)">＝ 场内 ＋ 场外（含现金 ' + fmtYuan(OTC.cash) + '）</div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="场内本金 ＝ Σ五只摊薄成本 ＋ 券商可用现金。券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓"><div class="s-label"><span aria-hidden="true">🏦</span> 场内本金</div><div class="s-val">' + fmtYuan(pInEtf) + '</div><div class="s-sub" style="color:var(--tx3)">' + rows.length + ' 只 · 占 ' + (principal ? (pInEtf / principal * 100).toFixed(1) : "0.0") + '%</div><div class="s-asof">' + etfTag("", true) + '</div></div>' +
-    '<div class="sum-cell" title="场外本金 ＝ Σ八只场外持仓成本（各 App「持仓成本」口径）。⚠ 另有在途 ' + fmtAmt2(inTransit) + '（已扣款、尚未并入成本）不在其中：它已在市值、不在成本，计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 场外本金</div><div class="s-val">' + fmtYuan(pInOtc) + '</div><div class="s-sub" style="color:var(--tx3)">' + otcRows.length + ' 只 · 占 ' + (principal ? (pInOtc / principal * 100).toFixed(1) : "0.0") + '% · 在途 ' + fmtAmt2(inTransit) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
+    '<div class="sum-cell" title="场外本金 ＝ Σ八只的 App「持仓成本」（各平台 screenshot 读数，非估算）：六只另有逐笔流水可对平 —— Σ(OTC_LOG 成功笔) 与成本的差只有 ' + fmtAmt2(otcLogGap) + '（= 已扣款、尚未并入成本的部分，逐分可解释）；摩根/中欧两只没有流水，只有 App 读数。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 场外本金</div><div class="s-val">' + fmtYuan(pInOtc) + '</div><div class="s-sub" style="color:var(--tx3)">' + otcRows.length + ' 只 · 占 ' + (principal ? (pInOtc / principal * 100).toFixed(1) : "0.0") + '% · 未入成本 ' + fmtAmt2(otcLogGap) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">🏦</span> 场内盈亏（估）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub ' + cls(etfPl) + '">' + fmtPct(etfCost ? etfPl / etfCost : 0) + '</div><div class="s-asof">' + etfTag("", true) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📋</span> 场外盈亏（快照）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub ' + cls(otcPl) + '">' + fmtPct(otcCost ? otcPl / otcCost : 0) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="场内为估值：当日涨跌幅 × 当前持仓推算（当日盘中若有买卖，与券商 App 会略有差异）；场外取 App「日收益」快照读数"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
