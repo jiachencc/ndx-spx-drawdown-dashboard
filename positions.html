@@ -2287,7 +2287,9 @@ function renderClosed() {
   const withCost = rows.filter((r) => r.cost !== null);
   const costAll = withCost.reduce((a, r) => a + r.cost, 0);
   const rateAll = costAll ? sum / costAll * 100 : 0;                                   // 加权收益率：Σ盈亏 ÷ Σ投入
-  const afterAmt = withCost.reduce((a, r) => a + r.cost * ((r.after || 0) / 100), 0);   // 清仓后这些标的整体又动了多少
+  /* ⚠ 这里刻意**不算也不显示**「清仓后涨跌幅」（App 的 after 列）：
+     它是「该笔清仓日 → 截图日」的快照值，截图日一过就过期，而它看着像「现在」→ 会误导（2026-09-30 用户要求去掉）。
+     数据仍留在 data.js 的 after 字段作留档（要复盘时可查），只是不上页面。 */
   const withDays = rows.filter((r) => r.days !== null);
   const avgDays = withDays.length ? withDays.reduce((a, r) => a + r.days, 0) / withDays.length : null;
   const grp = (rs) => {
@@ -2313,9 +2315,6 @@ function renderClosed() {
     ["结果集中", (topUp ? "最赚 <b>" + esc(topUp.name) + " " + fmt2(topUp.pnl) + "</b> 占总赚 <b>" + shareOf(topUp.pnl, sumUp) + "</b>" : "") +
       (topDn ? "；最亏 <b>" + esc(topDn.name) + " " + fmt2(topDn.pnl) + "</b> 占总亏 <b>" + shareOf(topDn.pnl, sumDn) + "</b>" : "") +
       " —— 成败几乎由这两只决定"],
-    ["★ 清仓后", "这些标的<b class=\"" + cls(afterAmt) + "\">" + pc(afterAmt / costAll * 100) + "</b>（按投入加权，≈ " + fmt2(afterAmt) + " 元）："
-      + "卖掉之后它们<b>又跌了</b>，这一步换渠道等于避开了这段；"
-      + "<span class=\"b-warn\">⚠ 钱转去的直销 8 只是另一段行情（起点不同），不可直接相减</span>"],
   ];
   const briefHtml = '<div class="closed-brief">' + brief.map((b) =>
     '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("") + "</div>";
@@ -2340,13 +2339,14 @@ function renderClosed() {
     + "收益率越小反推越不准（0.03% 那笔 ±17%，0.3% 档 ±1.7%，≥1% 档 ±0.5%）→ 加权收益率与投入只看量级，别当账。<br>"
     + "⚠ 这些盈亏都发生在首份快照（2026-08-28）之前，所以<b>不在</b>本金 / 累计收益 / 走势归因里"
     + "（本金由快照推导，看不到窗口之前的事）。<br>"
+    + "⚠ App 同一页还给了「<b>清仓后涨跌幅</b>」，本页**不展示**：它是「该笔清仓日 → 截图日（" + (C.updated || "—") + "）」的快照值，"
+    + "日期一过就过期，摆在页面上会被读成「现在」→ 误导（2026-09-30 用户要求去掉）；数据仍留在 data.js 的 after 字段作留档。<br>"
     + "类别为手工标注（债基 / 美股QDII / 日本QDII / A股行业），仅用于看清「钱是从哪类资产上赚赔的」。</div>";
   const detail = rows.map((r) => {
     const meta = [];
     if (r.buy && r.sell) meta.push(r.buy.slice(5) + "→" + r.sell.slice(5) + " · " + r.days + " 天");
     if (typeof r.rate === "number") meta.push("收益率 " + pc(r.rate));
     if (r.cost !== null) meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US"));
-    if (typeof r.after === "number") meta.push("清仓后 " + pc(r.after));
     return '<div class="closed-row"><span class="c-nm"><b>' + esc(r.name) + "</b>" +
         '<span class="c-code">' + esc(r.cat || "其他") + "</span>" +
         (r.code ? '<span class="c-code">' + esc(r.code) + "</span>" : "") +
@@ -4798,9 +4798,10 @@ bindTrendCrosshair();
     if (Math.abs(wr - CLOSED.winRate) > 0.02) bad.push("盈利率 " + wr.toFixed(2) + "% ≠ " + CLOSED.winRate + "%");
     const noCat = rs.filter((r) => !r.cat);
     if (noCat.length) bad.push(noCat.length + " 只缺类别");
-    /* 2026-09-30 补齐「投入 / 时间」两列时加：缺字段就说明「收益率」那几行是拿残缺数据算的 */
+    /* 2026-09-30 补齐「投入 / 时间」两列时加：buy/sell/rate 是页面在用的（缺了汇总就是拿残缺数据算的）；
+       after 是**留档字段**（页面不展示，见 renderClosed 里的说明），但既然录了就得齐，免得日后复盘时缺一半。 */
     const miss = rs.filter((r) => !r.buy || !r.sell || typeof r.rate !== "number" || typeof r.after !== "number");
-    if (miss.length) bad.push(miss.length + " 只缺 buy/sell/rate/after");
+    if (miss.length) bad.push(miss.length + " 只缺 buy/sell/rate/after（投入与时间的复原字段不齐）");
     const badSpan = rs.filter((r) => r.buy && r.sell && new Date(r.sell) <= new Date(r.buy));
     if (badSpan.length) bad.push(badSpan.length + " 只持有区间非正");
     /* 逐条现算的平均持有天数要和 App 声明值对得上 —— 这条曾一次抓出「日期读错」 */

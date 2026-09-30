@@ -1189,7 +1189,6 @@
   .closed-brief .b-v { color: var(--tx2); line-height: 1.5; }
   .closed-brief .b-v b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
   .closed-brief .b-v.miss { color: var(--tx3); }   /* 缺数据如实标「—」，不拿估算冒充 */
-  .closed-brief .b-v .b-warn { display: block; color: var(--warn); }   /* 口径提醒：换一行、用警示色，别混进数字里 */
   /* 全部明细：原生 details 折叠，默认收起（17 行全铺会盖过上面的结论） */
   .closed-all { margin-top: 8px; border-top: 1px dashed var(--line-soft); padding-top: 7px; }
   .closed-all > summary { cursor: pointer; font-size: var(--fs-xs); color: var(--tx3); list-style: none; }
