@@ -2476,6 +2476,30 @@ function renderPrincipal() {
         drift: gapSnap === null ? null : (gapSnap < -0.05 ? gapSnap : 0) });
     });
     if (rows.length) {
+      /* 无风险 10Y 与体检窗口天数：原先都在「逐只体检」那段里定义（即逐只表**之后**），
+         而评级（表里）与表尾图例都要用 —— 故一起提到本块开头，只留一处定义。
+         ⚠ 这两行必须在 gradeOf / 表格 HTML 之前，否则 const 的暂时性死区会让整块渲染中断（卡片空白）。 */
+      const rf = (typeof DEFAULT !== "undefined" && Number.isFinite(DEFAULT.tnx)) ? DEFAULT.tnx / 100 : null;
+      const winDays = (full.length >= 2) ? Math.round((Date.parse(full[full.length - 1].d) - Date.parse(full[0].d)) / 86400000) : 0;
+      /* ---- 评级（2026-09-30 加，用户要求「看不出好坏」→ 给个参考标准）-------------------
+         只用页面已有的两个量，不引入新口径：把「年化 XIRR」对照**无风险 10Y**（＝体检第②项那条达标线）。
+           A：年化 ≥ 无风险 + 10pp（明显超额）  B：≥ +3pp（有超额）
+           C：≥ 无风险（刚好站在线上，达标）    D：< 无风险（没跑赢，钱不如放无风险）
+           ⏳：样本 <90 天（不年化）或未录流水 —— 与全页「样本不足不出结论」同一条原则，绝不硬评。
+         ⚠ 它评的是**「你的钱」（资金加权）**，不是标的 —— 所以胶囊只出现在 XIRR 那一列。
+           TWR 的对照是同期纳指、且要 ≥90 天窗口（见「逐只体检」①），窗口不同，两者不可互换。 */
+      const gradeOf = (r) => {
+        if (r.miss) return { k: "n", t: "⏳", why: "缺成交流水 → 算不出「你的钱」的年化，不评级" };
+        if (!r.ann || r.xirr === null) return { k: "n", t: "⏳", why: "跨度 " + r.days + " 天，未达 90 天门槛 → 不年化、不评级" };
+        if (rf === null) return { k: "n", t: "⏳", why: "缺无风险利率（10Y）→ 无从对照，不评级" };
+        const ex = r.xirr - rf;
+        const pp = (x) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(2) + "pp";
+        const why = "年化 XIRR " + fmtPct(r.xirr, 1) + " − 无风险 " + fmtPct(rf, 2) + " ＝ " + pp(ex);
+        if (ex >= 0.10) return { k: "a", t: "A", why: why + "（≥ +10pp）" };
+        if (ex >= 0.03) return { k: "b", t: "B", why: why + "（≥ +3pp）" };
+        if (ex >= 0) return { k: "c", t: "C", why: why + "（≥ 0，达标线）" };
+        return { k: "d", t: "D", why: why + "（< 0，没跑赢无风险）" };
+      };
       const miss = rows.filter((r) => r.miss).length;
       const transit = rows.filter((r) => !r.miss && r.transit > 0.05);
       const drift = rows.filter((r) => !r.miss && r.drift !== null && r.drift < -0.05);
@@ -2489,32 +2513,43 @@ function renderPrincipal() {
           : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平 ✓"
           : "与快照成本逐只对平 ✓") + "）</span></summary>" +
         '<div class="snap-tbl">' +
-        /* 表头：两列各是"谁的成绩"——左＝你的钱（资金加权，全史），右＝标的本身（时间加权，快照窗口） */
-        '<div class="snap-part fund head"><span class="pn"></span><span class="pv">你的钱 · XIRR</span><span class="snap-twr">标的 · TWR</span></div>' +
+        /* 表头：两列各是"谁的成绩"——左＝你的钱（资金加权，全史），右＝标的本身（时间加权，快照窗口）。
+           达标线（无风险 10Y）写在左列标题里 —— 这是评级的对照基准，摆在表头就不用去体检里找。 */
+        '<div class="snap-part fund head"><span class="pn"></span><span class="pv">你的钱 · XIRR<span class="snap-sub">评级线 ≥ 无风险 ' +
+          (rf !== null ? fmtPct(rf, 2) : "—") + '</span></span><span class="snap-twr">标的 · TWR</span></div>' +
         rows.map((r) => {
+          const g = gradeOf(r);
+          const chip = '<i class="gr gr-' + g.k + '" title="' + esc(r.nm + " 的评级：" + g.why) + '">' + g.t + "</i>";
           const tNote = "时间加权（标的本身的表现）：窗口 " + twrWin +
             "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。它与左边 XIRR 的窗口不同，不可直接相减。";
           const tCell = '<span class="snap-twr" title="' + esc(tNote) + '"><b class="' + (Number.isFinite(r.twr) ? cls(r.twr) : "") + '">' +
             (Number.isFinite(r.twr) ? fmtPct(r.twr, 2) : "—") + "</b></span>";
-          /* 第二行 = 细节（整行铺开）。首行只留名称 / XIRR / TWR 三个数 —— 这样跨基金才对得齐。 */
+          /* 第二行 = 细节（整行铺开）。首行只留名称 / XIRR / TWR 三个数 —— 这样跨基金才对得齐。
+             评级胶囊放在 XIRR 前面：字母自然成一列，竖着扫一遍就知道哪几只成色如何。 */
           const det = (arr) => '<div class="xr-det">' + arr.filter(Boolean).join(" · ") + "</div>";
           if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
-            '</span><span class="pv"><b style="color:var(--tx3)">未录入</b></span>' + tCell + "</div>" +
+            '</span><span class="pv">' + chip + '<b style="color:var(--tx3)">未录入</b></span>' + tCell + "</div>" +
             det(["缺成交流水 → 不参与年化", "现值 " + fmtYuan(r.val)]);
           const main = (r.ann && r.xirr !== null)
             ? '<b class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + '</b><span class="snap-sub">年化</span>'
             : '<b style="color:var(--tx3)">' + r.days + ' 天 · 暂不年化</b>';
-          return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + main + "</span>" + tCell + "</div>" +
+          return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + chip + main + "</span>" + tCell + "</div>" +
             det([r.ann ? r.days + " 天" : "", "投入 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtAmt2(r.transit) + "）" : ""),
               "现值 " + fmtYuan(r.val), "简单 " + '<b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>"]);
-        }).join("") + "</div></details>";
+        }).join("") +
+        /* 表尾图例（用户要的「参考标准」）：把 A/B/C/D/⏳ 的阈值写在表里，口径随时可查，不做黑箱评分。
+           ⚠ 只给左列（你的钱）出字母，右列（标的 TWR）只给对照基准、不出字母 —— 理由写在下面这句里。 */
+        '<div class="xr-det" style="margin-left:0">评级＝年化 XIRR 对照无风险 ' + (rf !== null ? fmtPct(rf, 2) : "—") +
+          "（＝逐只体检②那条达标线）：<b>A</b> ≥ +10pp · <b>B</b> ≥ +3pp · <b>C</b> ≥ 0（达标）· <b>D</b> &lt; 0（没跑赢无风险）；⏳ ＝ 样本 &lt;90 天或未录流水，不评级。评的是「你的钱」（资金加权），不是标的。" +
+          "标的 TWR 的对照＝同期纳指" + (benchRet !== null ? " " + fmtPct(benchRet, 2) + "（" + benchWin + "）" : "（无交集窗口）") +
+          "，但它<b>暂时不出字母</b>：窗口仅 " + winDays + " 天，QDII 净值滞后 1~2 天，短窗口下这点错配就足以造出 2~3pp 的假差距（09-23 曾因此误报「标的落后」），要满 90 天见体检①</div>" +
+        "</div></details>";
       /* ---- 逐只体检（骨架版）-------------------------------------------------------
          4 项：① 标的（TWR vs 同类指数 · 取交集窗口）② 你的钱（全史 XIRR vs 无风险 10Y）
                ③ 时点（同窗口 XIRR − TWR，两者都年化）④ 数据（流水齐全 + Σ 与快照成本对平）
          输入不足的项一律标 ⏳「样本不足」而不是硬给结论 —— 与全页同一条原则。
          每行只出「4 枚灯的结论」，具体数字都在上面的逐只表里、也在本行 title 里（避免重复占屏）。 */
-      const rf = (typeof DEFAULT !== "undefined" && Number.isFinite(DEFAULT.tnx)) ? DEFAULT.tnx / 100 : null;
-      const winDays = (full.length >= 2) ? Math.round((Date.parse(full[full.length - 1].d) - Date.parse(full[0].d)) / 86400000) : 0;
+      /* rf 与 winDays 都已提到本块开头（评级与表尾图例要用），此处不再重复声明 */
       const IC = { ok: "✓", watch: "⚠", bad: "✗", na: "⏳" };
       perFundSec += '<details class="pf-fold"><summary class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 你的钱＝全史 XIRR vs 无风险 10Y ③ 时点＝同窗口 XIRR − TWR ④ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
         '<span class="snap-cnt">（骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜达标线＝年化 ≥ ' + (rf !== null ? fmtPct(rf, 2) : "无风险") +
@@ -2558,15 +2593,21 @@ function renderPrincipal() {
     }
   }
   box.innerHTML =
-    /* ① 钱的来路 */
-    '<div class="snap-part"><span class="pn">本金</span><span class="pv">' + fmtYuan(principal) +
-      '<span class="snap-sub" title="外部净转入：真从银行 / 支付宝转进账户的钱。含尚未买成持仓的现金 ' + fmtYuan(cash) + '。">外部净转入 · 含现金 ' + fmtYuan(cash) + "</span></span></div>" +
-    /* ② 成绩：与上下一行连读即「本金 ＋ 累计收益 ＝ 总资产」 */
-    '<div class="snap-part"><span class="pn">累计收益</span><span class="pv"><b class="' + cls(pnl) + '">' + fmtAmt2(pnl) +
-      '</b><span class="snap-sub">（' + fmtPct(rate / 100, 2) + "）</span>" +
-      '<span class="snap-sub">＝ 总资产 − 本金</span></span></div>' +
-    /* ③ 结果 */
-    '<div class="snap-part"><span class="pn">总资产</span><span class="pv">' + fmtYuan(total) + "</span>" + qBtn + "</div>" + qNote +
+    /* ① 钱的来路 → ② 成绩 → ③ 结果：三格 + 运算符，把等式画出来（2026-09-30 重做）
+       原来三行 .snap-part 平铺，等式只存在于小注文字里（「＝ 总资产 − 本金」），读者要自己连；
+       现在＋/＝直接占列，三格等宽跨行对齐 —— 「投了多少 → 赚亏多少 → 现在多少」一眼读完。
+       ⚠ 小注一律短（窄屏格宽 ~106px 会截断）：完整口径在紧随其后的 ? 浮层（prin-q）里，不丢信息。 */
+    '<div class="prin-kpis">' +
+      '<div class="pk"><div class="pk-k">本金</div><div class="pk-v">' + fmtYuan(principal) + "</div>" +
+        '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(cash) + '。">外部净转入</div></div>' +
+      '<div class="pk-op" aria-hidden="true">＋</div>' +
+      '<div class="pk"><div class="pk-k">累计收益</div><div class="pk-v ' + cls(pnl) + '">' + fmtAmt2(pnl) + "</div>" +
+        '<div class="pk-n">' + fmtPct(rate / 100, 2) + qBtn + "</div></div>" +
+      '<div class="pk-op" aria-hidden="true">＝</div>' +
+      '<div class="pk"><div class="pk-k">总资产</div><div class="pk-v">' + fmtYuan(total) + "</div>" +
+        '<div class="pk-n" title="总资产 ＝ 持仓市值 ＋ 现金；现金 ' + fmtYuan(cash) + ' 是转进来但还没买成持仓的那部分（减仓回款也停在这里）">含现金 ' + fmtYuan(cash) + "</div></div>" +
+    "</div>" +
+    qNote +
     /* ④ 两种成色：已兑现（实亏 / 实盈）与还拿着的浮动（浮亏 / 浮盈）。
        用与快照卡完全相同的小节题 + 缩进块，全页一个版式（见 handoff §4.6）。 */
     conclLine +
