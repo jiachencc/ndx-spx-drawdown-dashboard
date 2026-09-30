@@ -46,15 +46,14 @@ try {
 
   <nav class="sec-nav" aria-label="页面区块导航">
     <a class="sec-nav-link" href="#sec-pl">盈亏</a>
-    <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-principal">本金</a>
     <a class="sec-nav-link" href="#sec-trend">走势</a>
     <a class="sec-nav-link" href="#sec-snap">快照</a>
     <a class="sec-nav-link" href="#sec-acct">账户</a>
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
-    <a class="sec-nav-link" href="#sec-alt">替代</a>
-    <a class="sec-nav-link" href="#sec-fee">费率</a>
+    <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-swing">波段</a>
+    <a class="sec-nav-link" href="#sec-tools">工具</a>
     <a class="sec-nav-link" href="#sec-closed">清仓</a>
   </nav>
 
@@ -66,11 +65,6 @@ try {
 
   <h2 class="sec-title" id="sec-pl"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
   <div class="card tight" id="pl-list"></div>
-
-  <!-- 操作体检（2026-09-27）：原来嵌在各持仓卡与盈亏总览行里（两处重复），用户改为「单独做一块」——
-       13 只集中横向对比，按最弱档位排序（有问题的排前面）。数据全部来自 opCheckup()，无新增口径。 -->
-  <h2 class="sec-title" id="sec-checkup"><span aria-hidden="true">🩺</span> 操作体检 <span class="cnt" id="chk-cnt"></span></h2>
-  <div class="card" id="checkup-card"></div>
 
   <h2 class="sec-title" id="sec-principal"><span aria-hidden="true">💰</span> 本金与收益 <span class="cnt" id="prin-cnt"></span></h2>
   <div class="card tight" id="principal-card"></div>
@@ -88,10 +82,15 @@ try {
     <div class="trend-legend" id="trend-legend"></div>
   </div>
 
-  <!-- 板块顺序：① 现状（盈亏总览 / 本金与收益）→ ② 过程（资产走势 / 快照对比）→ ③ 场内明细（账户统计 / 持仓与操作 / 波段复盘）→ ④ 归档（清仓历史）。
-       清仓历史发生在首份快照之前、不计入本金与收益，属留档，放最后以免打断主线；
-       原来它在「场内账户统计」与「快照对比」之间，把两块场内内容隔开了，现归拢相邻。
-       「快照对比」紧接「资产走势」：走势是一条线，快照是这条线逐期的账，两者同一件事的两种粒度。 -->
+  <!-- 板块顺序（2026-09-30 重排，注释与实现同步订正）：
+       ① 现状：盈亏总览 → 本金与收益
+       ② 过程：资产走势 → 快照对比（走势是一条线，快照是这条线逐期的账，同一件事的两种粒度）
+       ③ 场内：账户统计 → 持仓与操作记录 → 操作体检（诊断紧跟被诊断的对象）→ 波段复盘
+       ④ 工具：替换回测 ＋ 费率体检（两块「折叠待展开」，合并成一节）
+       ⑤ 归档：清仓历史（发生在首份快照之前、不计入本金与收益，放最后以免打断主线）
+       ⚠ 本次改动只有两处：把「操作体检」从 ① 里挪到 ③ 的持仓之后（它夹在「盈亏总览」与「本金与收益」
+         之间，把「现状」拆散了）；把「替换回测 / 费率体检」两节并成「工具」一节。
+         其余相对顺序未动 —— 那是 2026-09-24 定的（清仓历史归拢到末尾）。 -->
   <h2 class="sec-title" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
   <div class="card tight" id="snap-list" style="padding:4px 14px;"></div>
 
@@ -101,18 +100,25 @@ try {
   <h2 class="sec-title" id="sec-pos"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
 
-  <!-- 「标的替换回测」紧跟持仓与操作记录：它回答的是「你这批操作换只同类产品会差多少」，
-       证据来自同一批买卖流水，属场内明细的后验；数据由 scripts/alt-etf-backtest.mjs 写入 data.js。 -->
-  <h2 class="sec-title" id="sec-alt"><span aria-hidden="true">🔁</span> 标的替换回测 <span class="cnt" id="alt-cnt"></span></h2>
-  <div class="card tight" id="alt-card"></div>
-
-  <!-- 「费率体检」紧接「标的替换回测」：前者的差额来自溢价（波动、不可控），后者是费率（确定、可改）。
-       两块放一起读，才能分清「哪部分该动手、哪部分只能认」。数据由 scripts/fetch-fees.mjs 写入 data.js:FEES。 -->
-  <h2 class="sec-title" id="sec-fee"><span aria-hidden="true">💸</span> 费率体检 <span class="cnt" id="fee-cnt"></span></h2>
-  <div class="card tight" id="fee-card"></div>
+  <!-- 操作体检（2026-09-27 建；2026-09-30 移位）：原来嵌在各持仓卡与盈亏总览行里（两处重复），改为「单独做一块」。
+       13 只集中横向对比，按最弱档位排序（有问题的排前面）。数据全部来自 opCheckup()，无新增口径。
+       ⚠ 位置：它是对**持仓本身**的诊断，故紧跟「持仓与操作记录」——此前排在板块②，夹在「盈亏总览」与
+       「本金与收益」之间，把「现状」两块拆散了（也让页面自己的顺序注释与实现不符，本次一并订正）。 -->
+  <h2 class="sec-title" id="sec-checkup"><span aria-hidden="true">🩺</span> 操作体检 <span class="cnt" id="chk-cnt"></span></h2>
+  <div class="card" id="checkup-card"></div>
 
   <h2 class="sec-title" id="sec-swing"><span aria-hidden="true">🎯</span> 波段复盘 <span class="cnt" id="swing-cnt"></span></h2>
   <div class="card tight" id="swing-card"></div>
+
+  <!-- 「工具」（2026-09-30 合并）：① 标的替换回测 —— 差额来自溢价（波动、**不可控**）；
+       ② 费率体检 —— 差额来自费率（确定、**可改**）。两块放一起读，才分得清「哪部分该动手、哪部分只能认」。
+       原先各占一个小节标题（各带一枚实时徽章），现合成一节；徽章移到各卡上方的小标题行（id 不变，渲染逻辑零改动）。
+       数据分别由 scripts/alt-etf-backtest.mjs / scripts/fetch-fees.mjs 写入 data.js:ALT_BACKTEST / FEES。 -->
+  <h2 class="sec-title" id="sec-tools"><span aria-hidden="true">🔧</span> 工具</h2>
+  <div class="tool-head"><span aria-hidden="true">🔁</span> 标的替换回测 <span class="cnt" id="alt-cnt"></span></div>
+  <div class="card tight" id="alt-card"></div>
+  <div class="tool-head"><span aria-hidden="true">💸</span> 费率体检 <span class="cnt" id="fee-cnt"></span></div>
+  <div class="card tight" id="fee-card"></div>
 
   <h2 class="sec-title" id="sec-closed"><span aria-hidden="true">🏁</span> 清仓历史 <span class="cnt" id="closed-cnt"></span></h2>
   <div class="card tight" id="closed-card"></div>
@@ -689,20 +695,19 @@ function renderImpl() {
   const etfDayPl = rows.reduce((a, r) => { const c = r.m.chg || 0; return a + r.valAmt * c / (100 + c); }, 0);
   const dayAll = etfDayPl + dayOtc;
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
-  const plNums = rows.map((x) => x.valAmt - x.costAmt).concat(otcRows.map((x) => x.f.pnl));
-  const winCnt = plNums.filter((v) => v > 0.5).length, lossCnt = plNums.filter((v) => v < -0.5).length;
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
   $("sum-grid").innerHTML =
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">持仓成本 ' + fmtYuan(totalCost) + '</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 累计浮盈亏（估）</div><div class="s-val ' + cls(totalPl) + '">' + fmtPct(totalR) + '</div><div class="s-sub ' + cls(totalPl) + '">' + fmtAmt(totalPl) + ' 元</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">⚖️</span> 盈 / 亏持仓</div><div class="s-val"><span class="up">' + winCnt + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> 盈 / </span><span class="down">' + lossCnt + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> 亏</span></div><div class="s-sub" style="color:var(--tx3)">共 ' + plNums.length + ' 项</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）。买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金 —— 所以它是唯一不受交易噪声影响的数。"><div class="s-label"><span aria-hidden="true">💵</span> 本金（净转入）</div><div class="s-val">' + fmtYuan(principal) + '</div><div class="s-sub" style="color:var(--tx3)">＝ 场内 ＋ 场外（含现金 ' + fmtYuan(OTC.cash) + '）</div><div class="s-asof">' + mixTag + '</div></div>' +
+    /* 5 格（2026-09-30 由 9 格精简）：**同一批数不在两处各说一遍** ——
+       · 「本金（净转入）」格删 → 并入「总资产」格副标（总资产 ＝ 本金 ＋ 累计浮盈亏，本是一个恒等式）
+       · 「场内盈亏 / 场外盈亏」两格删 → 并入「累计浮盈亏」格副标（连各自的收益率一起）
+       · 「盈 / 亏持仓」格删 → 挪到「盈亏总览」标题（它数的就是那张清单的 13 行）
+       末格（当日盈亏，内部本就是两分栏）在栅格里跨 2 列，把第二行占满（见 positions.css 的 .sum-grid 规则）。 */
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金。总资产 ＝ 本金 ＋ 累计浮盈亏 —— 与「本金与收益」卡同一口径。">本金 ' + fmtYuan(principal) + ' ＋ 浮盈亏 <span class="' + cls(totalPl) + '">' + fmtAmt(totalPl) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📈</span> 累计浮盈亏（估）</div><div class="s-val ' + cls(totalPl) + '">' + fmtPct(totalR) + '</div><div class="s-sub ' + cls(totalPl) + '" title="场内＝快照摊薄口径（Σ份数×现价 − Σ摊薄成本，含可用现金）；场外＝App 持仓成本口径。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。">' + fmtAmt(totalPl) + ' 元 · 场内 <span class="' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</span>（' + fmtPct(etfCost ? etfPl / etfCost : 0) + '）／ 场外 <span class="' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</span>（' + fmtPct(otcCost ? otcPl / otcCost : 0) + '）</div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="场内本金 ＝ Σ五只摊薄成本 ＋ 券商可用现金。券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓"><div class="s-label"><span aria-hidden="true">🏦</span> 场内本金</div><div class="s-val">' + fmtYuan(pInEtf) + '</div><div class="s-sub" style="color:var(--tx3)">' + rows.length + ' 只 · 占 ' + (principal ? (pInEtf / principal * 100).toFixed(1) : "0.0") + '%</div><div class="s-asof">' + etfTag("", true) + '</div></div>' +
-    '<div class="sum-cell" title="场外本金 ＝ Σ八只的 App「持仓成本」（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（南方 400 ＝ 已扣款、尚未并入 App 成本；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；其余六只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 场外本金</div><div class="s-val">' + fmtYuan(pInOtc) + '</div><div class="s-sub" style="color:var(--tx3)">' + otcRows.length + ' 只 · 占 ' + (principal ? (pInOtc / principal * 100).toFixed(1) : "0.0") + '% · 未入成本 ' + fmtAmt2(otcLogGap) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">🏦</span> 场内盈亏（估）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub ' + cls(etfPl) + '">' + fmtPct(etfCost ? etfPl / etfCost : 0) + '</div><div class="s-asof">' + etfTag("", true) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">📋</span> 场外盈亏（快照）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub ' + cls(otcPl) + '">' + fmtPct(otcCost ? otcPl / otcCost : 0) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label" title="场内为估值：当日涨跌幅 × 当前持仓推算（当日盘中若有买卖，与券商 App 会略有差异）；场外取 App「日收益」快照读数"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
+    '<div class="sum-cell" title="场外本金 ＝ Σ八只的 App「持仓成本」（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（南方 400 ＝ 已扣款、尚未并入 App 成本；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；其余六只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 场外本金</div><div class="s-val">' + fmtYuan(pInOtc) + '</div><div class="s-sub" style="color:var(--tx3)">' + otcRows.length + ' 只 · 占 ' + (principal ? (pInOtc / principal * 100).toFixed(1) : "0.0") + '% · 已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div><div class="s-asof">' + otcTag("", true) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label" title="口径是**两半拼接**、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝App「日收益」快照读数（截图日那天）。"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
       /* 上一版先写“合计”、后写“场内+场外”——但场内为盘中估算、场外为 App 快照，可靠性不同。
        * 调为“分量为主、合计为辅”：盘中看到大数字时，不会把“盘中估值 + 隔日快照”当成一个同口径的精确值。 */
       '<div class="s-split">' +
@@ -710,7 +715,7 @@ function renderImpl() {
         '<div class="s-split-plus">+</div>' +
         '<div class="s-split-cell"><div class="s-split-k">场外快</div><div class="s-split-v ' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + '</div></div>' +
       '</div>' +
-      '<div class="s-sub src-muted">合计 <b class="' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</b>' + (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + '</div>' +
+      '<div class="s-sub src-muted">合计 <b class="' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</b>' + (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + ' · 场内估值 ＋ 场外快照</div>' +
       '<div class="s-asof">' + etfTag(" 日涨跌") + " " + otcTag(" 入账") + '</div></div>';
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
@@ -725,7 +730,10 @@ function renderImpl() {
      操作体检**移出**总览行（2026-09-27 用户改为「单独做一块」）—— 集中在「操作体检」卡片里。 */
   otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, cost: row.costAmt }));
   plRows.sort((a, b) => b.pl - a.pl);
-  $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · " + etfTag() + " · " + otcTag() + ")";
+  /* 盈 / 亏持仓计数（2026-09-30 从汇总卡挪来）：它数的是**本卡下面列的这 13 行**，
+     放在清单头上才对得上账（原来挂在汇总卡里，与这 13 行隔着两块内容）。口径同前：±0.5 元内算持平。 */
+  const plWin = plRows.filter((x) => x.pl > 0.5).length, plLoss = plRows.filter((x) => x.pl < -0.5).length;
+  $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span> · " + etfTag() + " · " + otcTag() + ")";
   $("pl-list").innerHTML =
     plRows.map((x) => {
       const zero = Math.abs(x.pl) < 0.5;
@@ -3115,13 +3123,15 @@ function renderAcctStats() {
     + "（实测 −4.57−13.73+6.50+2.43 = −9.37%，对不上 −10.20%）—— 它按资金在场权重加权，"
     + "故与金额不同号。统一的资金加权口径见「本金与收益 · 收益率口径」里的 XIRR。";
   el.innerHTML = svg +
-    '<div class="acct-stats">' +
+    /* 4 格 → 3 格（2026-09-30）：删掉「盈 / 亏持仓」—— 它数的是同一批持仓，却用**券商"今年"口径**（3/2），
+       与「盈亏总览」标题里的快照口径（9 盈 / 4 亏）并列时像两个数在打架。数持仓只留那一处。
+       口径也在副标里写明「券商口径」，与汇总卡的场内盈亏（快照摊薄口径）互相区分。 */
+    '<div class="acct-stats acct3">' +
       '<div class="kpi"><div class="k-label">账户累计盈亏<button type="button" class="strat-hint" data-note="acct-pnl-q" aria-label="账户累计盈亏口径说明" aria-expanded="false">?</button></div>' +
       '<div class="k-val ' + cls(S.pnl) + '">' + fmtAmt2(S.pnl) + '</div>' +
-      '<div class="k-sub ' + cls(S.pnl) + '" title="' + pnlTip + '">' + fmtPct(S.pnlPct / 100, 2) + " · " + S.since + ' 起</div></div>' +
+      '<div class="k-sub ' + cls(S.pnl) + '" title="' + pnlTip + '">' + fmtPct(S.pnlPct / 100, 2) + " · " + S.since + ' 起 · 券商口径</div></div>' +
       '<div class="kpi"><div class="k-label">交易笔数</div><div class="k-val">' + S.trades + '</div><div class="k-sub" style="color:var(--tx3)">税费 ' + fmtYuan(S.fees) + " 元</div></div>" +
       '<div class="kpi"><div class="k-label">平均仓位</div><div class="k-val">' + S.avgPos.toFixed(1) + '%</div><div class="k-sub" style="color:var(--tx3)">持股 ' + S.holdDays + " 天</div></div>" +
-      '<div class="kpi"><div class="k-label">盈 / 亏持仓</div><div class="k-val"><span class="up">' + S.win + '</span><span style="color:var(--tx3);font-size: var(--fs-sm)"> / </span><span class="down">' + S.loss + '</span></div><div class="k-sub" style="color:var(--tx3)">App 口径</div></div>' +
     '</div>' +
     '<div class="strat-note" id="acct-pnl-q"><b>金额</b>＝券商「累计盈亏」原读数（含已实现盈亏与税费），与下方月度柱子相加闭合 ✓：'
       + "−661.71 − 17,378.05 + 12,736.10 + 8,702.56 ＝ +3,398.90。<br>"
@@ -3678,10 +3688,12 @@ function holdCardHtml(row, i, ctx) {
         })()
       : '<span class="date-chip stale" title="' + esc(premHealth.text) + '">⚠ 溢价未核验</span>';
   }
-  /* KPI 第三格（2026-09-23 起）：有卖出 → 「其中已落袋」；没卖出 → 「摊薄（成本总额）」。
+  /* KPI 第三格（2026-09-23 起）：有卖出 → 「其中已落袋」。
      为什么不是「额外一笔」：券商用摊薄成本，卖出的净回款已冲减剩余仓位的成本 —— 所以已落袋的
      金额本就在左边那格「浮盈（估）」里，两者**不能相加**（「本金与收益」卡的口径说明也写了这条）。
-     无卖出的标的没有已实现可讲，这一格就该回答另一件事：这一路操作把摊薄成本拉低了多少。 */
+     2026-09-30 合并：原来没卖出的标的第三格放「摊薄成本变化 −3,380 元 · 成本价 1.6294 → 1.5914」，
+     而左边「距成本位」的副标本来就写着成本价 —— 同一个数在同一行出现两次（页面约定：一个数只出现一次）。
+     现在把「全程成本价变化」并进「距成本位」副标；第三格只留给真有已实现的标的，否则该行只排两格。 */
   const sellsOf = (POSITIONS.log || []).filter((e) => e.sym === p.sym && isSellAct(e));
   const realized = sellsOf.reduce((a, e) => a + (Number.isFinite(e.realized) ? e.realized : 0), 0);
   const cashed = realized - sellsOf.reduce((a, e) => { const v = logFee(e); return a + (v === null ? CONFIG.FEE_PER_SIDE : v); }, 0);
@@ -3691,20 +3703,15 @@ function holdCardHtml(row, i, ctx) {
   const spanFrom = traceSeq.length >= 2 ? traceSeq[0].after : null;
   const spanTo = traceSeq.length ? traceSeq[traceSeq.length - 1].after : null;
   const dipDelta = (spanFrom !== null && spanTo !== null) ? spanTo - spanFrom : null;
-  let kpiThird;
+  let kpiThird = "";
   if (sellsOf.length) {
     kpiThird = '<div class="kpi"><div class="k-label" title="券商流水逐笔「实现盈亏」之和 − 卖出费，口径与「本金与收益」卡的「已实现」相同。' +
       '⚠ 这不是额外一笔：券商用摊薄成本，卖出的净回款已冲减剩余仓位成本，所以它已经包含在左边的「浮盈（估）」里，两者不能相加。">' +
       '其中已落袋</div><div class="k-val ' + cls(cashed) + '">' + fmtAmt(cashed) + ' 元</div>' +
       '<div class="k-sub" style="color:var(--tx3)">卖出 ' + sellsOf.length + ' 笔 · 已在浮盈里</div></div>';
-  } else if (dipDelta !== null) {
-    kpiThird = '<div class="kpi"><div class="k-label" title="全程复算的摊薄成本价变化（Σ买入含费 − Σ卖出净额，逐笔回放；与「逐笔流水」summary 同源）。' +
-      '成本总额下降＝成本被拉低，不是赚了 —— 它也已经在左边的「浮盈（估）」里。">摊薄成本变化</div>' +
-      '<div class="k-val ' + (dipDelta <= 0 ? "up" : "down") + '">' + (dipDelta <= 0 ? "−" : "+") + fmtAbs2(Math.abs(dipDelta * p.qty)) + ' 元</div>' +
-      '<div class="k-sub" style="color:var(--tx3)">成本价 ' + spanFrom.toFixed(4) + ' → ' + spanTo.toFixed(4) + '</div></div>';
-  } else {
-    kpiThird = '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div><div class="k-sub" style="color:var(--tx3)">' + fmtQty(p.qty) + ' 份</div></div>';
   }
+  /* 两格还是三格由内容决定（不再硬写 kpi3 让空位悬着）：没卖出的标的只排「浮盈 ＋ 距成本位」 */
+  const kpiRowCls = kpiThird ? "kpi-row kpi3" : "kpi-row kpi2";
   /* ---- 回本阶梯（2026-09-30 加，用户要求）------------------------------------------
      把「相对成本 −13% → 0%（回本）」每一档对应的**价格**列成一张小表：设价格提醒、判断还差多远，
      比盯百分比直观（本例每 1% 恰好＝0.0542 元/份＝824 元，可以心算）。
@@ -3766,12 +3773,16 @@ function holdCardHtml(row, i, ctx) {
       '<span class="held">' + (heldDays ? '持有 ' + heldDays + ' 天 · ' : '') + '市值 ' + fmtYuan(valAmt) +
         (totalVal ? ' · 占比 ' + (valAmt / totalVal * 100).toFixed(1) + '%' : '') + '</span>' +
     '</div>' +
-    '<div class="kpi-row kpi3">' +
+    '<div class="' + kpiRowCls + '">' +
       /* 金额用 fmtAmt（自带符号）：原先写 (pl >= 0 ? "+" : "") + fmtYuan(pl)，而 fmtYuan = fmtAbs2 是**无符号**的
          —— 负浮盈那一格只靠红色表意、数字是正的（中韩显示「7,329 元」，读起来像赚了 7,329）。2026-09-23 修。 */
       '<div class="kpi"><div class="k-label" title="按场内现价估算（含溢价），与 App 净值口径的差额≈卡头「溢价」胶囊">浮盈（估）</div><div class="k-val ' + cls(r) + '">' + fmtPct(r) + '</div><div class="k-sub ' + cls(r) + '">' + fmtAmt(pl) + ' 元</div></div>' +
-      /* 副行只说单位成本价，不再重复「需涨 X% 回本」—— 那与本格主数是同一句话（同一句不说两遍） */
-      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div><div class="k-sub" style="color:var(--tx3)">成本价 ' + p.cost.toFixed(4) + ' 元</div></div>' +
+      /* 副行只说单位成本价，不再重复「需涨 X% 回本」—— 那与本格主数是同一句话（同一句不说两遍）。
+         2026-09-30：把「摊薄成本变化」那格的数并到这里（全程成本价变化 ＋ 成本总额变动），
+         原来它独占第三格、且把同一个成本价又写了一遍。 */
+      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div>' +
+        '<div class="k-sub" style="color:var(--tx3)">成本价 ' + p.cost.toFixed(4) + ' 元' +
+        (dipDelta !== null ? ' · 首笔 ' + spanFrom.toFixed(4) + ' → 今（' + (dipDelta <= 0 ? "−" : "+") + fmtAbs2(Math.abs(dipDelta * p.qty)) + ' 元）' : '') + '</div></div>' +
       kpiThird +
     '</div>' +
     /* 三档读数 ＋ 右侧分位胶囊（2026-09-23 合并）：两者讲的是同一件事的两种表达 ——
@@ -4330,11 +4341,11 @@ function posLogHtml(p, r, pl) {
     if (w && w !== wk) { wk = w; html += weekRowHtml(entries.filter((x) => x.d && weekOf(x.d) === w), w); }
     html += logItemHtml(e, true, pairBadge(i));
   });
-  /* 全程成本价变化原来挂在这一行（「成本价 1.6294 → 1.5822」），2026-09-23 移到 KPI 第三格
-     （「摊薄成本变化 −3,830 元 / 成本价 1.6294 → 1.5822」）—— 那个数现在已经常显在卡面上，
+  /* 全程成本价变化原来挂在这一行（「成本价 1.6294 → 1.5822」），2026-09-23 移到 KPI 第三格；
+     2026-09-30 又并进「距成本位」的副标（第三格那处与成本价重复）——那个数如今常显在卡面上，
      这里再写一遍就是同一句话出现两次（页面约定：同一个数不出现两次）。本行只留「笔数 + 买卖金额」。 */
   out += '<details class="pos-log">' +
-    '<summary title="买卖额为累计成交金额（含已卖出部分），逐笔明细见展开；全程成本价变化见卡面「摊薄成本变化」格">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
+    '<summary title="买卖额为累计成交金额（含已卖出部分），逐笔明细见展开；全程成本价变化见卡面「距成本位」的副标">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
       (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") +
     '</summary>' +
     '<div class="log-list">' + html + '</div>' +
