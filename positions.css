@@ -975,7 +975,7 @@
          所以渲染侧整串拼接、不要换行缩进。 */
     .xr-tbl .c-gr, .xr-tbl .c-xirr, .xr-tbl .c-twr, .xr-tbl .c-inv, .xr-tbl .c-val, .xr-tbl .c-rate {
       display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; text-align: left; }
-    .xr-tbl td.lamp { display: inline-block; width: 25%; padding: 0; border: none; vertical-align: top; text-align: left; }
+    .xr-tbl td.lamp { display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; text-align: left; }
     .xr-tbl td.num { text-align: left; }        /* 手机上是分项格子，左对齐比右对齐更好读 */
     .xr-tbl tr.xr-grp-row td { padding: 14px 0 3px; }
     /* 备注：手机列已堆叠 → 这一格单独成行（ⓘ 仍在行内，点开是底部浮层） */
