@@ -63,10 +63,14 @@ function readPositions() {
   return eval("(" + m[0].replace("const POSITIONS =", "").replace(/;$/, "") + ")");
 }
 function readOtc() {
-  const src = readFileSync(join(ROOT, "positions.html"), "utf8");
+  /* ⚠ 2026-09-30 修：OTC 等 MANUAL 数据块 2026-09-27 从 positions.html 移到了 positions-data.js
+     （那次重构「同步 9 个脚本」时**漏了本脚本**）→ 本步自 09-27 起在 CI 里必然抛错，
+     又被 update-data.yml 的 continue-on-error 吞掉：费率表因此一直停在 asOf 09-22 没再更新。
+     与 data-quality.mjs 的 auditFiles 同法：读数据文件。 */
+  const src = readFileSync(join(ROOT, "positions-data.js"), "utf8");
   const head = "const OTC = ";
   const i = src.indexOf(head);
-  if (i < 0) throw new Error("positions.html 里找不到 OTC");
+  if (i < 0) throw new Error("positions-data.js 里找不到 OTC");
   let j = i + head.length, depth = 0, inStr = null, end = -1;
   for (; j < src.length; j++) {
     const c = src[j], p = src[j - 1];

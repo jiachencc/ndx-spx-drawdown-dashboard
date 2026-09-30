@@ -240,6 +240,38 @@ export function atomicWrite(target, content) {
   try { writeFileSync(temp, content, { flag: "wx" }); renameSync(temp, target); }
   finally { try { unlinkSync(temp); } catch (e) { if (e.code !== "ENOENT") throw e; } }
 }
+/* ---- AUTO 块新鲜度（2026-09-30 加）--------------------------------------------------------
+ * 为什么需要：FEES / ALT_BACKTEST / BENCH 三块由 CI 的分步脚本写，而那几步都是 `continue-on-error: true`
+ * （设计上「失败不阻断日更」）。于是一旦某步静默坏掉，data.js 看着完整、既有 schema 与交叉校验全绿，
+ * 只有页面上某个日期悄悄停住。2026-09-27 的重构把 OTC / SNAPSHOTS 从 positions.html 搬到 positions-data.js
+ * （提交里写着「同步 9 个脚本」），但 fetch-fees 与 sync-bench 被漏掉 —— 就这样坏了 8 天没人发现：
+ * 费率表停在 asOf 09-22、走势图的「同节奏纳指」基准停在 09-24、标的替换回测被我自己合并时盖回 09-24。
+ * 这里给每块设「最老允许日期」，让终审把它变成红字，而不是等人肉眼发现。
+ * 阈值刻意留松：容忍「今天的 run 还没跑到」与 FEES 自带的 7 天缓存节流，只抓「坏了一周以上」。
+ * ⚠ BENCH 不在 readModel 的模型里（它是独立 const），故从源码文本取日期。 */
+export function autoBlockIssues(model, dataSrc, posSrc) {
+  const issues = [];
+  const diff = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000);
+  const mkt = model?.DEFAULT?.etfNdx?.priceDate || model?.SOURCE_META?.etfNdx?.asOf || null;
+  const benchTxt = (String(dataSrc || "").match(/^const BENCH = \{[\s\S]*?^\};/m) || [""])[0];
+  const benchLast = [...benchTxt.matchAll(/(20\d\d-\d\d-\d\d)/g)].map((x) => x[1]).sort().at(-1) || null;
+  const snapTxt = (String(posSrc || "").match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m) || [""])[0];
+  const snapLast = [...snapTxt.matchAll(/\bd:\s*"(20\d\d-\d\d-\d\d)"/g)].map((x) => x[1]).sort().at(-1) || null;
+  /* 阈值按 2026-09-30 那次真事故校准：当时 ALT_BACKTEST 差 5 天、FEES 差 7 天、BENCH 差 5 天，
+     三个数都必须拦得住（否则等于没加）。同时要容忍「今天这一步还没跑到」的 0~1 天正常滞后。 */
+  if (mkt && model?.ALT_BACKTEST?.asOf && diff(mkt, model.ALT_BACKTEST.asOf) > 4)
+    issues.push("AUTO 块陈旧：ALT_BACKTEST.asOf " + model.ALT_BACKTEST.asOf + " 落后场内行情日 " + mkt +
+      " 超过 4 天 —— scripts/alt-etf-backtest.mjs 那步多半坏了（CI 里它是 continue-on-error，不会报红，只会让该板块的期末日期停住）");
+  if (mkt && model?.FEES?.asOf && diff(mkt, model.FEES.asOf) > 6)
+    issues.push("AUTO 块陈旧：FEES.asOf " + model.FEES.asOf + " 落后场内行情日 " + mkt +
+      " 达 7 天以上 —— scripts/fetch-fees.mjs 那步多半坏了（该脚本自带 7 天缓存节流：满 7 天当天就该去抓，抓到了 asOf 会立刻归零；" +
+      "所以「年龄 ≥ 7 天」只可能是「该抓没抓到」）");
+  if (snapLast && benchLast && diff(snapLast, benchLast) > 3)
+    issues.push("AUTO 块陈旧：BENCH 最新日期 " + benchLast + " 落后最新快照日 " + snapLast +
+      " 超过 3 天 —— scripts/sync-bench.mjs 那步多半坏了（走势图的「同节奏纳指」虚线会停在旧日期）");
+  return issues;
+}
+
 export function auditFiles(root) {
   const data = readFileSync(new URL("data.js", root), "utf8");
   const pos = readFileSync(new URL("positions.html", root), "utf8");

@@ -31,12 +31,15 @@ const DRY = process.argv.includes("--dry");
 const OFFLINE = process.argv.includes("--offline");
 const DATA = "data.js";
 const SERIES = "fed-cycle-dashboard/data/series.json";
-const SNAPS = "positions.html";
+/* ⚠ 2026-09-30 修：SNAPSHOTS 2026-09-27 已从 positions.html 移到 positions-data.js
+   （那次重构「同步 9 个脚本」时漏了本脚本）→ 本步自 09-27 起在 CI 里必然抛错、被 continue-on-error 吞掉：
+   走势图那条「同节奏纳指」虚线因此一直停在 09-24。改读数据文件，与 data-quality.mjs 同法。 */
+const SNAPS = "positions-data.js";
 
 const readDates = () => {
   const src = fs.readFileSync(SNAPS, "utf8");
   const m = src.match(/const SNAPSHOTS = \[[\s\S]*?\n\];/);
-  if (!m) throw new Error("positions.html 里找不到 SNAPSHOTS");
+  if (!m) throw new Error("positions-data.js 里找不到 SNAPSHOTS");
   return [...m[0].matchAll(/\bd:\s*"(\d{4}-\d{2}-\d{2})"/g)].map((x) => x[1]);
 };
 

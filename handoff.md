@@ -82,6 +82,17 @@ ndx_spx_dashboard_handoff/
 另有 `SOURCE_META` / `RECENT` / `POSITIONS`，逐块都要比。
 （实测附注：本机重跑 `alt-etf-backtest.mjs` 与 CI 跑出的 `ALT_BACKTEST` 是**逐字节相同**的 —— 这块谁跑都一样，不必抢。）
 
+**AUTO 块新鲜度门禁（2026-09-30 加，起因是一次 8 天的静默失效）**：`fetch-fees` / `alt-etf-backtest` / `sync-bench`
+这三步在 CI 里都是 `continue-on-error: true`（设计上「失败不阻断日更」）——代价是某步静默坏掉时，
+`data.js` 看着完整、既有 schema 与交叉校验全绿，只有页面上某个日期悄悄停住，没人会发现。
+2026-09-27 把 `OTC` / `SNAPSHOTS` 从 `positions.html` 搬到 `positions-data.js` 时（提交信息写着「同步 9 个脚本」），
+`fetch-fees.mjs` 与 `sync-bench.mjs` 被漏掉 → 就这样坏了 8 天：费率表停在 `asOf 09-22`、
+走势图的「同节奏纳指」停在 09-24，直到用户问「费率体检的数据也是每天更新吗」才查出来。
+现在 `check-data` 走 `data-quality.mjs` 的 `autoBlockIssues()`：给 `ALT_BACKTEST` / `FEES` / `BENCH`
+各设「最老允许日期」（阈值按那次真事故校准 —— 差 5 天 / 7 天 / 5 天都必须拦住），把静默失效变成终审红字。
+两条自查口诀：**① 改数据块的存放位置时，先 `grep -rn 'const <块名> = ' scripts/` 把读者找齐**；
+**② 每个 AUTO 块都问一句「它的日期字段由谁更新、坏了谁会发现」——如果答案是「没人」，就该加门禁。**
+
 兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连 Yahoo（403）与 stooq（JS 挑战页）会被拦，但**腾讯这条腿在国内直连可用**（本机 `node scripts/fetch_and_update.mjs` 能跑通，2026-09-27 实测），故 NDX / SPX 一般不必再人工填数；只有 VIX / TNX 拿不到时才需查网页人工补。
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。

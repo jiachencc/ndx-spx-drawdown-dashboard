@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { readModel, compileHtml, snapshotIssues, validateModel, metrics, createRecorder, stableBusiness, replaceConst, replaceMember } from "./data-quality.mjs";
+import { readModel, compileHtml, snapshotIssues, validateModel, metrics, createRecorder, stableBusiness, replaceConst, replaceMember, autoBlockIssues } from "./data-quality.mjs";
 import { main, series } from "./fetch_and_update.mjs";
 import { crossIssues } from "./cross-check.mjs";
 const root = new URL("../", import.meta.url);
@@ -246,6 +246,28 @@ test("cross-check ⑤: 场外 nav 没跟着 value 更新时必须拦下", () => 
   assert.equal(hits.length, 2, "两只漏改 nav 的都应被拦下，实际：" + JSON.stringify(stale.issues));
   assert.match(hits.join(" "), /023402/);
   assert.match(hits.join(" "), /021000/);
+});
+
+/* 2026-09-30：真事故的回归。09-27 重构把 OTC / SNAPSHOTS 从 positions.html 搬到 positions-data.js
+   （提交写着「同步 9 个脚本」），漏改 fetch-fees / sync-bench → 那两步在 CI 里静默坏了 8 天
+   （费率表停 asOf 09-22、同节奏基准停 09-24），而既有 schema / 交叉校验全绿、没人发现。
+   autoBlockIssues 给 AUTO 块设「最老允许日期」，把这种静默失效变成终审红字。
+   阈值用当时那三个真实数字校准：ALT_BACKTEST 差 5 天、FEES 差 7 天、BENCH 差 5 天，都必须拦下。 */
+test("AUTO 块新鲜度：静默坏掉的 CI 步骤必须被终审拦下", () => {
+  const mkt = { DEFAULT: { etfNdx: { priceDate: "2026-09-29" } } };
+  const posSrc = 'const SNAPSHOTS = [\n  { d: "2026-09-24", cash: 0, items: {} },\n  { d: "2026-09-29", cash: 0, items: {} },\n];';
+  const benchOk = 'const BENCH = {\n  "2026-09-29": 30339.33,\n};';
+  const benchStale = 'const BENCH = {\n  "2026-09-24": 30478.86,\n};';
+  // 正常：回测跟到行情日、费率 1 天前刚抓过、基准与最新快照同日 → 0 条
+  const ok = { ...mkt, ALT_BACKTEST: { asOf: "2026-09-29" }, FEES: { asOf: "2026-09-30" } };
+  assert.equal(autoBlockIssues(ok, benchOk, posSrc).length, 0);
+  // 事故复现：三块分别为 5 天 / 7 天 / 5 天落后 → 三条都要报
+  const stale = { ...mkt, ALT_BACKTEST: { asOf: "2026-09-24" }, FEES: { asOf: "2026-09-22" } };
+  const hits = autoBlockIssues(stale, benchStale, posSrc);
+  assert.equal(hits.length, 3, "三块陈旧都应报出，实际：" + JSON.stringify(hits));
+  assert.match(hits.join(" "), /ALT_BACKTEST.*5 天|ALT_BACKTEST\.asOf 2026-09-24/);
+  assert.match(hits.join(" "), /FEES/);
+  assert.match(hits.join(" "), /BENCH/);
 });
 
 test("candidate schema rejects non-finite quotes", () => { const m = structuredClone(base); m.DEFAULT.vix = NaN; assert.ok(validateModel(m).length); });
