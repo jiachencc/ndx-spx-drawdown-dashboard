@@ -74,6 +74,14 @@ ndx_spx_dashboard_handoff/
 
 **第二个 AUTO 块 `ALT_BACKTEST`（标的替换回测，2026-09-20 加）**：把「选哪只标的」单独量化——同一批流水（同样日期、同样金额）换成同类别的另一只产品，到期末差多少。由 [scripts/alt-etf-backtest.mjs](scripts/alt-etf-backtest.mjs) 抓腾讯前复权日K + 东财历史净值后**整块重写**（与 `MONTHLY` 同手法：先 `validateModel` 再 `auditFiles` 再原子写，任一不过就不写、保留旧值）。候选清单与综合费率是该脚本顶部 `UNIVERSE` 的 MANUAL 常量，**换候选只改那一处**。CI 在行情更新之后、终审之前跑它（`continue-on-error`：失败不阻断日更，只是页面上的期末日期会落后，`?debug` 会提示）。
 
+⚠ **合并 CI 自动提交时的一条硬规矩（2026-09-30 补，吃过亏）**：本机与 CI 跑的是同一套脚本、都写 `data.js`，
+同一块常有两边不同新鲜度的版本。冲突时**按块比 `asOf` / `priceDate`，取新的那一边**，不要整份取自己那一侧。
+2026-09-29 就是这样翻的车：rebase 时整份取了自己本机的副本，把 CI 那份已刷到 09-28 的 `ALT_BACKTEST` 连带盖回 09-24
+—— 当时只逐字段比了 `DEFAULT` / `SOURCE_META`，没比这块，于是「对比通过」而实际已回退。
+教训：**字段级对比的覆盖面必须等于分块清单**。本仓库的 AUTO 块有 `DEFAULT` / `MONTHLY` / `ALT_BACKTEST` / `FEES` / `BENCH`，
+另有 `SOURCE_META` / `RECENT` / `POSITIONS`，逐块都要比。
+（实测附注：本机重跑 `alt-etf-backtest.mjs` 与 CI 跑出的 `ALT_BACKTEST` 是**逐字节相同**的 —— 这块谁跑都一样，不必抢。）
+
 兜底：Actions 长期红叉时回到手动流程——改上述 AUTO 字段并推送；本机直连 Yahoo（403）与 stooq（JS 挑战页）会被拦，但**腾讯这条腿在国内直连可用**（本机 `node scripts/fetch_and_update.mjs` 能跑通，2026-09-27 实测），故 NDX / SPX 一般不必再人工填数；只有 VIX / TNX 拿不到时才需查网页人工补。
 
 > **数据/结构分离**：index.html 不再包含任何行情数据；卡片初值用 `--` 占位符，`renderAll()` 启动时从 `DEFAULT` 填充。日常维护只碰 `data.js`，避免误改渲染逻辑。
