@@ -2401,7 +2401,8 @@ function renderPrincipal() {
        每段剔除该只自己的资金流后连乘 —— 它衡量【标的本身】，与进出金时点无关。
        该只的资金流 = 场外 OTC_LOG（申赎/定投）＋ 场内 POSITIONS.log（买卖，sym→code 用 POSITIONS.hold 的映射），
        因为买/卖一只 ETF 同样是在「往这只基金里加钱 / 取钱」。
-       ⚠ 两处口径限制：① 窗口由快照决定（现在只有 14 天），与逐只 XIRR 的全史窗口不同，两者不可直接相减；
+       ⚠ 两处口径限制：① 窗口由快照决定（＝第一份**含持仓明细**的快照 → 最新；SNAPSHOTS 有 18 期，
+        但带 items 的 14 期从 09-07 起，故当前窗口 09.07→09.29 共 22 天），与逐只 XIRR 的全史窗口不同，不可直接相减；
                        ② 期内现金流按「期末发生」计入（与页面既有 calcTWR 同一约定），
                           快照期很密时误差极小，但不能当逐日精度用。 */
     const full = (typeof SNAPSHOTS !== "undefined" ? SNAPSHOTS : [])
@@ -2475,7 +2476,52 @@ function renderPrincipal() {
         v0: (full[0] && full[0].items[f.code]) ? full[0].items[f.code].val : null,
         drift: gapSnap === null ? null : (gapSnap < -0.05 ? gapSnap : 0) });
     });
-    if (rows.length) {
+    /* ===== 场内 5 只（2026-09-30 并入 —— 用户问「我买了 13 个，为什么只有 8 只」）=========
+       它们和场外并列在同一张表里，但**现金流来源不同**：场外是「申购 / 赎回」（OTC_LOG），
+       场内是「买入 / 卖出」（POSITIONS.log —— 波段买卖本身就是往这只标的里加钱 / 取钱）。
+       ⚠ 场内**不能**拿快照 cost 当「累计投入」：券商给的是**摊薄成本**（卖出的已实现盈亏已折进
+         剩余仓位，如港美的 −5,236 里含已实现）。所以投入一律取逐笔成交额（价×份 ＋ 费）。
+       ⚠ 自检另用「Σ买入含费 − Σ卖出净收入 ≈ 快照摊薄成本」：两者本就近等（港美差约 21 元，
+         来自券商侧费用/取整），故阈值放宽到 max(50 元, 0.5%)，免得把正常口径差误报成录入错误。
+       ⚠ 费：POSITIONS.log 的费记在 note 里，logFee() 读得到就用真实值，读不到按 5 元/边估算
+         （与页面别处同一约定）→ 所以场内 XIRR 与简单收益都是**费后**的。 */
+    const ETF_THEME = { "159941": "ndx", "513650": "spx", "513310": "semi", "513880": "jp", "160644": "hkus" };
+    const etfRows = [];
+    if (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold) && Object.keys(lastItems).length) {
+      const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e.act));
+      const feeOfEtf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
+      POSITIONS.hold.forEach((h) => {
+        const code = String(h.code);
+        const it = lastItems[code];
+        if (!it || typeof it.val !== "number") return;
+        const fullName = it.name || String(h.sym);
+        const nm = SHORT[code] || fullName;
+        const v0 = (full[0] && full[0].items && full[0].items[code]) ? full[0].items[code].val : null;
+        const logs = (POSITIONS.log || []).filter((e) => e.sym === h.sym).slice().sort((a, b) => (a.d < b.d ? -1 : 1));
+        if (!logs.length) { etfRows.push({ code: code, mkt: "etf", theme: ETF_THEME[code], nm: nm, full: fullName,
+          val: it.val, miss: true, twr: twrOf(code), v0: v0 }); return; }
+        const buys = logs.filter((e) => !isSellAct(e));
+        const sells = logs.filter((e) => isSellAct(e));
+        const buyGross = buys.reduce((a, e) => a + e.qty * e.cost, 0);
+        const buyAmt = buyGross + buys.reduce((a, e) => a + feeOfEtf(e), 0);              // 含买入费
+        const sellAmt = sells.reduce((a, e) => a + e.qty * e.cost - feeOfEtf(e), 0);      // 扣卖出费
+        const t0 = Date.parse(logs[0].d);
+        const days = Math.round((Date.parse(lastD) - t0) / 86400000);
+        const cfs = logs.map((e) => ({ t: (Date.parse(e.d) - t0) / 86400000,
+          amt: isSellAct(e) ? (e.qty * e.cost - feeOfEtf(e)) : -(e.qty * e.cost + feeOfEtf(e)) }));
+        /* 终值只放**期末市值**：卖出已在各自那天记过正现金流，再加一次就是双计（与场外同一条规矩）。 */
+        cfs.push({ t: (Date.parse(lastD) - t0) / 86400000, amt: it.val });
+        const gain = it.val + sellAmt - buyAmt;                                          // 费后总盈亏
+        const costSnap = (typeof it.cost === "number") ? it.cost : null;
+        const gap = costSnap === null ? null : costSnap - (buyAmt - sellAmt);
+        const tol = Math.max(50, buyAmt * 0.005);
+        etfRows.push({ code: code, mkt: "etf", theme: ETF_THEME[code], nm: nm, full: fullName,
+          inv: buyAmt, invAll: buyAmt, sold: sellAmt, fee: buyAmt - buyGross, val: it.val, gain: gain,
+          rate: buyAmt ? gain / buyAmt : 0, xirr: calcXIRR(cfs), days: days, ann: days >= 90,
+          twr: twrOf(code), transit: 0, v0: v0, drift: (gap === null || gap > -tol) ? 0 : gap });
+      });
+    }
+    if (rows.length || etfRows.length) {
       /* 无风险 10Y 与体检窗口天数：原先都在「逐只体检」那段里定义（即逐只表**之后**），
          而评级（表里）与表尾图例都要用 —— 故一起提到本块开头，只留一处定义。
          ⚠ 这两行必须在 gradeOf / 表格 HTML 之前，否则 const 的暂时性死区会让整块渲染中断（卡片空白）。 */
@@ -2500,13 +2546,30 @@ function renderPrincipal() {
         if (ex >= 0) return { k: "c", t: "C", why: why + "（≥ 0，达标线）" };
         return { k: "d", t: "D", why: why + "（< 0，没跑赢无风险）" };
       };
-      const miss = rows.filter((r) => r.miss).length;
-      const transit = rows.filter((r) => !r.miss && r.transit > 0.05);
-      const drift = rows.filter((r) => !r.miss && r.drift !== null && r.drift < -0.05);
-      /* 收起时也要能看出结论：把「最差 / 最好」提到 summary 里（只取已达 90 天、可年化的那几只） */
-      const rank = rows.filter((r) => !r.miss && r.ann && r.xirr !== null).sort((a, b) => a.xirr - b.xirr);
-      perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
-        '<span class="snap-cnt">（' + (rows.length - miss) + "/" + rows.length + " 只已录成交流水" +
+      /* 13 只（场外 8 ＋ 场内 5）一起统计 —— 收起时也要能看出结论，故把「最差 / 最好」提到 summary 里
+         （只取已达 90 天、可年化的那几只；现在两边都有满 90 天的，所以这两个数涵盖了全部板块）。 */
+      const allRows = rows.concat(etfRows);
+      const miss = allRows.filter((r) => r.miss).length;
+      const transit = allRows.filter((r) => !r.miss && r.transit > 0.05);
+      const drift = allRows.filter((r) => !r.miss && r.drift !== null && r.drift < -0.05);
+      const rank = allRows.filter((r) => !r.miss && r.ann && r.xirr !== null).sort((a, b) => a.xirr - b.xirr);
+      /* 分组（2026-09-30 并入场内时一并做）：13 只 × 每只两行 = 26 行，平铺就是一堵墙；
+         而场外的「定投申购」与场内的「买卖波段」进出方式本就不同，混着看会被当成一类。
+         故分两段，各给一条小标题（兼作**视觉分节线**）+ 该段市值与占比，段内按市值降序（大仓位在前）。 */
+      const groups = [
+        { k: "otc", t: "场外 · 定投 / 申购", note: "现金流取自 OTC_LOG（真实扣款 / 赎回日）", rows: rows.slice().sort((a, b) => (b.val || 0) - (a.val || 0)) },
+        { k: "etf", t: "场内 · 买卖波段", note: "现金流取自 POSITIONS.log（券商逐笔成交，费后口径）", rows: etfRows.slice().sort((a, b) => (b.val || 0) - (a.val || 0)) }
+      ].filter((g) => g.rows.length);
+      const sumVal = allRows.reduce((a, r) => a + (r.val || 0), 0);
+      const grpHead = (g) => {
+        const gv = g.rows.reduce((a, r) => a + (r.val || 0), 0);
+        return '<div class="xr-grp" title="' + esc(g.note + "；段内按市值降序") + '"><span class="g-t">' + g.t + "</span>" +
+          '<span class="g-s">' + g.rows.length + " 只 · 市值 " + fmtYuan(gv) +
+          (sumVal > 0 ? " · 占持仓 " + Math.round(gv / sumVal * 100) + "%" : "") + "</span></div>";
+      };
+      perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实成交 / 申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
+        '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
+        " · " + (allRows.length - miss) + " 只已录流水" +
         (rank.length ? " · 最差 " + fmtPct(rank[0].xirr, 1) + "（" + rank[0].nm + "） · 最好 " + fmtPct(rank[rank.length - 1].xirr, 1) + "（" + rank[rank.length - 1].nm + "）"
           : " · 均未达 90 天，暂不年化") +
         " · " + (drift.length ? "⚠ " + drift.length + " 只流水比快照成本多，需核对"
@@ -2517,15 +2580,17 @@ function renderPrincipal() {
            达标线（无风险 10Y）写在左列标题里 —— 这是评级的对照基准，摆在表头就不用去体检里找。 */
         '<div class="snap-part fund head"><span class="pn"></span><span class="pv">你的钱 · XIRR<span class="snap-sub">评级线 ≥ 无风险 ' +
           (rf !== null ? fmtPct(rf, 2) : "—") + '</span></span><span class="snap-twr">标的 · TWR</span></div>' +
-        rows.map((r) => {
-          const g = gradeOf(r);
-          const chip = '<i class="gr gr-' + g.k + '" title="' + esc(r.nm + " 的评级：" + g.why) + '">' + g.t + "</i>";
+        /* 行渲染：场外 / 场内共用一套版式（否则两段读法不一致）。
+           首行只留 名称 / 评级+年化 / TWR 三个数 —— 跨基金才对得齐；评级胶囊在 XIRR 前面，字母成一列。
+           第二行是细节，两段各有一个「解释那只现金流特点」的字段：场外＝含在途，场内＝买入/已卖。 */
+        groups.map((g) => grpHead(g) + g.rows.map((r) => {
+          const gd = gradeOf(r);
+          const chip = '<i class="gr gr-' + gd.k + '" title="' + esc(r.nm + " 的评级：" + gd.why) + '">' + gd.t + "</i>";
           const tNote = "时间加权（标的本身的表现）：窗口 " + twrWin +
             "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。它与左边 XIRR 的窗口不同，不可直接相减。";
           const tCell = '<span class="snap-twr" title="' + esc(tNote) + '"><b class="' + (Number.isFinite(r.twr) ? cls(r.twr) : "") + '">' +
             (Number.isFinite(r.twr) ? fmtPct(r.twr, 2) : "—") + "</b></span>";
-          /* 第二行 = 细节（整行铺开）。首行只留名称 / XIRR / TWR 三个数 —— 这样跨基金才对得齐。
-             评级胶囊放在 XIRR 前面：字母自然成一列，竖着扫一遍就知道哪几只成色如何。 */
+          /* 第二行 = 细节（整行铺开）。 */
           const det = (arr) => '<div class="xr-det">' + arr.filter(Boolean).join(" · ") + "</div>";
           if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
             '</span><span class="pv">' + chip + '<b style="color:var(--tx3)">未录入</b></span>' + tCell + "</div>" +
@@ -2533,10 +2598,14 @@ function renderPrincipal() {
           const main = (r.ann && r.xirr !== null)
             ? '<b class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + '</b><span class="snap-sub">年化</span>'
             : '<b style="color:var(--tx3)">' + r.days + ' 天 · 暂不年化</b>';
+          const invTxt = (r.mkt === "etf")
+            ? "买入 " + fmtYuan(r.invAll) + (r.fee > 0.5 ? "（含费 " + fmtAmt2(r.fee) + "）" : "") +
+              (r.sold > 0.5 ? " · 已卖 " + fmtYuan(r.sold) : "")
+            : "投入 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtAmt2(r.transit) + "）" : "");
           return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + chip + main + "</span>" + tCell + "</div>" +
-            det([r.ann ? r.days + " 天" : "", "投入 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtAmt2(r.transit) + "）" : ""),
+            det([r.ann ? r.days + " 天" : "", invTxt,
               "现值 " + fmtYuan(r.val), "简单 " + '<b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>"]);
-        }).join("") +
+        }).join("")).join("") +
         /* 表尾图例（用户要的「参考标准」）：把 A/B/C/D/⏳ 的阈值写在表里，口径随时可查，不做黑箱评分。
            ⚠ 只给左列（你的钱）出字母，右列（标的 TWR）只给对照基准、不出字母 —— 理由写在下面这句里。 */
         '<div class="xr-det" style="margin-left:0">评级＝年化 XIRR 对照无风险 ' + (rf !== null ? fmtPct(rf, 2) : "—") +
@@ -2552,9 +2621,10 @@ function renderPrincipal() {
       /* rf 与 winDays 都已提到本块开头（评级与表尾图例要用），此处不再重复声明 */
       const IC = { ok: "✓", watch: "⚠", bad: "✗", na: "⏳" };
       perFundSec += '<details class="pf-fold"><summary class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 你的钱＝全史 XIRR vs 无风险 10Y ③ 时点＝同窗口 XIRR − TWR ④ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
-        '<span class="snap-cnt">（骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜达标线＝年化 ≥ ' + (rf !== null ? fmtPct(rf, 2) : "无风险") +
+        '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
+        " · 骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜达标线＝年化 ≥ " + (rf !== null ? fmtPct(rf, 2) : "无风险") +
         " ｜①③ 需同窗口 ≥90 天）</span></summary>" +
-        '<div class="snap-tbl">' + rows.map((r) => {
+        '<div class="snap-tbl">' + groups.map((g) => grpHead(g) + g.rows.map((r) => {
           if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
             '</span><span class="pv"><b style="color:var(--tx3)">⏳ 流水未录</b></span></div>' +
             '<div class="xr-det">无法体检（现值 ' + fmtYuan(r.val) + '）</div>';
@@ -2589,7 +2659,7 @@ function renderPrincipal() {
             '</b> <b' + (v3 === "na" ? ' style="color:var(--tx3)"' : "") + '>③' + IC[v3] + '</b> <b' + (v4 === "na" ? ' style="color:var(--tx3)"' : "") + '>④' + IC[v4] + '</b>' +
             '</span></div>' +
             '<div class="xr-det">' + esc(concl) + "</div>";
-        }).join("") + "</div></details>";
+        }).join("")).join("") + "</div></details>";
     }
   }
   box.innerHTML =

@@ -458,6 +458,17 @@
   /* 逐只表的表头行（名称 / 你的钱·XIRR / 标的·TWR）：只用小字标注，不参与数据 */
   .snap-part.fund.head { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 600; }
   .snap-part.fund.head .pv { font-family: var(--sans); font-size: var(--fs-xxs); font-weight: 600; }
+  /* 逐只表 / 逐只体检的**分组小标题**（2026-09-30 并入场内 5 只时加）：
+     13 只 × 每只两行 = 26 行，平铺就是一堵墙；而场外（定投申购）与场内（买卖波段）
+     进出方式本就不同，混着读会被当成一类。这条小标题兼作**分节线** ——
+     一条细下边线把两段分开，右侧给该段的只数 / 市值 / 占持仓比（段内按市值降序）。
+     ⚠ 用它而不是给每段套底块：全页的层级语言是「细分节线 + 字重」，加底色块会与 KPI 抢眼。 */
+  .xr-grp { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 10px 0 1px;
+    padding-bottom: 3px; border-bottom: 1px solid var(--line-soft);
+    font-size: var(--fs-xs); font-weight: 700; color: var(--tx2); }
+  .xr-grp .g-s { font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); }
+  /* 每只的「数 + 细节」两行挨着读是一组，组与组之间给 3px 呼吸位，免得 26 行糊成一片 */
+  .snap-part.fund { padding-top: 3px; }
   /* 逐只表（XIRR 与 TWR / 逐只体检）的**第二行**：把「投入 / 现值 / 简单 / 天数」和结论文案从首行挪下来。
      起因：首行原本把 5 个数塞进 .pv（1fr 列），手机上必然折成两三行，且各基金的数位对不齐 ——
      「乱」就是从这里来的。现在首行只留三个数（名称 | 你的钱 | 标的），跨基金严格对齐；
