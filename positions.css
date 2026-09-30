@@ -1199,6 +1199,9 @@
      改成独立列后金额与收益率同列两行，两者都留得住，故移除该规则。 */
   @media (max-width: 400px) {
     .sum-grid { grid-template-columns: repeat(2, 1fr); }
+    /* 2026-09-30：汇总卡由 6 格加到 9 格（本金拆分那三格）→ 2 列下会剩单数、右下留空。
+       让最后一格（当日盈亏，内部本就是「场内估 ＋ 场外快」两分栏）**独占一行**，正好把那一行用满。 */
+    .sum-cell:last-child { grid-column: 1 / -1; }
     .sum-cell { padding: 8px 4px; }
     .sum-cell .s-val { font-size: var(--fs-md); }
     .pl-nm { font-size: var(--fs-sm); }   /* 更窄的机型各收一号，行高更紧凑 */
