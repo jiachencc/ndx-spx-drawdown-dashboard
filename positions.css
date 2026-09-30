@@ -452,33 +452,14 @@
      原为 58px，与 .snap-line 的 66px 差 8px，同一张卡里金额左边界就不成一条线。
      「?」独立占行尾一列，不放标签里：4 字的「当日盈亏」加按钮会超出 66px 标签列。 */
   .snap-part { display: grid; grid-template-columns: 66px 1fr auto; align-items: baseline; gap: 8px; padding: 2px 0; font-size: var(--fs-sm); }
-  /* 逐只资金加权：基金简称（7~8 个汉字）比默认 66px 标签列宽，单独放宽一档。
-     不这么做的话，.pn 是 nowrap，列窄了会直接溢出到数值列上（不是折行）。 */
-  .snap-part.fund { grid-template-columns: 96px 1fr 62px; }
-  /* 逐只表的表头行（名称 / 你的钱·XIRR / 标的·TWR）：只用小字标注，不参与数据 */
-  .snap-part.fund.head { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 600; }
-  .snap-part.fund.head .pv { font-family: var(--sans); font-size: var(--fs-xxs); font-weight: 600; }
-  /* 逐只表 / 逐只体检的**分组小标题**（2026-09-30 并入场内 5 只时加）：
-     13 只 × 每只两行 = 26 行，平铺就是一堵墙；而场外（定投申购）与场内（买卖波段）
-     进出方式本就不同，混着读会被当成一类。这条小标题兼作**分节线** ——
-     一条细下边线把两段分开，右侧给该段的只数 / 市值 / 占持仓比（段内按市值降序）。
-     ⚠ 用它而不是给每段套底块：全页的层级语言是「细分节线 + 字重」，加底色块会与 KPI 抢眼。 */
-  .xr-grp { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 10px 0 1px;
-    padding-bottom: 3px; border-bottom: 1px solid var(--line-soft);
-    font-size: var(--fs-xs); font-weight: 700; color: var(--tx2); }
-  .xr-grp .g-s { font-size: var(--fs-xxs); font-weight: 400; color: var(--tx3); }
-  /* 每只的「数 + 细节」两行挨着读是一组，组与组之间给 3px 呼吸位，免得 26 行糊成一片 */
-  .snap-part.fund { padding-top: 3px; }
-  /* 逐只表（XIRR 与 TWR / 逐只体检）的**第二行**：把「投入 / 现值 / 简单 / 天数」和结论文案从首行挪下来。
-     起因：首行原本把 5 个数塞进 .pv（1fr 列），手机上必然折成两三行，且各基金的数位对不齐 ——
-     「乱」就是从这里来的。现在首行只留三个数（名称 | 你的钱 | 标的），跨基金严格对齐；
-     细节整行铺开、灰字小一号，读不读都行。
-     ⚠ 它是 .snap-part 的**兄弟**（不在那个 grid 里），所以靠 padding 对齐，不要写 grid-column。 */
-  .xr-det { margin: 0 0 4px 6px; font-size: var(--fs-xxs); color: var(--tx3); font-family: var(--mono);
-    font-feature-settings: "tnum"; line-height: 1.65; }
-  /* .xr-det 自己设了三级灰，会盖掉全局 .up/.down（同权重、后出现者胜），故显式还原 */
-  .xr-det .up { color: var(--up); } .xr-det .down { color: var(--down); }
-  .snap-twr { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700; font-feature-settings: "tnum"; text-align: right; }
+  /* （2026-09-30 整段删除）原先这里是「逐只资金加权」那一套 grid 行样式：
+     .snap-part.fund / .snap-part.fund.head / .xr-det / .snap-twr，以及后来加的 .xr-grp 分组条。
+     用户两次反馈「表格还是对不齐」——根因就在这里：细节行是用「 · 」连成的**自由文本**，
+     同一行各字段的左边界随字数浮动（「91 天」与「120 天」之后的内容就错开了），
+     13 行叠起来看着像没排过版。
+     现已整体换成**真表格** .xr-tbl（见文件后部、紧挨 .chk-tbl 的那一段），
+     与「操作体检」同一套语言：列宽由内容自动对齐、数字列右对齐 + 等宽、手机端落成
+     「名称独占一行 + 分项等宽三列 ×2 行 + 备注分条」，两张表读法完全一致。 */
   .snap-part .strat-hint { align-self: center; }
   /* nowrap：标签一律单行（最长 4 字「本期盈亏」＝48px，列宽 58px 留 10px 余量），
      宁可让数值列窄一点也不折行——折行后整块表格的纵向对齐全乱。 */
@@ -506,20 +487,9 @@
   .prin-kpis .pk-n { margin-top: 1px; font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
   .prin-kpis .pk-n .strat-hint { margin-left: 4px; vertical-align: -1px; }
-  /* ---- 评级胶囊（2026-09-30 加）--------------------------------------------------
-     起因：用户「逐只 XIRR 与 TWR 直接看看不出好坏」。判据不做黑箱 —— 直接用页面既有的那条达标线
-     （年化 XIRR 对照无风险 10Y，即「逐只体检」第②项），把字母写在 XIRR 数值**前面**：
-     字母自然成一列，可以竖着扫一遍就把八只的成色看完。阈值与推导写在渲染侧的 gradeOf()，
-     并有一行图例钉在表尾（口径随时可查）。
-     A/B 实心（明显/达标有超额）、C 描边（刚好站在线上）、D 红描边（没跑赢无风险）、⏳ 灰描边（样本不足）。*/
-  .gr { display: inline-block; min-width: 14px; height: 14px; line-height: 13px; margin-right: 5px;
-    border-radius: 4px; text-align: center; font-family: var(--sans); font-size: 10px; font-weight: 800;
-    font-style: normal; font-feature-settings: normal; vertical-align: 1px; }
-  .gr-a { color: #fff; background: var(--up); }
-  .gr-b { color: #fff; background: var(--up); opacity: .7; }
-  .gr-c { color: var(--up); box-shadow: inset 0 0 0 1px var(--up); }
-  .gr-d { color: var(--down); box-shadow: inset 0 0 0 1px var(--down); }
-  .gr-n { color: var(--tx3); box-shadow: inset 0 0 0 1px var(--line-soft); }
+  /* （2026-09-30 删除）原先这里是评级胶囊 .gr / .gr-a..e 的自带配色。
+     评级已改为复用 .chk-tbl 的档位字母样式（.oc-a/b/c/d/na）—— 与「操作体检」的档位同色、同语义，
+     两处不再各说各话，故这套胶囊样式随之退役。 */
   /* （2026-09-24 删除）原先这里是「银行进出」行内构成小账本的一整套样式：.snap-flow / .sf-led /
      .sf-row / .sf-k / .sf-det / .sfx / .sfp。随 snapFlowNote 一起退役 —— 构成与逐期·逐只明细现在
      只存在于「银行进出」的 ? 浮层里（见 snapFlowTip）。这条路走过两版（先铺开、后折叠），
@@ -940,6 +910,50 @@
     .chk-tbl .c-note { display: block; margin-top: 5px; padding: 0; border: none; font-size: var(--chk-fs-mini); }
     /* 手机上隐去表头，所以列内小标签显示出来、并独立成行（与数字上下对齐，比挤在数字前更好认） */
     .chk-tbl .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); margin-bottom: 1px; }
+  }
+  /* ===== 逐只 XIRR 与 TWR / 逐只体检：改成**真表格**（2026-09-30，参照「操作体检」）========
+     起因：用户两次反馈「表格还是对不齐」。根因是旧版把细节写成一路「 · 」连成的自由文本，
+     同一行各字段的左边界随字数浮动，13 行叠起来像没排过版。
+     现在与「操作体检」同一套表格语言：
+       · 真 <table>：列宽由内容自动对齐；数字列右对齐 + 等宽（tabular-nums）→ 连小数点也对齐
+       · 行间细虚线、表头下实线、字号沿用 .chk-tbl 的局部变量（--chk-fs 10px / mini 9px）
+       · 手机（≤767px）：隐表头 → 名称独占一行 + 分项等宽三列 ×2 行 + 备注分条（同 .chk-tbl 落法）
+       · 档位字母沿用 .oc-a/b/c/d/na（与操作体检的档位同色同语义）；体检的四枚灯用 .ok/.watch/.bad/.na
+       · 分组行（场外 / 场内）跨全表、带上边线，桌面与手机同一处理
+     ⚠ 本表**复用 .chk-tbl 的全部基础样式**（th/td 留白与虚线、.c-lb 的隐藏/显示、.c-note 的换行、
+       thead 隐藏与 tr 块化），这里只补差异项。不要为它另起一套字号与行距，否则两张表会不一致。 */
+  .xr-tbl td.num, .xr-tbl th.num { text-align: right; }
+  .xr-tbl td.num { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; }
+  /* 年化后面的「98 天」小字：与操作体检成本列的 gap 小字同一处理（inline、小、灰）——
+     没它的话「年化」这个数就没了样本长度的上下文。
+     ⚠ 定宽（36px）是刻意的：「91 天」与「119 天」宽度不同，不定宽会把数字的右边界顶歪，
+       而本列是右对齐的 —— 定宽后数字与天数各自成一条竖线（手机端本列左对齐，同样受益）。 */
+  .xr-tbl .c-day { display: inline-block; width: 36px; text-align: left; font-style: normal;
+    font-family: var(--mono); font-size: var(--chk-fs-mini); color: var(--tx3); margin-left: 3px; }
+  /* 体检的四枚灯：✓ / ⚠ / ✗ / ⏳。⏳ 要去掉默认的 800 字重，否则灰字看着像有结论。 */
+  .xr-tbl b.ok { color: var(--up); }
+  .xr-tbl b.watch { color: var(--yellow); }
+  .xr-tbl b.bad { color: var(--red); }
+  .xr-tbl b.na { color: var(--tx3); font-weight: 400; }
+  /* 分组行：跨全表的**分节线**。桌面是表格里的一行、手机是块 —— 两边同一处理。
+     ⚠ 上边线而不是下边线：它要"压住"上面那一段（与 .xr-grp 旧版一致）。 */
+  .xr-tbl tr.xr-grp-row td { padding: 14px 8px 4px 0; border-top: 1px solid var(--line-soft); border-bottom: none; }
+  .xr-tbl tr.xr-grp-row:first-child td { padding-top: 3px; border-top: none; }
+  .xr-tbl tr.xr-grp-row .g-t { font-weight: 700; color: var(--tx2); letter-spacing: .06em; }
+  .xr-tbl tr.xr-grp-row .g-s { margin-left: 8px; font-size: var(--chk-fs-mini); color: var(--tx3); }
+  /* 标的列的市场圆点：沿用操作体检的 .c-dot（场外紫 / 场内青），13 只一眼分得出渠道 */
+  .xr-tbl .c-nm .c-dot { margin-right: 5px; }
+  /* 体检的四枚灯：左对齐（与表头同一左边界），列宽自然由内容定 —— 竖着扫就是「哪一项普遍不达标」 */
+  .xr-tbl td.lamp { white-space: nowrap; }
+  @media (max-width: 767px) {
+    /* 手机：与 .chk-tbl 完全同构。
+       ⚠ 各 <td> 之间**不能出现空白字符**（inline-block 三列各 33%，多一个空格就挤成两列）——
+         所以渲染侧整串拼接、不要换行缩进。 */
+    .xr-tbl .c-gr, .xr-tbl .c-xirr, .xr-tbl .c-twr, .xr-tbl .c-inv, .xr-tbl .c-val, .xr-tbl .c-rate {
+      display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; text-align: left; }
+    .xr-tbl td.lamp { display: inline-block; width: 25%; padding: 0; border: none; vertical-align: top; text-align: left; }
+    .xr-tbl td.num { text-align: left; }        /* 手机上是分项格子，左对齐比右对齐更好读 */
+    .xr-tbl tr.xr-grp-row td { padding: 14px 0 3px; }
   }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }

@@ -2535,9 +2535,9 @@ function renderPrincipal() {
          ⚠ 它评的是**「你的钱」（资金加权）**，不是标的 —— 所以胶囊只出现在 XIRR 那一列。
            TWR 的对照是同期纳指、且要 ≥90 天窗口（见「逐只体检」①），窗口不同，两者不可互换。 */
       const gradeOf = (r) => {
-        if (r.miss) return { k: "n", t: "⏳", why: "缺成交流水 → 算不出「你的钱」的年化，不评级" };
-        if (!r.ann || r.xirr === null) return { k: "n", t: "⏳", why: "跨度 " + r.days + " 天，未达 90 天门槛 → 不年化、不评级" };
-        if (rf === null) return { k: "n", t: "⏳", why: "缺无风险利率（10Y）→ 无从对照，不评级" };
+        if (r.miss) return { k: "na", t: "⏳", why: "缺成交流水 → 算不出「你的钱」的年化，不评级" };
+        if (!r.ann || r.xirr === null) return { k: "na", t: "⏳", why: "跨度 " + r.days + " 天，未达 90 天门槛 → 不年化、不评级" };
+        if (rf === null) return { k: "na", t: "⏳", why: "缺无风险利率（10Y）→ 无从对照，不评级" };
         const ex = r.xirr - rf;
         const pp = (x) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(2) + "pp";
         const why = "年化 XIRR " + fmtPct(r.xirr, 1) + " − 无风险 " + fmtPct(rf, 2) + " ＝ " + pp(ex);
@@ -2561,11 +2561,13 @@ function renderPrincipal() {
         { k: "etf", t: "场内 · 买卖波段", note: "现金流取自 POSITIONS.log（券商逐笔成交，费后口径）", rows: etfRows.slice().sort((a, b) => (b.val || 0) - (a.val || 0)) }
       ].filter((g) => g.rows.length);
       const sumVal = allRows.reduce((a, r) => a + (r.val || 0), 0);
-      const grpHead = (g) => {
+      /* 分组行：跨全表的 colspan 行，桌面与手机都用它分节 —— 故做成同一个函数、列数当参数。
+         ⚠ colspan 必须等于该表实际列数，否则桌面那行缺一格、分节线接不上。 */
+      const grpRow = (g, cols) => {
         const gv = g.rows.reduce((a, r) => a + (r.val || 0), 0);
-        return '<div class="xr-grp" title="' + esc(g.note + "；段内按市值降序") + '"><span class="g-t">' + g.t + "</span>" +
-          '<span class="g-s">' + g.rows.length + " 只 · 市值 " + fmtYuan(gv) +
-          (sumVal > 0 ? " · 占持仓 " + Math.round(gv / sumVal * 100) + "%" : "") + "</span></div>";
+        return '<tr class="xr-grp-row"><td colspan="' + cols + '" title="' + esc(g.note + "；段内按市值降序") + '">' +
+          '<span class="g-t">' + g.t + '</span><span class="g-s">' + g.rows.length + " 只 · 市值 " + fmtYuan(gv) +
+          (sumVal > 0 ? " · 占持仓 " + Math.round(gv / sumVal * 100) + "%" : "") + "</span></td></tr>";
       };
       perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实成交 / 申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
         '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
@@ -2575,44 +2577,65 @@ function renderPrincipal() {
         " · " + (drift.length ? "⚠ " + drift.length + " 只流水比快照成本多，需核对"
           : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平 ✓"
           : "与快照成本逐只对平 ✓") + "）</span></summary>" +
-        '<div class="snap-tbl">' +
-        /* 表头：两列各是"谁的成绩"——左＝你的钱（资金加权，全史），右＝标的本身（时间加权，快照窗口）。
-           达标线（无风险 10Y）写在左列标题里 —— 这是评级的对照基准，摆在表头就不用去体检里找。 */
-        '<div class="snap-part fund head"><span class="pn"></span><span class="pv">你的钱 · XIRR<span class="snap-sub">评级线 ≥ 无风险 ' +
-          (rf !== null ? fmtPct(rf, 2) : "—") + '</span></span><span class="snap-twr">标的 · TWR</span></div>' +
-        /* 行渲染：场外 / 场内共用一套版式（否则两段读法不一致）。
-           首行只留 名称 / 评级+年化 / TWR 三个数 —— 跨基金才对得齐；评级胶囊在 XIRR 前面，字母成一列。
-           第二行是细节，两段各有一个「解释那只现金流特点」的字段：场外＝含在途，场内＝买入/已卖。 */
-        groups.map((g) => grpHead(g) + g.rows.map((r) => {
+        /* 真表格（2026-09-30 重做）：8 列、列宽由内容自动对齐 —— 「对不齐」的根治就在这里。
+           数字列一律右对齐 + 等宽，所以连小数点也成一条线；第二行的自由文本改为「备注」列、一条一行。
+           手机端由 CSS 落成「名称独占一行 + 分项等宽三列 ×2 行 + 备注」（与操作体检同构）。 */
+        '<table class="chk-tbl xr-tbl"><thead><tr><th class="c-nm">标的</th>' +
+          '<th title="评级＝年化 XIRR 对照无风险 ' + (rf !== null ? fmtPct(rf, 2) : "—") + '（即「逐只体检」②那条达标线）">评级</th>' +
+          '<th class="num" title="资金加权年化：按每一笔真实申赎 / 成交的日期与金额解 IRR（全史）。跨度不足 90 天不年化，只报天数">年化 XIRR</th>' +
+          '<th class="num" title="' + esc("时间加权（标的本身的表现）：窗口 " + twrWin + "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。窗口与左边的年化 XIRR 不同，两者不可直接相减。") + '">TWR</th>' +
+          '<th class="num" title="' + esc("场外＝Σ申购（成功后进成本的金额，含在途补记）；场内＝Σ买入成交额 ＋ 买入费（费后口径）") + '">投入</th>' +
+          '<th class="num" title="期末市值：场外按份额×净值（在途另计），场内按收盘市值">现值</th>' +
+          '<th class="num" title="简单收益率＝（现值 ＋ 已赎回/已卖 − 投入）÷ 投入，不做年化 —— 年化在样本期很短时会被放大，这个数才是「实际赚了多少」">简单</th>' +
+          '<th title="这一只的金额口径（场外看在途补记、场内看买入费与已卖回收），以及数据自检">备注</th>' +
+        "</tr></thead><tbody>" +
+        groups.map((g) => grpRow(g, 8) + g.rows.map((r) => {
           const gd = gradeOf(r);
-          const chip = '<i class="gr gr-' + gd.k + '" title="' + esc(r.nm + " 的评级：" + gd.why) + '">' + gd.t + "</i>";
-          const tNote = "时间加权（标的本身的表现）：窗口 " + twrWin +
-            "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。它与左边 XIRR 的窗口不同，不可直接相减。";
-          const tCell = '<span class="snap-twr" title="' + esc(tNote) + '"><b class="' + (Number.isFinite(r.twr) ? cls(r.twr) : "") + '">' +
-            (Number.isFinite(r.twr) ? fmtPct(r.twr, 2) : "—") + "</b></span>";
-          /* 第二行 = 细节（整行铺开）。 */
-          const det = (arr) => '<div class="xr-det">' + arr.filter(Boolean).join(" · ") + "</div>";
-          if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
-            '</span><span class="pv">' + chip + '<b style="color:var(--tx3)">未录入</b></span>' + tCell + "</div>" +
-            det(["缺成交流水 → 不参与年化", "现值 " + fmtYuan(r.val)]);
-          const main = (r.ann && r.xirr !== null)
-            ? '<b class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + '</b><span class="snap-sub">年化</span>'
-            : '<b style="color:var(--tx3)">' + r.days + ' 天 · 暂不年化</b>';
-          const invTxt = (r.mkt === "etf")
-            ? "买入 " + fmtYuan(r.invAll) + (r.fee > 0.5 ? "（含费 " + fmtAmt2(r.fee) + "）" : "") +
-              (r.sold > 0.5 ? " · 已卖 " + fmtYuan(r.sold) : "")
-            : "投入 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtAmt2(r.transit) + "）" : "");
-          return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) + '</span><span class="pv">' + chip + main + "</span>" + tCell + "</div>" +
-            det([r.ann ? r.days + " 天" : "", invTxt,
-              "现值 " + fmtYuan(r.val), "简单 " + '<b class="' + cls(r.gain) + '">' + fmtPct(r.rate, 2) + "</b>"]);
+          const dot = '<span class="c-dot ' + (r.mkt === "etf" ? "etf" : "otc") + '"></span>';
+          const lb = (t) => '<span class="c-lb">' + t + "</span>";   /* 仅手机显示：隐去表头后由它充当列名 */
+          /* ⚠ 未录入那两行也补一个**空的天数占位**（.c-day 定宽 36px）：
+             否则它们的文字会顶到 633（＝有天数的行里天数的右边界），比其它行的数字多出 39px，
+             整列右边界就不齐了 —— 这正是"表格化"要修掉的那类参差。 */
+          const xirrCell = r.miss
+            ? '<span class="oc-na">未录入</span><em class="c-day"></em>'
+            : r.ann && r.xirr !== null
+              ? '<span class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + '</span><em class="c-day">' + r.days + " 天</em>"
+              : '<span class="oc-na">暂不年化</span><em class="c-day">' + r.days + " 天</em>";
+          const twrCell = Number.isFinite(r.twr)
+            ? '<span class="' + cls(r.twr) + '">' + fmtPct(r.twr, 2) + "</span>"
+            : '<span class="oc-na">—</span>';
+          /* 备注：一条一行（渲染时用 <br> 断，与操作体检的「说明」列同一落法）。
+             写的是**这只的金额口径** —— 场外能看到在途补记、场内能看到买入费与已卖回收，
+             两者本就不是一个口径，摆出来才不会被读成同一回事。 */
+          const notes = [
+            r.miss ? "缺成交流水 → 不参与年化" : "",
+            !r.miss && r.mkt === "etf" && r.fee > 0.5 ? "含买入费 " + fmtAmt2(r.fee) : "",
+            !r.miss && r.mkt === "etf" && r.sold > 0.5 ? "已卖 " + fmtYuan(r.sold) + "（已计入现金流）" : "",
+            !r.miss && r.mkt !== "etf" && r.transit > 0.05 ? "含在途 " + fmtAmt2(r.transit) : "",
+            !r.miss && r.drift !== null && r.drift < -0.05 ? "⚠ 流水比快照成本多 " + fmtYuan(-r.drift) + "，需核对" : ""
+          ].filter(Boolean);
+          return "<tr>" +
+            '<td class="c-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm) + "</td>" +
+            '<td class="c-gr">' + lb("评级") + '<b class="oc-' + gd.k + '" title="' + esc(r.nm + "：" + gd.why) + '">' + gd.t + "</b></td>" +
+            '<td class="c-xirr num">' + lb("年化") + xirrCell + "</td>" +
+            '<td class="c-twr num">' + lb("TWR") + twrCell + "</td>" +
+            '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) + "</td>" +
+            '<td class="c-val num">' + lb("现值") + fmtYuan(r.val) + "</td>" +
+            '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
+            '<td class="c-note">' + notes.join("<br>") + "</td>" +
+          "</tr>";
         }).join("")).join("") +
-        /* 表尾图例（用户要的「参考标准」）：把 A/B/C/D/⏳ 的阈值写在表里，口径随时可查，不做黑箱评分。
-           ⚠ 只给左列（你的钱）出字母，右列（标的 TWR）只给对照基准、不出字母 —— 理由写在下面这句里。 */
-        '<div class="xr-det" style="margin-left:0">评级＝年化 XIRR 对照无风险 ' + (rf !== null ? fmtPct(rf, 2) : "—") +
-          "（＝逐只体检②那条达标线）：<b>A</b> ≥ +10pp · <b>B</b> ≥ +3pp · <b>C</b> ≥ 0（达标）· <b>D</b> &lt; 0（没跑赢无风险）；⏳ ＝ 样本 &lt;90 天或未录流水，不评级。评的是「你的钱」（资金加权），不是标的。" +
+        "</tbody></table>" +
+        /* 表尾图例（用户要的「参考标准」）：阈值写在表里，口径随时可查，不做黑箱评分。
+           容器沿用操作体检的 .otc-note（细虚线上边 + 灰字），两张表的尾注长得一样。 */
+        '<div class="otc-note chk-note"><b>评级</b>＝年化 XIRR 对照无风险 ' + (rf !== null ? fmtPct(rf, 2) : "—") +
+          "（＝逐只体检②那条达标线）：<b>A</b> ≥ +10pp · <b>B</b> ≥ +3pp · <b>C</b> ≥ 0（达标）· <b>D</b> &lt; 0（没跑赢无风险）；" +
+          "⏳ ＝ 样本 &lt;90 天或未录流水，不评级 —— 与全页「样本不足不出结论」同一条原则。评的是<b>「你的钱」（资金加权）</b>，不是标的。" +
           "标的 TWR 的对照＝同期纳指" + (benchRet !== null ? " " + fmtPct(benchRet, 2) + "（" + benchWin + "）" : "（无交集窗口）") +
-          "，但它<b>暂时不出字母</b>：窗口仅 " + winDays + " 天，QDII 净值滞后 1~2 天，短窗口下这点错配就足以造出 2~3pp 的假差距（09-23 曾因此误报「标的落后」），要满 90 天见体检①</div>" +
-        "</div></details>";
+          "，但它<b>暂时不出字母</b>：窗口仅 " + winDays + " 天，QDII 净值滞后 1~2 天，短窗口下这点错配就足以造出 2~3pp 的假差距（09-23 曾因此误报「标的落后」），要满 90 天见体检①。" +
+          "<b>投入</b>：场外＝Σ申购（含在途补记），场内＝Σ买入成交额＋买入费；<b>简单</b>＝（现值＋已赎回/已卖−投入）÷投入，<b>不做年化</b> —— " +
+          "样本期短时年化会被放大，这个数才是「实际赚了多少」。</div>" +
+        "</details>";
       /* ---- 逐只体检（骨架版）-------------------------------------------------------
          4 项：① 标的（TWR vs 同类指数 · 取交集窗口）② 你的钱（全史 XIRR vs 无风险 10Y）
                ③ 时点（同窗口 XIRR − TWR，两者都年化）④ 数据（流水齐全 + Σ 与快照成本对平）
@@ -2624,10 +2647,20 @@ function renderPrincipal() {
         '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
         " · 骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜达标线＝年化 ≥ " + (rf !== null ? fmtPct(rf, 2) : "无风险") +
         " ｜①③ 需同窗口 ≥90 天）</span></summary>" +
-        '<div class="snap-tbl">' + groups.map((g) => grpHead(g) + g.rows.map((r) => {
-          if (r.miss) return '<div class="snap-part fund"><span class="pn" title="' + esc(r.full) + '">' + esc(r.nm) +
-            '</span><span class="pv"><b style="color:var(--tx3)">⏳ 流水未录</b></span></div>' +
-            '<div class="xr-det">无法体检（现值 ' + fmtYuan(r.val) + '）</div>';
+        /* 与上一张表同一套表格语言（真 <table> + 分节行 + 手机端三列分项）：
+           四枚灯各占一列 —— 这样「哪一项不达标」可以竖着扫，而不是每行一段自由文本。 */
+        '<table class="chk-tbl xr-tbl"><thead><tr><th class="c-nm">标的</th>' +
+          '<th title="① 标的：该只的 TWR vs 同类指数（BENCH 只有纳指，故仅纳指类可比；取交集窗口）">① 标的</th>' +
+          '<th title="② 你的钱：全史 XIRR vs 无风险 10Y（达标线）">② 你的钱</th>' +
+          '<th title="③ 时点：同窗口 XIRR − TWR，两者都年化 —— 衡量「何时加减仓」的贡献">③ 时点</th>' +
+          '<th title="④ 数据：流水齐全，且 Σ 与快照成本对平（在途是正常口径，不计入问题）">④ 数据</th>' +
+          '<th title="这一只的体检结论（每句一行）；悬停数字区可看完整推导">结论</th>' +
+        "</tr></thead><tbody>" +
+        groups.map((g) => grpRow(g, 6) + g.rows.map((r) => {
+          const dotB = '<span class="c-dot ' + (r.mkt === "etf" ? "etf" : "otc") + '"></span>';
+          if (r.miss) return '<tr><td class="c-nm" title="' + esc(r.full) + '">' + dotB + esc(r.nm) + "</td>" +
+            '<td class="lamp" colspan="4"><span class="oc-na">⏳ 流水未录 → 无法体检</span></td>' +
+            '<td class="c-note">现值 ' + fmtYuan(r.val) + "</td></tr>";
           const twrB = (r.theme === "ndx" && benchRet !== null) ? twrRange(r.code, bStart, bEnd) : null;
           /* ① 也要 ≥90 天才出结论：短窗口下「QDII 联接 vs 指数」本身不可比 ——
              币种不同（人民币净值 vs 美元指数）＋ QDII 净值滞后 1~2 个交易日，
@@ -2654,12 +2687,16 @@ function renderPrincipal() {
             : (v2 === "bad" ? "收益未跑赢无风险利率 ✗" : v2 === "ok" ? "收益已跑赢无风险利率 ✓" : "收益口径样本不足") +
               (v1 === "bad" ? "；标的落后同类指数 ✗" : v1 === "ok" ? "；标的持平或更好 ✓" : "") +
               (v3 === "bad" ? "；节奏拖累 ✗" : v3 === "ok" ? "；节奏加分 ✓" : "");
-          return '<div class="snap-part fund" title="' + esc(why) + '"><span class="pn">' + esc(r.nm) + '</span><span class="pv">' +
-            '<b' + (v1 === "na" ? ' style="color:var(--tx3)"' : "") + '>①' + IC[v1] + '</b> <b' + (v2 === "na" ? ' style="color:var(--tx3)"' : "") + '>②' + IC[v2] +
-            '</b> <b' + (v3 === "na" ? ' style="color:var(--tx3)"' : "") + '>③' + IC[v3] + '</b> <b' + (v4 === "na" ? ' style="color:var(--tx3)"' : "") + '>④' + IC[v4] + '</b>' +
-            '</span></div>' +
-            '<div class="xr-det">' + esc(concl) + "</div>";
-        }).join("")).join("") + "</div></details>";
+          /* 四枚灯各占一列：颜色与字重见 CSS 里的 .xr-tbl b.ok/.watch/.bad/.na（与 .oc-* 同色系）。
+             完整推导（含每个数的来源）挂在标的格上 —— 桌面悬停可看，不必占屏。 */
+          const lampCell = (n, v) => '<td class="lamp"><span class="c-lb">' + n + "</span>" +
+            '<b class="' + v + '">' + IC[v] + "</b></td>";
+          return "<tr>" + '<td class="c-nm" title="' + esc(why) + '">' + dotB + esc(r.nm) + "</td>" +
+            lampCell("① 标的", v1) + lampCell("② 你的钱", v2) + lampCell("③ 时点", v3) + lampCell("④ 数据", v4) +
+            /* 结论分条：与操作体检的「说明」列同一落法（把「；」换成换行），一句一行 */
+            '<td class="c-note">' + esc(concl).split("；").join("<br>") + "</td>" +
+            "</tr>";
+        }).join("")).join("") + "</tbody></table></details>";
     }
   }
   box.innerHTML =
