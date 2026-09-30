@@ -924,11 +924,12 @@
        thead 隐藏与 tr 块化），这里只补差异项。不要为它另起一套字号与行距，否则两张表会不一致。 */
   .xr-tbl td.num, .xr-tbl th.num { text-align: right; }
   .xr-tbl td.num { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; }
-  /* 年化后面的「98 天」小字：与操作体检成本列的 gap 小字同一处理（inline、小、灰）——
-     没它的话「年化」这个数就没了样本长度的上下文。
-     ⚠ 定宽（36px）是刻意的：「91 天」与「119 天」宽度不同，不定宽会把数字的右边界顶歪，
-       而本列是右对齐的 —— 定宽后数字与天数各自成一条竖线（手机端本列左对齐，同样受益）。 */
-  .xr-tbl .c-day { display: inline-block; width: 36px; text-align: left; font-style: normal;
+  /* 年化后面的小字：2026-09-30 由「98 天」（跨度）改成「在场均 48 天」（**有效在场期**）——
+     用户质疑年化 69.5% 之后定的 B 方案：把「这个年化是按多少天的实际暴露外推出来的」摆在数字旁边。
+     ⚠ 定宽（58px）是刻意的：不定宽的话，「在场均 35 天」与「在场均 91 天」宽度不同会把数字的右边界顶歪，
+       而本列是右对齐的 —— 定宽后数字与小字各自成一条竖线（手机端本列左对齐，同样受益）。
+     ⚠ 58px 是按「在场均 91 天」量的（约 51px）；未录入的行给**空的同宽占位**，保持同一条线。 */
+  .xr-tbl .c-day { display: inline-block; width: 58px; text-align: left; font-style: normal;
     font-family: var(--mono); font-size: var(--chk-fs-mini); color: var(--tx3); margin-left: 3px; }
   /* 体检的四枚灯：✓ / ⚠ / ✗ / ⏳。⏳ 要去掉默认的 800 字重，否则灰字看着像有结论。 */
   .xr-tbl b.ok { color: var(--up); }
