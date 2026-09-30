@@ -3594,6 +3594,54 @@ function holdCardHtml(row, i, ctx) {
   } else {
     kpiThird = '<div class="kpi"><div class="k-label">组合占比</div><div class="k-val">' + (totalVal ? (valAmt / totalVal * 100).toFixed(1) + '%' : '--') + '</div><div class="k-sub" style="color:var(--tx3)">' + fmtQty(p.qty) + ' 份</div></div>';
   }
+  /* ---- 回本阶梯（2026-09-30 加，用户要求）------------------------------------------
+     把「相对成本 −13% → 0%（回本）」每一档对应的**价格**列成一张小表：设价格提醒、判断还差多远，
+     比盯百分比直观（本例每 1% 恰好＝0.0542 元/份＝824 元，可以心算）。
+     · 口径＝**摊薄成本价** p.idxAtCost（Σ买入含费 − Σ卖出净额 ÷ 剩余份额，与卡上成本读数同源）——
+       这也是「把净现金投入收回来」的真回本价；券商 App 按 FIFO 摊成本，显示值可能略有不同。
+     · 浮亏时列 当前档 → 0%（回本）；浮盈时列 0%（成本）→ 当前档（问的是"跌到哪白干"）。
+     · 两端都取整到整数百分点，最多 20 档（超了从成本端截断并注明），不会刷屏。 */
+  const costPx = p.idxAtCost, nowPx = m.close;
+  const curPct = costPx > 0 ? (nowPx / costPx - 1) * 100 : 0;
+  const stepPx = costPx * 0.01;                       // 每 1% 的价格步长（本例 0.0542 元/份）
+  const rbFrom = Math.min(0, Math.floor(curPct));
+  const rbTo = Math.max(0, Math.ceil(curPct));
+  const rbAll = [];
+  for (let pp = rbFrom; pp <= rbTo; pp++) rbAll.push(pp);
+  /* 档位过多时不硬铺（港美浮亏 −56% 就是 57 档，铺满没人看）：
+     取**离当前最近的 14 档** + 0%（回本）那一档，中间跳过的用一行「…省去 N 档」交代 ——
+     既看得到眼前的目标，也看得到终点。 */
+  const RB_MAX = 16;
+  const rbPick = rbAll.length <= RB_MAX ? rbAll
+    : rbAll.slice().sort((a, b) => Math.abs(a - curPct) - Math.abs(b - curPct)).slice(0, 14)
+      .concat(rbAll.indexOf(0) >= 0 ? [0] : []).sort((a, b) => a - b);
+  const rbNowPp = rbPick.reduce((a, x) => (Math.abs(x - curPct) < Math.abs(a - curPct) ? x : a), rbPick[0]);
+  const rbRowHtml = (pp) => {
+    const price = costPx * (1 + pp / 100);
+    const val = price * p.qty;
+    const pl = val - costAmt;                          // ⚠ p.cost 是**单位成本**，总额要用 costAmt（destructure 自 row）
+    const isNow = pp === rbNowPp && Math.abs(pp - curPct) <= 1.5;
+    return '<tr' + (pp === 0 ? ' class="rb-cost"' : (isNow ? ' class="rb-now"' : "")) + ">" +
+      "<td>" + (pp === 0 ? "0%（回本）" : pp + "%") + (isNow ? ' <span class="rb-here">← 现在</span>' : "") + "</td>" +
+      '<td class="num">' + price.toFixed(4) + "</td>" +
+      '<td class="num ' + cls(price / nowPx - 1) + '">' + fmtPct(price / nowPx - 1, 2) + "</td>" +
+      '<td class="num">' + fmtYuan(val) + "</td>" +
+      '<td class="num ' + cls(pl) + '">' + fmtAmt2(pl) + "</td></tr>";
+  };
+  const ladderFold = '<details class="rebound" data-k="' + i + '">' +
+    '<summary>' + (curPct < 0 ? "回本阶梯" : "跌回成本阶梯") +
+      '<span class="rebound-cnt">（' + (curPct < 0 ? "浮亏 " + fmtPct(curPct / 100) : "浮盈 " + fmtPct(curPct / 100)) +
+      " → 成本价 " + costPx.toFixed(4) + " 元/份 · 每 1% ＝ " + stepPx.toFixed(4) + " 元/份 ＝ " + Math.round(stepPx * p.qty) + " 元）</span></summary>" +
+    '<table class="rb-tbl"><thead><tr><th>相对成本</th><th class="num">价格(元/份)</th><th class="num">相对现价</th>' +
+      '<th class="num">持仓市值</th><th class="num">浮盈/亏</th></tr></thead><tbody>' +
+    rbPick.map((pp, k) => (k > 0 && pp - rbPick[k - 1] > 1
+      ? '<tr class="rb-more"><td colspan="5">…（省去 ' + (pp - rbPick[k - 1] - 1) + " 档）</td></tr>" : "") + rbRowHtml(pp)).join("") +
+    "</tbody></table>" +
+    '<div class="otc-note"><b>口径</b>：摊薄成本价 <b>' + costPx.toFixed(4) + " 元/份</b>（Σ买入含费 − Σ卖出净额 ÷ 剩余份额，与卡上成本读数同源）——" +
+      "卖在这个价刚好把<b>净现金投入 " + fmtYuan(costAmt) + "</b>收回来。券商 App 按 FIFO 摊成本，显示的持仓成本价可能略有不同。<br>" +
+      "「相对现价」按报价日 " + (health && health.asOf ? mdOf(health.asOf) : "未核验") + " 的 " + fmtIdx(nowPx) + " 元/份 计算，盘中以券商实时价为准。" +
+      "每 1% 的价格步长 ＝ 成本价的 1%，本例 " + stepPx.toFixed(4) + " 元/份 ＝ " + Math.round(stepPx * p.qty) + " 元。</div>" +
+    "</details>";
   return '<article class="card" data-sym="' + p.sym + '">' +
     '<div class="pos-head"><div class="pos-name">' + p.sym +
       '<span class="code">' + p.code + '</span>' +
@@ -3643,6 +3691,7 @@ function holdCardHtml(row, i, ctx) {
       '卡内市值/浮盈按<b>场内现价</b>（含溢价）估算；「溢价/折价（近似）」＝场内收盘价 ÷ 基金<b>最近公布</b>的单位净值 − 1：' +
       'QDII 净值晚 1~2 个交易日才出、两个数不同日，故为近似；正＝溢价（场内买贵了）、负＝折价。</div>' +
     '</div>' +
+    ladderFold +
     /* 操作体检**不再**嵌在卡里（2026-09-27 用户改为「单独做一块」）——
        现在集中在「操作体检」卡片里横向对比，见 renderCheckup()。 */
     posLogHtml(p, r, pl) +

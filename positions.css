@@ -981,6 +981,28 @@
     /* 备注：手机列已堆叠 → 这一格单独成行（ⓘ 仍在行内，点开是底部浮层） */
     .xr-tbl td.c-info { display: block; margin-top: 4px; padding: 0; border: none; }
   }
+  /* ===== 回本阶梯（2026-09-30 加，用户要求）========================================
+     持仓卡里的折叠小表：从当前亏损档一路列到回本（浮盈时则从成本列到现价），
+     每 1% 一行、给出价格 / 相对现价 / 市值 / 浮亏 —— 设价格提醒、判断还差多远。
+     行式语言与流水区一致（细分节线 + 等宽数字），字号走全站最小档，不抢卡面读数。 */
+  .rebound > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px;
+    font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 7px 0 5px; }
+  .rebound > summary::-webkit-details-marker { display: none; }
+  .rebound > summary:hover { color: var(--tx); }
+  .rebound > summary::after { content: "展开 ▾"; margin-left: auto; color: var(--blue); font-size: var(--fs-xs); white-space: nowrap; }
+  .rebound[open] > summary::after { content: "收起 ▴"; }
+  .rebound .rebound-cnt { color: var(--tx3); font-size: var(--fs-xxs); }
+  .rb-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-xxs); }
+  .rb-tbl th { text-align: left; font-weight: 700; color: var(--tx3); padding: 0 8px 5px 0;
+    border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .rb-tbl td { padding: 4px 8px 4px 0; border-bottom: 1px dashed var(--line-soft);
+    font-family: var(--mono); font-feature-settings: "tnum"; white-space: nowrap; }
+  .rb-tbl th.num, .rb-tbl td.num { text-align: right; }
+  .rb-tbl tr:last-child td { border-bottom: none; }
+  .rb-tbl tr.rb-cost td { font-weight: 700; color: var(--tx); }      /* 0% ＝ 回本行，加粗 */
+  .rb-tbl tr.rb-now td { color: var(--blue); }                       /* 离当前最近的档，标蓝 */
+  .rb-tbl .rb-here { font-size: var(--fs-xxs); color: var(--blue); }
+  .rb-tbl .rb-more { color: var(--tx3); font-family: var(--sans); }
   .pos-log > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); color: var(--tx2); cursor: pointer; list-style: none; padding: 2px 0; }
   .pos-log > summary::-webkit-details-marker { display: none; }
   .pos-log > summary b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
