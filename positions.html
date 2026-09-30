@@ -817,7 +817,10 @@ const TREND_GEO = { mL: 46, mR: 12, mT: 20, mB: 24, H: 210, dot: 3.8, dotBig: 5,
    整条线像一条飘带，拐点之间的差别读不出来；窄屏 272px（纵向 +30%）。
    resize 会整张重绘（renderTrend），所以横竖屏切换、拖宽窗口都自动跟随。 */
 const geoH = () => (window.innerWidth <= 560 ? 272 : TREND_GEO.H);
-const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"], ["dd", "回撤"]];
+/* 视图 chips。⚠ 「盈亏全程」带「· 场内」不是修饰：它取 ACCT_STATS 月度读数（券商 App、含已实现），
+   与另外三个视图的全账户口径（场内 + 场外 + 现金）**不是一回事** —— 08-28 之前的场外没有任何读数，
+   合计的「全程」做不到（要补历史净值 + 逐笔份额，见 buildPnlPts 的说明），故在 chip 上就写明，别点进去才发现。 */
+const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程 · 场内"], ["rate", "收益率"], ["dd", "回撤"]];
 function renderTrendViews() {
   const el = $("trend-views");
   if (!el) return;
@@ -837,7 +840,7 @@ function renderTrendLegend() {
   const item = (cls, label, tip) => '<span title="' + tip + '"><i class="' + cls + '"></i>' + label + "</span>";
   let html;
   if (trendView === "pnl") {
-    html = item("", "账户累计盈亏", "蓝色实线＝场内账户累计盈亏（含已实现）；零轴以上为盈、以下为亏，面积按正负分色");
+    html = item("", "账户累计盈亏 · 场内", "蓝色实线＝场内账户累计盈亏（含已实现）；零轴以上为盈、以下为亏，面积按正负分色。⚠ 场内口径：不含场外与现金（08-28 之前场外无读数，合计的全程做不到）");
   } else if (trendView === "rate") {
     html = item("", "组合（TWR）", "蓝色实线＝资金流调整后的组合累计收益率（逐期剔除转入/转出），与基准同口径、同起点") +
       item("base", "同期纳指", "灰色虚线＝同期纳指涨跌，已归一到与组合同一起点；两线间距即超额收益");
@@ -907,7 +910,11 @@ function todayStr() {
 }
 /* 完整历程序列：SNAPSHOTS 只覆盖 08-28 起（12 天），真实建仓自 06-01（100 天 / 43 笔），中间 88 天缺失。
    用 ACCT_STATS.monthly（App 月度读数）重建「账户累计盈亏」全程，补上 7 月 −1.8 万这段。
-   ⚠ 口径：场内账户（含已实现），与全账户（含场外+现金）不同——图上以图例文字标注，勿混用。 */
+   ⚠ 口径：场内账户（含已实现），与全账户（含场外+现金）不同 ——
+     图例、chip（「盈亏全程 · 场内」）、读数条、? 四处都标注了，勿混用。
+   ⚠ 合计的「全程」目前**做不到**：08-28 之前场外那 8 只没有任何读数，要还原得靠「逐笔份额 × 当月末净值」，
+     而 OTC_LOG 只记金额不记份额（这正是中欧 100 元要逐笔反推的原因）→ 需补历史净值与逐笔份额，属新增数据源。
+   （2026-09-30 用户问「以目前数据能做到合计吗」→ 不能，故按用户意见把「场内」写进标签。） */
 function buildPnlPts() {
   const S = (typeof ACCT_STATS !== "undefined") ? ACCT_STATS : null;
   const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
@@ -1138,7 +1145,7 @@ function renderTrendKpis(pts) {
         '<div class="k-val' + (flat ? "" : " down") + '"' + (flat ? ' style="color:var(--tx3)"' : "") + ">" + (flat ? "无回撤" : fmtPct(ddv, 2)) + "</div>" +
         '<div class="k-sub" style="color:var(--tx3)">' + (flat ? "区间内步步新高" : mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复")) + "</div></div>";
     })() : "") +
-    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（场内账户口径，含已实现；来自 ACCT_STATS.monthly 月度读数）">最大浮亏</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
+    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（**场内口径**，含已实现；来自 ACCT_STATS.monthly 月度读数）。⚠ 与「最大回撤（区间）」的全账户净值口径不是同一个数；合计的全程做不到（08-28 之前场外无读数）">最大浮亏 · 场内</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
 }
 /**
  * 相邻两点间：总资产线与投入线围成的区域，只填浮盈段（绿色；浮亏段不铺色，交叉时按交点拆分）。
