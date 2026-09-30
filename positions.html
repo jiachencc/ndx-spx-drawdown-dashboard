@@ -2273,58 +2273,98 @@ function renderClosed() {
   }).filter((g) => g.n);
   const low = rows.filter((r) => r.cat === "债基"), eq = rows.filter((r) => r.cat !== "债基");
   const lowSum = low.reduce((a, r) => a + r.pnl, 0), eqSum = eq.reduce((a, r) => a + r.pnl, 0);
-  /* ---- 结果侧汇总（2026-09-30 加，用户要「回顾用的汇总」）----
+  /* ---- 汇总（2026-09-30 加，用户要「回顾用的汇总」）----
      全部由 items **现算**：补录或订正一条明细，这里就跟着变（本页纪律：汇总不许写死）。
-     只做**金额口径**：这 17 笔只留了盈亏，没留「投入本金 / 清仓日」→ 收益率、年化、以及
-     「并入总账」都还算不了 —— 不拿估算冒充，如实标「—」并指向 ? 里的缺口说明。 */
+     两个维度：
+       · 金额：pnl 直接给 → 赚亏分解 / 集中度 / 平均每笔
+       · 收益率（本轮补齐）：App 只给「清仓收益率」，**不给投入** → 投入 = pnl ÷ rate 反推，一律标 ≈。
+         rate 越小反推越不准（0.03% 那笔 ±17%；0.3% 档 ±1.7%；≥1% 档 ±0.5%）→ 加权值只看量级，不当账。 */
+  const day = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5);
+  rows.forEach((r) => {
+    r.days = (r.buy && r.sell) ? day(r.buy, r.sell) : null;
+    r.cost = (typeof r.rate === "number" && r.rate !== 0) ? r.pnl / (r.rate / 100) : null;
+  });
+  const withCost = rows.filter((r) => r.cost !== null);
+  const costAll = withCost.reduce((a, r) => a + r.cost, 0);
+  const rateAll = costAll ? sum / costAll * 100 : 0;                                   // 加权收益率：Σ盈亏 ÷ Σ投入
+  const afterAmt = withCost.reduce((a, r) => a + r.cost * ((r.after || 0) / 100), 0);   // 清仓后这些标的整体又动了多少
+  const withDays = rows.filter((r) => r.days !== null);
+  const avgDays = withDays.length ? withDays.reduce((a, r) => a + r.days, 0) / withDays.length : null;
+  const grp = (rs) => {
+    const c = rs.reduce((a, r) => a + (r.cost || 0), 0), s = rs.reduce((a, r) => a + r.pnl, 0);
+    return { s, c, r: c ? s / c * 100 : 0 };
+  };
+  const gLow = grp(low), gEq = grp(eq);
   const ups = rows.filter((r) => r.pnl > 0), dns = rows.filter((r) => r.pnl < 0);
   const sumUp = ups.reduce((a, r) => a + r.pnl, 0), sumDn = dns.reduce((a, r) => a + r.pnl, 0);
   const topUp = ups.slice().sort((a, b) => b.pnl - a.pnl)[0] || null;
   const topDn = dns.slice().sort((a, b) => a.pnl - b.pnl)[0] || null;
   const shareOf = (v, base) => (base ? (Math.abs(v) / Math.abs(base) * 100).toFixed(1) + "%" : "—");
+  const pc = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(dp === undefined ? 2 : dp) + "%";
   const brief = [
     ["赚亏分解", "总赚 <b class=\"up\">" + fmt2(sumUp) + "</b>（" + ups.length + " 笔）｜ 总亏 <b class=\"down\">" + fmt2(sumDn) +
       "</b>（" + dns.length + " 笔）→ 净 <b class=\"" + cls(sum) + "\">" + fmt2(sum) + "</b>"],
-    ["平均每笔", "<b class=\"" + cls(sum) + "\">" + fmt2(sum / rows.length) + "</b> 元（净额 ÷ " + rows.length + " 笔）"],
+    ["规模与收益率", "投入 <b>≈" + fmtYuan(costAll) + "</b> 元（" + withCost.length + " 笔，由「盈亏 ÷ 收益率」反推）· "
+      + "加权收益率 <b class=\"" + cls(rateAll) + "\">" + pc(rateAll) + "</b><br>"
+      + "债基 投入 ≈" + fmtYuan(gLow.c) + " 元 → <b class=\"" + cls(gLow.r) + "\">" + pc(gLow.r) + "</b>　｜　"
+      + "权益 投入 ≈" + fmtYuan(gEq.c) + " 元 → <b class=\"" + cls(gEq.r) + "\">" + pc(gEq.r) + "</b>"],
+    ["平均每笔 / 持有", "<b class=\"" + cls(sum) + "\">" + fmt2(sum / rows.length) + "</b> 元（净额 ÷ " + rows.length + " 笔）· 平均持有 <b>"
+      + (avgDays === null ? "—" : avgDays.toFixed(1) + " 天") + "</b>（逐条现算；App 声明 " + (C.avgHoldDays || "—") + " 天 ✓）"],
     ["结果集中", (topUp ? "最赚 <b>" + esc(topUp.name) + " " + fmt2(topUp.pnl) + "</b> 占总赚 <b>" + shareOf(topUp.pnl, sumUp) + "</b>" : "") +
       (topDn ? "；最亏 <b>" + esc(topDn.name) + " " + fmt2(topDn.pnl) + "</b> 占总亏 <b>" + shareOf(topDn.pnl, sumDn) + "</b>" : "") +
       " —— 成败几乎由这两只决定"],
-    ["收益率", "—　缺「投入本金 / 清仓日」→ 收益率 / 年化 / 并入总账暂不可得（见上方 ? 的缺口说明）", true],
+    ["★ 清仓后", "这些标的<b class=\"" + cls(afterAmt) + "\">" + pc(afterAmt / costAll * 100) + "</b>（按投入加权，≈ " + fmt2(afterAmt) + " 元）："
+      + "卖掉之后它们<b>又跌了</b>，这一步换渠道等于避开了这段；"
+      + "<span class=\"b-warn\">⚠ 钱转去的直销 8 只是另一段行情（起点不同），不可直接相减</span>"],
   ];
   const briefHtml = '<div class="closed-brief">' + brief.map((b) =>
     '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("") + "</div>";
   const cnt = $("closed-cnt");
-  if (cnt) cnt.textContent = "（支付宝 · " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 平均持有 " +
-    (C.avgHoldDays || "—") + " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）";
+  if (cnt) cnt.textContent = "（支付宝 · " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 投入 ≈" + fmtYuan(costAll) +
+    " 元 · 加权收益率 ≈ " + pc(rateAll) + " · 平均持有 " + (avgDays === null ? "—" : avgDays.toFixed(1)) +
+    " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）";
   const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
+  const span = (a, b) => (a && b ? a + " ~ " + b : "—");
   const qNote = '<div class="strat-note" id="closed-q">'
-    + "来源：支付宝「清仓分析」（覆盖「最赚 TOP」与「最亏 TOP」两栏，即全部 " + rows.length + " 笔）；"
-    + "平台直销的四个渠道（广发基金 / 南方基金 / 博时APP / 华安基金）<b>从未清仓过</b>（2026-09-30 用户确认）"
-    + "→ 这 " + rows.length + " 笔就是<b>全部清仓史</b>。<br>"
+    + "来源：支付宝「清仓分析」（<b>2026-09-30 23:35 三张完整版</b>：每行含「持有区间 / 清仓收益 / 清仓收益率 / 清仓后涨跌幅」，"
+    + "末尾「没有更多了~」= 列全）；平台直销的四个渠道（广发基金 / 南方基金 / 博时APP / 华安基金）<b>从未清仓过</b>"
+    + "（2026-09-30 用户确认）→ 这 " + rows.length + " 笔就是<b>全部清仓史</b>。<br>"
     + "<b>已清仓</b>＝该基金份额已全部卖出，不再持有、也不再加仓。"
     + "清仓动机：支付宝渠道<b>限额缩紧 + 费率相对直销偏高</b>，已统一转到平台直销继续持有同类标的 ——"
     + "其中 4 只与现在在持的是同一只基金的不同渠道（广发全球精选 / 广发纳指100 / 博时标普500 / 华安纳斯达克100），"
     + "属<b>换渠道，不是看空</b>。<br>"
-    + "统计区间 " + (C.updated ? "2025-09-19 ~ " + C.updated : "最近一年") + "，App 注明「仅支持 2020.08 之后建仓的记录」；"
+    + "各笔持有区间 " + span(withDays.length ? withDays.map((r) => r.buy).sort()[0] : null,
+      withDays.length ? withDays.map((r) => r.sell).sort().at(-1) : null) + "（App 注明「仅支持 2020.08 之后建仓的记录」）；"
     + "盈亏为清仓时兑现额（含费，App 口径）。<br>"
-    + "⚠ 这些盈亏都发生在首份快照（2026-08-28）之前，所以<b>不在</b>本金 / 累计收益 / 走势归因里——"
-    + "本金是从快照推导的，快照之前的事它看不到。若要把这段并入「总账」，需补清仓日期与当时的投入金额"
-    + "（顺带才能算收益率 / 年化；这 17 笔当时没留这两个字段，故汇总里「收益率」一栏暂为「—」）。<br>"
+    + "⚠ <b>投入＝反推值</b>：App 只给「清仓收益率」、不给投入，故投入 = 盈亏 ÷ 收益率，页面上标「≈」；"
+    + "收益率越小反推越不准（0.03% 那笔 ±17%，0.3% 档 ±1.7%，≥1% 档 ±0.5%）→ 加权收益率与投入只看量级，别当账。<br>"
+    + "⚠ 这些盈亏都发生在首份快照（2026-08-28）之前，所以<b>不在</b>本金 / 累计收益 / 走势归因里"
+    + "（本金由快照推导，看不到窗口之前的事）。<br>"
     + "类别为手工标注（债基 / 美股QDII / 日本QDII / A股行业），仅用于看清「钱是从哪类资产上赚赔的」。</div>";
-  const detail = rows.map((r) =>
-      '<div class="closed-row"><span class="c-nm"><b>' + esc(r.name) + "</b>" +
+  const detail = rows.map((r) => {
+    const meta = [];
+    if (r.buy && r.sell) meta.push(r.buy.slice(5) + "→" + r.sell.slice(5) + " · " + r.days + " 天");
+    if (typeof r.rate === "number") meta.push("收益率 " + pc(r.rate));
+    if (r.cost !== null) meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US"));
+    if (typeof r.after === "number") meta.push("清仓后 " + pc(r.after));
+    return '<div class="closed-row"><span class="c-nm"><b>' + esc(r.name) + "</b>" +
         '<span class="c-code">' + esc(r.cat || "其他") + "</span>" +
         (r.code ? '<span class="c-code">' + esc(r.code) + "</span>" : "") +
+        (meta.length ? '<div class="c-meta">' + esc(meta.join(" · ")) + "</div>" : "") +
         (r.note ? '<div class="otc-note" style="margin:3px 0 0;padding:0;border:0">' + esc(r.note) + "</div>" : "") +
-      '</span><span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>").join("");
+      '</span><span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>";
+  }).join("");
   el.innerHTML =
     byCat.map((g) => '<div class="closed-row"><span class="c-nm"><b>' + esc(g.label) + '</b><span class="c-code">' + g.n + ' 只</span></span><span class="c-v ' + cls(g.sum) + '">' + fmt2(g.sum) + "</span></div>").join("") +
     '<div class="closed-total"><span>合计清仓盈亏' + qBtn + "（" + rows.length + " 只）</span><b class=\"" + cls(sum) + '">' + fmt2(sum) + "</b></div>" +
     qNote +
     briefHtml +
-    '<div class="closed-lead">这段历史里<b>赚钱的全部来自低风险债基（' + fmt2(lowSum) + "，" + low.length + " 只，全赚）</b>；" +
-      "权益类（QDII / 行业指数，" + eq.length + " 只：" + eq.filter((r) => r.pnl > 0).length + " 赚 " +
-      eq.filter((r) => r.pnl <= 0).length + " 亏）合计 <b class=\"" + cls(eqSum) + '">' + fmt2(eqSum) + "</b>，两者相抵才是 " + fmt2(sum) + "。</div>" +
+    '<div class="closed-lead">这一篮子的钱主要压在债基上：<b>债基 ' + low.length + " 只全赚 " + fmt2(lowSum) +
+      "（投入 ≈" + fmtYuan(gLow.c) + " 元，加权 " + pc(gLow.r) + "）</b>；权益 " + eq.length + " 只（" +
+      eq.filter((r) => r.pnl > 0).length + " 赚 " + eq.filter((r) => r.pnl <= 0).length + " 亏）合计 <b class=\"" + cls(eqSum) + '">' + fmt2(eqSum) +
+      "</b>（投入 ≈" + fmtYuan(gEq.c) + " 元，加权 " + pc(gEq.r) + "）—— <b>用了 " +
+      (gEq.c ? (gLow.c / gEq.c).toFixed(1) : "—") + " 倍的钱，债基只赚 " + pc(gLow.r) + "，权益亏 " + pc(gEq.r) +
+      "</b>，两者相抵才是 " + fmt2(sum) + "。（金额口径看不出这层反差，收益率口径才看得出）</div>" +
     '<details class="closed-all"><summary>展开全部 ' + rows.length + " 只明细（按盈亏排序）</summary>" + detail + "</details>";
 }
 
@@ -4748,7 +4788,7 @@ bindTrendCrosshair();
     if (miss.length) bad.push(miss.map((r) => r.m).join("/") + " 缺收益率或基准");
     return bad.length ? bad.join("；") : true;
   });
-  chk("清仓记录自洽（明细合计 = 总收益；只数 / 盈利率一致）", () => {
+  chk("清仓记录自洽（明细合计 = 总收益；只数 / 盈利率 / 投入与时间两列完整）", () => {
     if (typeof CLOSED === "undefined" || !CLOSED || !CLOSED.items) return "无清仓记录";
     const bad = [], rs = CLOSED.items;
     const s = rs.reduce((a, r) => a + r.pnl, 0);
@@ -4758,6 +4798,17 @@ bindTrendCrosshair();
     if (Math.abs(wr - CLOSED.winRate) > 0.02) bad.push("盈利率 " + wr.toFixed(2) + "% ≠ " + CLOSED.winRate + "%");
     const noCat = rs.filter((r) => !r.cat);
     if (noCat.length) bad.push(noCat.length + " 只缺类别");
+    /* 2026-09-30 补齐「投入 / 时间」两列时加：缺字段就说明「收益率」那几行是拿残缺数据算的 */
+    const miss = rs.filter((r) => !r.buy || !r.sell || typeof r.rate !== "number" || typeof r.after !== "number");
+    if (miss.length) bad.push(miss.length + " 只缺 buy/sell/rate/after");
+    const badSpan = rs.filter((r) => r.buy && r.sell && new Date(r.sell) <= new Date(r.buy));
+    if (badSpan.length) bad.push(badSpan.length + " 只持有区间非正");
+    /* 逐条现算的平均持有天数要和 App 声明值对得上 —— 这条曾一次抓出「日期读错」 */
+    const avgD = rs.reduce((a, r) => a + Math.round((new Date(r.sell) - new Date(r.buy)) / 864e5), 0) / rs.length;
+    if (Math.abs(avgD - CLOSED.avgHoldDays) > 1)
+      bad.push("逐条现算平均持有 " + avgD.toFixed(1) + " 天 ≠ App 声明 " + CLOSED.avgHoldDays + " 天");
+    const zeroRate = rs.filter((r) => r.rate === 0);
+    if (zeroRate.length) bad.push(zeroRate.length + " 只收益率为 0（投入无法反推）");
     return bad.length ? bad.join("；") : true;
   });
 
