@@ -18,10 +18,10 @@ const src = readFileSync(path.join(ROOT, "finance", "finance-data.js"), "utf8");
 const ctx = vm.createContext({});
 /* ⚠ 数据文件里是 `const` 声明 —— vm 里 const 不会挂到 context 上（只有 var 会），
    故显式把要用的名字抛到 this 上一次取回（与 scripts/check-data.mjs 同一手法）。 */
-vm.runInContext(src + "\nthis.__fin = { FIN_ASOF, FIN_MONTHS, FIN_ACCOUNTS, FIN_PL, FIN_EMPTY, FIN_DERIVED, FIN_CLAIMS, FIN_NOTES, FIN_BALANCE, FIN_FLOW };", ctx);
+vm.runInContext(src + "\nthis.__fin = { FIN_ASOF, FIN_MONTHS, FIN_ACCOUNTS, FIN_PL, FIN_EMPTY, FIN_DERIVED, FIN_CLAIMS, FIN_NOTES, FIN_BALANCE, FIN_CASH, FIN_FLOW };", ctx);
 const {
   FIN_ASOF, FIN_MONTHS, FIN_ACCOUNTS, FIN_PL, FIN_EMPTY, FIN_DERIVED, FIN_CLAIMS, FIN_NOTES,
-  FIN_BALANCE, FIN_FLOW,
+  FIN_BALANCE, FIN_CASH, FIN_FLOW,
 } = ctx.__fin;
 
 const fails = [];
@@ -101,26 +101,34 @@ check("口径说明齐（" + FIN_NOTES.length + " 条）", FIN_NOTES.length >= 6
 /* ── ⑦ 预留字段（第 2 / 3 步）：允许暂空，但一旦填了就必须合法 ────────
  * 为什么现在就校验：余额/流水是**分批**填的（7 个账户要发 7 次截图），
  * 中途抄错一个账户 id 或月份，页面（第 2 步）会静默少画一块，肉眼看不出来。 */
-const balBad = [], flowBad = [];
-Object.entries(FIN_BALANCE).forEach(([id, ms]) => {
-  if (!KNOWN.has(id)) balBad.push("未知账户 " + id);
-  Object.entries(ms || {}).forEach(([m, v]) => {
-    if (FIN_MONTHS.indexOf(m) < 0) balBad.push(id + " 月份非法：" + m);
-    else if (!num(v)) balBad.push(id + "/" + m + " = " + v + "（余额应为数字）");
+const fieldBad = { 余额: [], 现金: [], 流水: [] };
+const scanMoney = (name, obj) => {
+  Object.entries(obj).forEach(([id, ms]) => {
+    if (!KNOWN.has(id)) fieldBad[name].push("未知账户 " + id);
+    Object.entries(ms || {}).forEach(([m, v]) => {
+      if (FIN_MONTHS.indexOf(m) < 0) fieldBad[name].push(id + " 月份非法：" + m);
+      else if (!num(v)) fieldBad[name].push(id + "/" + m + " = " + v + "（应为数字）");
+    });
   });
-});
+};
+scanMoney("余额", FIN_BALANCE);
+scanMoney("现金", FIN_CASH);   // 现金与余额分开存：余额 = 投资市值，两者相加才是 App 总资产
 Object.entries(FIN_FLOW).forEach(([id, ms]) => {
-  if (!KNOWN.has(id)) flowBad.push("未知账户 " + id);
+  if (!KNOWN.has(id)) fieldBad.流水.push("未知账户 " + id);
   Object.entries(ms || {}).forEach(([m, v]) => {
-    if (FIN_MONTHS.indexOf(m) < 0) flowBad.push(id + " 月份非法：" + m);
-    else if (!v || !num(v.in) || !num(v.out)) flowBad.push(id + "/" + m + " 缺 in / out 数字");
+    if (FIN_MONTHS.indexOf(m) < 0) fieldBad.流水.push(id + " 月份非法：" + m);
+    else if (!v || !num(v.in) || !num(v.out)) fieldBad.流水.push(id + "/" + m + " 缺 in / out 数字");
   });
 });
-const balIds = Object.keys(FIN_BALANCE), flowIds = Object.keys(FIN_FLOW);
+const nAcc = FIN_ACCOUNTS.length;
+const balIds = Object.keys(FIN_BALANCE), cashIds = Object.keys(FIN_CASH), flowIds = Object.keys(FIN_FLOW);
 const missBal = FIN_ACCOUNTS.filter((a) => balIds.indexOf(a.id) < 0).map((a) => a.name);
-check("预留字段结构合法 —— 余额 " + balIds.length + "/" + FIN_ACCOUNTS.length + " 账户 · 流水 " + flowIds.length + "/" + FIN_ACCOUNTS.length + " 账户",
-  balBad.length === 0 && flowBad.length === 0,
-  balBad.concat(flowBad).join("；") || (missBal.length ? "待补余额：" + missBal.join(" / ") : ""));
+const missCash = FIN_ACCOUNTS.filter((a) => cashIds.indexOf(a.id) < 0).map((a) => a.name);
+check("预留字段结构合法 —— 余额 " + balIds.length + "/" + nAcc + " · 现金 " + cashIds.length + "/" + nAcc + " · 流水 " + flowIds.length + "/" + nAcc + " 账户",
+  !fieldBad.余额.length && !fieldBad.现金.length && !fieldBad.流水.length,
+  [].concat(fieldBad.余额, fieldBad.现金, fieldBad.流水).join("；")
+    || [missBal.length ? "待补余额：" + missBal.join(" / ") : "",
+        missCash.length ? "现金未确认（缺键 ≠ 0）：" + missCash.join(" / ") : ""].filter(Boolean).join("；"));
 
 /* ── 输出 ─────────────────────────────────────────────────────────── */
 console.log("个人财务看板 · 数据门禁（基准日 " + FIN_ASOF + "）");

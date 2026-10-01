@@ -105,6 +105,26 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
 .rank-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .rank-no { font-family: var(--mono); font-size: 10px; color: var(--tx3); min-width: 12px; text-align: right; }   /* 名次（现算，不写死） */
 
+/* ---- 总资产构成（第 2 步 · 2026-10-01）----
+ * 三类用**分类色**（蓝 / 青 / 琥珀），刻意不用涨跌色 —— 这块讲「构成」，不讲「赚赔」，
+ * 免得绿红被误读成盈亏；色值仍取自同一套令牌（换主题时一起变）。 */
+.astack { display: flex; height: 24px; border-radius: 8px; overflow: hidden; background: var(--card2); margin: 2px 0 9px; }
+.astack .seg { min-width: 3px; }
+.astack .seg + .seg { border-left: 1px solid var(--card); }
+.seg-bank { background: var(--accent); }      /* 银行 */
+.seg-broker { background: var(--cyan); }      /* 券商 */
+.seg-fund { background: var(--warn); }        /* 基金 */
+.aleg { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: var(--fs-xs); color: var(--tx2); margin-bottom: 10px; }
+.aleg i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.aleg b { font-family: var(--mono); color: var(--tx); }
+table.at { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-xs); }
+table.at th { color: var(--tx3); font-weight: 600; font-size: 11px; text-align: right; padding: 3px 8px; }
+table.at th.acct, table.at td.acct { text-align: left; }
+table.at td { padding: 7px 8px; text-align: right; font-family: var(--mono); color: var(--tx); border-top: 1px solid var(--line-soft); font-feature-settings: "tnum"; }
+table.at td.acct { font-family: inherit; }
+table.at td.pct { color: var(--tx3); }
+table.at tr.sum td { border-top: 1px dashed var(--line-soft); font-weight: 700; }
+
 /* ---- 口径卡 ---- */
 .notes { font-size: var(--fs-xs); color: var(--tx2); line-height: 1.75; }
 .notes ol { margin: 0; padding-left: 18px; }

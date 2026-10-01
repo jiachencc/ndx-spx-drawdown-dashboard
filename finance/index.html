@@ -3,16 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>个人财务 · 收益看板（2026）</title>
+<title>个人财务看板（2026）· 收益 ＋ 资产</title>
 <link rel="stylesheet" href="finance.css">
 </head>
 <body>
 <main>
   <header class="hero">
-    <h1>💰 个人财务 · 收益看板</h1>
-    <div class="sub">2026 年 · <b id="h-asof"></b> 收官 · <span id="h-n"></span> 个账户 · 单位：元</div>
+    <h1>💰 个人财务看板</h1>
+    <div class="sub">2026 年 · 截至 <b id="h-asof"></b> · <span id="h-n"></span> 个账户 · 收益 ＋ 资产 · 单位：元</div>
   </header>
 
+  <!-- ① 总资产构成（规划第 2 步 · 2026-10-01）：放在最前，因为「资产＝现状、收益＝过程」，
+       与持仓页「现状优先」同一读法。整块自包含，想挪到收益之后，把这三行搬走即可。 -->
+  <h2 class="sec"><span aria-hidden="true">💼</span> 总资产构成 <span class="cnt" id="asset-cnt"></span></h2>
+  <div class="card"><div class="kpis" id="asset-kpis"></div></div>
+  <div class="card">
+    <div id="asset-bar"></div>
+    <div class="aleg" id="asset-legend"></div>
+    <table class="at"><thead><tr><th class="acct">账户</th><th>占比</th><th>余额（投资）</th></tr></thead><tbody id="asset-rows"></tbody></table>
+    <div class="legend" id="asset-note"></div>
+  </div>
+
+  <h2 class="sec"><span aria-hidden="true">📈</span> 收益总览 <span class="cnt" id="pl-cnt"></span></h2>
   <div class="card"><div class="kpis" id="kpis"></div></div>
 
   <h2 class="sec"><span aria-hidden="true">📊</span> 账户 × 月 收益矩阵 <span class="cnt" id="mx-cnt"></span></h2>
@@ -28,14 +40,14 @@
   <div class="card"><div class="notes" id="notes"></div></div>
 
   <footer>
-    <b>规划</b>：第 2 步「总资产看板」（各账户月末余额 → 堆叠面积 + 银行/券商/基金三分）、
-    第 3 步「收支看板」（当月转入/转出 → 结余率）。数据层已预留 <code>FIN_BALANCE</code> / <code>FIN_FLOW</code>，
-    <b>只填数、不改结构</b>；前者需要各账户月末余额截图，后者需要银行/支付宝流水导出。<br>
+    <b>进度</b>：①「收益看板」✅（本页下面全部，月频账户级）｜ ②「总资产」✅ <b>当期版</b>（2026-09 月末构成，见页首；
+    历史月末余额不好找 → 暂只做当期，堆叠面积等攒够月度余额再画）｜ ③「收支看板」待做。<br>
+    ③ 需要银行 / 支付宝的流水（当月转入 / 转出 → 结余率）；数据层已预留 <code>FIN_FLOW</code>，<b>只填数、不改结构</b>。<br>
     ⚠ 收支口径要先定：<b>投资账户之间的转账不算支出</b>（应单列一类），否则储蓄率会算错。<br>
     <span id="foot-prog"></span><br>
     <span id="foot-src"></span><br>
     另见：<a href="../positions.html">📊 持仓与操作记录</a>（日频持仓级快照，含场内 5 只 + 场外 8 只逐只盈亏；
-    与本月频账户级账单是**同一批账户的两种粒度**，可互证但不可直接相减）
+    与本月频账户级账单是<b>同一批账户的两种粒度</b>，可互证但不可直接相减）
   </footer>
 </main>
 
@@ -47,7 +59,7 @@
  * 三态：缺键 = 未开户（空格）｜null = 空仓（「—」）｜数字 = 有持仓（含 0 = 持平）。
  * 推得值：数据层 FIN_DERIVED 标了 kind/text → 页面打 ✱，title 里写清算法。 */
 
-const A = FIN_ACCOUNTS, MS = FIN_MONTHS, PL = FIN_PL, DER = FIN_DERIVED, BAL = FIN_BALANCE;
+const A = FIN_ACCOUNTS, MS = FIN_MONTHS, PL = FIN_PL, DER = FIN_DERIVED, BAL = FIN_BALANCE, CASH = FIN_CASH;
 const fmt = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (v) => (v >= 0 ? "+" : "−") + Math.round(Math.abs(v)).toLocaleString("en-US");
 const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
@@ -64,6 +76,54 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 const hex2rgb = (h) => { const s = h.replace("#", ""); const n = parseInt(s.length === 3 ? s.split("").map((c) => c + c).join("") : s, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 const rgba = (h, a) => { const [r, g, b] = hex2rgb(h); return "rgba(" + r + "," + g + "," + b + "," + a + ")"; };
 const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d";
+
+/* ---- 总资产构成（2026-09 月末 · 规划第 2 步；页面显示在最前）----
+ * 口径：余额 = App 的「投资市值」（不含卡内活钱）；活钱单列（FIN_CASH）。
+ *   · 余额与持仓页同口径、7 账户已逐项对账 → 见 finance-data.js 的 FIN_BALANCE 注释
+ *   · 活钱里招行那笔最大（活期 ＋ 朝朝宝）；其余 4 账户 App 显示 0.00；广发 / 南方截图无此栏 → 缺键=未确认
+ * ⚠ 全部**现算**：补一格余额或活钱，三分、占比、合计、堆叠条都会自己跟着变（本页纪律：不许写死）。 */
+(function renderAssets() {
+  const MON = MS[MS.length - 1];                                     // 本期（2026-09）
+  const gv = (src, id) => { const v = (src[id] || {})[MON]; return v === undefined ? null : v; };
+  const y = (v) => Math.round(v).toLocaleString("en-US");
+  const share = (v, base) => (base ? (v / base * 100).toFixed(1) + "%" : "—");
+  /* ① 三类（银行 / 券商 / 基金）：堆叠条、图例、KPI 都用这一份结果 */
+  const cats = Object.keys(FIN_KIND_LABEL).map((k) => {
+    const rs = A.filter((a) => a.kind === k);
+    const inv = sum(rs.map((a) => gv(BAL, a.id)));
+    return { k, label: FIN_KIND_LABEL[k], inv, n: rs.filter((a) => gv(BAL, a.id) !== null).length,
+      cash: sum(rs.map((a) => gv(CASH, a.id) || 0)) };
+  });
+  const invTotal = sum(cats.map((c) => c.inv));
+  const cashTotal = sum(A.map((a) => gv(CASH, a.id) || 0));
+  const total = invTotal + cashTotal;
+  const cashUnknown = A.filter((a) => gv(CASH, a.id) === null).map((a) => a.name);
+  /* ② KPI 三格 */
+  const kc = (label, v, sub) => '<div class="kpi"><div class="k-label">' + label + '</div><div class="k-val">' + y(v) +
+    '</div><div class="k-sub">' + sub + '</div></div>';
+  document.getElementById("asset-kpis").innerHTML =
+      kc("总资产", total, A.length + " 账户 · 截至 " + FIN_ASOF + (cashUnknown.length ? "（" + cashUnknown.join(" / ") + " 活钱未确认，按 0 计）" : ""))
+    + kc("投资", invTotal, "占" + share(invTotal, total) + " · 银行 / 券商 / 基金 三分见下")
+    + kc("活钱", cashTotal, "招行（活期 ＋ 朝朝宝）· 其余 4 账户 App 显示 0.00");
+  /* ③ 堆叠条（宽度 ∝ 金额，合计 ＝ 投资）＋ 图例 */
+  document.getElementById("asset-bar").innerHTML = '<div class="astack">' + cats.map((c) =>
+    '<span class="seg seg-' + c.k + '" style="width:' + (invTotal ? (c.inv / invTotal * 100).toFixed(2) : "0") + '%" title="' + c.label +
+    "：" + y(c.inv) + " 元（" + share(c.inv, invTotal) + "）" + (c.cash ? "；另有活钱 " + y(c.cash) + " 元（不计入本条）" : "") + '"></span>').join("") + "</div>";
+  document.getElementById("asset-legend").innerHTML = cats.map((c) =>
+    '<span><i class="seg-' + c.k + '"></i>' + c.label + " <b>" + y(c.inv) + "</b> · " + share(c.inv, invTotal) + " · " + c.n + " 账户</span>").join("");
+  /* ④ 账户明细（按余额降序，占比现算）*/
+  const rows = A.map((a) => ({ a, v: gv(BAL, a.id) })).filter((r) => r.v !== null).sort((x, z) => z.v - x.v);
+  document.getElementById("asset-rows").innerHTML = rows.map((r) =>
+      '<tr><td class="acct">' + r.a.name + '<span class="chip">' + (FIN_KIND_LABEL[r.a.kind] || r.a.kind) + '</span></td><td class="pct">' +
+      share(r.v, invTotal) + "</td><td>" + y(r.v) + "</td></tr>").join("")
+    + '<tr class="sum"><td class="acct">投资合计</td><td class="pct">100.0%</td><td>' + y(invTotal) + "</td></tr>";
+  /* ⑤ 标题计数 + 口径 */
+  document.getElementById("asset-cnt").textContent = "（" + (+MON.slice(5)) + " 月末 · " + rows.length + " 账户 · 单位：元）";
+  document.getElementById("asset-note").innerHTML =
+    "<b>口径</b>：余额取 App 的「<b>投资市值</b>」（与持仓页同口径，7 账户逐项对账见数据层 FIN_BALANCE 注释；"
+    + "活钱<b>不并入</b>余额，单列一格）。<br>投资 " + y(invTotal) + " ＋ 活钱 " + y(cashTotal) + " ＝ <b>总资产 " + y(total) + " 元</b>。"
+    + (cashUnknown.length ? "<br>⚠ " + cashUnknown.join(" / ") + " 的截图里没有钱包 / 活钱栏 → <b>未确认</b>（本页按 0 计入总资产；若其实有余额，总数会略高）。" : "");
+})();
 
 /* ---- ① KPI 带 ---- */
 (function renderKpis() {
@@ -178,17 +238,20 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
 
 document.getElementById("h-asof").textContent = FIN_ASOF;
 document.getElementById("h-n").textContent = A.length;
+document.getElementById("pl-cnt").textContent = MS[0].slice(0, 4) + " 年 " + MS[0].slice(5) + "~" + MS[MS.length - 1].slice(5) + " 月 · " + A.length + " 个账户合计";
 document.getElementById("foot-src").textContent = "数据来源：7 个平台的月度账单 / 收益中心截图（2026-10-01 提供），基准日 " + FIN_ASOF + "。";
 
-/* ---- 余额进度（第 2 步「总资产看板」的输入清单）----
- * 现算：收到一个账户就少一个待补 —— 这样"还缺什么"永远在页面上看得见，不用回头翻对话。 */
-(function footProgress() {
-  const bal = BAL || {};
-  const have = A.filter((a) => bal[a.id]).map((a) => a.name);
-  const miss = A.filter((a) => !bal[a.id]).map((a) => a.name);
-  document.getElementById("foot-prog").innerHTML = "<b>余额进度</b>（第 2 步的输入）：" + have.length + "/" + A.length + " 账户"
-    + (have.length ? " · 已收到 " + have.join(" / ") : "")
-    + (miss.length ? " ｜ <b>待补</b>：" + miss.join(" / ") : " —— 已齐 ✓");
+/* ---- 数据覆盖（余额 / 现金，逐账户 · 现算）----
+ * 让「还缺什么」永远在页面上看得见：收到一个账户就少一个待补；
+ * 现金的缺键单独标「未确认」——它跟 0 是两件事（见 finance-data.js 的三态纪律）。 */
+(function footCoverage() {
+  const MON2 = MS[MS.length - 1];
+  const has = (src, id) => (src[id] || {})[MON2] !== undefined;
+  const bMiss = A.filter((a) => !has(BAL || {}, a.id)).map((a) => a.name);
+  const cMiss = A.filter((a) => !has(CASH || {}, a.id)).map((a) => a.name);
+  document.getElementById("foot-prog").innerHTML = "<b>数据覆盖</b>（" + (+MON2.slice(5)) + " 月末）："
+    + "余额 " + (A.length - bMiss.length) + "/" + A.length + " 账户" + (bMiss.length ? " · 待补 " + bMiss.join(" / ") : " ✓")
+    + " ｜ 现金 " + (A.length - cMiss.length) + "/" + A.length + (cMiss.length ? "（<b>未确认</b>：" + cMiss.join(" / ") + "）" : " ✓");
 })();
 </script>
 </body>
