@@ -99,7 +99,7 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
 .rank-bar { position: absolute; top: 0; bottom: 0; border-radius: 7px; }
 .rank-bar.pos { background: linear-gradient(90deg, var(--up-bg), var(--up)); }
 .rank-bar.neg { background: linear-gradient(90deg, var(--down), var(--down-bg)); }
-.rank-v { font-family: var(--mono); font-weight: 700; text-align: right; }
+.rank-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; }   /* 金额不许折行（折了就等于「两个数」） */
 .rank-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
 
 /* ---- 口径卡 ---- */
@@ -114,6 +114,11 @@ footer b { color: var(--tx2); }
 @media (max-width: 640px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .kpi .k-val { font-size: 16px; }
-  .rank-row { grid-template-columns: 84px 1fr 84px; }
+  /* 排行：手机上原来写死「名 84px ｜ 条 1fr ｜ 值 84px」——
+     而「4 字账户名 ＋ 类型 chip」要 ≈92px，装不下 → **7 行全部折成两行**（行高 53px，看着像被折起来）。
+     改成「名自适应 ＋ **把条缩短**到 72px ＋ 值自适应」：名不再折（390px 下约 174px 富余），
+     条退化为「量级指示器」——仍与桌面同一把尺、同一个中轴（正右负左），只是不再占掉名字的位置。 */
+  .rank-row { grid-template-columns: minmax(0, 1fr) 72px auto; gap: 8px; padding: 4px 0; }
+  .rank-v { font-size: var(--fs-xs); }
   .mrow { grid-template-columns: 30px 1fr 74px; gap: 6px; }   /* 逐月条：窄屏也保住完整金额那一列 */
 }
