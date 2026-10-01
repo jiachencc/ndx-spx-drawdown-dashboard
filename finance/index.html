@@ -20,6 +20,7 @@
   <div class="card">
     <div id="asset-bar"></div>
     <div class="aleg" id="asset-legend"></div>
+    <div class="abrief" id="asset-brief"></div>
     <table class="at"><thead><tr><th class="acct">账户</th><th>占比</th><th>余额（投资）</th></tr></thead><tbody id="asset-rows"></tbody></table>
     <div class="legend" id="asset-note"></div>
   </div>
@@ -117,7 +118,39 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
       '<tr><td class="acct">' + r.a.name + '<span class="chip">' + (FIN_KIND_LABEL[r.a.kind] || r.a.kind) + '</span></td><td class="pct">' +
       share(r.v, invTotal) + "</td><td>" + y(r.v) + "</td></tr>").join("")
     + '<tr class="sum"><td class="acct">投资合计</td><td class="pct">100.0%</td><td>' + y(invTotal) + "</td></tr>";
-  /* ⑤ 标题计数 + 口径 */
+  /* ⑤ 结构 × 收益（联动结论，2026-10-01 加）——
+     把「钱在哪」与「赚 / 亏 / 波动在哪」摆到一起：单看资产看不出风险集中，单看收益看不出仓位。
+     ⚠ 仓位一律用**9 月末余额占比**（不是全年平均仓位）→ 比率只作量级参考，故口径行如实标注。
+     结论全部现算：余额、月度、收益任何一处变了，这几行会自己跟着变。 */
+  const yrOf = (a) => annualOf(a.id);
+  const volOf = (a) => sum(Object.values(rowOf(a.id)).filter((v) => typeof v === "number").map(Math.abs));
+  const volTotal = sum(A.map(volOf));
+  const byBal = A.map((a) => ({ a, b: gv(BAL, a.id) || 0, y: yrOf(a), vol: volOf(a) }))
+    .filter((r) => r.b > 0).sort((x, z) => z.b - x.b);
+  const sh = (v, base) => (base ? (v / base * 100).toFixed(1) + "%" : "—");
+  const negSum = sum(byBal.filter((r) => r.y < 0).map((r) => r.y));
+  const top2 = byBal.slice(0, 2);
+  const top2Y = sum(top2.map((r) => r.y));
+  const expo = byBal.map((r) => ({ ...r, x: volTotal ? (r.vol / volTotal) / (r.b / invTotal) : 0 })).sort((x, z) => z.x - x.x)[0];
+  const worst = MS.map((m) => ({ m, v: colTot(m) })).sort((x, z) => x.v - z.v)[0];
+  const wRows = A.map((a) => ({ a, v: rowOf(a.id)[worst.m] || 0, b: gv(BAL, a.id) || 0 }))
+    .sort((x, z) => x.v - z.v).slice(0, 3);
+  const brief = [
+    ["钱在哪 / 赚在哪", "资产 <b>" + sh(sum(top2.map((r) => r.b)), invTotal) + "</b> 压在 <b>" + top2.map((r) => r.a.name).join(" ＋ ") + "</b>；"
+      + "这两家全年 <b>" + fmt(top2Y) + "</b>，其余 " + (byBal.length - top2.length) + " 个账户合计 <b>" + fmt(TOTAL - top2Y)
+      + "</b> —— 相抵才是全场的 " + fmt(TOTAL)],
+    ["最不成比例的一家", "<b>" + expo.a.name + "</b>：资产只占 <b>" + sh(expo.b, invTotal) + "</b>，却贡献了 <b>" + sh(expo.vol, volTotal) + "</b> 的月度波动"
+      + (expo.y < 0 && negSum ? "、" + sh(expo.y, negSum) + " 的负收益" : "")
+      + "（波动 ÷ 仓位 = <b>" + expo.x.toFixed(1) + "×</b>，1× ＝ 与仓位相称）"],
+    [monthShort(worst.m) + "那波 " + fmt(worst.v), "归因：" + wRows.map((r) =>
+      "<b>" + r.a.name + "</b> " + fmt(r.v) + "（占 " + sh(r.v, worst.v) + "，仓位 " + sh(r.b, invTotal) + "）").join(" ｜ ")
+      + " —— 前 3 家占 " + sh(sum(wRows.map((r) => r.v)), worst.v)],
+    ["口径", "「波动」= Σ|当月收益|（盈亏不互相抵消）；「仓位」= <b>9 月末</b>余额占比，不是全年平均仓位 → 比率只看量级，别当精确值", true],
+  ];
+  document.getElementById("asset-brief").innerHTML = brief.map((b) =>
+    '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("");
+
+  /* ⑥ 标题计数 + 口径 */
   document.getElementById("asset-cnt").textContent = "（" + (+MON.slice(5)) + " 月末 · " + rows.length + " 账户 · 单位：元）";
   document.getElementById("asset-note").innerHTML =
     "<b>口径</b>：余额取 App 的「<b>投资市值</b>」（与持仓页同口径，7 账户逐项对账见数据层 FIN_BALANCE 注释；"

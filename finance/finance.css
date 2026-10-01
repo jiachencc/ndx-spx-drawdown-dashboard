@@ -124,6 +124,13 @@ table.at td { padding: 7px 8px; text-align: right; font-family: var(--mono); col
 table.at td.acct { font-family: inherit; }
 table.at td.pct { color: var(--tx3); }
 table.at tr.sum td { border-top: 1px dashed var(--line-soft); font-weight: 700; }
+/* 结构 × 收益 分析带：把「钱在哪」和「赚/亏在哪」摆在一起，全部现算。
+   结论在前、明细（表）在后 —— 与持仓页清仓卡的 .closed-brief 同一手法。 */
+.abrief { margin: 10px 0 4px; border-top: 1px dashed var(--line-soft); padding-top: 8px; display: grid; grid-template-columns: max-content 1fr; gap: 5px 10px; font-size: var(--fs-xs); }
+.abrief .b-k { color: var(--tx3); white-space: nowrap; }
+.abrief .b-v { color: var(--tx2); line-height: 1.55; }
+.abrief .b-v b { font-family: var(--mono); color: var(--tx); font-feature-settings: "tnum"; }
+.abrief .b-v.miss { color: var(--tx3); }
 
 /* ---- 口径卡 ---- */
 .notes { font-size: var(--fs-xs); color: var(--tx2); line-height: 1.75; }
@@ -153,5 +160,7 @@ footer b { color: var(--tx2); }
   .rank-name { grid-area: name; }
   .rank-v { grid-area: val; font-size: var(--fs-xs); }
   .rank-track { grid-area: track; }
+  .abrief { grid-template-columns: 1fr; gap: 2px; }         /* 窄屏：标签与内容改上下排，避免标签列挤压内容 */
+  .abrief .b-k { margin-top: 5px; }
   .mrow { grid-template-columns: 30px 1fr 74px; gap: 6px; }   /* 逐月条：窄屏也保住完整金额那一列 */
 }
