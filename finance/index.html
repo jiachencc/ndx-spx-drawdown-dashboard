@@ -140,20 +140,24 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
   }).join("") + "</div>";
 })();
 
-/* ---- ④ 账户年度排行（中轴发散条：正右负左，同一把尺）---- */
+/* ---- ④ 账户年度排行（中轴发散条：正右负左，同一把尺）----
+ * ⚠ 这把尺**只在本卡内自洽**：半幅（50%）＝ 最大账户 → 小额账户本该很短，靠"条独占整行"来保住可见性
+ *   （手机上单行版会把平安 +157.80 压成 1.5px，看不出量级 —— 见 finance.css 第三版注释）。
+ * 名次现算（排序后的下标 + 1），不写死。 */
 (function renderRank() {
   const rows = A.map((a) => ({ a, v: annualOf(a.id) })).sort((x, y) => y.v - x.v);
   const maxAbs = Math.max.apply(null, rows.map((r) => Math.abs(r.v)).concat([1]));
-  document.getElementById("rank").innerHTML = rows.map((r) => {
+  document.getElementById("rank").innerHTML = rows.map((r, i) => {
     const w = Math.abs(r.v) / maxAbs * 50;
     const bar = r.v >= 0
       ? '<span class="rank-bar pos" style="left:50%;width:' + w.toFixed(2) + '%"></span>'
       : '<span class="rank-bar neg" style="right:50%;width:' + w.toFixed(2) + '%"></span>';
-    return '<div class="rank-row"><span class="rank-name">' + r.a.name + '<span class="chip">' + (FIN_KIND_LABEL[r.a.kind] || r.a.kind) + "</span></span>"
-      + '<span class="rank-track" title="' + r.a.products + '">' + bar + "</span>"
+    return '<div class="rank-row"><span class="rank-name"><span class="rank-no">' + (i + 1) + "</span>" + r.a.name
+        + '<span class="chip">' + (FIN_KIND_LABEL[r.a.kind] || r.a.kind) + "</span></span>"
+      + '<span class="rank-track" title="' + r.a.products + "：" + fmt(r.v) + ' 元（长度＝量级对比，半幅 = 最大账户）">' + bar + "</span>"
       + '<span class="rank-v ' + cls(r.v) + '">' + fmt(r.v) + "</span></div>";
   }).join("");
-  document.getElementById("rank-cnt").textContent = "（按全年收益排序 · 共 " + rows.length + " 个账户）";
+  document.getElementById("rank-cnt").textContent = "（按全年收益排序 · 共 " + rows.length + " 个账户 · 中轴 0 点：正右负左）";
 })();
 
 /* ---- ⑤ 口径与覆盖 ---- */

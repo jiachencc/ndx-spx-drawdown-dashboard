@@ -93,14 +93,17 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
 .mv { font-family: var(--mono); font-weight: 700; text-align: right; font-feature-settings: "tnum"; white-space: nowrap; }
 
 /* ---- 账户年度排行 ---- */
-.rank-row { display: grid; grid-template-columns: 100px 1fr 96px; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
+/* 名次列（12px）＋ 4 字账户名 ＋ 类型 chip ≈ 112px → 名字列给 118px，免得 chip 被挤下去 */
+.rank-row { display: grid; grid-template-columns: 118px 1fr 96px; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
 .rank-row:last-child { border-bottom: 0; }
 .rank-track { position: relative; height: 14px; background: var(--card2); border-radius: 7px; overflow: hidden; }
-.rank-bar { position: absolute; top: 0; bottom: 0; border-radius: 7px; }
+.rank-track::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.rank-bar { position: absolute; top: 0; bottom: 0; border-radius: 7px; min-width: 2px; }   /* 下限 2px：不为「量级极小」造出「没有」的错觉 */
 .rank-bar.pos { background: linear-gradient(90deg, var(--up-bg), var(--up)); }
 .rank-bar.neg { background: linear-gradient(90deg, var(--down), var(--down-bg)); }
 .rank-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; }   /* 金额不许折行（折了就等于「两个数」） */
 .rank-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.rank-no { font-family: var(--mono); font-size: 10px; color: var(--tx3); min-width: 12px; text-align: right; }   /* 名次（现算，不写死） */
 
 /* ---- 口径卡 ---- */
 .notes { font-size: var(--fs-xs); color: var(--tx2); line-height: 1.75; }
@@ -114,11 +117,21 @@ footer b { color: var(--tx2); }
 @media (max-width: 640px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .kpi .k-val { font-size: 16px; }
-  /* 排行：手机上原来写死「名 84px ｜ 条 1fr ｜ 值 84px」——
-     而「4 字账户名 ＋ 类型 chip」要 ≈92px，装不下 → **7 行全部折成两行**（行高 53px，看着像被折起来）。
-     改成「名自适应 ＋ **把条缩短**到 72px ＋ 值自适应」：名不再折（390px 下约 174px 富余），
-     条退化为「量级指示器」——仍与桌面同一把尺、同一个中轴（正右负左），只是不再占掉名字的位置。 */
-  .rank-row { grid-template-columns: minmax(0, 1fr) 72px auto; gap: 8px; padding: 4px 0; }
-  .rank-v { font-size: var(--fs-xs); }
+  /* 排行（第三版，2026-10-01）——前两版的问题与本次根因：
+     ① 写死「名 84px ｜ 条 1fr ｜ 值 84px」→ 「4 字名 ＋ 类型 chip」要 ≈92px，装不下 → 7 行全部折行；
+     ② 把条缩到 72px → 折行治好了，但**小额被压成看不见**（390px 实测条宽：招商 36px ｜ 广发 15.6 ｜
+        蚂蚁 12.1 ｜ 南方 5.4 ｜ 华安 2.1 ｜ 博时 1.8 ｜ **平安 1.5px** ✗）——根因两条：
+        · 尺由最大账户（招商 +3,847.51）定 → 小额天然只剩 2~8% 半幅；
+        · 且半幅只有 36px（72px 的 50%），再乘 2~8% 就没了。
+     ③ 本版：**改两行** —— 「名次 ＋ 名 ＋ 类型 ＋ 金额」占一行（不再折行）；中轴条独占整行（全宽 342px、半幅 171px）
+        → 同一把尺下小额也有 7~10px，全表都能看出量级；仍与桌面同一把尺、同一中轴（正右负左）。 */
+  .rank-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name val" "track track";
+    row-gap: 5px; column-gap: 8px; padding: 6px 0;
+  }
+  .rank-name { grid-area: name; }
+  .rank-v { grid-area: val; font-size: var(--fs-xs); }
+  .rank-track { grid-area: track; }
   .mrow { grid-template-columns: 30px 1fr 74px; gap: 6px; }   /* 逐月条：窄屏也保住完整金额那一列 */
 }
