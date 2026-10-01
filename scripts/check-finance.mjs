@@ -88,13 +88,39 @@ Object.entries(FIN_DERIVED).forEach(([id, ms]) =>
     const rest = sum(Object.entries(FIN_PL[id]).filter(([k]) => k !== m).map(([, x]) => x));
     if (!near(FIN_CLAIMS.annual[id] - rest, v)) badDerived.push(id + "/" + m + " 复算 " + money(FIN_CLAIMS.annual[id] - rest) + " ≠ 值 " + money(v));
   }));
-check("推得值（" + Object.values(FIN_DERIVED).reduce((a, o) => a + Object.keys(o).length, 0) + " 格）带标记，且「年度 − 其余月」能复算出同值",
+const nDer = Object.values(FIN_DERIVED).reduce((a, o) => a + Object.keys(o).length, 0);
+const nCell = FIN_ACCOUNTS.length * FIN_MONTHS.length;
+check(nDer
+  ? "推得值（" + nDer + " 格）带标记，且「年度 − 其余月」能复算出同值"
+  : "推得值 0 格 —— " + nCell + " 格全部是 App 原读数（每格都能指到某张截图）",
   badDerived.length === 0, badDerived.join("；"));
 
-/* ── ⑥ 预留字段与口径说明（规划项，缺了不报错，但要在状态里看得见）──── */
+/* ── ⑥ 口径说明 ──────────────────────────────────────────────────────── */
 check("口径说明齐（" + FIN_NOTES.length + " 条）", FIN_NOTES.length >= 6);
-check("已预留 FIN_BALANCE / FIN_FLOW（总资产 + 收支看板用，暂空）",
-  FIN_BALANCE !== null && FIN_FLOW !== null && typeof FIN_CLAIMS.total === "number");
+
+/* ── ⑦ 预留字段（第 2 / 3 步）：允许暂空，但一旦填了就必须合法 ────────
+ * 为什么现在就校验：余额/流水是**分批**填的（7 个账户要发 7 次截图），
+ * 中途抄错一个账户 id 或月份，页面（第 2 步）会静默少画一块，肉眼看不出来。 */
+const balBad = [], flowBad = [];
+Object.entries(FIN_BALANCE).forEach(([id, ms]) => {
+  if (!KNOWN.has(id)) balBad.push("未知账户 " + id);
+  Object.entries(ms || {}).forEach(([m, v]) => {
+    if (FIN_MONTHS.indexOf(m) < 0) balBad.push(id + " 月份非法：" + m);
+    else if (!num(v)) balBad.push(id + "/" + m + " = " + v + "（余额应为数字）");
+  });
+});
+Object.entries(FIN_FLOW).forEach(([id, ms]) => {
+  if (!KNOWN.has(id)) flowBad.push("未知账户 " + id);
+  Object.entries(ms || {}).forEach(([m, v]) => {
+    if (FIN_MONTHS.indexOf(m) < 0) flowBad.push(id + " 月份非法：" + m);
+    else if (!v || !num(v.in) || !num(v.out)) flowBad.push(id + "/" + m + " 缺 in / out 数字");
+  });
+});
+const balIds = Object.keys(FIN_BALANCE), flowIds = Object.keys(FIN_FLOW);
+const missBal = FIN_ACCOUNTS.filter((a) => balIds.indexOf(a.id) < 0).map((a) => a.name);
+check("预留字段结构合法 —— 余额 " + balIds.length + "/" + FIN_ACCOUNTS.length + " 账户 · 流水 " + flowIds.length + "/" + FIN_ACCOUNTS.length + " 账户",
+  balBad.length === 0 && flowBad.length === 0,
+  balBad.concat(flowBad).join("；") || (missBal.length ? "待补余额：" + missBal.join(" / ") : ""));
 
 /* ── 输出 ─────────────────────────────────────────────────────────── */
 console.log("个人财务看板 · 数据门禁（基准日 " + FIN_ASOF + "）");

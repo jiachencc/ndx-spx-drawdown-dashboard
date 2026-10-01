@@ -32,6 +32,7 @@
     第 3 步「收支看板」（当月转入/转出 → 结余率）。数据层已预留 <code>FIN_BALANCE</code> / <code>FIN_FLOW</code>，
     <b>只填数、不改结构</b>；前者需要各账户月末余额截图，后者需要银行/支付宝流水导出。<br>
     ⚠ 收支口径要先定：<b>投资账户之间的转账不算支出</b>（应单列一类），否则储蓄率会算错。<br>
+    <span id="foot-prog"></span><br>
     <span id="foot-src"></span><br>
     另见：<a href="../positions.html">📊 持仓与操作记录</a>（日频持仓级快照，含场内 5 只 + 场外 8 只逐只盈亏；
     与本月频账户级账单是**同一批账户的两种粒度**，可互证但不可直接相减）
@@ -46,7 +47,7 @@
  * 三态：缺键 = 未开户（空格）｜null = 空仓（「—」）｜数字 = 有持仓（含 0 = 持平）。
  * 推得值：数据层 FIN_DERIVED 标了 kind/text → 页面打 ✱，title 里写清算法。 */
 
-const A = FIN_ACCOUNTS, MS = FIN_MONTHS, PL = FIN_PL, DER = FIN_DERIVED;
+const A = FIN_ACCOUNTS, MS = FIN_MONTHS, PL = FIN_PL, DER = FIN_DERIVED, BAL = FIN_BALANCE;
 const fmt = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (v) => (v >= 0 ? "+" : "−") + Math.round(Math.abs(v)).toLocaleString("en-US");
 const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
@@ -103,7 +104,7 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
     + '<th class="tot">全年</th></tr></thead><tbody>';
   A.forEach((a) => {
     const note = FIN_ACCT_NOTES[a.id];
-    h += "<tr><td class=\"acct\" title=\"" + (note ? note.replace(/"/g, "&quot;") : a.products + "（自 " + a.since + " 起）") + "\">"
+    h += "<tr><td class=\"acct\" title=\"" + (note ? note.replace(/\*\*/g, "").replace(/"/g, "&quot;") : a.products + "（自 " + a.since + " 起）") + "\">"
       + a.name + '<span class="chip">' + (FIN_KIND_LABEL[a.kind] || a.kind) + "</span>"
       + (note ? ' <sup class="dv">✱</sup>' : "") + "</td>"
       + MS.map((m) => cellHtml(a.id, m)).join("")
@@ -113,7 +114,10 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
     + MS.map((m) => '<td class="' + cls(colTot(m)) + '">' + fmt(colTot(m)) + "</td>").join("")
     + '<td class="tot">' + fmt(TOTAL) + "</td></tr></tbody></table>";
   document.getElementById("matrix").innerHTML = h;
-  document.getElementById("mx-cnt").textContent = "（" + A.length + " 账户 × " + MS.length + " 月 · 底色深浅＝金额量级 · 空白＝尚未开户 · — ＝空仓）";
+  /* 读数成色**现算**（不写死）：推得值清空后，这里会自动变成「全部为 App 原读数」 */
+  const nDer = Object.values(DER).reduce((x, o) => x + Object.keys(o).length, 0);
+  document.getElementById("mx-cnt").textContent = "（" + A.length + " 账户 × " + MS.length + " 月 · 底色深浅＝金额量级 · 空白＝尚未开户 · — ＝空仓 · "
+    + (nDer ? nDer + " 格为推得值（✱）" : "全部为 App 原读数") + "）";
 })();
 
 /* ---- ③ 逐月合计（横向中轴发散条，2026-10-01 第三版）----
@@ -156,8 +160,9 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
 (function renderNotes() {
   const dvList = Object.entries(DER).map(([id, ms]) => Object.entries(ms).map(([m, d]) =>
     "<li>" + A.find((a) => a.id === id).name + " " + monthLabel(m) + "：<b>" + d.text + "</b></li>").join("")).join("");
+  const md = (s) => s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");   // 与上面 6 条口径同一套写法（此前漏转，星号会原样漏出来）
   const acctList = Object.entries(FIN_ACCT_NOTES).map(([id, t]) =>
-    "<li>" + A.find((a) => a.id === id).name + "：" + t + "</li>").join("");
+    "<li>" + A.find((a) => a.id === id).name + "：" + md(t) + "</li>").join("");
   document.getElementById("notes").innerHTML =
     "<ol>" + FIN_NOTES.map((t) => "<li>" + t.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>") + "</li>").join("") + "</ol>"
     + '<div class="legend"><b>图例</b>：空白 ＝ 该月尚未开户（缺键）｜<b>—</b> ＝ 有账户但空仓 ｜<b>0.00</b> ＝ 有持仓且当月持平'
@@ -170,6 +175,17 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
 document.getElementById("h-asof").textContent = FIN_ASOF;
 document.getElementById("h-n").textContent = A.length;
 document.getElementById("foot-src").textContent = "数据来源：7 个平台的月度账单 / 收益中心截图（2026-10-01 提供），基准日 " + FIN_ASOF + "。";
+
+/* ---- 余额进度（第 2 步「总资产看板」的输入清单）----
+ * 现算：收到一个账户就少一个待补 —— 这样"还缺什么"永远在页面上看得见，不用回头翻对话。 */
+(function footProgress() {
+  const bal = BAL || {};
+  const have = A.filter((a) => bal[a.id]).map((a) => a.name);
+  const miss = A.filter((a) => !bal[a.id]).map((a) => a.name);
+  document.getElementById("foot-prog").innerHTML = "<b>余额进度</b>（第 2 步的输入）：" + have.length + "/" + A.length + " 账户"
+    + (have.length ? " · 已收到 " + have.join(" / ") : "")
+    + (miss.length ? " ｜ <b>待补</b>：" + miss.join(" / ") : " —— 已齐 ✓");
+})();
 </script>
 </body>
 </html>
