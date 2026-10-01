@@ -79,8 +79,14 @@ table.mx tr.sumrow td { border-top: 1px dashed var(--line-soft); font-weight: 70
 sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px; cursor: help; }
 .chip { font-size: 10px; color: var(--tx3); border: 1px solid var(--line); border-radius: 999px; padding: 0 5px; margin-left: 5px; }
 
-/* ---- 逐月柱状（零线按正负幅度定位置：单一口径，不是双轴）---- */
-.chart { position: relative; height: 168px; margin: 4px 2px 0; }
+/* ---- 逐月柱状（零线按正负幅度定位置：单一口径，不是双轴）----
+ * 数字摆法（2026-10-01 重做，见 index.html 的注释）：数字在**图上方的数值条**里，
+ * 与柱一一对应且同色；**隔列下沉一行**（.odd）→ 相邻数字不在同一基线，任何机型都不遮挡。
+ * 柱区因此只放柱与零线 —— 原来的柱顶数字正是遮挡的来源（手机上 9 列每列仅约 38px）。 */
+.vrow { display: grid; grid-template-columns: repeat(9, 1fr); margin: 2px 2px 0; }
+.vrow span { text-align: center; font-family: var(--mono); font-size: 10px; line-height: 1.45; font-feature-settings: "tnum"; }
+.vrow span.odd { padding-top: 13px; }   /* 隔列下沉一行：给相邻数字让出整列余量 */
+.chart { position: relative; height: 158px; margin: 4px 2px 0; }
 .chart .zline { position: absolute; left: 0; right: 0; top: var(--z, 62%); height: 1px; background: var(--line); }
 .chart .zlab { position: absolute; right: 0; top: calc(var(--z, 62%) + 2px); font-family: var(--mono); font-size: 10px; color: var(--tx3); }
 .col { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; }
@@ -89,11 +95,8 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
 .col .bar { width: 58%; min-height: 2px; }
 .col .above .bar { border-radius: 4px 4px 0 0; background: var(--up); }
 .col .below .bar { border-radius: 0 0 4px 4px; background: var(--down); }
-.col .v { font-family: var(--mono); font-size: 10px; line-height: 1.4; white-space: nowrap; }
-.col .above .v { margin-bottom: 2px; }
-.col .below .v { margin-top: 2px; }
-.chart .mlab { display: flex; margin: 6px 2px 0; }
-.chart .mlab span { flex: 1; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+.mlab { display: flex; margin: 6px 2px 0; }
+.mlab span { flex: 1; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--tx3); }
 
 /* ---- 账户年度排行 ---- */
 .rank-row { display: grid; grid-template-columns: 100px 1fr 96px; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }

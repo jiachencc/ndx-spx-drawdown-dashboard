@@ -18,8 +18,8 @@
   <h2 class="sec"><span aria-hidden="true">📊</span> 账户 × 月 收益矩阵 <span class="cnt" id="mx-cnt"></span></h2>
   <div class="card mxwrap"><div id="matrix"></div></div>
 
-  <h2 class="sec"><span aria-hidden="true">📈</span> 逐月合计 <span class="cnt">零线按正负幅度定位（单一口径，非双轴）</span></h2>
-  <div class="card"><div class="chart" id="chart"></div></div>
+  <h2 class="sec"><span aria-hidden="true">📈</span> 逐月合计 <span class="cnt">零线按正负幅度定位（单一口径，非双轴）· 每根柱都有数字</span></h2>
+  <div class="card"><div id="bars"></div></div>
 
   <h2 class="sec"><span aria-hidden="true">🏆</span> 账户年度排行 <span class="cnt" id="rank-cnt"></span></h2>
   <div class="card"><div id="rank"></div></div>
@@ -116,31 +116,31 @@ const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d"
   document.getElementById("mx-cnt").textContent = "（" + A.length + " 账户 × " + MS.length + " 月 · 底色深浅＝金额量级 · 空白＝尚未开户 · — ＝空仓）";
 })();
 
-/* ---- ③ 逐月柱状（单一口径：零线位置 = 正幅 / 全幅）---- */
+/* ---- ③ 逐月柱状（单一口径：零线位置 = 正幅 / 全幅）----
+ * 数字怎么摆（2026-10-01 用户提「有遮挡，每月写上数字」后重做）：
+ *   原来把数字挂在柱顶 —— 手机上 9 列每列只有约 38px，而「−34,821」要 42px，**必然互相压**。
+ *   现在数字统一进**图上方的数值条**（与柱一一对应、同色），并**隔列下沉一行**：
+ *   相邻数字永远不在同一基线上，于是各自都有整列宽的余量，任何机型都不会遮挡 ✓
+ *   （柱区因此干净了：只有柱与零线，负柱的标签也不再挤到月份行上。） */
 (function renderBars() {
   const vals = MS.map(colTot);
   const maxPos = Math.max(0, Math.max.apply(null, vals)) || 0;
   const maxNeg = Math.max(0, -Math.min.apply(null, vals)) || 0;
   const z = maxPos + maxNeg ? maxPos / (maxPos + maxNeg) * 100 : 50;
-  const chart = document.getElementById("chart");
-  chart.style.setProperty("--z", z.toFixed(2) + "%");
   const colW = 100 / MS.length;
-  let h = '<div class="zline"></div><div class="zlab">0</div>';
+  const vrow = '<div class="vrow">' + vals.map((v, i) =>
+    '<span class="' + cls(v) + (i % 2 ? " odd" : "") + '" title="' + monthLabel(MS[i]) + "：" + fmt(v) + " 元\">"
+    + fmt0(v) + "</span>").join("") + "</div>";
+  let h = '<div class="chart" style="--z:' + z.toFixed(2) + '%"><div class="zline"></div><div class="zlab">0</div>';
   vals.forEach((v, i) => {
-    const title = monthLabel(MS[i]) + "：" + fmt(v);
+    const title = monthLabel(MS[i]) + "：" + fmt(v) + " 元";
     const pct = v >= 0 ? (maxPos ? v / maxPos * 100 : 0) : (maxNeg ? -v / maxNeg * 100 : 0);
-    if (v >= 0) {
-      h += '<div class="col" style="left:' + (i * colW).toFixed(3) + "%;width:" + colW.toFixed(3) + '%"><div class="above">'
-        + '<div class="v up" title="' + title + '">' + (Math.abs(v) > maxPos * 0.55 ? fmt0(v) : "") + '</div>'
-        + '<div class="bar" style="height:' + pct.toFixed(1) + '%" title="' + title + '"></div></div><div class="below"></div></div>';
-    } else {
-      h += '<div class="col" style="left:' + (i * colW).toFixed(3) + "%;width:" + colW.toFixed(3) + '%"><div class="above"></div><div class="below">'
-        + '<div class="bar" style="height:' + pct.toFixed(1) + '%" title="' + title + '"></div>'
-        + '<div class="v down" title="' + title + '">' + fmt0(v) + '</div></div></div>';
-    }
+    h += '<div class="col" style="left:' + (i * colW).toFixed(3) + "%;width:" + colW.toFixed(3) + '%">'
+      + '<div class="above">' + (v >= 0 ? '<div class="bar" style="height:' + pct.toFixed(1) + '%" title="' + title + '"></div>' : "") + "</div>"
+      + '<div class="below">' + (v < 0 ? '<div class="bar" style="height:' + pct.toFixed(1) + '%" title="' + title + '"></div>' : "") + "</div></div>";
   });
-  h += '<div class="mlab">' + MS.map((m) => "<span>" + monthShort(m) + "</span>").join("") + "</div>";
-  chart.innerHTML = h;
+  h += '</div><div class="mlab">' + MS.map((m) => "<span>" + monthShort(m) + "</span>").join("") + "</div>";
+  document.getElementById("bars").innerHTML = vrow + h;
 })();
 
 /* ---- ④ 账户年度排行（中轴发散条：正右负左，同一把尺）---- */
