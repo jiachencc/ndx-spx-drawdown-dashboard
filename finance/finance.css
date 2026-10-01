@@ -79,24 +79,18 @@ table.mx tr.sumrow td { border-top: 1px dashed var(--line-soft); font-weight: 70
 sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px; cursor: help; }
 .chip { font-size: 10px; color: var(--tx3); border: 1px solid var(--line); border-radius: 999px; padding: 0 5px; margin-left: 5px; }
 
-/* ---- 逐月柱状（零线按正负幅度定位置：单一口径，不是双轴）----
- * 数字摆法（2026-10-01 重做，见 index.html 的注释）：数字在**图上方的数值条**里，
- * 与柱一一对应且同色；**隔列下沉一行**（.odd）→ 相邻数字不在同一基线，任何机型都不遮挡。
- * 柱区因此只放柱与零线 —— 原来的柱顶数字正是遮挡的来源（手机上 9 列每列仅约 38px）。 */
-.vrow { display: grid; grid-template-columns: repeat(9, 1fr); margin: 2px 2px 0; }
-.vrow span { text-align: center; font-family: var(--mono); font-size: 10px; line-height: 1.45; font-feature-settings: "tnum"; }
-.vrow span.odd { padding-top: 13px; }   /* 隔列下沉一行：给相邻数字让出整列余量 */
-.chart { position: relative; height: 158px; margin: 4px 2px 0; }
-.chart .zline { position: absolute; left: 0; right: 0; top: var(--z, 62%); height: 1px; background: var(--line); }
-.chart .zlab { position: absolute; right: 0; top: calc(var(--z, 62%) + 2px); font-family: var(--mono); font-size: 10px; color: var(--tx3); }
-.col { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; }
-.col .above { flex: 0 0 var(--z, 62%); display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-height: 0; }
-.col .below { flex: 0 0 calc(100% - var(--z, 62%)); display: flex; flex-direction: column; align-items: center; min-height: 0; }
-.col .bar { width: 58%; min-height: 2px; }
-.col .above .bar { border-radius: 4px 4px 0 0; background: var(--up); }
-.col .below .bar { border-radius: 0 0 4px 4px; background: var(--down); }
-.mlab { display: flex; margin: 6px 2px 0; }
-.mlab span { flex: 1; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+/* ---- 逐月合计（横向中轴发散条 · 2026-10-01 第三版，见 index.html 的三次迭代注释）----
+ * 9 行等距，每行三段：月份 ｜ 中轴条 ｜ 金额（完整千分位）。
+ * 数字独占 76px 一列 → 任何机型都放得下，不必缩写、不必错行。 */
+.mbars { display: flex; flex-direction: column; gap: 4px; }
+.mrow { display: grid; grid-template-columns: 32px 1fr 78px; align-items: center; gap: 8px; font-size: var(--fs-xs); }
+.mk { font-family: var(--mono); color: var(--tx3); }
+.mtrack { position: relative; height: 14px; background: var(--card2); border-radius: 7px; overflow: hidden; }
+.mtrack::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.mbar { position: absolute; top: 0; bottom: 0; border-radius: 7px; min-width: 2px; }
+.mbar.up { background: linear-gradient(90deg, var(--up-bg), var(--up)); }
+.mbar.down { background: linear-gradient(90deg, var(--down), var(--down-bg)); }
+.mv { font-family: var(--mono); font-weight: 700; text-align: right; font-feature-settings: "tnum"; white-space: nowrap; }
 
 /* ---- 账户年度排行 ---- */
 .rank-row { display: grid; grid-template-columns: 100px 1fr 96px; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
@@ -121,5 +115,5 @@ footer b { color: var(--tx2); }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .kpi .k-val { font-size: 16px; }
   .rank-row { grid-template-columns: 84px 1fr 84px; }
-  .chart { height: 148px; }
+  .mrow { grid-template-columns: 30px 1fr 74px; gap: 6px; }   /* 逐月条：窄屏也保住完整金额那一列 */
 }
