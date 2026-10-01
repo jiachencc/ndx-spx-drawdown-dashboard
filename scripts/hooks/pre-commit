@@ -23,6 +23,14 @@ if ! node scripts/check-data.mjs; then
   exit 1
 fi
 
+# 个人财务看板（finance/）的数据门禁：行列/阶段/全年四条恒等式 + 三态 + 推得值复算。
+# 收益矩阵是手抄的（账户 × 月），抄错一格在页面上看不出来，只有这几条恒等式能抓。
+if ! node scripts/check-finance.mjs; then
+  echo "pre-commit: 财务看板数据门禁未通过 → 已阻止提交（详见上方输出）"
+  exit 1
+fi
+echo "pre-commit: check-finance ✓"
+
 log="${TMPDIR:-/tmp}/precommit-test.log"
 if ! node --test scripts/test-dashboard.mjs >"${log}" 2>&1; then
   echo "pre-commit: 回归测试未通过 → 已阻止提交（详见 ${log}）"

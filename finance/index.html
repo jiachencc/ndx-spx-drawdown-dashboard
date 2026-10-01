@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个人财务 · 收益看板（2026）</title>
+<link rel="stylesheet" href="finance.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <h1>💰 个人财务 · 收益看板</h1>
+    <div class="sub">2026 年 · <b id="h-asof"></b> 收官 · <span id="h-n"></span> 个账户 · 单位：元</div>
+  </header>
+
+  <div class="card"><div class="kpis" id="kpis"></div></div>
+
+  <h2 class="sec"><span aria-hidden="true">📊</span> 账户 × 月 收益矩阵 <span class="cnt" id="mx-cnt"></span></h2>
+  <div class="card mxwrap"><div id="matrix"></div></div>
+
+  <h2 class="sec"><span aria-hidden="true">📈</span> 逐月合计 <span class="cnt">零线按正负幅度定位（单一口径，非双轴）</span></h2>
+  <div class="card"><div class="chart" id="chart"></div></div>
+
+  <h2 class="sec"><span aria-hidden="true">🏆</span> 账户年度排行 <span class="cnt" id="rank-cnt"></span></h2>
+  <div class="card"><div id="rank"></div></div>
+
+  <h2 class="sec"><span aria-hidden="true">📋</span> 口径与覆盖 <span class="cnt">数据由 scripts/check-finance.mjs 校验</span></h2>
+  <div class="card"><div class="notes" id="notes"></div></div>
+
+  <footer>
+    <b>规划</b>：第 2 步「总资产看板」（各账户月末余额 → 堆叠面积 + 银行/券商/基金三分）、
+    第 3 步「收支看板」（当月转入/转出 → 结余率）。数据层已预留 <code>FIN_BALANCE</code> / <code>FIN_FLOW</code>，
+    <b>只填数、不改结构</b>；前者需要各账户月末余额截图，后者需要银行/支付宝流水导出。<br>
+    ⚠ 收支口径要先定：<b>投资账户之间的转账不算支出</b>（应单列一类），否则储蓄率会算错。<br>
+    <span id="foot-src"></span><br>
+    另见：<a href="../positions.html">📊 持仓与操作记录</a>（日频持仓级快照，含场内 5 只 + 场外 8 只逐只盈亏；
+    与本月频账户级账单是**同一批账户的两种粒度**，可互证但不可直接相减）
+  </footer>
+</main>
+
+<script src="finance-data.js"></script>
+<script>
+"use strict";
+/* 个人财务看板 · 收益视图（2026-10-01）
+ * 纪律与持仓页一致：**页面只负责显示，所有数字现算，不写死**（写死的话补一格数据就两边不一致了）。
+ * 三态：缺键 = 未开户（空格）｜null = 空仓（「—」）｜数字 = 有持仓（含 0 = 持平）。
+ * 推得值：数据层 FIN_DERIVED 标了 kind/text → 页面打 ✱，title 里写清算法。 */
+
+const A = FIN_ACCOUNTS, MS = FIN_MONTHS, PL = FIN_PL, DER = FIN_DERIVED;
+const fmt = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt0 = (v) => (v >= 0 ? "+" : "−") + Math.round(Math.abs(v)).toLocaleString("en-US");
+const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
+const sum = (a) => a.reduce((x, y) => x + (y || 0), 0);
+const monthLabel = (m) => +m.slice(5) + "月";
+const monthShort = (m) => String(+m.slice(5)) + "月";
+const rowOf = (id) => PL[id] || {};
+const colTot = (m) => sum(A.map((a) => rowOf(a.id)[m]));
+const annualOf = (id) => sum(Object.values(rowOf(id)));
+const TOTAL = sum(A.map((a) => annualOf(a.id)));
+
+/* ---- 取语义色（唯一来源在 finance.css，避免这里再硬编码一遍绿红）---- */
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const hex2rgb = (h) => { const s = h.replace("#", ""); const n = parseInt(s.length === 3 ? s.split("").map((c) => c + c).join("") : s, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const rgba = (h, a) => { const [r, g, b] = hex2rgb(h); return "rgba(" + r + "," + g + "," + b + "," + a + ")"; };
+const C_UP = cssVar("--up") || "#2dd4a7", C_DOWN = cssVar("--down") || "#f26d7d";
+
+/* ---- ① KPI 带 ---- */
+(function renderKpis() {
+  const p16 = sum(MS.slice(0, 6).map(colTot)), p7 = colTot("2026-07"), p89 = sum(MS.slice(7).map(colTot));
+  const byAcc = A.map((a) => ({ a, v: annualOf(a.id) })).sort((x, y) => y.v - x.v);
+  const best = byAcc[0], worst = byAcc[byAcc.length - 1];
+  const nPos = byAcc.filter((x) => x.v > 0).length;
+  /* 副标里**不写死数字**（页面纪律）：波动占比、修复率都现算 —— 补一格数据就自动跟着变 */
+  const wave = sum(MS.map((m) => Math.abs(colTot(m))));
+  const shareOfWave = wave ? Math.abs(p7) / wave * 100 : 0;
+  const repair = p7 ? p89 / Math.abs(p7) * 100 : 0;
+  const cell = (label, v, sub, money) => '<div class="kpi"><div class="k-label">' + label + '</div><div class="k-val ' + cls(v) + '">'
+    + (money ? fmt0(v) : fmt(v)) + '</div><div class="k-sub">' + sub + '</div></div>';
+  document.getElementById("kpis").innerHTML =
+    cell("全年收益", TOTAL, A.length + " 个账户合计 · 基准日 " + FIN_ASOF, true) +
+    cell("1–6 月", p16, "建仓前段：4 个账户有数（广发/平安 6 月才入）", true) +
+    cell("7 月", p7, "全年最大单月回撤 · 占全年月度绝对波动 " + shareOfWave.toFixed(0) + "%", true) +
+    cell("8–9 月", p89, "修复段：把 7 月的坑填回 " + repair.toFixed(0) + "%", true) +
+    cell("最好账户", best.v, best.a.name, true) +
+    cell("最差账户", worst.v, worst.a.name + " · " + nPos + " 盈 " + (A.length - nPos) + " 亏", true);
+})();
+
+/* ---- ② 收益矩阵 ---- */
+(function renderMatrix() {
+  const maxAbs = Math.max.apply(null, A.flatMap((a) => Object.values(rowOf(a.id)).filter((v) => typeof v === "number").map(Math.abs)).concat([1]));
+  const alpha = (v) => 0.10 + 0.50 * Math.min(1, Math.log10(Math.abs(v) + 10) / Math.log10(maxAbs + 10));
+  const cellHtml = (id, m) => {
+    const row = rowOf(id), has = Object.prototype.hasOwnProperty.call(row, m), v = row[m];
+    if (!has) return '<td class="miss" title="' + monthLabel(m) + "：该账户当月**尚未开户**（缺键，不是 0）\"></td>";
+    if (v === null) return '<td class="empty" title="' + monthLabel(m) + "：有账户、**空仓**（不是「收益为零」）\">—</td>";
+    const d = (DER[id] || {})[m];
+    const bg = v === 0 ? "" : "background:" + rgba(v > 0 ? C_UP : C_DOWN, alpha(v)) + ";";
+    return '<td class="' + (v === 0 ? "zero" : (v > 0 ? "pos" : "neg")) + '" style="' + bg + '" title="' + A.find((x) => x.id === id).name + " · " + monthLabel(m) + "：" + fmt(v) + (d ? "\n" + d.text : "") + '">'
+      + fmt(v) + (d ? '<sup class="dv">✱</sup>' : "") + "</td>";
+  };
+  let h = '<table class="mx"><thead><tr><th class="acct">账户</th>'
+    + MS.map((m) => "<th>" + monthShort(m) + "</th>").join("")
+    + '<th class="tot">全年</th></tr></thead><tbody>';
+  A.forEach((a) => {
+    const note = FIN_ACCT_NOTES[a.id];
+    h += "<tr><td class=\"acct\" title=\"" + (note ? note.replace(/"/g, "&quot;") : a.products + "（自 " + a.since + " 起）") + "\">"
+      + a.name + '<span class="chip">' + (FIN_KIND_LABEL[a.kind] || a.kind) + "</span>"
+      + (note ? ' <sup class="dv">✱</sup>' : "") + "</td>"
+      + MS.map((m) => cellHtml(a.id, m)).join("")
+      + '<td class="tot ' + cls(annualOf(a.id)) + '">' + fmt(annualOf(a.id)) + "</td></tr>";
+  });
+  h += '<tr class="sumrow"><td class="acct">合计</td>'
+    + MS.map((m) => '<td class="' + cls(colTot(m)) + '">' + fmt(colTot(m)) + "</td>").join("")
+    + '<td class="tot">' + fmt(TOTAL) + "</td></tr></tbody></table>";
+  document.getElementById("matrix").innerHTML = h;
+  document.getElementById("mx-cnt").textContent = "（" + A.length + " 账户 × " + MS.length + " 月 · 底色深浅＝金额量级 · 空白＝尚未开户 · — ＝空仓）";
+})();
+
+/* ---- ③ 逐月柱状（单一口径：零线位置 = 正幅 / 全幅）---- */
+(function renderBars() {
+  const vals = MS.map(colTot);
+  const maxPos = Math.max(0, Math.max.apply(null, vals)) || 0;
+  const maxNeg = Math.max(0, -Math.min.apply(null, vals)) || 0;
+  const z = maxPos + maxNeg ? maxPos / (maxPos + maxNeg) * 100 : 50;
+  const chart = document.getElementById("chart");
+  chart.style.setProperty("--z", z.toFixed(2) + "%");
+  const colW = 100 / MS.length;
+  let h = '<div class="zline"></div><div class="zlab">0</div>';
+  vals.forEach((v, i) => {
+    const title = monthLabel(MS[i]) + "：" + fmt(v);
+    const pct = v >= 0 ? (maxPos ? v / maxPos * 100 : 0) : (maxNeg ? -v / maxNeg * 100 : 0);
+    if (v >= 0) {
+      h += '<div class="col" style="left:' + (i * colW).toFixed(3) + "%;width:" + colW.toFixed(3) + '%"><div class="above">'
+        + '<div class="v up" title="' + title + '">' + (Math.abs(v) > maxPos * 0.55 ? fmt0(v) : "") + '</div>'
+        + '<div class="bar" style="height:' + pct.toFixed(1) + '%" title="' + title + '"></div></div><div class="below"></div></div>';
+    } else {
+      h += '<div class="col" style="left:' + (i * colW).toFixed(3) + "%;width:" + colW.toFixed(3) + '%"><div class="above"></div><div class="below">'
+        + '<div class="bar" style="height:' + pct.toFixed(1) + '%" title="' + title + '"></div>'
+        + '<div class="v down" title="' + title + '">' + fmt0(v) + '</div></div></div>';
+    }
+  });
+  h += '<div class="mlab">' + MS.map((m) => "<span>" + monthShort(m) + "</span>").join("") + "</div>";
+  chart.innerHTML = h;
+})();
+
+/* ---- ④ 账户年度排行（中轴发散条：正右负左，同一把尺）---- */
+(function renderRank() {
+  const rows = A.map((a) => ({ a, v: annualOf(a.id) })).sort((x, y) => y.v - x.v);
+  const maxAbs = Math.max.apply(null, rows.map((r) => Math.abs(r.v)).concat([1]));
+  document.getElementById("rank").innerHTML = rows.map((r) => {
+    const w = Math.abs(r.v) / maxAbs * 50;
+    const bar = r.v >= 0
+      ? '<span class="rank-bar pos" style="left:50%;width:' + w.toFixed(2) + '%"></span>'
+      : '<span class="rank-bar neg" style="right:50%;width:' + w.toFixed(2) + '%"></span>';
+    return '<div class="rank-row"><span class="rank-name">' + r.a.name + '<span class="chip">' + (FIN_KIND_LABEL[r.a.kind] || r.a.kind) + "</span></span>"
+      + '<span class="rank-track" title="' + r.a.products + '">' + bar + "</span>"
+      + '<span class="rank-v ' + cls(r.v) + '">' + fmt(r.v) + "</span></div>";
+  }).join("");
+  document.getElementById("rank-cnt").textContent = "（按全年收益排序 · 共 " + rows.length + " 个账户）";
+})();
+
+/* ---- ⑤ 口径与覆盖 ---- */
+(function renderNotes() {
+  const dvList = Object.entries(DER).map(([id, ms]) => Object.entries(ms).map(([m, d]) =>
+    "<li>" + A.find((a) => a.id === id).name + " " + monthLabel(m) + "：<b>" + d.text + "</b></li>").join("")).join("");
+  const acctList = Object.entries(FIN_ACCT_NOTES).map(([id, t]) =>
+    "<li>" + A.find((a) => a.id === id).name + "：" + t + "</li>").join("");
+  document.getElementById("notes").innerHTML =
+    "<ol>" + FIN_NOTES.map((t) => "<li>" + t.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>") + "</li>").join("") + "</ol>"
+    + '<div class="legend"><b>图例</b>：空白 ＝ 该月尚未开户（缺键）｜<b>—</b> ＝ 有账户但空仓 ｜<b>0.00</b> ＝ 有持仓且当月持平'
+    + '｜<sup class="dv">✱</sup> ＝ 该数字不是原读数（推得 / 有口径备注，悬停看说明）'
+    + "<br><b>三态为什么必须分开</b>：把「空仓」记成 0，以后算「资产利用率 / 收益率」会直接算错（分母凭空多一个月）。</div>"
+    + (dvList ? '<div class="legend"><b>推得 / 反推值</b><ol>' + dvList + "</ol></div>" : "")
+    + (acctList ? '<div class="legend"><b>逐账户覆盖备注</b><ol>' + acctList + "</ol></div>" : "");
+})();
+
+document.getElementById("h-asof").textContent = FIN_ASOF;
+document.getElementById("h-n").textContent = A.length;
+document.getElementById("foot-src").textContent = "数据来源：7 个平台的月度账单 / 收益中心截图（2026-10-01 提供），基准日 " + FIN_ASOF + "。";
+</script>
+</body>
+</html>

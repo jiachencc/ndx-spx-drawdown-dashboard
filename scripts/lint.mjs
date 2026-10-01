@@ -26,10 +26,15 @@ const inlineOf = (file) => {
   const html = readFileSync(path.join(root, file), "utf8");
   return [...html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).join("\n;\n");
 };
+/* 个人财务看板（2026-10-01 新增）：数据层与页面内联脚本一起交给 eslint ——
+   它自己的数据域与 data.js 无关，故不拼接；但 sharesCheck 与持仓页共用同一套规则。 */
+const financeDataJs = readFileSync(path.join(root, "finance", "finance-data.js"), "utf8");
 const units = [
   ["data.js", dataJs],
   ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + inlineOf("positions.html")],
   ["index.inline.js", dataJs + "\n;\n" + inlineOf("index.html")],
+  ["finance-data.js", financeDataJs],
+  ["finance.inline.js", financeDataJs + "\n;\n" + inlineOf("finance/index.html")],
 ];
 
 const dir = path.join(tmpdir(), "ndx-lint-" + process.pid);
