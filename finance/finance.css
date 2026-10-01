@@ -132,12 +132,16 @@ table.at tr.sum td { border-top: 1px dashed var(--line-soft); font-weight: 700; 
 .abrief .b-v b { font-family: var(--mono); color: var(--tx); font-feature-settings: "tnum"; }
 .abrief .b-v.miss { color: var(--tx3); }
 
-/* ---- 口径卡 ---- */
+/* ---- 细字（图例 / 小注）与口径卡 ----
+ * ⚠ 2026-10-01 修：`.legend` 原先只写在 `.notes` 之下，而总资产卡里的「口径」那行落在 .notes **之外**
+ *   → 一条规则都没命中 → 继承了 body 的 14px，比旁边「钱在哪」那行（.abrief .b-v = 12px）大一号、像正文。
+ *   现把它提成**页内通用细字**：凡用 .legend 的地方都是 12px 灰字。 */
+.legend { font-size: var(--fs-xs); color: var(--tx3); line-height: 1.7; }
+.legend b { color: var(--tx2); }
 .notes { font-size: var(--fs-xs); color: var(--tx2); line-height: 1.75; }
 .notes ol { margin: 0; padding-left: 18px; }
 .notes li { margin-bottom: 3px; }
-.notes .legend { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line-soft); color: var(--tx3); }
-.notes .legend b { color: var(--tx2); }
+.notes .legend { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line-soft); }
 footer { color: var(--tx3); font-size: 11px; line-height: 1.7; margin-top: 20px; padding: 0 2px; }
 footer b { color: var(--tx2); }
 
