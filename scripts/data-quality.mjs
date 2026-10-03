@@ -302,6 +302,12 @@ export function autoBlockIssues(model, dataSrc, posSrc) {
   if (snapLast && benchLast && diff(snapLast, benchLast) > 3)
     issues.push("AUTO 块陈旧：BENCH 最新日期 " + benchLast + " 落后最新快照日 " + snapLast +
       " 超过 3 天 —— scripts/sync-bench.mjs 那步多半坏了（走势图的「同节奏纳指」虚线会停在旧日期）");
+  /* NOWCAST（场外当日预估的输入，2026-10-03 加）：它落后于美股数据日，说明 fetch-nowcast 那步坏了 ——
+     页面不会报错，只会**一直按旧指数补齐**（每行会标着旧日期，但没人会天天去核对）。
+     容差 5 天：长假期间 NOWCAST 里的 A股代理顶得上来，不会误报；真坏了才会连续落后。 */
+  if (mkt && model?.NOWCAST?.updated && model?.DEFAULT?.date && diff(model.DEFAULT.date, model.NOWCAST.updated) > 5)
+    issues.push("AUTO 块陈旧：NOWCAST.updated " + model.NOWCAST.updated + " 落后美股数据日 " + model.DEFAULT.date +
+      " 超过 5 天 —— scripts/fetch-nowcast.mjs 那步多半坏了（场外预估会一直按旧指数补齐，页面每行的时间标签会露馅）");
   return issues;
 }
 

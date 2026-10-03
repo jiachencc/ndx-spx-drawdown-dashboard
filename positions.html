@@ -588,25 +588,52 @@ function renderOtcEst(nc) {
     return;
   }
   const pc = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  const d2 = (s) => String(s || "—").slice(5);              // 2026-09-29 → 09-29（年份在块头统一交代）
   const est = nc.rows.filter((r) => r.src === "est").sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
   const app = nc.rows.filter((r) => r.src === "app");
-  const tr = (f, chip, mid, amt, sum) => '<tr' + (sum ? ' class="sum"' : "") + '><td class="e-nm">'
-    + (sum ? esc(f.name) : esc(plDisplayName(f.name)))          // 合计行不是基金名，别过 plDisplayName
-    + (chip ? '<span class="chip">' + chip + "</span>" : "") + '</td><td class="e-mid">' + mid + '</td><td class="e-amt">'
-    + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
-  let h = '<table class="est-tbl"><thead><tr><th class="e-nm">基金</th><th class="e-mid">预估幅度</th><th class="e-amt">预估金额</th></tr></thead><tbody>';
-  est.forEach((r) => { h += tr(r.f, "缺口 " + r.days + " 天", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt); });
-  app.forEach((r) => { h += tr(r.f, "净值已追上", "—", Number.isFinite(r.f.day) ? r.f.day : 0); });
-  nc.dir.forEach((d) => { h += tr(d.f, d.days ? "缺口 " + d.days + " 天" : "已追上", "方向 " + pc(d.pct) + ' <span class="e-tag">不计入</span>', "—"); });
+  const upd = nc.upd || null;                               // 指数数据日（由 renderImpl 传入，不重复读 NOWCAST）
+  /* 行＝名字 ＋ 可选第二行「净值日 → 指数日」＋ 中间列 ＋ 金额；悬停 title 给逐日明细与拟合参数 */
+  const tr = (f, chip, mid, amt, o) => {
+    o = o || {};
+    return '<tr' + (o.sum ? ' class="sum"' : "") + '><td class="e-nm"'
+      + (o.title ? ' title="' + o.title.replace(/"/g, "&quot;") + '"' : "") + ">"
+      + (o.sum ? esc(f.name) : esc(plDisplayName(f.name)))      // 合计行不是基金名，别过 plDisplayName
+      + (chip ? '<span class="chip">' + chip + "</span>" : "")
+      + (o.sub ? '<span class="e-date">' + o.sub + "</span>" : "")
+      + '</td><td class="e-mid">' + mid + '</td><td class="e-amt">'
+      + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
+  };
+  let h = '<table class="est-tbl"><thead><tr><th class="e-nm">基金 <span class="e-th2">· 净值日 → 指数日</span></th>'
+    + '<th class="e-mid">预估幅度</th><th class="e-amt">预估金额</th></tr></thead><tbody>';
+  est.forEach((r) => {
+    /* 只写两个日期＋天数：表头已经写了「净值日 → 指数日」，行内再重复一次就会在 390px 折成两行 */
+    const sub = d2(r.ft.navDate) + " → " + d2(r.upto) + " · 补 " + r.days + " 天";
+    const title = "净值日 " + r.ft.navDate + " → 代理指数（" + r.ft.prox + "）" + r.upto + "，相隔 " + r.days + " 个指数交易日\n"
+      + (r.list || []).map((x) => "  " + x.d + "　指数 " + pc(x.r) + "　→ 该只折算 " + pc(x.c)).join("\n")
+      + "\n拟合：β " + r.ft.beta + " · α " + r.ft.alpha + "%（近 " + r.ft.n + " 个净值日 · r " + r.ft.r + " · 日误差 " + (r.ft.mae * 100).toFixed(3) + "pp）"
+      + "\n→ 累乘 " + pc(r.pct) + " × 市值 " + fmtYuan(r.f.value) + " = " + fmtAmt2(r.amt) + " 元（估算，非读数）";
+    h += tr(r.f, "", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt, { sub, title });
+  });
+  app.forEach((r) => h += tr(r.f, "", "—", Number.isFinite(r.f.day) ? r.f.day : 0, {
+    sub: d2(r.ft && r.ft.navDate) + "（已追上）",
+    title: "该只的净值日已经追上代理指数 —— 没有尚未公布的行情可补，故直接用 App 快照读数（这是读数，不是估算）。",
+  }));
+  nc.dir.forEach((d) => h += tr(d.f, "", "方向 " + pc(d.pct) + ' <span class="e-tag">不计入</span>', "—", {
+    sub: d2(d.ft.navDate) + " → " + d2(d.upto) + " · 补 " + (d.days || 0) + " 天",
+    title: "跟踪太弱（r " + d.ft.r + "）：只给方向、不计入金额。\n净值日 " + d.ft.navDate + " → 指数 " + d.upto + "，累乘后约 " + pc(d.pct) + "。",
+  }));
   const sum = est.reduce((a, r) => a + r.amt, 0) + app.reduce((a, r) => a + (Number.isFinite(r.f.day) ? r.f.day : 0), 0);
-  h += tr({ name: "合计（计入金额的 " + (est.length + app.length) + " 只）" }, "", "", sum, true) + "</tbody></table>";
+  h += tr({ name: "合计（计入金额的 " + (est.length + app.length) + " 只）" }, "", "", sum, { sum: true }) + "</tbody></table>";
   h += '<div class="otc-note"><b>口径</b>：<b>净值日 d 的变化 ↔ 代理指数同日 d</b>（实证 r 0.996~0.999）→ '
     + "把最后净值日之后、尚未公布的那几根指数涨跌，按 α + β×日涨跌逐日累乘；再 × 市值。"
+    + '<br><b>时间标签怎么读</b>：每行都标「净值 Y → 指数 Z」—— Y 是该只<b>已公布</b>的最后一天，Z 是我能补到的那天'
+    + "（各只可能不同：美股代理跟到最新收盘，A股日经ETF 则跟着 A股休市停住）。两者之间的交易日数就是「补」的天数；"
+    + "悬停某一行可看那几天<b>分别</b>是什么行情。"
     + '<br><b>★参考</b>＝该代理跟踪不紧（日经只有 A股ETF、全球精选用纳指代）→ 数字只看量级；'
     + "<b>不计入</b>＝跟踪太弱（港股那只 r 0.38）→ 只给方向、不进合计，免得以精确到元的样式假精确。"
     + "<br>估值不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。</div>";
   box.innerHTML = h;
-  if (cnt) cnt.textContent = "（计入 " + (est.length + app.length) + " 只 · 合计 " + fmtAmt2(sum) + " 元"
+  if (cnt) cnt.textContent = "（计入 " + (est.length + app.length) + " 只 · 合计 " + fmtAmt2(sum) + " 元 · 指数数据到 " + (upd ? d2(upd) : "—")
     + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "") + "）";
 }
 
@@ -748,13 +775,20 @@ function renderImpl() {
      ⚠ 整块缺失（老数据 / 脚本没跑）→ 全部退回 App 快照口径，页面行为与加这个功能之前一致。 */
   const ncRaw = (typeof NOWCAST !== "undefined" && NOWCAST && NOWCAST.idx && NOWCAST.fits) ? NOWCAST : null;
   const nc = { amt: 0, days: 0, rows: [], est: 0, dir: [], noFit: 0 };
+  nc.upd = ncRaw ? ncRaw.updated : null;    // 指数数据的"最新日"（各代理不同，逐行另标自己的）
   /* 把「最后净值日之后的指数涨跌」逐日累乘成该只的预估涨跌 —— 估的和只给方向的都用它，避免两处口径漂移 */
   const cumOf = (ft, ser) => {
     const i0 = ser.findIndex((p) => p.d > ft.navDate);
     if (i0 < 1) return null;                                   // 净值已追上 → 没有缺口
     let g = 1;
-    for (let i = i0; i < ser.length; i++) g *= 1 + (ft.alpha + ft.beta * (ser[i].c / ser[i - 1].c - 1) * 100) / 100;
-    return { days: ser.length - i0, pct: (g - 1) * 100, g };
+    const list = [];                                           // 逐日明细：行悬停要显示"这 N 天分别是什么行情"
+    for (let i = i0; i < ser.length; i++) {
+      const r = (ser[i].c / ser[i - 1].c - 1) * 100;            // 代理指数该日涨跌%
+      list.push({ d: ser[i].d, r, c: ft.alpha + ft.beta * r }); // c = 折算到该只的涨跌%（α + β·r）
+      g *= 1 + (ft.alpha + ft.beta * r) / 100;
+    }
+    /* upto = **该只代理**的最新数据日（各只可能不同：美股代理能到最新收盘，A股日经ETF 跟 A股休市停住）*/
+    return { days: ser.length - i0, pct: (g - 1) * 100, g, list, upto: ser[ser.length - 1].d };
   };
   OTC.funds.forEach((f) => {
     const ft = ncRaw && ncRaw.fits[f.code], ser = ft && ncRaw.idx[ft.prox];
@@ -764,10 +798,10 @@ function renderImpl() {
     }
     if (ft.tier === "dir") { nc.dir.push({ f, ft, ...(cumOf(ft, ser) || { days: 0, pct: 0 }) }); return; }   // 只给方向，不进金额
     const c = cumOf(ft, ser);
-    if (!c) { if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0, ft }); } return; }
+    if (!c) { if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, ft, src: "app", days: 0, upto: ser[ser.length - 1].d }); } return; }
     const amt = f.value * (c.g - 1);
     nc.amt += amt; nc.days += c.days; nc.est++;
-    nc.rows.push({ f, ft, src: "est", days: c.days, pct: c.pct, amt, upto: ser[ser.length - 1].d });
+    nc.rows.push({ f, ft, src: "est", days: c.days, pct: c.pct, amt, upto: c.upto, list: c.list });
   });
   const dayOtcEst = nc.amt;
   const ncTip = nc.est || nc.days
@@ -814,7 +848,7 @@ function renderImpl() {
         '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>' +
       '</div>' +
       '<div class="s-sub src-muted">场内为当日估值（涨跌幅 × 持仓）· ' +
-        (nc.est ? '场外＝指数×仓位 补齐 ' + nc.est + ' 只 × ' + (() => { const d = nc.rows.filter((r) => r.src === "est").map((r) => r.days); const a = Math.min.apply(null, d), b = Math.max.apply(null, d); return a === b ? a : a + "~" + b; })() + ' 天（App 快照 ' + fmtAmt2(dayOtc) + '）' : '场外为 App 快照读数') +
+        (nc.est ? '场外＝指数×仓位 补齐 ' + nc.est + ' 只 × ' + (() => { const d = nc.rows.filter((r) => r.src === "est").map((r) => r.days); const a = Math.min.apply(null, d), b = Math.max.apply(null, d); return a === b ? a : a + "~" + b; })() + ' 天（指数到 ' + (nc.upd ? nc.upd.slice(5) : "—") + ' · App 快照 ' + fmtAmt2(dayOtc) + '）' : '场外为 App 快照读数') +
         (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + (nc.dir.length ? ' · ' + nc.dir.length + ' 只跟踪弱未计入' : '') + '</div></div>';
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
