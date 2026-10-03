@@ -174,6 +174,22 @@ const subText = dayCellEl && dayCellEl.querySelector(".s-sub") ? dayCellEl.query
 check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(otcDayApp), near(subText, otcDayApp, 5),
   (subText || "（无副标）").replace(/\s+/g, " ").trim().slice(0, 160));
 
+/* ③c 逐只拆解表（2026-10-03 加，挂在汇总卡内）：① 合计必须等于 KPI 里那个场外数
+   ② 8 只场外基金一只不落（少一行就是渲染漏了，这种错肉眼很难发现） */
+{
+  const box = win.document.querySelector("#otc-est");
+  const rows = box ? [...box.querySelectorAll("tbody tr")] : [];
+  const sumRow = rows.find((tr) => tr.classList.contains("sum"));
+  /* ⚠ 只取金额那一格：整行 textContent 里还有「计入金额的 7 只」，numsOf 会先抓到那个 7 */
+  const sumCell = sumRow ? sumRow.querySelector(".e-amt") : null;
+  const sumVal = sumCell ? numsOf(sumCell.textContent)[0] : null;
+  check("逐只拆解表「合计」= KPI 里的场外数 " + (splitVals.length === 3 ? splitVals[1] : "?"),
+    rows.length > 0 && Number.isFinite(sumVal) && splitVals.length === 3 && Math.abs(sumVal - splitVals[1]) <= 1,
+    "表合计 " + sumVal + " vs KPI 场外 " + splitVals[1] + "（表内 " + Math.max(0, rows.length - 1) + " 行）");
+  check("逐只拆解表覆盖全部 " + OC.funds.length + " 只场外基金",
+    rows.length === OC.funds.length + 1, "表内 " + Math.max(0, rows.length - 1) + " 行 ＋ 合计 1 行 = " + rows.length);
+}
+
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));

@@ -61,6 +61,13 @@ try {
     <div class="sum-grid" id="sum-grid"></div>
     <div class="alloc-bar" id="alloc-bar" role="img" aria-label="组合占比"></div>
     <div class="alloc-legend" id="alloc-legend"></div>
+    <!-- 场外当日预估 · 逐只拆解（2026-10-03）：挂在汇总卡里 —— 它就是「当日盈亏（估）」场外那格的展开，
+         所以不另开板块、也不动导航（导航是"主要区块"的清单，这里是一格的明细）。
+         默认展开：用户要的就是看清每一只；可折叠。版式沿用全页折叠块的 .closed-all。 -->
+    <details class="closed-all" id="otc-est-wrap" open>
+      <summary>📉 场外当日预估 · 逐只拆解 <span id="otc-est-cnt"></span></summary>
+      <div id="otc-est"></div>
+    </details>
   </div>
 
   <h2 class="sec-title" id="sec-pl"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
@@ -566,6 +573,43 @@ function implOtcRows() {
     return { f, n, costNav, r, shares, costAmt, valAmt: f.value };
   });
 }
+/* 场外当日预估 · 逐只拆解（2026-10-03 加；挂在汇总卡内，是「当日盈亏（估）」场外那格的展开）
+ * 为什么单独列：那一格只有一个合计数，而真正想看的是"哪只还没公布、各补了多少、哪只不该当真"。
+ * 数据直接用 renderImpl 里算好的 nc（与 KPI 同一份），**不重算** —— 两处各算一遍迟早漂移。
+ * 排序：预估的按金额降序 → 净值已追上的（用 App 快照）→ 只给方向的（跟踪弱，不进合计）。
+ * 版式沿用全页折叠块（.closed-all）：默认展开（用户要的就是看清每只），可折叠。 */
+function renderOtcEst(nc) {
+  const box = $("otc-est"), cnt = $("otc-est-cnt");
+  if (!box) return;
+  if (!nc || (!nc.est && !nc.rows.length && !nc.dir.length)) {
+    box.innerHTML = '<div class="otc-note">未启用：data.js 里没有 <b>NOWCAST</b> 块（等下一次自动更新，或手动跑 <code>scripts/fetch-nowcast.mjs</code>）。'
+      + '此刻场外那半用的是 App 快照口径，与加这个功能之前一致。</div>';
+    if (cnt) cnt.textContent = "";
+    return;
+  }
+  const pc = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  const est = nc.rows.filter((r) => r.src === "est").sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
+  const app = nc.rows.filter((r) => r.src === "app");
+  const tr = (f, chip, mid, amt, sum) => '<tr' + (sum ? ' class="sum"' : "") + '><td class="e-nm">'
+    + (sum ? esc(f.name) : esc(plDisplayName(f.name)))          // 合计行不是基金名，别过 plDisplayName
+    + (chip ? '<span class="chip">' + chip + "</span>" : "") + '</td><td class="e-mid">' + mid + '</td><td class="e-amt">'
+    + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
+  let h = '<table class="est-tbl"><thead><tr><th class="e-nm">基金</th><th class="e-mid">预估幅度</th><th class="e-amt">预估金额</th></tr></thead><tbody>';
+  est.forEach((r) => { h += tr(r.f, "缺口 " + r.days + " 天", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt); });
+  app.forEach((r) => { h += tr(r.f, "净值已追上", "—", Number.isFinite(r.f.day) ? r.f.day : 0); });
+  nc.dir.forEach((d) => { h += tr(d.f, d.days ? "缺口 " + d.days + " 天" : "已追上", "方向 " + pc(d.pct) + ' <span class="e-tag">不计入</span>', "—"); });
+  const sum = est.reduce((a, r) => a + r.amt, 0) + app.reduce((a, r) => a + (Number.isFinite(r.f.day) ? r.f.day : 0), 0);
+  h += tr({ name: "合计（计入金额的 " + (est.length + app.length) + " 只）" }, "", "", sum, true) + "</tbody></table>";
+  h += '<div class="otc-note"><b>口径</b>：<b>净值日 d 的变化 ↔ 代理指数同日 d</b>（实证 r 0.996~0.999）→ '
+    + "把最后净值日之后、尚未公布的那几根指数涨跌，按 α + β×日涨跌逐日累乘；再 × 市值。"
+    + '<br><b>★参考</b>＝该代理跟踪不紧（日经只有 A股ETF、全球精选用纳指代）→ 数字只看量级；'
+    + "<b>不计入</b>＝跟踪太弱（港股那只 r 0.38）→ 只给方向、不进合计，免得以精确到元的样式假精确。"
+    + "<br>估值不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。</div>";
+  box.innerHTML = h;
+  if (cnt) cnt.textContent = "（计入 " + (est.length + app.length) + " 只 · 合计 " + fmtAmt2(sum) + " 元"
+    + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "") + "）";
+}
+
 function renderImpl() {
   closeIdxPop();
   if (typeof DEFAULT === "undefined" || typeof POSITIONS === "undefined") {
@@ -704,20 +748,26 @@ function renderImpl() {
      ⚠ 整块缺失（老数据 / 脚本没跑）→ 全部退回 App 快照口径，页面行为与加这个功能之前一致。 */
   const ncRaw = (typeof NOWCAST !== "undefined" && NOWCAST && NOWCAST.idx && NOWCAST.fits) ? NOWCAST : null;
   const nc = { amt: 0, days: 0, rows: [], est: 0, dir: [], noFit: 0 };
+  /* 把「最后净值日之后的指数涨跌」逐日累乘成该只的预估涨跌 —— 估的和只给方向的都用它，避免两处口径漂移 */
+  const cumOf = (ft, ser) => {
+    const i0 = ser.findIndex((p) => p.d > ft.navDate);
+    if (i0 < 1) return null;                                   // 净值已追上 → 没有缺口
+    let g = 1;
+    for (let i = i0; i < ser.length; i++) g *= 1 + (ft.alpha + ft.beta * (ser[i].c / ser[i - 1].c - 1) * 100) / 100;
+    return { days: ser.length - i0, pct: (g - 1) * 100, g };
+  };
   OTC.funds.forEach((f) => {
     const ft = ncRaw && ncRaw.fits[f.code], ser = ft && ncRaw.idx[ft.prox];
     if (!ft || !ser || ser.length < 2) {
       if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0 }); } else nc.noFit++;
       return;
     }
-    if (ft.tier === "dir") { nc.dir.push({ f, ft, ser }); return; }              // 只给方向，不进金额
-    const i0 = ser.findIndex((p) => p.d > ft.navDate);
-    if (i0 < 1) { if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0, ft }); } return; }
-    let g = 1;
-    for (let i = i0; i < ser.length; i++) g *= 1 + (ft.alpha + ft.beta * (ser[i].c / ser[i - 1].c - 1) * 100) / 100;
-    const amt = f.value * (g - 1);
-    nc.amt += amt; nc.days += ser.length - i0; nc.est++;
-    nc.rows.push({ f, ft, src: "est", days: ser.length - i0, pct: (g - 1) * 100, amt, upto: ser[ser.length - 1].d });
+    if (ft.tier === "dir") { nc.dir.push({ f, ft, ...(cumOf(ft, ser) || { days: 0, pct: 0 }) }); return; }   // 只给方向，不进金额
+    const c = cumOf(ft, ser);
+    if (!c) { if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0, ft }); } return; }
+    const amt = f.value * (c.g - 1);
+    nc.amt += amt; nc.days += c.days; nc.est++;
+    nc.rows.push({ f, ft, src: "est", days: c.days, pct: c.pct, amt, upto: ser[ser.length - 1].d });
   });
   const dayOtcEst = nc.amt;
   const ncTip = nc.est || nc.days
@@ -769,6 +819,7 @@ function renderImpl() {
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
+  renderOtcEst(nc);          // 场外当日预估的逐只拆解（挂在汇总卡内，见函数注释）
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */

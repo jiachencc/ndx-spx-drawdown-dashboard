@@ -240,6 +240,18 @@
   .alloc-key { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 1px 0; cursor: pointer; font-family: var(--sans); font-size: var(--fs-xs); color: var(--tx2); }
   .alloc-key:hover { color: var(--tx); }
   .alloc-key b { font-family: var(--mono); font-weight: 700; color: var(--tx); font-feature-settings: "tnum"; }
+  /* 场外当日预估 · 逐只表（2026-10-03，挂在汇总卡内的折叠块里）：
+     三列 —— 基金（名 ＋ 缺口 chip）｜ 预估幅度 ｜ 预估金额。窄屏不拆列、只缩字号：320px 下三列共 ≈250px，放得下。 */
+  table.est-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-xs); margin-top: 3px; }
+  table.est-tbl th { color: var(--tx3); font-weight: 600; font-size: var(--fs-xxs); text-align: right; padding: 2px 6px; }
+  table.est-tbl th.e-nm { text-align: left; }
+  table.est-tbl td { padding: 5px 6px; border-top: 1px solid var(--line-soft); text-align: right; font-family: var(--mono); font-feature-settings: "tnum"; color: var(--tx2); white-space: nowrap; }
+  table.est-tbl td.e-nm { text-align: left; font-family: inherit; color: var(--tx); white-space: normal; }
+  table.est-tbl td.e-amt { color: var(--tx); }
+  table.est-tbl tr.sum td { border-top: 1px dashed var(--line-soft); font-weight: 700; color: var(--tx); }
+  table.est-tbl .chip { margin-left: 5px; }
+  /* 分档小标（参考 / 不计入）：与 KPI 里那个「估」徽标同一套语言 —— 提示"这个数不是读数" */
+  .e-tag { font-size: 9px; color: var(--warn); border: 1px solid var(--line); border-radius: 999px; padding: 0 4px; margin-left: 3px; }
   .alloc-key i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
   .alloc-key.ndx i { background: var(--accent-solid); }
   .alloc-key.spx i { background: var(--purple-solid); }
