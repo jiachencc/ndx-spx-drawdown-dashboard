@@ -7,18 +7,18 @@
 
 /* ================= 数据模型 ================= */
 const DEFAULT = {
-  date: "2026-10-01",
-  intraday: false, // AUTO：美股 2026-10-01 收盘（2026-10-02T01:06Z 抓取）
-  ndx:   { close: 30501.56, ath: 30770.63, athDate: "2026-09-22", days: 7, chg: 0.31, ma50: 29410.86, ma200: 27449.81, rsi: 67.8, low52: 22841.42, high52: 30770.63, prevYr: 25249.849609375, ddYtd: -11.8 },
-  spx:   { close: 7666.45, ath: 7816.7, athDate: "2026-08-13", days: 34, chg: 0.19, ma50: 7651.35, ma200: 7221.29, rsi: 50.9, low52: 6316.91, high52: 7816.7, prevYr: 6845.5, ddYtd: -9.1 },
+  date: "2026-10-02",
+  intraday: false, // AUTO：美股 2026-10-02 收盘（2026-10-03T00:45Z 抓取）
+  ndx:   { close: 30807.93, ath: 31017.53, athDate: "2026-10-02", days: 0, chg: 1, ma50: 29457.93, ma200: 27478.51, rsi: 75.9, low52: 22841.42, high52: 31017.53, prevYr: 25249.849609375, ddYtd: -11.8 },
+  spx:   { close: 7722.72, ath: 7816.7, athDate: "2026-08-13", days: 35, chg: 0.73, ma50: 7657.64, ma200: 7225.82, rsi: 59.4, low52: 6316.91, high52: 7816.7, prevYr: 6845.5, ddYtd: -9.1 },
   /* ⚠ 2026-09-29 合并说明：vix / tnx 取的是 **CI（05:47 定时任务）用 Yahoo 抓到的 09-28 值**，
      不是本机抓的 —— 本机连不上 Yahoo，本地跑 fetch 会把这两项标成 retained 并把旧值（09-25）留着，
      那会让页面用一周前的 VIX 出结论（这次 14.87 → 16.07，差 8%，不是小事）。 */
-  vix: 16.39,
-  tnx: 5.237,
-  tnx2: 4.78,
-  putcall: 0.88, // AUTO：CBOE 全品类总 Put/Call
-  fx: 6.7045,
+  vix: 15.31,
+  tnx: 5.277,
+  tnx2: 4.83,
+  putcall: 0.9, // AUTO：CBOE 全品类总 Put/Call
+  fx: 6.7046,
   // AUTO：无对应免费指数的持仓用 ETF 自身场内价的 52 周区间作水位口径（腾讯日K，脚本自动更新）。
   // 字段与 ndx/spx 同构：close 现价 / chg 当日涨跌% / low52 52周低 / ath 52周高 / athDate 高点日期 / prevYr 年初首个交易日收盘
   // ⚠ 09-24 三条按用户平安证券截图**手填**（push 不触发行情抓取，见 handoff.md §3.3 SOP 第 6 步）：
@@ -32,13 +32,13 @@ const DEFAULT = {
   //   ⚠ 脚本的 270 根前复权价与券商真实收盘偶有 0.1pp 级伪差（09-23 纳指出现过）→ SOP 第 6 步末条有处理说明
   etfNdx: { close: 1.735, chg: 1.58, low52: 1.244, ath: 1.773, athDate: "2026-06-01", prevYr: 1.413, priceDate: "2026-09-30" },  // etfNdx 持仓（场内价口径；09-30 券商收盘，手填、次日 05:47 定时任务会用脚本值覆盖）
   etfSpx: { close: 2.004, chg: 0.5, low52: 1.61, ath: 2.071, athDate: "2026-09-22", prevYr: 1.808, priceDate: "2026-09-30" },  // etfSpx 持仓（场内价口径；09-30 券商收盘，手填、次日 05:47 定时任务会用脚本值覆盖）
-  peFwd: 20.12, peTtm: 27.74, cape: 41.48, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
+  peFwd: 20.12, peTtm: 26.49, cape: 41.48, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
   // ⚠ 2026-09-29：本机这次抓到 peTtm 28.00，与 CI（同一天 asOf = 08-05）的 28.11 不同 —— 两处 asOf 相同、值却差 0.11，
   //   而 28.11 是从 09-27 起页面上显示的值（那次 27.82 → 28.11）。判为本机抓取的响应差异，**保留 28.11**，
   //   不把一个已发布的值悄悄回退（同 asOf → 不取本机值；asOf 更新的项才取本机，见下）。
   ndxPeFwd: 22.37, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8, // MANUAL：盈利增速预期，无免费源，人工维护
-  asOf: { us: "2026-10-01", et: "16:00 EDT", local: "2026-10-02 09:06:05" },
+  asOf: { us: "2026-10-02", et: "16:00 EDT", local: "2026-10-03 08:45:22" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
@@ -92,8 +92,8 @@ const MONTHLY = [
   },
   {
     "m": "10月",
-    "ndx": 0.306,
-    "spx": 0.1949
+    "ndx": 1.3136,
+    "spx": 0.9303
   }
 ];
 /* 近 6 个月日线（2026-09-27 加，同日由「近 1 个月」扩为 1M / 3M / 6M 可切、默认 3M）：
@@ -112,14 +112,10 @@ const MONTHLY = [
  *   （皆官方 / CC BY 4.0 口径），末值与 DEFAULT.ndx/spx.close **分毫不差**（30,608.13 / 7,743.41，差 0.00），
  *   且 1M 切片首日 = 2026-08-26，与原先 22 点版本完全衔接；下次脚本抓取成功会自动覆盖成 Yahoo 口径。 */
 const RECENT = {
-  "asOf": "2026-10-01",
+  "asOf": "2026-10-02",
   "ndx": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "pts": [
-      {
-        "d": "2026-03-27",
-        "c": 23132.76953125
-      },
       {
         "d": "2026-03-30",
         "c": 22953.380859375
@@ -635,16 +631,16 @@ const RECENT = {
       {
         "d": "2026-10-01",
         "c": 30501.560546875
+      },
+      {
+        "d": "2026-10-02",
+        "c": 30807.931640625
       }
     ]
   },
   "spx": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "pts": [
-      {
-        "d": "2026-03-27",
-        "c": 6368.85009765625
-      },
       {
         "d": "2026-03-30",
         "c": 6343.72021484375
@@ -1160,6 +1156,10 @@ const RECENT = {
       {
         "d": "2026-10-01",
         "c": 7666.4501953125
+      },
+      {
+        "d": "2026-10-02",
+        "c": 7722.72021484375
       }
     ]
   }
@@ -2292,115 +2292,117 @@ const BENCH = {
 /* AUTO_META_START: source dates, not fetch dates. */
 const SOURCE_META = {
   "ndx": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "Yahoo ^NDX",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "methodology": "10y available high; 52w intraday range; simple-window RSI14"
   },
   "spx": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "Yahoo ^GSPC",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "methodology": "10y available high; 52w intraday range; simple-window RSI14"
   },
   "monthly": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "NDX/SPX close-to-close aggregation",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "vix": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "Yahoo ^VIX",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "tnx": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "Yahoo ^TNX",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "fx": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "Frankfurter",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "tnx2": {
-    "asOf": "2026-10-01",
+    "asOf": "2026-10-02",
     "source": "US Treasury par yield curve (US government work)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "peFwd": {
     "asOf": "2026-08-05",
     "source": "History of Market sp500",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "peTtm": {
     "asOf": "2026-08-05",
     "source": "History of Market sp500",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "pePct": {
     "asOf": "2026-08-05",
     "source": "History of Market sp500",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "ndxPeFwd": {
     "asOf": "2026-08-05",
     "source": "History of Market ndx",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "ndxPePct": {
     "asOf": "2026-08-05",
     "source": "History of Market ndx",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "cape": {
     "asOf": "2026-09-25",
     "source": "History of Market sp500 (CAPE series, CC BY 4.0)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "putcall": {
-    "asOf": "2026-09-30",
+    "asOf": "2026-10-01",
     "source": "CBOE total put/call",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "etfNdx": {
     "asOf": "2026-09-30",
     "source": "Tencent sz159941 qfq (latest price)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "premium:159941": {
     "asOf": "2026-09-29",
     "source": "Eastmoney NAV + Tencent price",
     "fetchedAt": "2026-10-02T01:06:05.051Z",
-    "status": "ok",
+    "status": "retained",
     "priceDate": "2026-09-30",
-    "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
+    "basis": "asynchronous price/NAV ratio, not contemporaneous premium",
+    "attemptedAt": "2026-10-03T00:45:22.009Z",
+    "error": "fetch failed"
   },
   "hkus": {
     "asOf": "2026-09-30",
     "source": "Tencent sz160644 qfq (latest price)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "premium:160644": {
     "asOf": "2026-09-29",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -2408,13 +2410,13 @@ const SOURCE_META = {
   "kr": {
     "asOf": "2026-09-30",
     "source": "Tencent sh513310 qfq (latest price)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "premium:513310": {
     "asOf": "2026-09-30",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -2422,13 +2424,13 @@ const SOURCE_META = {
   "etfSpx": {
     "asOf": "2026-09-30",
     "source": "Tencent sh513650 qfq (latest price)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "premium:513650": {
     "asOf": "2026-09-29",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -2436,24 +2438,24 @@ const SOURCE_META = {
   "n225": {
     "asOf": "2026-09-30",
     "source": "Tencent sh513880 qfq (latest price)",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok"
   },
   "premium:513880": {
     "asOf": "2026-09-30",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "priceDate": "2026-09-30",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "crosscheck": {
-    "asOf": "2026-10-02",
+    "asOf": "2026-10-03",
     "source": "Sina gb_$ndx / gb_$inx",
-    "fetchedAt": "2026-10-02T01:06:05.051Z",
+    "fetchedAt": "2026-10-03T00:45:22.009Z",
     "status": "ok",
     "deltaPct": 0,
-    "compared": "NDX 0.00%, SPX -0.00%"
+    "compared": "NDX -0.00%, SPX -0.00%"
   }
 };
 /* AUTO_META_END */
