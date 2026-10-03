@@ -102,15 +102,26 @@ const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
 check("汇总卡总资产 = 最新快照 " + money(snapTotal), near(sumText, snapTotal, 3), sumText.slice(0, 140));
 check("汇总卡浮盈亏 = 最新快照 " + money(latest.pl), near(sumText, latest.pl), sumText.slice(0, 140));
 
-/* ③b 汇总卡「当日盈亏」= 最新快照的 day（2026-09-23 加；2026-09-24 拆成两条）
-   页面当日 = 场内估（DEFAULT.chg × 份数）+ 场外快（Σ OTC.funds[].day）。两段的精度不同，必须分开断言：
-     ① 合计 ≈ 快照 day：场内那段是按 DEFAULT.chg 估的，而 chg 只留 2 位小数（手填 0.817 → 定时任务刷成 0.82），
-        误差 ≈ 持仓市值 × 0.005% ≈ 0.01% 总资产（2026-09-24 实测 5.2 元）→ 只能给宽容差，
-        否则定时任务一刷新报价就误报（当天 05:47 那次正是如此）。
-     ② 场外那一段单独对「快照 items 推出来的场外当日」（tol 5 元）—— 这一条才是有效的那条：
-        它把页面数字锚在**历史留档**上，而不是与自己的数据源比（与自己比永远自洽）。
-        2026-09-24 反向验证：把某只场外的 day 改 10.74 元，只有它拦得住。 */
-const dayCell = sum ? [...sum.querySelectorAll(".sum-cell")].map((el) => el.textContent.replace(/\s+/g, "")).find((t) => t.includes("当日盈亏")) : null;
+/* ③b 汇总卡「当日盈亏」= 场内估 + 场外【预估】（2026-10-03：场外那半从"App 快照"换成"指数×仓位补齐"）
+   两段的性质不同，必须分开断言：
+     ① 三栏自洽：场内 ＋ 场外 ＝ 合计（页面内部一致，tol 1 元）
+     ② 场外那一半 = 用 data.js 的 NOWCAST + positions-data.js 的 OTC **独立复算**出来的预估（tol 5 元）——
+        这条是有效的那条：它把页面数字锚在**数据**上，而不是与页面自己的中间量比（与自己比永远自洽）。
+        ⚠ 它拦得住**页面侧**的错（窗口/对齐/分档抄错、忘了排除 dir 档），拦不住**数据侧**的错 ——
+          因为两边读的是同一份 NOWCAST。数据侧的合理性由 check-data 的 NOWCAST 合约把关
+          （r 高时 beta 必须贴近 1、tier 必须与 mae/r 自洽）。2026-10-03 把这个边界实测确认过。
+     ③ 场外那半的【已公布】部分（App 快照 Σ day）必须**仍出现在副标里** —— 预估是"补上去"的，不是"顶掉"的。
+     ⚠ NOWCAST 缺失（老数据 / 脚本没跑）时页面退回 App 快照口径，这里同步按老口径断言。 */
+const dayCellEl = sum ? [...sum.querySelectorAll(".sum-cell")].find((el) => el.textContent.includes("当日盈亏")) : null;
+const dayCell = dayCellEl ? dayCellEl.textContent.replace(/\s+/g, "") : null;
+const splitVals = dayCellEl ? [...dayCellEl.querySelectorAll(".s-split-cell .s-split-v")].map((e) => numsOf(e.textContent)[0]) : [];
+if (splitVals.length === 3) {
+  const [vEtf, vOtc, vAll] = splitVals;
+  check("汇总卡当日盈亏三栏自洽（场内 ＋ 场外 ＝ 合计）", Math.abs(vEtf + vOtc - vAll) <= 1,
+    "场内 " + vEtf + " ＋ 场外 " + vOtc + " = " + vAll);
+} else {
+  check("汇总卡当日盈亏三栏可解析", false, dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
+}
 const prevFull = ctx.rows.filter((s) => s.items).at(-2);
 const IN_CODES = ["159941", "513650", "513310", "513880", "160644"];   // 场内五只（同 SNAP_MKT）
 /* ⚠ 2026-09-24 加：本期若有买卖（份额变化），这条只做存在性检查、跳过数值比对。
@@ -122,14 +133,46 @@ const traded = prevFull ? Object.keys(latest.items).some((c) => {
   const a = prevFull.items[c], b = latest.items[c];
   return !!(a && b && (a.qty || 0) !== (b.qty || 0));
 }) : false;
-check("汇总卡当日盈亏 ≈ 最新快照 " + money(latest.day),
-  !!dayCell && (traded || near(dayCell, latest.day, Math.max(10, Math.round(snapTotal * 0.0001)))),
-  dayCell ? dayCell.slice(0, 140) + (traded ? "（本期有买卖 → 跳过数值比对）" : "") : "未找到「当日盈亏」单元");
-if (dayCell && prevFull) {
-  const otcDay = Object.entries(latest.items).filter(([c]) => !IN_CODES.includes(c))
-    .reduce((a, [c, it]) => { const p = prevFull.items[c]; return a + ((it.val - it.cost) - (p ? p.val - p.cost : 0)); }, 0);
-  check("汇总卡「场外快」= 快照推的场外当日 " + money(otcDay), near(dayCell, otcDay, 5), dayCell.slice(0, 140));
+/* 场外那半要用的两份数据：先取出来（⚠ 定义必须在用之前 —— 2026-10-03 这里踩过一次 TDZ） */
+const nowcastSrc = (() => { try { const s = readFileSync(path.join(root, "data.js"), "utf8"); const m = s.match(/^const NOWCAST = \{[\s\S]*?^\};/m); return m ? m[0] : null; } catch { return null; } })();
+const NC = (() => { if (!nowcastSrc) return null; const c = vm.createContext({}); vm.runInContext(nowcastSrc + "\nthis.n = NOWCAST;", c, { timeout: 500 }); return c.n; })();
+const OC = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC;", c, { timeout: 500 }); return c.o; })();
+const otcDayApp = OC.funds.reduce((a, f) => a + (Number.isFinite(f.day) ? f.day : 0), 0);
+/* ③b-0 预估值与「快照 day」只比**量级**（2026-10-03 改）：两者口径本就不同 ——
+   快照 day 是"场内当日 ＋ 场外已公布"，页面合计是"场内估值 ＋ 场外预估补齐"，不该相等；
+   但若差出半个场外，说明 beta / 窗口 / 对齐错了。（旧版是严格比相等，那是场外还是 App 快照时候的事。） */
+{
+  const otcVal = OC.funds.reduce((a, f) => a + f.value, 0);
+  const tol = Math.max(50, otcVal * 0.05);
+  check("当日盈亏合计与快照 day 量级一致（±" + money(tol) + " 内 · 口径不同故不比相等）",
+    splitVals.length === 3 && Math.abs(splitVals[2] - latest.day) <= tol,
+    splitVals.length === 3 ? "页面合计 " + splitVals[2] + " vs 快照 day " + latest.day.toFixed(2) + "（差 " + (splitVals[2] - latest.day).toFixed(2) + "）" : "三栏未解析");
 }
+/* 场外那半：① 与「从数据独立复算的预估」比（有效的那条）② App 快照那部分必须仍在副标里 */
+/* 与页面同一算法（口径见 positions.html 里那段注释）—— 故意重写一遍：抄页面的中间量就不叫独立校验了 */
+const recomputeOtc = (nc, o) => {
+  let amt = 0;
+  for (const f of o.funds) {
+    const ft = nc && nc.fits[f.code], ser = ft && nc.idx[ft.prox];
+    if (!ft || !ser || ser.length < 2) { amt += (Number.isFinite(f.day) ? f.day : 0); continue; }
+    if (ft.tier === "dir") continue;                         // 跟踪弱 → 只给方向、不进金额
+    const i0 = ser.findIndex((p) => p.d > ft.navDate);
+    if (i0 < 1) { amt += (Number.isFinite(f.day) ? f.day : 0); continue; }
+    let g = 1;
+    for (let i = i0; i < ser.length; i++) g *= 1 + (ft.alpha + ft.beta * (ser[i].c / ser[i - 1].c - 1) * 100) / 100;
+    amt += f.value * (g - 1);
+  }
+  return amt;
+};
+if (splitVals.length === 3) {
+  const expect = NC ? recomputeOtc(NC, OC) : otcDayApp;
+  check("汇总卡「场外" + (NC ? "（预估）" : "快") + "」= " + (NC ? "独立复算的预估 " : "App 快照 ") + money(expect),
+    Math.abs(splitVals[1] - expect) <= 5,
+    "页面 " + splitVals[1] + " vs 复算 " + expect.toFixed(2) + (NC ? "（NOWCAST " + NC.updated + "）" : "") + (traded ? "（本期有买卖）" : ""));
+}
+const subText = dayCellEl && dayCellEl.querySelector(".s-sub") ? dayCellEl.querySelector(".s-sub").textContent : "";
+check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(otcDayApp), near(subText, otcDayApp, 5),
+  (subText || "（无副标）").replace(/\s+/g, " ").trim().slice(0, 160));
 
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";

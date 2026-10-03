@@ -692,10 +692,49 @@ function renderImpl() {
   const dayVals = OTC.funds.map((f) => (Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) >= OTC.updated) ? f.day : null));
   const dayOtc = dayVals.filter((v) => v !== null).reduce((a, b) => a + b, 0);    // 当日：场外快照口径（场内为上一美股交易日，不混合）
   const dayMiss = dayVals.filter((v) => v === null).length;
+  /* ===== 场外「当日收益（估）」：用代理指数把还没公布的那几天补齐（2026-10-03 加）=====
+     为什么：场外 QDII 净值晚 1~2 天公布（华安更慢），App 的「日收益」永远停在截图那天。
+     依据（scripts/fetch-nowcast.mjs 里实证，不是拍脑袋）：**净值日 d 的变化 ↔ 代理指数【同日】d 的涨跌** ——
+       纳指 r 0.999 / 标普 0.996 / A股日经ETF 0.868 / 恒生科技 0.381；
+       样本外日误差 0.044~0.053pp（指数型，≈ 不预估的 1/13）· 0.68~0.74pp（弱代理）· 2.0pp（港股混合）。
+     算法：窗口 = 指数里【严格晚于东财净值日】的那几根 → 逐日累乘 Π(1 + (α + β·r_t)/100) − 1 → × 市值。
+     ⚠ tier 分档（脚本给，页面照画）：num 给数字 ｜ ref 给数字但标"参考" ｜ dir **只给方向、不计入金额**
+       —— 中欧港股数字 r 只有 0.381，给它一个精确到元的数就是假精确。
+     ⚠ 某只净值已追上（无缺口）→ 直接用它的 App day（那已经是当期值，再加预估就会重复计）。
+     ⚠ 整块缺失（老数据 / 脚本没跑）→ 全部退回 App 快照口径，页面行为与加这个功能之前一致。 */
+  const ncRaw = (typeof NOWCAST !== "undefined" && NOWCAST && NOWCAST.idx && NOWCAST.fits) ? NOWCAST : null;
+  const nc = { amt: 0, days: 0, rows: [], est: 0, dir: [], noFit: 0 };
+  OTC.funds.forEach((f) => {
+    const ft = ncRaw && ncRaw.fits[f.code], ser = ft && ncRaw.idx[ft.prox];
+    if (!ft || !ser || ser.length < 2) {
+      if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0 }); } else nc.noFit++;
+      return;
+    }
+    if (ft.tier === "dir") { nc.dir.push({ f, ft, ser }); return; }              // 只给方向，不进金额
+    const i0 = ser.findIndex((p) => p.d > ft.navDate);
+    if (i0 < 1) { if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0, ft }); } return; }
+    let g = 1;
+    for (let i = i0; i < ser.length; i++) g *= 1 + (ft.alpha + ft.beta * (ser[i].c / ser[i - 1].c - 1) * 100) / 100;
+    const amt = f.value * (g - 1);
+    nc.amt += amt; nc.days += ser.length - i0; nc.est++;
+    nc.rows.push({ f, ft, src: "est", days: ser.length - i0, pct: (g - 1) * 100, amt, upto: ser[ser.length - 1].d });
+  });
+  const dayOtcEst = nc.amt;
+  const ncTip = nc.est || nc.days
+    ? "场外预估＝按代理指数把【最后净值日之后】的行情补齐（逐日累乘 α + β×指数日涨跌）。"
+      + nc.rows.filter((r) => r.src === "est").map((r) => "\n  " + r.f.code + " " + r.f.name.slice(0, 12) + "：缺口 " + r.days + " 天 → " + (r.pct >= 0 ? "+" : "−") + Math.abs(r.pct).toFixed(2) + "%（" + fmtAmt2(r.amt) + " 元）" + (r.ft.tier === "ref" ? " ·★参考（跟踪不紧）" : "")).join("")
+      + nc.rows.filter((r) => r.src === "app").map((r) => "\n  " + r.f.code + " 净值已追上 → 用 App 快照 " + fmtAmt2(r.f.day) + " 元").join("")
+      + (nc.dir.length ? nc.dir.map((d) => "\n  " + d.f.code + " " + d.f.name.slice(0, 12) + "：跟踪太弱（r " + d.ft.r + "）→ 不计入金额，只作方向参考").join("") : "")
+      + "\n口径：净值日 d ↔ 指数同日 d（实证 r 0.999/0.996）；窗口用东财净值日（拟合同一套日期）。"
+      + " ⚠ 与旁边的 App 快照读数不是一回事：那是已公布的、这是尚未公布的。"
+    : "";
+
   /* 场内当日盈亏（估）：Σ 市值 × chg/(100+chg)，chg 为当个交易日涨跌%（data.js AUTO/手工校对）；
      与场外 day（QDII 净值滞后一天的口径）相加即为「当日盈亏」，与 09-10 起快照 day 字段一致 */
   const etfDayPl = rows.reduce((a, r) => { const c = r.m.chg || 0; return a + r.valAmt * c / (100 + c); }, 0);
-  const dayAll = etfDayPl + dayOtc;
+  /* 合计＝场内估 ＋ 场外**预估**（2026-10-03）：两半都是"眼下这一刻"的口径；
+     dayOtc（App 快照，【已公布】的那部分）不进合计，只放副标当对照 —— 两者不相减 ✗ */
+  const dayAll = etfDayPl + dayOtcEst;
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
@@ -713,17 +752,20 @@ function renderImpl() {
     '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金。总资产 ＝ 本金 ＋ 累计浮盈亏 —— 与「本金与收益」卡同一口径。">本金 ' + fmtYuan(principal) + '<br>浮盈亏 <span class="' + cls(totalPl) + '">' + fmtAmt(totalPl) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
     '<div class="sum-cell" title="场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（南方 400 ＝ 已扣款、尚未并入 App 成本；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；其余六只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label" title="口径是**两半拼接**、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝App「日收益」快照读数（截图日那天）。"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
+    '<div class="sum-cell"><div class="s-label" title="口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（预估）。' + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
       /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 按用户口径）：分量在前、合计在后，
-         盘中看到大数字时不会把「盘中估值 ＋ 隔日快照」当成一个同口径的精确值。 */
+         盘中看到大数字时不会把「盘中估值 ＋ 隔日快照」当成一个同口径的精确值。
+         （2026-10-03：场外那一半从「App 快照」换成「预估补齐」—— App 快照降为副标里的对照值。） */
       '<div class="s-split">' +
         '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v ' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + '</div></div>' +
         '<div class="s-split-plus">+</div>' +
-        '<div class="s-split-cell"><div class="s-split-k">场外</div><div class="s-split-v ' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + '</div></div>' +
+        '<div class="s-split-cell"><div class="s-split-k">场外' + (nc.est ? '<span class="s-est" title="预估：把最后净值日之后、尚未公布的行情按代理指数补齐">估</span>' : '') + '</div><div class="s-split-v ' + cls(dayOtcEst) + '">' + fmtAmt2(dayOtcEst) + '</div></div>' +
         '<div class="s-split-plus">=</div>' +
         '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>' +
       '</div>' +
-      '<div class="s-sub src-muted">场内为当日估值（涨跌幅 × 持仓）· 场外为 App 快照读数' + (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + '</div></div>';
+      '<div class="s-sub src-muted">场内为当日估值（涨跌幅 × 持仓）· ' +
+        (nc.est ? '场外＝指数×仓位 补齐 ' + nc.est + ' 只 × ' + (() => { const d = nc.rows.filter((r) => r.src === "est").map((r) => r.days); const a = Math.min.apply(null, d), b = Math.max.apply(null, d); return a === b ? a : a + "~" + b; })() + ' 天（App 快照 ' + fmtAmt2(dayOtc) + '）' : '场外为 App 快照读数') +
+        (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + (nc.dir.length ? ' · ' + nc.dir.length + ' 只跟踪弱未计入' : '') + '</div></div>';
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);

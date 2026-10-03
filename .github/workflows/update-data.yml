@@ -72,6 +72,12 @@ jobs:
       - name: Fill missing benchmark levels (BENCH)
         continue-on-error: true
         run: node scripts/sync-bench.mjs
+      # 场外「当日收益」预估的输入（NOWCAST）：代理指数尾巴 + 逐只 α/β。
+      # 依赖外部源（新浪 .NDX/.INX · 腾讯 恒生科技/日经ETF · 东财净值），失败保留旧值、不阻断日更 ——
+      # 页面在缺块时会退回 App 快照口径（与加这个功能之前一致）。跑在终审之前，让终审覆盖它写的块。
+      - name: OTC nowcast inputs (NOWCAST)
+        continue-on-error: true
+        run: node scripts/fetch-nowcast.mjs
       - name: Final audit
         run: node scripts/check-data.mjs
       - name: Commit only validated business-data changes
