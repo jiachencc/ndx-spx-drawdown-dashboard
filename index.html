@@ -552,14 +552,17 @@
   /* 近 1 个月日线卡（2026-09-27 改版）：整宽单图（与回撤深度尺同尺度，viewBox 620 宽）+ NDX/SPX tab + 悬停/点击交互。
      图高 200 比深度尺（620×110）高一档 —— 折线需要纵向空间；宽度一致（都是 .xxx-svg{width:100%}）。 */
   .recent-tabs { display: inline-flex; gap: 4px; margin-left: 6px; }
-  /* 区间档位（1M / 3M / 6M，2026-09-27 加）：与指数切换同一套按钮样式，只把选中态压弱一档做层次
-     —— 指数（紫底）是主切换，区间（浅底）是次切换，避免两个都被当主按钮。 */
+  /* 区间档位（1M / 3M / 6M / 12M，2026-09-27 加、10-03 补 12M）：与指数切换同一套按钮样式，
+     只把选中态压弱一档做层次 —— 指数（紫底）是主切换，区间（浅底）是次切换，避免两个都被当主按钮。 */
   .recent-spans { display: inline-flex; gap: 4px; margin-left: 10px; }
   .recent-tabs .rtab, .recent-spans .rtab { font: inherit; font-size: 11px; font-weight: 600; color: var(--tx2); background: transparent;
     border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: pointer; line-height: 1.5; }
   .recent-tabs .rtab:hover, .recent-spans .rtab:hover { color: var(--tx); border-color: var(--tx3); }
   .recent-tabs .rtab.on { color: #0b0e14; background: var(--purple); border-color: var(--purple); }
   .recent-spans .rtab.on { color: var(--tx); background: var(--line-soft); border-color: var(--tx3); }
+  /* 数据不够的档位置灰（例：只有 130 根时 12M 不可点）—— 置灰是**如实**，不是禁用功能 */
+  .recent-spans .rtab[disabled] { opacity: .38; cursor: not-allowed; }
+  .recent-spans .rtab[disabled]:hover { color: var(--tx2); border-color: var(--line); }
   body.light .recent-tabs .rtab.on { color: #fff; }
   .recent-asof { margin-left: auto; color: var(--tx3); font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0; }
   /* 手机上标题栏要塞「标题 + 指数切换 + 档位切换 + AUTO + 截至日期」，一行放不下（实测 390px 溢出 19px）
@@ -694,9 +697,11 @@
     </div>
   </div>
 
-  <!-- 日线与回撤参考（2026-09-27）：整宽单图 + 两组切换（指数 NDX/SPX · 区间 1M/3M/6M）+ 悬停/点击交互。
-       数据 = data.js 的 RECENT（130 根日线，按档位从尾部切片）；
-       图上另叠 MA50 / MA200 与回撤档位线 t1 / t2（阈值取自 DEFAULT.thresholds，与看板主逻辑同源）。 -->
+  <!-- 日线与回撤参考（2026-09-27）：整宽单图 + 两组切换（指数 NDX/SPX · 区间 1M/3M/6M/12M）+ 悬停/点击交互。
+       数据 = data.js 的 RECENT（252 根日线 ≈ 12 个月，按档位从尾部切片）；
+       图上另叠 MA50 / MA200 与回撤档位线 t1 / t2（阈值取自 DEFAULT.thresholds，与看板主逻辑同源）。
+       ⚠ 档位超过现有根数时按钮自动置灰（见 renderRecent 里的 avail 判断）——
+         不允许出现「6M 的数据挂着 12M 的标签」这种"看起来有、其实没有"。 -->
   <div class="card" id="card-recent">
     <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">🕘</span> 日线与回撤参考
       <span class="recent-tabs" id="recent-tabs" role="tablist">
@@ -707,6 +712,7 @@
         <button type="button" class="rtab" data-n="22">1M</button>
         <button type="button" class="rtab on" data-n="65">3M</button>
         <button type="button" class="rtab" data-n="130">6M</button>
+        <button type="button" class="rtab" data-n="252">12M</button>
       </span>
       <span class="src-tag auto">AUTO</span><span class="recent-asof" id="recent-asof">--</span></div>
     <svg class="recent-svg" id="recent-svg" viewBox="0 0 620 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="日线收盘与均线、回撤档位参考线"></svg>
@@ -1443,14 +1449,14 @@ function renderBanner(ndxDD) {
 }
 
 /* ================= Data staleness ================= */
-/* 近 1 个月日线（2026-09-27 加；同日按用户反馈改版为「整宽单图 + tab + 悬停交互」）：
-   数据 = data.js 的 RECENT（抓取脚本从 10 年日线里留下的尾巴，22 个交易日，与 DEFAULT.ndx/spx.close 同源）。
+/* 近 12 个月日线（2026-09-27 加、10-03 由 130 根扩到 252 根并补 12M 档）：
+   数据 = data.js 的 RECENT（抓取脚本从 10 年日线里留下的尾巴，252 根 ≈ 12 个月，与 DEFAULT.ndx/spx.close 同源）。
    交互设计（一次点击 = 钉住 A，之后移动鼠标看 A → 当前 的两点变化率；点空白/同一点清除）：
      · 默认（未钉）：该日收盘 · 相对**区间首日**的涨跌% · 相对前一日的日涨跌%
      · 钉住 A 后：A 日期 → 当前日期 的两点变化率 + 相隔交易日数（用户要的「选两个点的变化率」）
    键盘 ← → 移动读数点；RECENT 缺失或为空时整张卡隐藏（不留空壳）。 */
 let recentKey = "ndx";      // 当前 tab：ndx | spx
-let recentSpan = 65;        // 区间档位（根数）：22 = 1M / 65 = 3M / 130 = 6M（默认 3M）
+let recentSpan = 65;        // 区间档位（根数）：22 = 1M / 65 = 3M / 130 = 6M / 252 = 12M（默认 3M）
 let recentHover = null;     // 悬停/键盘所在的点索引（null = 停在最新）
 let recentPin = null;       // 钉住的 A 点索引（null = 未钉）
 function recentData() {
@@ -1458,13 +1464,17 @@ function recentData() {
   const ok = (k) => !!(R && R[k] && Array.isArray(R[k].pts) && R[k].pts.length > 1);
   return (R && ok("ndx") && ok("spx")) ? R : null;
 }
-/* 当前区间 = 从尾部切 recentSpan 根（2026-09-27）：RECENT 统一存 130 根（≈6 个月），
-   1M / 3M / 6M 都从同一份数据切片 —— 切换档位只换切片长度，不重新取数、也不再请求。
+/* 当前区间 = 从尾部切 recentSpan 根（2026-09-27）：RECENT 统一存 252 根（≈12 个月），
+   1M / 3M / 6M / 12M 都从同一份数据切片 —— 切换档位只换切片长度，不重新取数、也不再请求。
    ⚠ 图上的点索引（hover / 钉住的 A）都是相对当前区间的，切档位时必须清空（见下面的事件处理）。
-   ⚠ 统计条与参考线也都用这个切片，所以它们跟着"当前看到的区间"走，而不是固定按全部 130 根。 */
+   ⚠ 统计条与参考线也都用这个切片，所以它们跟着"当前看到的区间"走，而不是固定按全部 252 根。 */
 function recentPts() {
   const R = recentData();
-  return R ? R[recentKey].pts.slice(-recentSpan) : [];
+  if (!R) return [];
+  const all = R[recentKey].pts;
+  /* ⚠ Math.min 夹住：档位数 > 现有根数时不许越界切片（renderRecent 已把这种档位置灰，
+     这里再兜一层 —— 否则 slice(-252) 只会静默退化成"数据挂错标签"）。 */
+  return all.slice(-Math.min(recentSpan, all.length));
 }
 function recentPct(v) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%"; }
 function drawRecent() {
@@ -1480,7 +1490,7 @@ function drawRecent() {
   const line = recentKey === "ndx" ? "var(--cyan)" : "var(--blue)";
   const fmt = (v) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
   const fmt2 = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const iNow = recentHover === null ? n - 1 : recentHover;
+  const iNow = recentHover === null ? n - 1 : Math.min(recentHover, n - 1);   // 夹住：hover 索引永远落在当前区间内
   let s = "";
   [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
     s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
@@ -1571,9 +1581,15 @@ function renderRecent() {
     const on = b.getAttribute("data-k") === recentKey;
     b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
   });
-  /* 档位按钮（1M/3M/6M）：用 aria-pressed（这是按钮组不是 tablist） */
+  /* 档位按钮（1M/3M/6M/12M）：用 aria-pressed（这是按钮组不是 tablist）。
+     ⚠ 档位数 > 现有数据根数时**置灰**（例：数据只有 130 根时的 12M）——
+       否则 slice(-252) 会静默退化成"130 根的数据挂 12M 的标签"，正是本页最忌讳的「看起来有、其实没有」。 */
+  const spanAvail = (() => { const R = recentData(); return R ? Math.min(R.ndx.pts.length, R.spx.pts.length) : 0; })();
   [...document.querySelectorAll("#recent-spans .rtab")].forEach((b) => {
-    const on = +b.getAttribute("data-n") === recentSpan;
+    const n = +b.getAttribute("data-n"), off = n > spanAvail;
+    b.disabled = off;
+    b.title = off ? "需要 " + n + " 个交易日，现有数据 " + spanAvail + " 天 —— 等下一次自动更新补齐" : "";
+    const on = !off && n === recentSpan;
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
   });
   drawRecent();
