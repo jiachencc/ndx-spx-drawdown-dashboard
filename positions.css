@@ -1155,9 +1155,10 @@
   .trend-legend i.cost { border-top-style: dashed; border-top-color: var(--cyan); }
   .trend-legend i.base { border-top-color: var(--tx); border-top-style: dashed; }   /* 与图内基准线同色 */
   .trend-legend i.dn { border-top-color: var(--down); }
-  /* 盈亏全程的两条分量线（2026-10-04）：场内＝青、场外＝黄，与图内 polyline 同色 */
-  .trend-legend i.cyan { border-top-color: var(--cyan); }
-  .trend-legend i.yellow { border-top-color: var(--yellow); }
+  /* 盈亏全程的两条分量线（2026-10-04）：场内＝青、场外＝黄；**虚线**（与合计的实线区分，
+     用户 2026-10-04 意见："场内/外可以用虚线，视觉更清楚"）→ 图例色块也同步为虚线。 */
+  .trend-legend i.cyan { border-top-color: var(--cyan); border-top-style: dashed; }
+  .trend-legend i.yellow { border-top-color: var(--yellow); border-top-style: dashed; }
   .trend-legend .tdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--blue); background: var(--card); vertical-align: middle; margin-right: 4px; }
   .trend-legend .sq { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
   /* 结论行：紧跟 KPI 行、与它同属一块（不再是个独立分节）。

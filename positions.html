@@ -2013,7 +2013,7 @@ function renderPnlView(box) {
       const arr = pair[1];
       if (arr.length < 2) return;
       svg += '<polyline class="pnl-comp" points="' + arr.map((p) => P(XD(p.d)) + "," + P(Y(p.pl))).join(" ") +
-        '" fill="none" style="stroke:var(--' + pair[0] + ');stroke-width:2;opacity:.85"/>';
+        '" fill="none" style="stroke:var(--' + pair[0] + ');stroke-width:2;stroke-dasharray:5 4"/>';
     });
   }
   svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
@@ -2161,9 +2161,12 @@ function showXhair(i) {
       '<div class="ro-grid">' + roCell("累计盈亏", fmtAmt(p.pl), null, cls(p.pl)) +
         (mon === null ? "" : roCell("当月", fmtAmt(mon), null, cls(mon))) +
         roCell("距最深", fmtAmt(off), '<span class="ro-sub">（' + mdOf(deep.d) + "）</span>", cls(off)) + "</div>" +
-      '<div class="ro-attr"><span class="nb"><span class="ro-k">' + (pnlHasOtc()
-        ? "合计口径 · 场内＝券商 App（含已实现）｜场外＝平台 App 月度账单 5 个基金渠道（蚂蚁/南方/博时/广发/华安）；不含现金，招行理财与黄金按用户口径不计入"
-        : "场内账户口径 · 含已实现 —— 场外月度读数未加载") + "</span></span></div>";
+      /* 口径行只留一句短的（原先把整段来源说明摊在这里，窄屏会顶出横向滚动 ✗）；
+         完整说明收进原生 title —— 用户 2026-10-04 意见：「合计口径 这行太长了，精简一些」。 */
+      '<div class="ro-attr"><span class="nb"><span class="ro-k"' + (pnlHasOtc()
+        ? ' title="合计 ＝ 场内（券商 App 月度读数，含已实现）＋ 场外 5 个基金渠道（平台 App 月度账单：蚂蚁 / 南方 / 博时 / 广发 / 华安）。不含现金；招行理财与黄金按用户口径（债基、低风险）不计入。⚠ 两条来源口径不同名 —— 场外全年 −1,964（月度账单）vs −2,149（快照持仓收益），差约 180 元属已知口径差。"'
+        : ' title="场外月度读数未加载，故图上只有场内（券商 App 月度读数，含已实现）"') + ">"
+        + (pnlHasOtc() ? "合计 · 场内＋场外（不含现金）" : "场内口径 · 含已实现") + "</span></span></div>";
   } else if (mode === "rate") {
     const N = trendNav(L.pts), tw = N.nav[k] - 1;
     const bi = benchRelAt(L.pts, k);
