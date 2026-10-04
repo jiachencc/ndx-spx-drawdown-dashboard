@@ -62,6 +62,7 @@ try {
 
   <div class="card">
     <div class="sum-grid" id="sum-grid"></div>
+    <div class="alloc-mode" id="alloc-mode"></div>
     <div class="alloc-bar" id="alloc-bar" role="img" aria-label="组合占比"></div>
     <div class="alloc-legend" id="alloc-legend"></div>
     <!-- 场外当日预估 · 逐只拆解（2026-10-03）：挂在汇总卡里 —— 它就是「当日盈亏（估）」场外那格的展开，
@@ -572,22 +573,46 @@ function etfRowTag(row) {
  * 用**原始名**（f.name）判，不能用 plDisplayName 的输出（那个会截短，尾巴可能已经不是字母）。
  * 只用于显示层合并 —— 数据层仍然是两条（它们是两个基金代码、两套费率）。 */
 const twinKey = (n) => String(n || "").replace(/[A-Z]$/, "");
+/* 配置图的划分模式（2026-10-04 P2）：theme＝按资产类别（**默认**，dom-check 的现金断言依赖它）｜
+   pos＝按 52 周位置档位。声明放在 renderAlloc 定义之前、init 调用之前（曾因 const 声明靠后撞 TDZ ✗）。 */
+let allocBy = "theme";
+let lastAllocRows = null, lastAllocOtc = null;
 function renderAlloc(rows, otcRows) {
   const alloc = {};
-  rows.forEach((row) => { alloc[row.p.idx] = (alloc[row.p.idx] || 0) + row.valAmt; });
-  otcRows.forEach((row) => { alloc[row.f.theme] = (alloc[row.f.theme] || 0) + row.valAmt; });
+  /* ── 两种划分（2026-10-04 P2）：同一批 13 只，两种切法 —— 用户提的"按资产类别与按风险等级的双重划分"──
+       theme（默认）：按指数主题（纳指/标普/中韩/日本/港美/全球）
+       pos          ：按**现价在 52 周区间的位置**档位（偏低/中位/偏高/未分档）
+     ⚠ 档位用的是与持仓卡、场外水位**同一套**算法与阈值（CONFIG.POS_LOW/HIGH）——
+       不是另起一套"风险等级"（本文没有风险评级数据，硬造一个就是假精确 ✗）。
+     ⚠ 默认仍是 theme：dom-check 的「配置图现金 = 快照现金」等断言依赖它 ✓ */
+  const byPos = allocBy === "pos";
+  lastAllocRows = rows; lastAllocOtc = otcRows;                 // 切换模式时要重渲染，得留住输入
+  const posBucket = (lo, hi, cur) => {
+    if (!(hi > lo) || !Number.isFinite(cur) || !Number.isFinite(lo)) return "pnone";
+    const p = (cur - lo) / (hi - lo) * 100;
+    return p >= CONFIG.POS_HIGH ? "phigh" : p <= CONFIG.POS_LOW ? "plow" : "pmid";
+  };
+  const keyOfEtf = (r) => byPos ? posBucket(r.m && r.m.low52, r.m && r.m.ath, r.m && r.m.close) : r.p.idx;
+  const keyOfOtc = (r) => byPos ? posBucket(r.f.nav.lo, r.f.nav.hi, r.f.nav.close) : r.f.theme;
+  rows.forEach((row) => { const k = keyOfEtf(row); alloc[k] = (alloc[k] || 0) + row.valAmt; });
+  otcRows.forEach((row) => { const k = keyOfOtc(row); alloc[k] = (alloc[k] || 0) + row.valAmt; });
   alloc.cash = (alloc.cash || 0) + OTC.cash;
   const allocTotal = Object.values(alloc).reduce((a, b) => a + b, 0);
   const ALLOC_SHORT = { ndx: "纳指", spx: "标普", kr: "中韩", n225: "日本", hkus: "港美", global: "全球", cash: "现金" };
+  /* 档位模式的短名与顺序固定（低 → 中 → 高），不按金额排 —— 那是一条**刻度**，不是排行榜 */
+  const POS_SHORT = { plow: "偏低", pmid: "中位", phigh: "偏高", pnone: "未分档", cash: "现金" };
+  const POS_ORDER = ["plow", "pmid", "phigh", "pnone", "cash"];   // 刻度顺序（含未分档与现金）
+  const posName = (k) => POS_SHORT[k] + "（" + CONFIG.POS_LOW + "–" + CONFIG.POS_HIGH + "% 为界）";
+  const SHORT = byPos ? POS_SHORT : ALLOC_SHORT;
   /* 每类资产的成员明细（写进弹框）：这类资产的 19.9 万里，场内有谁、场外有谁 */
   const allocList = Object.keys(alloc).map((k) => {
     const w = allocTotal ? alloc[k] / allocTotal * 100 : 0;
-    const etf = rows.filter((r) => r.p.idx === k).map((r) => r.p.sym + " " + fmtYuan(r.valAmt));
+    const etf = rows.filter((r) => keyOfEtf(r) === k).map((r) => r.p.sym + " " + fmtYuan(r.valAmt));
     /* 场外成员按「同一只基金的份额」合并（2026-10-04）：华安 A / C 是同一只基金的两个份额 ——
        不合并的话，"场外 8 只"看着像 8 个标的，实际只有 7 只（A/C 同涨同跌、只差费率）。
        ⚠ 只在**显示层**合并：持仓、成本、费率体检仍按两个基金代码各算各的（那才是事实）。 */
     const otcG = [];
-    otcRows.filter((r) => r.f.theme === k).forEach((r) => {
+    otcRows.filter((r) => keyOfOtc(r) === k).forEach((r) => {
       const key = twinKey(r.f.name);
       const g = otcG.filter((x) => x.key === key)[0];
       if (g) g.list.push(r); else otcG.push({ key: key, list: [r] });
@@ -599,9 +624,15 @@ function renderAlloc(rows, otcRows) {
       return plDisplayName(g.list[0].f.name).replace(/[A-Z]$/, "") + " " + cls + " " + fmtYuan(sum) + "（同一只的两个份额）";
     });
     const member = [etf.length ? "场内 " + etf.join("、") : "", otc.length ? "场外 " + otc.join("、") : ""].filter(Boolean);
-    const head = ALLOC_NAMES[k] + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + " 元）";
-    return { k, name: ALLOC_SHORT[k] || k, w, amt: alloc[k], tip: head + (member.length ? " ｜ " + member.join("；") : "") };
-  }).sort((a, b) => b.w - a.w);   // 大块在前：色带与图例同序，读起来从大到小
+    const head = (byPos ? posName(k) : (ALLOC_NAMES[k] || k)) + " " + w.toFixed(1) + "%（" + fmtYuan(alloc[k]) + " 元）";
+    return { k, name: SHORT[k] || k, w, amt: alloc[k], tip: head + (member.length ? " ｜ " + member.join("；") : "") };
+    /* 排序：类别模式按金额（大块在前，色带与图例同序）；档位模式按**刻度顺序**（偏低→中位→偏高→现金）
+       —— 档位是一条刻度、不是排行榜 ✗ */
+  }).sort((a, b) => byPos ? (POS_ORDER.indexOf(a.k) - POS_ORDER.indexOf(b.k)) : (b.w - a.w));
+  /* 划分方式切换（同一组件、两种切法） */
+  if ($("alloc-mode")) $("alloc-mode").innerHTML = [["theme", "按资产类别"], ["pos", "按位置档位"]].map((p) =>
+    '<button type="button" class="alloc-mode-btn' + (allocBy === p[0] ? " on" : "") + '" data-allocmode="' + p[0] +
+    '" title="' + (p[0] === "theme" ? "同一批持仓按指数主题划分" : "同一批持仓按「现价在 52 周区间的位置」划分（偏低/中位/偏高）——与持仓卡、场外水位的档位同一套阈值") + '">' + p[1] + "</button>").join("");
   /* 条内标签**不在渲染时写死**：写什么由像素宽决定，交给 layoutAllocLabels()（窗口变化时重算）。
      段上带 data-w（原始占比）与 data-short（短名）供它使用；data-tip 是唯一的内容来源 ——
      原来这里只写了 title/aria-label，而点击处理读的是 dataset.tip，于是弹出一个空框 ✗。 */
@@ -5003,6 +5034,15 @@ let lastBuyMark = null;
 document.addEventListener("click", (e) => {
   /* 组合占比：色带段与图例项共用同一个弹框。原来只匹配 .alloc-seg、且读的是从未写过的
      dataset.tip → 空框；现在两者都带 data-tip，并加一道 title 兜底。 */
+  /* 配置图划分方式切换（P2，2026-10-04）：同一组件两种切法，切完立即用留下的输入重渲染 */
+  const mb = e.target.closest("[data-allocmode]");
+  if (mb) {
+    if (allocBy !== mb.dataset.allocmode) {
+      allocBy = mb.dataset.allocmode;
+      renderAlloc(lastAllocRows || [], lastAllocOtc || []);
+    }
+    return;
+  }
   const seg = e.target.closest(".alloc-seg, .alloc-key");
   if (seg) {
     if (seg === lastBuyMark) { buyTip.style.display = "none"; lastBuyMark = null; return; }
