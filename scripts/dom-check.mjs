@@ -265,6 +265,21 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
   const draws = [...win.document.querySelectorAll("#trend-box svg polyline")];
   check("盈亏全程图上确实画了 3 条线（合计 ＋ 场内 ＋ 场外）", draws.length >= 3,
     "SVG 里 " + draws.length + " 条折线 · 图例：" + ((win.document.getElementById("trend-legend") || {}).textContent || "").replace(/\s+/g, " ").trim().slice(0, 60));
+  /* 读数条新增三样（2026-10-04）：距峰值 / 场内当月 / 当月拆分；且拆分两项之和必须 = 当月 */
+  const roTxt = (win.document.getElementById("trend-readout") || {}).textContent || "";
+  check("读数条含「距峰值」「场内当月」「当月拆分」",
+    /距峰值/.test(roTxt) && /场内当月/.test(roTxt) && /当月拆分/.test(roTxt), roTxt.replace(/\s+/g, " ").trim().slice(0, 90));
+  {
+    const nums = (s) => (s.match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || []).map((x) => +x.replace(/,/g, "").replace("−", "-"));
+    const attr = win.document.querySelector("#trend-readout .ro-attr");
+    const monCell = [...win.document.querySelectorAll("#trend-readout .ro-cell")].find((c) => /^当月/.test(c.textContent.trim()));
+    const mon = monCell ? nums(monCell.textContent)[0] : null;
+    /* .ro-attr 里只有拆分那两个数（口径句已精简成纯文字、没有数字），故直接取前两个 */
+    const parts = attr ? nums(attr.textContent).filter((v) => Math.abs(v) > 0.5) : [];
+    check("当月拆分（场内＋场外）= 当月 " + (mon === null ? "?" : mon),
+      mon !== null && parts.length >= 2 && Math.abs((parts[0] + parts[1]) - mon) <= 2,
+      "拆分 " + parts.slice(0, 2).map(Math.round).join(" + ") + " = " + Math.round((parts[0] || 0) + (parts[1] || 0)) + " vs 当月 " + mon);
+  }
   /* ⚠ 必须切回「金额」视图：本节之后的读数条检查（走势卡读数含最新总资产 / 浮盈亏）看的是金额视图 ✗ */
   const back = [...win.document.querySelectorAll("#trend-views .tchip")].find((b) => b.textContent.trim().indexOf("金额") === 0);
   if (back) back.click();

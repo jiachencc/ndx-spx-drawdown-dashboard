@@ -1386,11 +1386,16 @@ function buildPnlSeries() {
   const empty = { all: [], etf: [], otc: [], hasOtc: false };
   if (!S || !S.monthly || !S.monthly.length) return empty;
   /* 场内：月度 → { "2026-06": pnl }（ACCT_STATS 的标签是「6月」，年份取最早成交日那年，跨年按倒序 +1） */
-  const etfM = {};
+  const etfM = {}, pxM = {};     // pxM: 场内当月收益率 / 上证基准（只有场内有月度百分比 ✗ 见读数条注释）
   let yr0 = +String((log[0] || {}).d || "").slice(0, 4) || new Date().getFullYear();
   { let prevM = 0, yr = yr0;
-    S.monthly.forEach((mo) => { const mi = MON_IDX[mo.m]; if (!mi) return; if (prevM && mi < prevM) yr += 1; prevM = mi;
-      etfM[yr + "-" + String(mi).padStart(2, "0")] = (etfM[yr + "-" + String(mi).padStart(2, "0")] || 0) + mo.pnl; }); }
+    S.monthly.forEach((mo) => {
+      const mi = MON_IDX[mo.m]; if (!mi) return;
+      if (prevM && mi < prevM) yr += 1; prevM = mi;
+      const key = yr + "-" + String(mi).padStart(2, "0");
+      etfM[key] = (etfM[key] || 0) + mo.pnl;
+      if (Number.isFinite(mo.pct)) pxM[key] = { pct: mo.pct, bench: Number.isFinite(mo.bench) ? mo.bench : null };
+    }); }
   /* 场外：财务页 5 个基金渠道求和 → { "2026-03": pnl, … } */
   const otcM = {};
   AC.filter((a) => a.kind === "fund").forEach((a) => {
@@ -1420,7 +1425,12 @@ function buildPnlSeries() {
   const otc = hasOtc ? build(otcFirst, (ym) => otcM[ym] || 0) : [];
   const anchor = [etfFirst, otcFirst].filter(Boolean).sort()[0];
   const all = build(anchor, (ym) => (etfM[ym] || 0) + (otcM[ym] || 0));
-  return { all: all, etf: etf, otc: otc, hasOtc: hasOtc && otc.length > 1 };
+  /* byMonth：读数条按月查表用（键＝"2026-09"，即该点的「年月」）——
+     把当月拆分（场内/场外）、场内当月收益率与上证基准一次算好，避免读数条里再按年份去猜 ACCT_STATS 的「9月」属于哪年 ✗ */
+  const byMonth = {};
+  use.forEach((ym) => { byMonth[ym] = { etf: etfM[ym] || 0, otc: otcM[ym] || 0,
+    all: (etfM[ym] || 0) + (otcM[ym] || 0), pct: (pxM[ym] || {}).pct, bench: (pxM[ym] || {}).bench }; });
+  return { all: all, etf: etf, otc: otc, hasOtc: hasOtc && otc.length > 1, byMonth: byMonth };
 }
 /* TWR 时间加权收益率：∏(Vᵢ − Fᵢ)/Vᵢ₋₁ − 1，剔除资金进出，反映投资能力本身 */
 function calcTWR(pts) {
@@ -1979,7 +1989,9 @@ function renderPnlView(box) {
   const Y = (v) => mT + (hi - v) / (hi - lo || 1) * (H - mT - mB);
   const P = (v) => v.toFixed(1);
   const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(p.pl));
-  trendLayout = { px: px, py: py, pts: pts, mode: "pnl" };
+  /* pnlSeries 挂进 trendLayout：读数条（showXhair）要按年月查「当月拆分 / 场内收益率」，
+     与图同一份数据 —— 不在读数条里重算（那是每次指针移动都跑一遍 ✗）。 */
+  trendLayout = { px: px, py: py, pts: pts, mode: "pnl", pnlSeries: SR };
   if ($("trend-cnt")) $("trend-cnt").innerHTML = "(月度 " + pts.length + " 期 · " + pts[0].d.slice(5).replace("-", ".") + " 起 · 快照至 " + (mdOf(snapAsOf()) || "未记录") + ")";
   let deepI = 0;
   pts.forEach((p, i) => { if (p.pl < pts[deepI].pl) deepI = i; });
@@ -2151,19 +2163,39 @@ function showXhair(i) {
     '<span class="ro-badge' + (badgeCls ? " " + badgeCls : "") + '" title="' + tip + '">' + badge + "</span>" +
     '<span class="ro-pos">第 ' + (k + 1) + "/" + L.pts.length + " 期</span></div>";
   if (mode === "pnl") {
-    /* 盈亏全程：月度点 { d, pl }，场内账户口径（含已实现） */
+    /* 盈亏全程：月度点 { d, pl }。2026-10-04 起读数条补三样（用户点名要的）：
+       ① 当月拆分（场内 / 场外）—— 每月能说清"这钱是谁亏的"
+       ② 距峰值 —— 与「距最深」对称：一个对全期最高、一个对全期最深
+       ③ 场内当月收益率 vs 上证 —— 金额没有分母，这一格才回答"是我菜还是市场差"（只有场内有月度百分比） */
     const prev = k > 0 ? L.pts[k - 1] : null;
     const mon = prev ? p.pl - prev.pl : null;
     let deep = L.pts[0];
     L.pts.forEach((q) => { if (q.pl < deep.pl) deep = q; });
     const off = p.pl - deep.pl;
+    /* ② 全期最高（与「距最深」同一算法、方向相反；不是运行峰值 —— 两个数口径要对称，别一个全期一个当期） */
+    let peak = L.pts[0];
+    L.pts.forEach((q) => { if (q.pl > peak.pl) peak = q; });
+    const dPeak = p.pl - peak.pl;
+    /* ①③ 按**年月**查表（byMonth 的键＝"2026-09"，而该点的日期正是月末） */
+    const bm = (L.pnlSeries && L.pnlSeries.byMonth) ? L.pnlSeries.byMonth[p.d.slice(0, 7)] : null;
+    const hasPx = !!(bm && Number.isFinite(bm.pct));
     ro.innerHTML = roHead("按月", "", "月度读数：App 的月度盈亏（" + (pnlHasOtc() ? "合计 ＝ 场内 ＋ 场外 5 个基金渠道" : "场内账户") + "，含已实现），每期一个点，不是每日") +
       '<div class="ro-grid">' + roCell("累计盈亏", fmtAmt(p.pl), null, cls(p.pl)) +
         (mon === null ? "" : roCell("当月", fmtAmt(mon), null, cls(mon))) +
-        roCell("距最深", fmtAmt(off), '<span class="ro-sub">（' + mdOf(deep.d) + "）</span>", cls(off)) + "</div>" +
+        roCell("距最深", fmtAmt(off), '<span class="ro-sub">（' + mdOf(deep.d) + "）</span>", cls(off)) +
+        roCell("距峰值", fmtAmt(dPeak), '<span class="ro-sub">（' + mdOf(peak.d) + "）</span>", cls(dPeak)) +
+        (hasPx
+          ? roCell("场内当月", fmtPct(bm.pct / 100, 2),
+            '<span class="ro-sub">vs 上证 ' + (Number.isFinite(bm.bench) ? fmtPct(bm.bench / 100, 2) : "—") + "</span>", cls(bm.pct))
+          : roCell("场内当月", "—", '<span class="ro-sub">该月无场内读数</span>', "")) + "</div>" +
       /* 口径行只留一句短的（原先把整段来源说明摊在这里，窄屏会顶出横向滚动 ✗）；
-         完整说明收进原生 title —— 用户 2026-10-04 意见：「合计口径 这行太长了，精简一些」。 */
-      '<div class="ro-attr"><span class="nb"><span class="ro-k"' + (pnlHasOtc()
+         完整说明收进原生 title —— 用户 2026-10-04 意见：「合计口径 这行太长了，精简一些」。
+         ① 当月拆分也放这一行（做成小字、不占格子：5 格在 390px 下已经够挤了）*/
+      '<div class="ro-attr">' +
+      (mon === null || !bm ? "" : '<span class="nb" title="当月 ＝ 场内（券商 App 月度读数）＋ 场外（平台 App 月度账单的 5 个基金渠道）；两项之和就是上面那个「当月」">' +
+        '<span class="ro-k">当月拆分</span>场内 <b class="' + cls(bm.etf) + '">' + fmtAmt(bm.etf) +
+        '</b> · 场外 <b class="' + cls(bm.otc) + '">' + fmtAmt(bm.otc) + "</b></span>") +
+      '<span class="nb"><span class="ro-k"' + (pnlHasOtc()
         ? ' title="合计 ＝ 场内（券商 App 月度读数，含已实现）＋ 场外 5 个基金渠道（平台 App 月度账单：蚂蚁 / 南方 / 博时 / 广发 / 华安）。不含现金；招行理财与黄金按用户口径（债基、低风险）不计入。⚠ 两条来源口径不同名 —— 场外全年 −1,964（月度账单）vs −2,149（快照持仓收益），差约 180 元属已知口径差。"'
         : ' title="场外月度读数未加载，故图上只有场内（券商 App 月度读数，含已实现）"') + ">"
         + (pnlHasOtc() ? "合计 · 场内＋场外（不含现金）" : "场内口径 · 含已实现") + "</span></span></div>";
