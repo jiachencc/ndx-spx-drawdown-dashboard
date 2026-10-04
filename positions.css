@@ -670,7 +670,8 @@
   .tool-head .cnt { font-size: var(--fs-xs); color: var(--tx3); font-weight: 400; }
 
   /* ===== 页内锁点导航：顶栏 sticky，手机端可横滑 =====
-     1 页 8 个区块，无导航时从“盈亏总览”跳回“资产走势”要手动滚 3–4 屏。
+     1 页 10 个区块（2026-10-04 P1：原 12 个 —— 「快照」「账户」并入「走势」），
+     无导航时从“盈亏总览”跳回“资产走势”要手动滚 3–4 屏。
      不靠 JS：原生 <a href="#id"> + html { scroll-behavior: smooth } 即可。 */
   .sec-nav {
     position: sticky; top: 6px; z-index: 20;

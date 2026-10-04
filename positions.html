@@ -48,8 +48,9 @@ try {
     <a class="sec-nav-link" href="#sec-pl">盈亏</a>
     <a class="sec-nav-link" href="#sec-principal">本金</a>
     <a class="sec-nav-link" href="#sec-trend">走势</a>
-    <a class="sec-nav-link" href="#sec-snap">快照</a>
-    <a class="sec-nav-link" href="#sec-acct">账户</a>
+    <!-- P1（2026-10-04）：原「快照」「账户」两项并入「走势」——它们与走势同一份时间数据，
+         不再各占导航；锚点 id 仍保留在子标题上（screenshot.mjs 与外部锚点还在用） -->
+
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-swing">波段</a>
@@ -91,20 +92,31 @@ try {
     <div class="trend-legend" id="trend-legend"></div>
   </div>
 
-  <!-- 板块顺序（2026-09-30 重排，注释与实现同步订正）：
-       ① 现状：盈亏总览 → 本金与收益
-       ② 过程：资产走势 → 快照对比（走势是一条线，快照是这条线逐期的账，同一件事的两种粒度）
-       ③ 场内：账户统计 → 持仓与操作记录 → 操作体检（诊断紧跟被诊断的对象）→ 波段复盘
-       ④ 工具：替换回测 ＋ 费率体检（两块「折叠待展开」，合并成一节）
-       ⑤ 归档：清仓历史（发生在首份快照之前、不计入本金与收益，放最后以免打断主线）
-       ⚠ 本次改动只有两处：把「操作体检」从 ① 里挪到 ③ 的持仓之后（它夹在「盈亏总览」与「本金与收益」
-         之间，把「现状」拆散了）；把「替换回测 / 费率体检」两节并成「工具」一节。
-         其余相对顺序未动 —— 那是 2026-09-24 定的（清仓历史归拢到末尾）。 -->
-  <h2 class="sec-title" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
+  <!-- ── 快照对比 ＋ 场内账户统计（2026-10-04 P1：两个独立分类**并入本模块**）─────────────
+       并入依据：三块吃的是**同一份时间数据**（SNAPSHOTS ＋ ACCT_STATS），只是粒度不同 ——
+         · 资产走势 = 这条时间线的图
+         · 快照对比 = 同一条线逐期的账（相邻两期到底动了什么）
+         · 账户统计 = 同一条线的月度汇总（涨跌幅 / 胜率 / 基准）
+       做法：先「合区块」——渲染函数与卡片 id **一字未动**（零风险），下一步才谈「合成视图 chips」。
+       ⚠ id 保留，只是从 <h2 class="sec-title"> 挪到子标题上：scripts/screenshot.mjs 按 #sec-snap 取图、
+         外部锚点也有人用 → 删 id 会静默打断它们 ✗。导航里只去掉这两项（12 → 10）。
+       ⚠ 子标题用 .tool-head（与「工具」那节同一套视觉），不再用 .sec-title ——
+         否则一个模块里出现三个同级标题，等于把刚合掉的分类又画回来 ✗。 -->
+  <div class="tool-head" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></div>
   <div class="card tight" id="snap-list" style="padding:4px 14px;"></div>
 
-  <h2 class="sec-title" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
+  <div class="tool-head" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></div>
   <div class="card tight" id="acct-card"></div>
+
+  <!-- 板块顺序（2026-10-04 重排，注释与实现同步）：
+       ① 现状：盈亏总览 → 本金与收益
+       ② 时间：资产走势 ＋（快照对比 · 场内账户统计）
+       ③ 场内：持仓与操作记录 → 操作体检（诊断紧跟被诊断的对象）→ 波段复盘
+       ④ 场外：净值水位 → 定投 · 操作记录
+       ⑤ 工具：替换回测 ＋ 费率体检
+       ⑥ 归档：清仓历史（发生在首份快照之前、不计入本金与收益，放最后以免打断主线）
+       ⚠ 本次（P1）只动了板块②：把原「快照对比」「场内账户统计」两个分类并入「资产走势」，
+         导航 12 → 10 项。其余顺序未动。 -->
 
   <h2 class="sec-title" id="sec-pos"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
