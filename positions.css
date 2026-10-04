@@ -875,6 +875,13 @@
   .dca-list li .d-a { flex: 1; color: var(--tx2); }
   .dca-list li .d-m { color: var(--tx2); }
   .dca-list li .d-s { color: var(--warn); }
+  /* 逐笔盈亏（2026-10-04 加）：明细每行末两栏 —— 当日净值 / 该笔至今盈亏 */
+  .dca-list li .d-nav { color: var(--tx3); min-width: 52px; text-align: right; }
+  .dca-list li .d-pl { min-width: 52px; text-align: right; }
+  .dca-sec { margin-top: 10px; padding-top: 7px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xs); color: var(--tx2); font-weight: 600; }
+  .dca-sec .e-th2 { font-weight: 400; color: var(--tx3); font-size: var(--fs-xxs); }
+  .dca-legend { font-size: 10px; color: var(--tx3); line-height: 1.6; margin: 2px 0 4px; }
   @media (max-width: 400px) { .dca-list li { gap: 6px; } }
 
   /* ---- 场外净值水位（2026-10-04 加；见 positions.html 里 renderOtcLevel 的注释）----

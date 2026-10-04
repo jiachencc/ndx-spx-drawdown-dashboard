@@ -13,6 +13,10 @@
  *   · 买点分位 = (该笔净值 − lo) / (hi − lo) × 100；多笔取平均 → 写进 nav.buyPct
  *   · 没有 OTC_LOG 的基金（支付宝渠道那两只）**不算 buyPct** —— 缺的是申购日期，不是净值
  *
+ * 2026-10-04 增加一项产出：**OTC_BUYNAV**（逐笔申购日净值，位置见本文件末尾的说明）。
+ *   起因：这个脚本一直在抓近 52 周逐日净值，却只拿它算 hi/lo —— 而「每笔申购那天净值多少」
+ *   正是「逐笔盈亏」唯一缺的那块（金额在 OTC_LOG 里有）。数据本来就在手上，白扔了 ✗。
+ *
  * 用法：node scripts/refresh-otc.mjs          只打印（dry-run）
  *      node scripts/refresh-otc.mjs --write  写回 positions-data.js（2026-09-27 前是 positions.html）
  */
@@ -91,6 +95,7 @@ const from = iso(new Date(today.getTime() - WEEKS52_MS)), to = iso(today);
 console.log("窗口 " + from + " → " + to + (WRITE ? "（写回）" : "（dry-run）") + "\n");
 
 let out = "", changed = 0;
+const buyNavAll = {};      // { code: { "YYYY-MM-DD": 净值 } } —— 逐笔申购日净值，循环里填，末尾整块写回
 for (const f of OTC.funds) {
   const code = f.code;
   let series = [];
@@ -113,6 +118,19 @@ for (const f of OTC.funds) {
     amtSum += e.amt;
     shareSum += e.amt / hit.v;                     // 该笔按当日净值能买到的份额
   }
+  /* 逐笔申购日净值（2026-10-04 加）：给页面的「逐笔盈亏」用。
+     ⚠ 集合与上面 buyPct 的**不同**：这里要的是「一切入金笔」，即 成功 且非赎回
+       （申购 / 定投 / 转换 / 部分成功 —— 转换入也是往这只里加钱）。
+       而 buyPct 那两个口径是 2026-09-27 定的（只算 申购|定投），页面注释也按那个语义写的，
+       **不在这里顺手改**（改了两处口径会打架）。
+     ⚠ 按日期存：同一日期多笔必然同一净值（都取「当日或之前最近一个交易日」），故 date → nav 足够。 */
+  const inLog = (OTC_LOG[code] || []).filter((e) => e.status === "成功" && !/赎回/.test(String(e.act)));
+  const buyNav = {};
+  for (const e of inLog) {
+    const hit = sorted.find((x) => x.d <= e.d);
+    if (hit) buyNav[e.d] = +hit.v.toFixed(4);
+  }
+  buyNavAll[code] = buyNav;
   /* 两种平均口径（买点项）：
        算术平均 —— 一笔一票，回答「我每次买在区间的什么位置」（页面主数，2026-09-27 前就这一个）
        金额加权 —— 权重＝金额，等价于「加权平均成本的区间分位」，与「成本」项同一套数学
@@ -169,4 +187,46 @@ for (const f of OTC.funds) {
 if (WRITE) {
   if (changed) { writeFileSync(FILE, src); console.log("\n已写回 " + changed + " 只（hi / lo / buyPct）"); }
   else console.log("\n没有需要改动的（或没定位到 nav 块）");
+}
+
+/* ==== OTC_BUYNAV 整块生成与写回（2026-10-04 加）==========================================
+ * 用途：页面算「每一笔申购到今天赚了多少」——金额在 OTC_LOG，缺的就是那天的净值；
+ *       本脚本本来就在抓近 52 周逐日净值，只拿它算了 hi/lo，这笔数据一直白扔 ✗ → 现在存下来。
+ * 结构：{ "基金代码": { "YYYY-MM-DD": 净值, … } }，只含**成功且非赎回**的入金笔（申购/定投/转换/部分成功）。
+ *       ⚠ 与上面 buyPct 的集合不同（那个只算 申购|定投），口径差异写在页面注释里。
+ * 写法：本块是**生成物** —— 有则整块替换、无则插到 OTC_LOG 之后。所以不要手工编辑它
+ *       （下次 --write 会覆盖）；要改口径就改这里。 */
+function buyNavBlock(map) {
+  const sel = OTC.funds.filter((f) => map[f.code] && Object.keys(map[f.code]).length);
+  let n = 0;
+  const body = sel.map((f) => {
+    const ks = Object.keys(map[f.code]).sort();
+    n += ks.length;
+    const pairs = ks.map((d) => JSON.stringify(d) + ": " + map[f.code][d]);
+    const lines = [];
+    for (let i = 0; i < pairs.length; i += 6) lines.push("      " + pairs.slice(i, i + 6).join(", ") + (i + 6 < pairs.length ? "," : ""));
+    return "  " + JSON.stringify(f.code) + ": {\n" + lines.join("\n") + "\n  },";
+  }).join("\n");
+  const head = "/* ---- OTC_BUYNAV：逐笔申购日净值（**生成物**，由 scripts/refresh-otc.mjs --write 整块重写，别手改）----\n"
+    + " * 用途：回答「每一笔申购到今天赚了多少」——金额在 OTC_LOG 里，差的只是那天的净值。\n"
+    + " * 口径：某笔的净值 ＝ 该申购日**或之前最近一个交易日**的东财单位净值（DWJZ；与非交易日顺延的\n"
+    + " *       确认规则一致）。同一天多笔必然同值，故按日期存。\n"
+    + " * 集合：**成功且非赎回**的入金笔（申购 / 定投 / 转换 / 部分成功）＝ 页面「逐笔盈亏」的同一集合。\n"
+    + " *       ⚠ 与 nav.buyPct 的集合（申购|定投，2026-09-27 定）不同，两者别互相折算。\n"
+    + " * 窗口：近 52 周（与 hi/lo 同一次抓取）—— 早于窗口的笔查不到净值，页面会显示「—」并不计入合计。 */\n";
+  return { text: head + "const OTC_BUYNAV = {\n" + body + "\n};\n", n };
+}
+const bn = buyNavBlock(buyNavAll);
+const RE_BN = /\/\* ---- OTC_BUYNAV[\s\S]*?\nconst OTC_BUYNAV = \{[\s\S]*?\n\};\n/;
+console.log("\n逐笔申购日净值：共解析 " + bn.n + " 笔" + (bn.n ? "" : "（抓取失败？）"));
+if (WRITE) {
+  const before = src;
+  if (RE_BN.test(src)) src = src.replace(RE_BN, bn.text);
+  else {
+    const anchor = /(const OTC_LOG = \{[\s\S]*?\n\};\n)/;   // 没有就插到 OTC_LOG 之后
+    if (anchor.test(src)) src = src.replace(anchor, "$1\n" + bn.text);
+    else console.log("⚠ 未定位到 OTC_LOG 块，OTC_BUYNAV 未写入");
+  }
+  if (src !== before) { writeFileSync(FILE, src); console.log("已写回 OTC_BUYNAV（" + bn.n + " 笔）"); }
+  else console.log("OTC_BUYNAV 无变化");
 }

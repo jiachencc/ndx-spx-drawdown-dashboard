@@ -232,6 +232,26 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
   check("水位标记 = 独立复算的区间位置（±0.2pp）", bad.length === 0, bad.join("；"));
 }
 
+/* ③g 场外逐笔盈亏（2026-10-04 加）：① 「定投 vs 一次性」表 = 有净值的只数 + 合计
+   ② 逐笔明细里带净值的行数 = 独立复算的「成功且非赎回、且 OTC_BUYNAV 覆盖该日期」的笔数
+   —— 查表漏一笔，那一笔的盈亏就静默消失，在 391 行里肉眼看不出来 */
+{
+  const card = win.document.querySelector("#otclog-card");
+  const tbls = card ? [...card.querySelectorAll("table.dca-tbl")] : [];
+  const rows = tbls[1] ? [...tbls[1].querySelectorAll("tbody tr")] : [];
+  const nPx = OC.funds.filter((f) => f.nav && Number.isFinite(f.nav.close)).length;
+  check("「定投 vs 一次性」表 = " + nPx + " 只 + 合计 1 行", rows.length === nPx + 1, "表内 " + rows.length + " 行");
+  const OBN = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC_BUYNAV = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC_BUYNAV;", c, { timeout: 500 }); return c.o; })();
+  const OCL2 = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC_LOG = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC_LOG;", c, { timeout: 500 }); return c.o; })();
+  let expect = 0;
+  OC.funds.forEach((f) => {
+    const bn = OBN[f.code] || {};
+    (OCL2[f.code] || []).forEach((t) => { if (t.status === "成功" && !/赎回/.test(String(t.act)) && bn[t.d]) expect++; });
+  });
+  const listed = [...win.document.querySelectorAll("#otclog-card .dca-list li .d-nav")].filter((el) => el.textContent.trim() !== "—").length;
+  check("逐笔明细带净值的行数 = 独立复算 " + expect + " 笔", listed === expect, "明细里 " + listed + " 行");
+}
+
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
