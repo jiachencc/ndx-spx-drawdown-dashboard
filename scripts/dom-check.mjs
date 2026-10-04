@@ -215,6 +215,23 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
     liveChips.map((el) => el.textContent.trim()).join(" / ") || "没有「定投中」的行");
 }
 
+/* ③f 场外净值水位（2026-10-04 加）：① 8 只一场不落 ② 现价标记的位置必须等于独立复算的区间位置
+   —— 标记错位属于「数字对、图本身错」那类 bug，只有把 style.left 与数据复算一遍才抓得到 */
+{
+  const rows = [...win.document.querySelectorAll("#otc-lvl-card .lvl-row")];
+  check("场外水位表 = " + OC.funds.length + " 只", rows.length === OC.funds.length, "表内 " + rows.length + " 行");
+  const got = new Map(rows.map((el) => [el.dataset.code, el.querySelector(".lvl-mk.now")]));
+  const bad = [];
+  OC.funds.forEach((f) => {
+    const el = got.get(f.code);
+    if (!el) { bad.push(f.code + " 缺行"); return; }
+    const want = Math.max(0, Math.min(1, (f.nav.close - f.nav.lo) / (f.nav.hi - f.nav.lo))) * 100;
+    const has = parseFloat(el.style.left);
+    if (!(Math.abs(has - want) <= 0.2)) bad.push(f.code + " 标记 " + has + "% vs 复算 " + want.toFixed(1) + "%");
+  });
+  check("水位标记 = 独立复算的区间位置（±0.2pp）", bad.length === 0, bad.join("；"));
+}
+
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));

@@ -877,6 +877,24 @@
   .dca-list li .d-s { color: var(--warn); }
   @media (max-width: 400px) { .dca-list li { gap: 6px; } }
 
+  /* ---- 场外净值水位（2026-10-04 加；见 positions.html 里 renderOtcLevel 的注释）----
+     场内有「三点水位梯」，场外一直没有 —— 本块的轨道 ＝ 该只净值的 52 周区间（左低右高），
+     轨道上两个点：实心＝现价、青空心＝成本净值。用 grid 两栏（名字＋收益 / 元信息 / 轨道整行），
+     与「账户年度排行」第三版同一套版式（手机上轨道独占整行，点才不会挤在一起）。 */
+  .lvl-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 10px; color: var(--tx3); margin: 2px 0 7px; align-items: center; }
+  .lvl-legend b.lvl-mk { position: static; display: inline-block; transform: none; margin: 0 2px; vertical-align: -1px; }
+  .lvl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "hd val" "meta meta" "track track"; column-gap: 8px; row-gap: 3px;
+    padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }
+  .lvl-row:last-child { border-bottom: none; }
+  .lvl-hd { grid-area: hd; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .lvl-row .n { grid-area: val; font-family: var(--mono); font-size: var(--fs-sm); }
+  .lvl-meta { grid-area: meta; font-size: 10px; color: var(--tx3); font-family: var(--mono); line-height: 1.5; }
+  .lvl-track { grid-area: track; position: relative; height: 5px; background: var(--card2); border-radius: 3px; margin: 4px 0 1px; }
+  .lvl-mk { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%); box-sizing: border-box; }
+  .lvl-mk.now { background: var(--tx); border: 2px solid var(--card); }
+  .lvl-mk.cost { background: var(--card); border: 2px solid var(--cyan); }
+
   /* ===== 流水条目（现嵌在各持仓卡的「操作记录」折叠区内） ===== */
   .log-item { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 9px; padding: 8px 2px; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
   .log-item:last-child { border-bottom: none; }

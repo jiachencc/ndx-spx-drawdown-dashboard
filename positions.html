@@ -53,6 +53,7 @@ try {
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-swing">波段</a>
+    <a class="sec-nav-link" href="#sec-otclvl">水位</a>
     <a class="sec-nav-link" href="#sec-otclog">场外</a>
     <a class="sec-nav-link" href="#sec-tools">工具</a>
     <a class="sec-nav-link" href="#sec-closed">清仓</a>
@@ -127,6 +128,18 @@ try {
        投入 / 收益 / XIRR / TWR 不重复 —— 已在「本金与收益」卡（场内场外 13 只并列）。
        位置：紧接场内那组（持仓 → 体检 → 波段复盘）之后，作为「场外」独立一组。
        数据：全部来自已有 OTC_LOG，无新增抓取（下一步的「逐笔盈亏」需先存净值历史，见函数注释）。 -->
+  <!-- 场外净值水位（2026-10-04 建）：用户问「场外持仓下一步能做什么」，我提了 ① 主题暴露 ② 同标的费率
+       ③ 52 周位置 —— **查完发现 ①② 页面上其实已经都有了**：① 就是顶部「组合占比」配置图（renderAlloc
+       按主题聚合、场内场外合并、tooltip 列出成员：纳指 39.7% / 标普 31.2% / 中韩 13.5%…）；
+       ② 就是「工具 → 费率体检」（每只 vs 同口径 peer 算「可省 X 元/年」，且已覆盖场外 8 只）。
+       真正缺的是 ③：场内有「三点水位梯」（成本 / 现价 / 52 周最高），**场外 8 只没有** ✗。
+       本块把同一套视角补给场外，并多给一样场内没有的：轨道两端用上了 nav.lo（52 周最低）——
+       于是「成本买在区间什么位置、现在到什么位置」两个点一眼可见（正是本页副标题的「成本位置视角」）。
+       数据全在 positions-data.js（nav.lo/hi/close ＋ 最新快照的 cost/qty），零新增抓取。
+       位置：紧跟场内那组之后、场外定投记录之前（现状 → 过程）。 -->
+  <h2 class="sec-title" id="sec-otclvl"><span aria-hidden="true">🌊</span> 场外净值水位 <span class="cnt" id="otc-lvl-cnt"></span></h2>
+  <div class="card" id="otc-lvl-card"></div>
+
   <h2 class="sec-title" id="sec-otclog"><span aria-hidden="true">🌐</span> 场外定投 · 操作记录 <span class="cnt" id="otclog-cnt"></span></h2>
   <div class="card" id="otclog-card"></div>
 
@@ -764,6 +777,67 @@ function renderOtcLog() {
   if (cnt) cnt.textContent = "（" + rows.length + " 只 · " + totN + " 笔 · 截至 " + d5(asOf) + "）";
 }
 
+/* ---- 场外净值水位（2026-10-04 加）------------------------------------------------------
+ * 场内有「三点水位梯」（成本 / 现价 / 52 周最高），**场外 8 只一直没有** —— 本块补上，
+ * 并多做一样场内没有的：轨道两端用上 nav.lo（52 周最低），于是两个点同时可读：
+ *   实心 ●＝现价在 52 周区间的什么位置   ｜   青色空心 ○＝**成本净值**在同区间的什么位置
+ * → 「买在什么水位、现在在什么水位」一眼可见（本页副标题承诺的「成本位置视角」）。
+ * 数据：positions-data.js 里全有（OTC.funds[].nav.lo/hi/close ＋ 最新快照的 cost/qty），零新增抓取。
+ * ⚠ 成本净值 = App「持仓成本」÷ 份额。它与现价的关系是**近似**：南方那只 App 成本比逐笔少 400 元
+ *   （成本滞后一格，见「本金与收益」卡的口径注）→ ±0.2% 量级；含在途的口径差已在别处披露，此处不重复。
+ * ⚠ 档位（高位 ≥80% / 中位 20~80% / 低位 <20%）是我定的**提示**阈值，不是投资建议；
+ *   纳指几只都在高位不等于该停投，中欧在低位也不等于该加仓 —— 这里只负责把位置摆出来。
+ * ⚠ 区间窗口 = 东财近 52 周（refresh-otc.mjs 抓的 hi/lo，区间日见 tooltip）；窗口会随时间滚动。 */
+function renderOtcLevel() {
+  const box = $("otc-lvl-card"), cnt = $("otc-lvl-cnt");
+  if (!box) return;
+  const lasts = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length)
+    ? ((SNAPSHOTS.filter((x) => x.items).at(-1) || {}).items || {}) : {};
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const band = (p) => p >= 0.8 ? { k: "高位", c: "bad" } : p <= 0.2 ? { k: "低位", c: "ok" } : { k: "中位", c: "warn" };
+  const rows = OTC.funds.map((f) => {
+    const it = lasts[f.code] || {}, n = f.nav, span = n.hi - n.lo;
+    const costNav = (it.qty && it.cost) ? it.cost / it.qty : null;
+    return { f, n, costNav,
+      pos: span > 0 ? clamp((n.close - n.lo) / span) : null,
+      cpos: (costNav && span > 0) ? clamp((costNav - n.lo) / span) : null,
+      dist: (n.close / n.hi - 1) * 100,
+      over: costNav ? (costNav > n.hi ? "成本高于区间上沿" : costNav < n.lo ? "成本低于区间下沿" : null) : null };
+  }).sort((a, b) => b.pos - a.pos);                        // 高位的排前面（读数从高到低）
+  let h = '<div class="lvl-legend"><span>实心 <b class="lvl-mk now"></b> ＝ 现价</span>'
+    + '<span>空心 <b class="lvl-mk cost"></b> ＝ 成本净值</span><span>轨两端 ＝ 52 周最低 / 最高</span></div>';
+  rows.forEach((r) => {
+    const b = band(r.pos);
+    h += '<div class="lvl-row" data-code="' + r.f.code + '">'
+      + '<div class="lvl-hd"><span class="f-nm">' + esc(plDisplayName(r.f.name)) + "</span>"
+      + '<span class="dca-chip ' + b.c + '">' + b.k + " " + (r.pos * 100).toFixed(0) + "%</span></div>"
+      + '<div class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</div>"
+      + '<div class="lvl-meta">' + (r.costNav ? "成本 " + r.costNav.toFixed(4) + " → 现价 " + r.n.close : "成本净值不可得（快照缺份额）")
+      + " · 52 周 " + r.n.lo + "~" + r.n.hi + " · 距高 " + fmtPct(r.dist / 100, 1)
+      + (r.f.nav.closeDate ? " · 净值日 " + String(r.f.nav.closeDate).slice(5) : "") + "</div>"
+      + '<div class="lvl-track" title="52 周区间 ' + r.n.lo + " ~ " + r.n.hi
+      + (r.over ? "（" + r.over + "）" : "") + "\n现价 " + r.n.close + " 在 " + (r.pos * 100).toFixed(1) + "% 处"
+      + (r.cpos !== null ? "；成本净值 " + r.costNav.toFixed(4) + " 在 " + (r.cpos * 100).toFixed(1) + "% 处" : "")
+      + "\n区间日 " + (r.n.loDate || "?") + " ~ " + (r.n.hiDate || "?") + '">'
+      + (r.cpos !== null ? '<b class="lvl-mk cost" style="left:' + (r.cpos * 100).toFixed(1) + '%"></b>' : "")
+      + '<b class="lvl-mk now" style="left:' + (r.pos * 100).toFixed(1) + '%"></b></div>'
+      + "</div>";
+  });
+  h += '<div class="otc-note"><b>怎么读</b>：每条轨道 ＝ 该只净值的<b>近 52 周区间</b>（左＝最低、右＝最高）；'
+    + "轨道上两个点：<b>实心</b>是现价、<b>青空心</b>是成本净值 —— 两点谁在左谁在右，就是「现价比我买的时候低还是高」。"
+    + "<br><b>成本净值</b>＝App「持仓成本」÷ 份额（近似：南方那只 App 成本比逐笔少 400 元、差 ±0.2% 量级，见「本金与收益」卡）。"
+    + "<br><b>档位</b>（高位 ≥80% · 中位 20~80% · 低位 &lt;20%）是我定的提示阈值，<b>不是投资建议</b> —— "
+    + "纳指几只都在高位不等于该停投，中欧在低位也不等于该加仓，这里只负责把水位摆出来。"
+    + "<br><b>区间窗口</b>＝东财近 52 周（会随时间滚动），窗口内的最高/最低日期见悬停提示。"
+    + "<br>⚠ 同一指数下的多只（纳指 4 只、其中华安 A/C 是<b>同一只基金的两个份额</b>）在顶部「组合占比」里已按主题合并："
+    + "纳指合计约 39.7% —— 那一眼看得更清楚，本块只管单只水位。</div>";
+  box.innerHTML = h;
+  /* 净值日是**逐只**的（QDII 各渠道公布快慢不同，本期实测 09-28 ~ 09-30）→ 报区间，不写死某一天 */
+  const nds = OTC.funds.map((f) => String(f.nav.closeDate || "")).filter(Boolean).sort();
+  const nd = nds.length ? (nds[0] === nds[nds.length - 1] ? nds[0].slice(5) : nds[0].slice(5) + "~" + nds[nds.length - 1].slice(5)) : "—";
+  if (cnt) cnt.textContent = "（" + rows.length + " 只 · 52 周区间 · 净值日 " + nd + "）";
+}
+
 function renderImpl() {
   closeIdxPop();
   if (typeof DEFAULT === "undefined" || typeof POSITIONS === "undefined") {
@@ -981,6 +1055,7 @@ function renderImpl() {
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
   renderOtcEst(nc);          // 场外当日预估的逐只拆解（挂在汇总卡内，见函数注释）
+  renderOtcLevel();          // 场外净值水位（52 周区间 + 成本点）
   renderOtcLog();            // 场外定投 · 操作记录（391 笔体检 + 异常笔 + 可折叠明细）
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
