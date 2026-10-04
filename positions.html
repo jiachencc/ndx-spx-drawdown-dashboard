@@ -45,13 +45,12 @@ try {
   </div>
 
   <nav class="sec-nav" aria-label="页面区块导航">
-    <a class="sec-nav-link" href="#sec-pl">盈亏</a>
-    <a class="sec-nav-link" href="#sec-principal">本金</a>
+    <a class="sec-nav-link" href="#sec-holdings">持仓水位</a>
     <a class="sec-nav-link" href="#sec-trend">走势</a>
     <!-- P1（2026-10-04）：原「快照」「账户」两项并入「走势」——它们与走势同一份时间数据，
          不再各占导航；锚点 id 仍保留在子标题上（screenshot.mjs 与外部锚点还在用） -->
 
-    <a class="sec-nav-link" href="#sec-pos">持仓</a>
+    <a class="sec-nav-link" href="#sec-pos">场内</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-swing">波段</a>
     <a class="sec-nav-link" href="#sec-otclvl">水位</a>
@@ -74,11 +73,23 @@ try {
     </details>
   </div>
 
-  <h2 class="sec-title" id="sec-pl"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
-  <div class="card tight" id="pl-list"></div>
+  <!-- ── 持仓与水位（2026-10-04 P3）：把原「盈亏总览」「本金与收益」合成**一张 13 行主表** ─────────
+       合并依据：两块的行集**完全相同**（都是场内 5 ＋ 场外 8 ＝ 13 只），只是"每只给哪几列"不同 ✗ ——
+         ① 只有盈亏（发散条）｜② 只有投入/收益/XIRR/TWR。合并后一表给全：
+         来源 · 档位 · 成本净值 → 现价 · 52 周轨道（●现价 ○成本）· 距高 · 浮盈亏 · 收益率
+       保留方式：原两块**不删**，收进下面的「明细视图」折叠块（各自仍按老样子渲染）——
+         ② 的 XIRR / 在场期属于本表之外的信息（要逐笔现金流，不是重复列 ✗），故与主表并存。
+       档位：调用全场唯一的 posBand()（阈值 CONFIG.POS_LOW/HIGH，颜色沿用 P0 规范：青/灰/黄）。 -->
+  <h2 class="sec-title" id="sec-holdings"><span aria-hidden="true">📋</span> 持仓与水位 <span class="cnt" id="hold-cnt"></span></h2>
+  <div class="card" id="hold-card"></div>
 
-  <h2 class="sec-title" id="sec-principal"><span aria-hidden="true">💰</span> 本金与收益 <span class="cnt" id="prin-cnt"></span></h2>
-  <div class="card tight" id="principal-card"></div>
+  <details class="closed-all" id="hold-more">
+    <summary>明细视图 · 盈亏总览 / 本金与收益（原两个分类，内容未删；行集与上表相同，只是列不同）</summary>
+    <div class="tool-head" id="sec-pl"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></div>
+    <div class="card tight" id="pl-list"></div>
+    <div class="tool-head" id="sec-principal"><span aria-hidden="true">💰</span> 本金与收益 <span class="cnt" id="prin-cnt"></span></div>
+    <div class="card tight" id="principal-card"></div>
+  </details>
 
   <h2 class="sec-title" id="sec-trend"><span aria-hidden="true">📈</span> 资产走势 <span class="cnt" id="trend-cnt"></span></h2>
   <div class="card trend-card">
@@ -573,6 +584,17 @@ function etfRowTag(row) {
  * 用**原始名**（f.name）判，不能用 plDisplayName 的输出（那个会截短，尾巴可能已经不是字母）。
  * 只用于显示层合并 —— 数据层仍然是两条（它们是两个基金代码、两套费率）。 */
 const twinKey = (n) => String(n || "").replace(/[A-Z]$/, "");
+/* ── 位置档位（P0 定规范 / P3 收敛实现）：现价在区间中的位置 → 偏低 / 中位 / 偏高；无区间数据 → 未分档。
+   ⚠ 全场只保留**这一个**实现：持仓与水位主表、场外水位块、配置图的「按位置档位」都调它 ——
+     此前各处各写一份（阈值与措辞都会漂移 ✗）。阈值只看 CONFIG.POS_LOW/HIGH，颜色只看 P0 规范（青/灰/黄）。 */
+const posBand = (lo, hi, cur) => {
+  const bad = { k: "未分档", c: "t-mid", p: null };
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || !Number.isFinite(cur) || !(hi > lo)) return bad;
+  const p = Math.max(0, Math.min(1, (cur - lo) / (hi - lo)));
+  const pc = p * 100;
+  return pc >= CONFIG.POS_HIGH ? { k: "偏高", c: "t-high", p: p }
+    : pc <= CONFIG.POS_LOW ? { k: "偏低", c: "t-low", p: p } : { k: "中位", c: "t-mid", p: p };
+};
 /* 配置图的划分模式（2026-10-04 P2）：theme＝按资产类别（**默认**，dom-check 的现金断言依赖它）｜
    pos＝按 52 周位置档位。声明放在 renderAlloc 定义之前、init 调用之前（曾因 const 声明靠后撞 TDZ ✗）。 */
 let allocBy = "theme";
@@ -928,6 +950,61 @@ function renderOtcLog() {
   if (cnt) cnt.textContent = "（" + rows.length + " 只 · " + totN + " 笔 · 截至 " + d5(asOf) + "）";
 }
 
+/* ---- 持仓与水位 · 13 行主表（2026-10-04 P3）-------------------------------------------
+ * 把「① 盈亏总览（只有盈亏）」与「② 本金与收益（只有投入/XIRR）」合成一张表 —— 两块行集完全相同 ✗。
+ * 行 = 场内 5（implEtfRows）＋ 场外 8（implOtcRows）：与顶部汇总卡、组合占比、盈亏发散条同一份行模型，
+ * **不另算一遍** ✓（这是 P3「减少重复计算」的落点）。
+ * 每行：来源 chip · 档位 chip · 成本净值 → 现价 · 52 周轨道（●现价 ○成本）· 距高 · 浮盈亏 · 收益率。
+ * ⚠ 档位只走 posBand()（CONFIG.POS_LOW/HIGH ＋ P0 颜色规范），本函数不另立阈值。
+ * ⚠ 「成本」两种口径并存、不强行统一：场内＝摊薄成本（含已实现），场外＝App 持仓成本净值。
+ * ⚠ 投入 / XIRR / TWR / 在场期**不在本表**：那些要逐笔现金流（不是同一行的另一列 ✗），
+ *   仍在下方「明细视图 · 本金与收益」里，两块并存而非重复。 */
+function renderHoldTable() {
+  const box = $("hold-card"), cnt = $("hold-cnt");
+  if (!box) return;
+  let etf = [], otc = [];
+  try { etf = implEtfRows(); otc = implOtcRows(); } catch (e) { /* 数据未就绪 → 空表 */ }
+  const rows = etf.map((r) => ({
+    nm: r.p.sym, src: "场内", lo: r.m && r.m.low52, hi: r.m && r.m.ath, cur: r.m && r.m.close,
+    costNav: r.p.idxAtCost, pl: r.valAmt - r.costAmt, rate: r.r,
+    tip: "场内 · 摊薄成本（含已实现盈亏）｜ 52 周区间 " + (r.m && r.m.low52) + "~" + (r.m && r.m.ath),
+  })).concat(otc.map((r) => ({
+    nm: plDisplayName(r.f.name), src: r.f.channel || "场外", lo: r.n.lo, hi: r.n.hi, cur: r.n.close,
+    costNav: r.costNav, pl: r.f.pnl, rate: r.r,
+    tip: (r.f.channel || "场外") + " · 成本净值（App 持仓成本口径）｜ 52 周区间 " + r.n.lo + "~" + r.n.hi
+      + (r.n.closeDate ? " · 净值日 " + String(r.n.closeDate).slice(5) : ""),
+  })));
+  rows.forEach((x) => { x.band = posBand(x.lo, x.hi, x.cur); x.cband = posBand(x.lo, x.hi, x.costNav); });
+  rows.sort((a, b) => (b.band.p === null ? -1 : b.band.p) - (a.band.p === null ? -1 : a.band.p));   // 位置从高到低
+  const distOf = (x) => (Number.isFinite(x.hi) && x.hi && Number.isFinite(x.cur) ? (x.cur / x.hi - 1) * 100 : null);
+  const num4 = (v) => Number.isFinite(v) ? (Math.abs(v) < 10 ? v.toFixed(4) : v.toFixed(2)) : "—";
+  let h = '<div class="lvl-legend"><span>实心 <b class="lvl-mk now"></b> ＝ 现价</span>'
+    + '<span>空心 <b class="lvl-mk cost"></b> ＝ 成本</span><span>轨两端 ＝ 区间最低 / 最高</span>'
+    + '<span>档位 ＝ 现价在区间中的位置（' + CONFIG.POS_LOW + "–" + CONFIG.POS_HIGH + "% 为界）</span></div>";
+  rows.forEach((x) => {
+    const dd = distOf(x);
+    h += '<div class="lvl-row">'
+      + '<div class="lvl-hd"><span class="f-nm">' + esc(x.nm) + '</span><span class="dca-chip">' + esc(x.src) + "</span>"
+      + '<span class="pos-tier ' + x.band.c + '">' + x.band.k + (x.band.p === null ? "" : " " + (x.band.p * 100).toFixed(0) + "%") + "</span></div>"
+      + '<div class="n f-gain ' + cls(x.pl) + '">' + fmtAmt(x.pl) + "</div>"
+      + '<div class="lvl-meta" title="' + esc(x.tip) + '">成本 ' + num4(x.costNav) + " → 现价 " + num4(x.cur)
+      + " · 区间 " + num4(x.lo) + "~" + num4(x.hi) + (dd === null ? "" : " · 距高 " + fmtPct(dd / 100, 1))
+      + " · 收益率 " + fmtPct(x.rate, 2) + "</div>"
+      + '<div class="lvl-track"><b class="lvl-mk cost" style="left:' + (x.cband.p === null ? 50 : (x.cband.p * 100).toFixed(1)) + '%"></b>'
+      + '<b class="lvl-mk now" style="left:' + (x.band.p === null ? 50 : (x.band.p * 100).toFixed(1)) + '%"></b></div>'
+      + "</div>";
+  });
+  h += '<div class="otc-note"><b>全页唯一的「每只一行」主表</b>（场内 5 ＋ 场外 8 ＝ ' + rows.length + " 只）："
+    + "行模型与顶部汇总卡、组合占比、盈亏发散条**同一份**（implEtfRows / implOtcRows），不再各算一遍 ✓。"
+    + "<br><b>档位</b>＝现价在 52 周区间中的位置（偏低 &lt;" + CONFIG.POS_LOW + "% · 中位 " + CONFIG.POS_LOW + "–" + CONFIG.POS_HIGH + "% · 偏高 &gt;" + CONFIG.POS_HIGH + "%），"
+    + "与持仓卡、配置图「按位置档位」共用同一个 posBand()、同一套颜色（青/灰/黄；红绿只留给盈亏）✓"
+    + "<br>⚠ <b>成本</b>一栏两种口径并存、未强行统一：场内＝摊薄成本（含已实现盈亏）｜场外＝App 持仓成本净值。"
+    + "<br><b>投入 / XIRR / TWR / 在场期</b>不在本表 —— 它们要逐笔现金流，是另一种信息 ✗，见下方「明细视图」。</div>";
+  box.innerHTML = h;
+  const sum = rows.reduce((a, x) => a + x.pl, 0);
+  if (cnt) cnt.textContent = "（" + rows.length + " 只 · 合计 " + fmtAmt(sum) + " 元 · 按档位从高到低）";
+}
+
 /* ---- 场外净值水位（2026-10-04 加）------------------------------------------------------
  * 场内有「三点水位梯」（成本 / 现价 / 52 周最高），**场外 8 只一直没有** —— 本块补上，
  * 并多做一样场内没有的：轨道两端用上 nav.lo（52 周最低），于是两个点同时可读：
@@ -949,8 +1026,9 @@ function renderOtcLevel() {
      措辞 偏低/中位/偏高 ✓ 类名 .pos-tier t-low/t-mid/t-high ✓（位置类＝青/灰/黄，禁用红绿 —— 原来这里是
      "高位=红、低位=绿"，与同页的盈亏红绿打架 ✗）；阈值走 CONFIG.POS_LOW/HIGH（现价位置口径，
      与场内那个"成本位置"的 TIER_* 不是同一个量，别互相套用 ✗）。 */
-  const band = (p) => p * 100 >= CONFIG.POS_HIGH ? { k: "偏高", c: "t-high" }
-    : p * 100 <= CONFIG.POS_LOW ? { k: "偏低", c: "t-low" } : { k: "中位", c: "t-mid" };
+  /* 档位：直接复用全场唯一的 posBand()（把 0~1 的分位当区间传进去）——
+     P3 起本块不再自己判阈值 ✗（此前是第二份实现，阈值一改就会漂移） */
+  const band = (p) => posBand(0, 1, p);
   const rows = OTC.funds.map((f) => {
     const it = lasts[f.code] || {}, n = f.nav, span = n.hi - n.lo;
     const costNav = (it.qty && it.cost) ? it.cost / it.qty : null;
@@ -1215,6 +1293,7 @@ function renderImpl() {
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
   renderOtcEst(nc);          // 场外当日预估的逐只拆解（挂在汇总卡内，见函数注释）
+  renderHoldTable();         // 持仓与水位 · 13 行主表（P3：盈亏总览 ＋ 本金与收益的合并入口）
   renderOtcLevel();          // 场外净值水位（52 周区间 + 成本点）
   renderOtcLog();            // 场外定投 · 操作记录（391 笔体检 + 异常笔 + 可折叠明细）
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
