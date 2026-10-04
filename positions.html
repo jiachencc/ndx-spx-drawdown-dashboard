@@ -53,6 +53,7 @@ try {
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-swing">波段</a>
+    <a class="sec-nav-link" href="#sec-otclog">场外</a>
     <a class="sec-nav-link" href="#sec-tools">工具</a>
     <a class="sec-nav-link" href="#sec-closed">清仓</a>
   </nav>
@@ -116,6 +117,18 @@ try {
 
   <h2 class="sec-title" id="sec-swing"><span aria-hidden="true">🎯</span> 波段复盘 <span class="cnt" id="swing-cnt"></span></h2>
   <div class="card tight" id="swing-card"></div>
+
+  <!-- 场外定投 · 操作记录（2026-10-04 建）：用户问「场内那块能不能给场外也做一个、有必要吗」。
+       结论：能做（数据全在 OTC_LOG 里，391 笔，含 status —— 场内那 57 笔反而没有 status），
+       但**不照搬外形** —— 场内 57 笔每笔都有 note（对账单核对过程，研究性质），
+       而场外 391 笔里 100 元 × 240 笔 ＝ 61% 是金额完全相同的机械定投，照搬成「一笔一行」是流水账。
+       故本块只保留场内那块没有、而场外最要紧的三样：定投体检（静默天数 + 状态档）、
+       异常笔（撤单/失败/部分成功）、391 笔的可折叠明细（按基金分组的原生 <details>）。
+       投入 / 收益 / XIRR / TWR 不重复 —— 已在「本金与收益」卡（场内场外 13 只并列）。
+       位置：紧接场内那组（持仓 → 体检 → 波段复盘）之后，作为「场外」独立一组。
+       数据：全部来自已有 OTC_LOG，无新增抓取（下一步的「逐笔盈亏」需先存净值历史，见函数注释）。 -->
+  <h2 class="sec-title" id="sec-otclog"><span aria-hidden="true">🌐</span> 场外定投 · 操作记录 <span class="cnt" id="otclog-cnt"></span></h2>
+  <div class="card" id="otclog-card"></div>
 
   <!-- 「工具」（2026-09-30 合并）：① 标的替换回测 —— 差额来自溢价（波动、**不可控**）；
        ② 费率体检 —— 差额来自费率（确定、**可改**）。两块放一起读，才分得清「哪部分该动手、哪部分只能认」。
@@ -637,6 +650,97 @@ function renderOtcEst(nc) {
     + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "") + "）";
 }
 
+/* ---- 场外定投 · 操作记录（2026-10-04 加）--------------------------------------------
+ * 用户问「场内那块能不能给场外也做一个、有必要吗」。能做（数据全在 OTC_LOG：391 笔，含 status），
+ * 但**不照搬外形** —— 场内 57 笔每笔都有 note（对账单的核对过程，研究性质）；
+ * 场外 391 笔里 100 元 × 240 笔 ＝ 61% 是金额完全相同的机械定投 → 照搬成「一笔一行」是流水账 ✗。
+ * 故本块只保留场内那块**没有**、而场外**最要紧**的三样：
+ *   ① 静默天数：距最后一笔「成功」多少天 —— 「定投断了没有」此前只藏在 OTC_LOG 里，页面上看不见
+ *      （实测：广发全球精选已停 79 天、中欧 41 天、博时 47 天，而仍在投的 4 只都是正的）
+ *   ② 异常笔：撤单 / 失败 / 部分成功（场外有 status，场内反倒没有）
+ *   ③ 逐笔明细：391 笔按基金分组的原生 <details>（默认收起，展开是零 JS 的浏览器行为）
+ * 不重复的：投入 / 收益 / XIRR / TWR 已在「本金与收益」卡（场内场外 13 只并列）——
+ *   此处只用「已成交投入」与「App 持仓收益」两栏做静默天数的上下文（口径差异见块末注释）。
+ * ⚠ 基准日取 OTC.updated（场外快照日），**不用系统今天** —— 本页的日期纪律是「每个数字都要能指出
+ *   它是哪天的」，用一个每天都在变的"今天"，这张表明天就会自己变形。
+ * ⚠ 下一步（未落地）：逐笔盈亏（每笔「申购日净值 → 今日净值」）需先让 refresh-otc.mjs 把已在抓的
+ *   近 52 周净值存下来 —— 那个脚本第 7 行的注释当初就写下了这个用途，只是没落地。 */
+function renderOtcLog() {
+  const box = $("otclog-card"), cnt = $("otclog-cnt");
+  if (!box) return;
+  if (typeof OTC_LOG === "undefined" || !OTC_LOG) {
+    box.innerHTML = '<div class="otc-note">未启用：positions-data.js 里没有 <b>OTC_LOG</b>。</div>';
+    if (cnt) cnt.textContent = "";
+    return;
+  }
+  const asOf = OTC.updated;                                          // 基准日＝场外快照日
+  const d5 = (d) => String(d || "").slice(5);                        // 2026-09-29 → 09-29
+  const daysTo = (d) => (d ? Math.round((Date.parse(asOf) - Date.parse(d)) / 864e5) : null);
+  const rows = OTC.funds.map((f) => {
+    const log = (OTC_LOG[f.code] || []).slice();
+    const ok = log.filter((t) => t.status === "成功");
+    const bad = log.filter((t) => t.status !== "成功");
+    const last = ok.map((t) => t.d).sort().pop() || null;
+    const first = log.map((t) => t.d).sort()[0] || null;
+    const inv = ok.reduce((a, t) => a + (/赎回/.test(t.act) ? -t.amt : t.amt), 0);
+    const amts = {}; ok.forEach((t) => { amts[t.amt] = (amts[t.amt] || 0) + 1; });
+    const top = Object.entries(amts).sort((a, b) => b[1] - a[1])[0];
+    return { f, log, ok, bad, first, last, quiet: daysTo(last), inv, mode: top ? (+top[0] + "元×" + top[1]) : null };
+  }).sort((a, b) => (b.quiet === null ? -1 : b.quiet) - (a.quiet === null ? -1 : a.quiet));   // 停得最久的排最前
+  /* 档位是我定的**提示**阈值（不是官方口径）：≤7 天 定投中 · 8~30 偏慢 · >30 已停投 */
+  const st = (q) => q === null ? { k: "无成功笔", c: "warn" }
+    : q <= 7 ? { k: "定投中", c: "ok" } : q <= 30 ? { k: "偏慢", c: "warn" } : { k: "已停投", c: "bad" };
+  const nmOf = (f) => plDisplayName(f.name);
+  let h = '<table class="dca-tbl"><thead><tr><th>基金 <span class="e-th2">· 笔数 · 末笔</span></th>'
+    + '<th class="n">已成交投入</th><th class="n">App 持仓收益</th></tr></thead><tbody>';
+  rows.forEach((r) => {
+    const s = st(r.quiet);
+    h += '<tr><td><span class="f-nm">' + esc(nmOf(r.f)) + '</span><span class="dca-chip ' + s.c + '">' + s.k
+      + (r.quiet !== null && s.c !== "ok" ? " " + r.quiet + " 天" : "") + "</span>"
+      + '<span class="f-meta">' + r.ok.length + " 笔成功" + (r.bad.length ? " · " + r.bad.length + " 笔异常" : "")
+      + " · 末笔 " + d5(r.last) + (r.mode ? " · 主流 " + r.mode : "") + "</span></td>"
+      + '<td class="n f-inv">' + fmtYuan(r.inv) + "</td>"
+      + '<td class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</td></tr>";
+  });
+  const totInv = rows.reduce((a, r) => a + r.inv, 0), totPnl = rows.reduce((a, r) => a + r.f.pnl, 0);
+  const totN = rows.reduce((a, r) => a + r.log.length, 0);
+  h += '<tr class="sum"><td>合计（' + rows.length + " 只 · " + totN + ' 笔）</td><td class="n f-inv">' + fmtYuan(totInv)
+    + '</td><td class="n f-gain ' + cls(totPnl) + '">' + fmtAmt(totPnl) + "</td></tr></tbody></table>";
+  /* 异常笔单列：定投扣款失败/撤单往往没人注意，但它是「计划有没有按计划跑」的直接证据 */
+  const bads = [];
+  rows.forEach((r) => r.bad.forEach((t) => bads.push({ t, f: r.f })));
+  bads.sort((a, b) => (a.t.d < b.t.d ? 1 : -1));
+  if (bads.length) {
+    h += '<div class="dca-anom"><b>异常笔 ' + bads.length + ' 笔</b>（不计入投入）<ul>'
+      + bads.map((x) => "<li>" + x.t.d + "　" + esc(nmOf(x.f)) + "　" + esc(x.t.act) + " " + x.t.amt.toFixed(2)
+        + '　<span class="warn">' + esc(x.t.status) + "</span></li>").join("") + "</ul></div>";
+  }
+  /* 逐笔明细：外面再套一层 .closed-all（默认收起 —— 体检表 + 异常笔才是要一眼看到的），
+     里面一只一个原生 details（也是收起）。两层都用浏览器原生行为，零 JS。 */
+  h += '<details class="closed-all dca-wrap"><summary>逐笔明细 · ' + totN + ' 笔（按基金展开）</summary><div class="dca-funds">';
+  rows.forEach((r) => {
+    h += "<details><summary>" + esc(nmOf(r.f)) + " · " + r.log.length + " 笔 · " + fmtYuan(r.inv)
+      + (r.last ? " · 末笔 " + d5(r.last) : "") + '</summary><ol class="dca-list">'
+      + r.log.slice().sort((a, b) => (a.d < b.d ? 1 : -1)).map((t) => "<li>"
+        + '<span class="d-d">' + d5(t.d) + '</span><span class="d-a">' + esc(t.act) + "</span>"
+        + '<span class="d-m">' + t.amt.toFixed(2) + "</span>"
+        + (t.status === "成功" ? "" : '<span class="d-s">' + esc(t.status) + "</span>") + "</li>").join("")
+      + "</ol></details>";
+  });
+  h += "</div></details>";
+  h += '<div class="otc-note"><b>口径</b>：数据取自 App 的场外交易记录（<b>OTC_LOG</b>，' + totN + " 笔），无新增抓取。"
+    + "<br><b>静默</b>＝距最后一笔<b>成功</b>多少天，基准日为场外快照日 " + asOf + "（不是系统今天 —— 否则这张表每天自己变形）；"
+    + "档位是我定的提示阈值：≤7 天 定投中 · 8~30 偏慢 · &gt;30 已停投，只作提醒、不是规则。"
+    + "<br><b>已成交投入</b>＝Σ「成功」笔金额（赎回 / 转换出作扣减），<b>不含在途</b> —— 与「本金与收益」卡里的"
+    + "「投入」（含在途，如南方 400 元）差一个在途数，两处口径不同是有意的。"
+    + "<br><b>App 持仓收益</b>是原读数；「本金与收益」卡那个是「市值 ＋ 赎回 − 投入」算出来的 —— 同源不同算，"
+    + "差几分是已知的（如博时 −4.46）。"
+    + "<br>⚠ 逐笔的<b>每笔盈亏</b>还没做：需要「申购日净值 → 今日净值」，即先让 refresh-otc.mjs 把已在抓的"
+    + "近 52 周净值存下来（脚本第 7 行的注释当初就写下了这个用途）—— 那是下一步。</div>";
+  box.innerHTML = h;
+  if (cnt) cnt.textContent = "（" + rows.length + " 只 · " + totN + " 笔 · 截至 " + d5(asOf) + "）";
+}
+
 function renderImpl() {
   closeIdxPop();
   if (typeof DEFAULT === "undefined" || typeof POSITIONS === "undefined") {
@@ -854,6 +958,7 @@ function renderImpl() {
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
   renderOtcEst(nc);          // 场外当日预估的逐只拆解（挂在汇总卡内，见函数注释）
+  renderOtcLog();            // 场外定投 · 操作记录（391 笔体检 + 异常笔 + 可折叠明细）
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */

@@ -190,6 +190,26 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
     rows.length === OC.funds.length + 1, "表内 " + Math.max(0, rows.length - 1) + " 行 ＋ 合计 1 行 = " + rows.length);
 }
 
+/* ③e 场外定投 · 操作记录（2026-10-04 加）：① 体检表覆盖全部场外基金 ② 逐笔明细的笔数 = OTC_LOG 总笔数
+   （在 391 行里漏一只基金、漏一批笔，肉眼根本看不出来 —— 只能这样数） */
+{
+  const tbl = win.document.querySelector("#otclog-card table.dca-tbl");
+  const bodyRows = tbl ? [...tbl.querySelectorAll("tbody tr")] : [];
+  const OCL = (() => {
+    const c = vm.createContext({});
+    vm.runInContext(dataSrc.match(/^const OTC_LOG = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC_LOG;", c, { timeout: 500 });
+    return c.o;
+  })();
+  const nFunds = OC.funds.length;
+  check("场外体检表 = " + nFunds + " 只 + 合计 1 行", bodyRows.length === nFunds + 1, "表内 " + bodyRows.length + " 行");
+  const logTotal = OC.funds.reduce((a, f) => a + ((OCL[f.code] || []).length), 0);
+  const listed = [...win.document.querySelectorAll("#otclog-card .dca-list li")].length;
+  check("逐笔明细笔数 = OTC_LOG 总笔数 " + logTotal, listed === logTotal, "明细里 " + listed + " 行");
+  /* 静默天数的基准日必须是场外快照日（用系统「今天」会让这张表每天自己变形） */
+  const note = win.document.querySelector("#otclog-card .otc-note");
+  check("体检表口径注写明基准日 " + OC.updated, !!note && note.textContent.indexOf(OC.updated) >= 0);
+}
+
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
