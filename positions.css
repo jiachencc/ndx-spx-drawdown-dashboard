@@ -1155,6 +1155,9 @@
   .trend-legend i.cost { border-top-style: dashed; border-top-color: var(--cyan); }
   .trend-legend i.base { border-top-color: var(--tx); border-top-style: dashed; }   /* 与图内基准线同色 */
   .trend-legend i.dn { border-top-color: var(--down); }
+  /* 盈亏全程的两条分量线（2026-10-04）：场内＝青、场外＝黄，与图内 polyline 同色 */
+  .trend-legend i.cyan { border-top-color: var(--cyan); }
+  .trend-legend i.yellow { border-top-color: var(--yellow); }
   .trend-legend .tdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--blue); background: var(--card); vertical-align: middle; margin-right: 4px; }
   .trend-legend .sq { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
   /* 结论行：紧跟 KPI 行、与它同属一块（不再是个独立分节）。
@@ -1209,6 +1212,15 @@
   /* ↓ 金额视图的三层结构：状态头 / 三列主数 / 归因等式 */
   .trend-readout.ro-rich { text-align: left; min-height: 78px; }
   .trend-readout .nb { white-space: nowrap; }
+  /* 窄屏口径行必须能折行（2026-10-04）：「盈亏全程」视图那条口径文案很长，nowrap 下它会以单行
+     摊开（实测 739px，把 390px 视口顶出 381px 横向滚动）。光去掉 nowrap 不够 —— 它在 .ro-attr
+     这个 flex 行里受「min-width:auto」保护、不肯收缩 ✗ → 窄屏改为块级整行 ＋ 允许任意断行。 */
+  @media (max-width: 430px) {
+    .ro-attr { display: block; }
+    .ro-attr .nb, .trend-readout .nb { white-space: normal; display: block; min-width: 0; overflow-wrap: anywhere; }
+    /* ⚠ 内层的 .ro-k 自己带 nowrap（实测它才是那个 739px 的元凶，光改 .nb 无效）→ 必须一并放开 */
+    .ro-attr .ro-k, .trend-readout .ro-k { white-space: normal; overflow-wrap: anywhere; }
+  }
   .ro-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-bottom: 5px; font-size: var(--fs-xxs); color: var(--tx3); }
   .ro-date { color: var(--tx); font-weight: 700; white-space: nowrap; }
   .ro-badge { padding: 0 5px; border-radius: 999px; border: 1px solid var(--line-soft); white-space: nowrap; }

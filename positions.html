@@ -171,6 +171,10 @@ try {
 
 <script src="data.js"></script>
 <script src="positions-data.js"></script>
+<!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
+     的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移 ✗，
+     并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
+<script src="finance/finance-data.js"></script>
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1232,7 +1236,7 @@ let trendHoverI = -1;     // 最近一次悬停的点的下标（-1＝指针不�
 /* 档位顺序＝控件里的先后：**按期数**在前（快照日更，"期数"才是能改变画面的维度），按月/年在后 ——
    它们在历史还没攒够时会被 renderTrendChips 自动隐藏（筛出的点与「全部」同一批就不显示）。 */
 const TREND_RANGES = [["5", "近5次"], ["10", "近10次"], ["all", "全部"], ["1m", "近1月"], ["3m", "近3月"], ["6m", "近6月"], ["1y", "近1年"]];
-/* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（06-01 起·场内口径） / rate 收益率（含基准）
+/* 主图视图：amount 金额（快照期·全账户） / pnl 盈亏全程（月度·2026-10-04 起为合计口径＝场内＋场外） / rate 收益率（含基准）
  *           dd 回撤（资金流调整后的单位净值口径，剔除转入/转出造成的假回撤） */
 let trendView = "amount";
 try { trendView = localStorage.getItem("trendView") || "amount"; } catch (err) { /* 隐私模式下忽略 */ }
@@ -1245,15 +1249,24 @@ const TREND_GEO = { mL: 46, mR: 12, mT: 20, mB: 24, H: 210, dot: 3.8, dotBig: 5,
    整条线像一条飘带，拐点之间的差别读不出来；窄屏 272px（纵向 +30%）。
    resize 会整张重绘（renderTrend），所以横竖屏切换、拖宽窗口都自动跟随。 */
 const geoH = () => (window.innerWidth <= 560 ? 272 : TREND_GEO.H);
-/* 视图 chips。⚠ 「盈亏全程」带「· 场内」不是修饰：它取 ACCT_STATS 月度读数（券商 App、含已实现），
-   与另外三个视图的全账户口径（场内 + 场外 + 现金）**不是一回事** —— 08-28 之前的场外没有任何读数，
-   合计的「全程」做不到（要补历史净值 + 逐笔份额，见 buildPnlPts 的说明），故在 chip 上就写明，别点进去才发现。 */
-const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程 · 场内"], ["rate", "收益率"], ["dd", "回撤"]];
+/* 视图 chips。⚠ 「盈亏全程」的标签**按数据是否到位自动伸缩**（2026-10-04 改）：
+   场外月度读数（财务页 FIN_PL 的 5 个基金渠道）已加载 → 三条线（合计 / 场内 / 场外），标签就叫「盈亏全程」；
+   没加载到（文件缺失 / 老缓存）→ 退回「盈亏全程 · 场内」，且曲线只画场内，不假装有场外。
+   （2026-09-30 时这里是「合计做不到」，理由＝08-28 前场外无读数、要补净值与逐笔份额；
+     10-01 财务页带来 App 月度账单后那个理由过期了 —— 见 buildPnlSeries 的注释。） */
+/* ⚠ 必须是**函数**、渲染时求值：这一行比 MON_IDX 的 const 声明（下面约 90 行处）靠前，
+   在这里直接求值会撞 TDZ（Cannot access before initialization）→ 被 try/catch 吞掉 →
+   标签永远显示「· 场内」、曲线也只画一条 —— 而数据其实是好的 ✗（2026-10-04 实测踩到，
+   靠"渲染出来到底几条线"的检查才发现；这类静默降级正是本页最该防的）。 */
+const pnlHasOtc = () => { try { return buildPnlSeries().hasOtc; } catch (e) { return false; } };
+const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"], ["dd", "回撤"]];
 function renderTrendViews() {
   const el = $("trend-views");
   if (!el) return;
   el.innerHTML = TREND_VIEWS.map(([k, label]) =>
-    '<button type="button" class="tchip' + (trendView === k ? " on" : "") + '" data-v="' + k + '">' + label + "</button>"
+    '<button type="button" class="tchip' + (trendView === k ? " on" : "") + '" data-v="' + k + '">' + label +
+    /* 场外读数没到位时把口径写进 chip（渲染时求值：见 pnlHasOtc 的注释） */
+    (k === "pnl" && !pnlHasOtc() ? " · 场内" : "") + "</button>"
   ).join("") +
     /* 区间统计：与视图并列的开关（不是视图）——打开后点两个数据点即可量一段 */
     '<button type="button" class="tchip' + (trendSelOn ? " on" : "") + '" data-sel="1" title="打开后点两个数据点，量这一段的收益 / 回撤 / 净值">区间统计</button>';
@@ -1268,7 +1281,14 @@ function renderTrendLegend() {
   const item = (cls, label, tip) => '<span title="' + tip + '"><i class="' + cls + '"></i>' + label + "</span>";
   let html;
   if (trendView === "pnl") {
-    html = item("", "账户累计盈亏 · 场内", "蓝色实线＝场内账户累计盈亏（含已实现）；零轴以上为盈、以下为亏，面积按正负分色。⚠ 场内口径：不含场外与现金（08-28 之前场外无读数，合计的全程做不到）");
+    html = !pnlHasOtc()
+      ? item("", "账户累计盈亏 · 场内", "蓝色实线＝场内账户累计盈亏（含已实现）；零轴以上为盈、以下为亏，面积按正负分色。⚠ 场外月度读数未加载，故只画场内。")
+      : item("", "合计（场内＋场外）", "蓝色实线＋分色面积＝**合计**累计盈亏：场内（券商 App 月度读数，含已实现）＋ 场外（平台 App 月度账单，5 个基金渠道）。" +
+          "零轴以上为盈、以下为亏。⚠ 两条来源口径不同名：场外全年 −1,964（月度账单）vs −2,149（快照持仓收益），差约 180 元属已知口径差。") +
+        item("cyan", "场内", "青色实线＝场内账户累计盈亏（券商 App 月度读数，含已实现盈亏与税费）—— 与改版前那条是同一份数据。") +
+        item("yellow", "场外", "黄色实线＝场外 5 个基金渠道的累计盈亏（蚂蚁/南方/博时/广发/华安，平台 App 月度账单；ACCT 月度与它同源，已核对逐分一致）。" +
+          "⚠ 招行的理财/黄金按用户口径（债基、低风险）**不计入**这条曲线；平安证券是场内本身，计入会重复。")
+    ;
   } else if (trendView === "rate") {
     html = item("", "组合（TWR）", "蓝色实线＝资金流调整后的组合累计收益率（逐期剔除转入/转出），与基准同口径、同起点") +
       item("base", "同期纳指", "灰色虚线＝同期纳指涨跌，已归一到与组合同一起点；两线间距即超额收益");
@@ -1337,32 +1357,70 @@ function todayStr() {
   return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0");
 }
 /* 完整历程序列：SNAPSHOTS 只覆盖 08-28 起（12 天），真实建仓自 06-01（100 天 / 43 笔），中间 88 天缺失。
-   用 ACCT_STATS.monthly（App 月度读数）重建「账户累计盈亏」全程，补上 7 月 −1.8 万这段。
-   ⚠ 口径：场内账户（含已实现），与全账户（含场外+现金）不同 ——
-     图例、chip（「盈亏全程 · 场内」）、读数条、? 四处都标注了，勿混用。
-   ⚠ 合计的「全程」目前**做不到**：08-28 之前场外那 8 只没有任何读数，要还原得靠「逐笔份额 × 当月末净值」，
-     而 OTC_LOG 只记金额不记份额（这正是中欧 100 元要逐笔反推的原因）→ 需补历史净值与逐笔份额，属新增数据源。
-   （2026-09-30 用户问「以目前数据能做到合计吗」→ 不能，故按用户意见把「场内」写进标签。） */
+   ★ 2026-10-04：由「场内单线」升级为**三条线**（合计 / 场内 / 场外），实现见 buildPnlSeries。
+     2026-09-30 这里曾写着「合计做不到」：08-28 前场外无读数，要还原得靠「逐笔份额 × 当月末净值」——
+     那是**当时**的事实 ✓；10-01 财务页带来 App 月度账单（FIN_PL）后，场外也能按月拼接了 ✓。
+   ⚠ 仍要记住两条来源口径不同名（月度账单 vs 快照持仓收益），场外全年 −1,964 vs −2,149，差约 180 元属已知口径差。 */
 function buildPnlPts() {
+  return buildPnlSeries().all;
+}
+/* ---- 盈亏全程（月度累计）：三条线 —— 合计 / 场内 / 场外（2026-10-04 加）-----------------
+ * 场内：ACCT_STATS.monthly（券商 App 月度读数，含已实现）—— 与改版前一致。
+ * 场外：**财务页**的 FIN_PL（App「月度账单」）里 kind === "fund" 的 5 个渠道（蚂蚁/南方/博时/广发/华安）。
+ *   为此 positions.html 多加载了一个 finance/finance-data.js（见文件末尾的 <script src>）。
+ *   为什么不在 data.js 里再抄一份：同一批数字两处存放必然漂移 ✗ —— 直接读源头，并让 dom-check
+ *   把渲染出来的末值与那个数据文件**独立复算**对一遍 ✓。
+ * ⚠ 排除两个账户：招行（kind === "bank"，理财＋黄金 —— 用户明确说那是债基/低风险，不进这条曲线）
+ *   与平安（broker，就是场内本身；财务页的 pa 与 ACCT_STATS.monthly **逐分一致**：
+ *   6月 −662 / 7月 −17378 / 8月 +12736 / 9月 +5461 → 计入就重复了）。
+ * ⚠ 两条来源口径不同名（月度账单 vs 快照持仓收益）：场外全年 −1,964 vs −2,149，差约 180 元 ——
+ *   已知口径差，图例与摘要都标来源，不互相覆盖。
+ * 起点：每条线各自的**建仓日**（场外＝最早的场外入金笔 2026-03-03；场内＝最早的场内成交日），值为 0。
+ * ⚠ 场外 01/02 月是 +0（未建仓，首笔 03-03 可证）→ 从「第一个有读数或有金额的月」起画，避免平白多两个点。 */
+function buildPnlSeries() {
   const S = (typeof ACCT_STATS !== "undefined") ? ACCT_STATS : null;
+  const F = (typeof FIN_PL !== "undefined") ? FIN_PL : null;
+  const AC = (typeof FIN_ACCOUNTS !== "undefined" && FIN_ACCOUNTS.length) ? FIN_ACCOUNTS : [];
   const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
-  if (!S || !S.monthly || !S.monthly.length || !log.length) return [];
-  let first = "";
-  log.forEach((e) => { if (!first || e.d < first) first = e.d; });
-  if (!first) return [];
-  const pts = [{ d: first, pl: 0, isFirst: true }];
-  let cum = 0, yr = +first.slice(0, 4), prevM = 0;
-  S.monthly.forEach((mo) => {
-    const mi = MON_IDX[mo.m];
-    if (!mi) return;
-    if (prevM && mi < prevM) yr += 1;   // 跨年
-    prevM = mi;
-    cum += mo.pnl;
-    const d = mo.note ? todayStr()
-      : yr + "-" + String(mi).padStart(2, "0") + "-" + String(new Date(yr, mi, 0).getDate()).padStart(2, "0");
-    if (d > first) pts.push({ d: d, pl: cum, isCur: !!mo.note });
+  const olog = (typeof OTC_LOG !== "undefined" && OTC_LOG) ? OTC_LOG : null;
+  const empty = { all: [], etf: [], otc: [], hasOtc: false };
+  if (!S || !S.monthly || !S.monthly.length) return empty;
+  /* 场内：月度 → { "2026-06": pnl }（ACCT_STATS 的标签是「6月」，年份取最早成交日那年，跨年按倒序 +1） */
+  const etfM = {};
+  let yr0 = +String((log[0] || {}).d || "").slice(0, 4) || new Date().getFullYear();
+  { let prevM = 0, yr = yr0;
+    S.monthly.forEach((mo) => { const mi = MON_IDX[mo.m]; if (!mi) return; if (prevM && mi < prevM) yr += 1; prevM = mi;
+      etfM[yr + "-" + String(mi).padStart(2, "0")] = (etfM[yr + "-" + String(mi).padStart(2, "0")] || 0) + mo.pnl; }); }
+  /* 场外：财务页 5 个基金渠道求和 → { "2026-03": pnl, … } */
+  const otcM = {};
+  AC.filter((a) => a.kind === "fund").forEach((a) => {
+    const m = ((F || {})[a.id]) || {};
+    Object.keys(m).forEach((k) => { if (typeof m[k] === "number") otcM[k] = (otcM[k] || 0) + m[k]; });
   });
-  return pts;
+  const hasOtc = Object.keys(otcM).length > 0;
+  /* 时间轴：两个来源的月份并集，从**第一个有金额或读数**的月起（跳过建仓前的 +0 月） */
+  const yms = Array.from(new Set(Object.keys(etfM).concat(Object.keys(otcM)))).sort();
+  const firstLive = yms.findIndex((ym) => Math.abs(etfM[ym] || 0) > 0.005 || Math.abs(otcM[ym] || 0) > 0.005);
+  const use = firstLive < 0 ? [] : yms.slice(firstLive);
+  if (!use.length) return empty;
+  /* 各线起点：场内＝最早成交日；场外＝最早的入金笔日；合计＝两者更早的那个 */
+  let etfFirst = ""; log.forEach((e) => { if (!etfFirst || e.d < etfFirst) etfFirst = e.d; });
+  let otcFirst = "";
+  if (olog) Object.keys(olog).forEach((code) => (olog[code] || []).forEach((t) => {
+    if (t.status === "成功" && !/赎回/.test(String(t.act)) && (!otcFirst || t.d < otcFirst)) otcFirst = t.d; }));
+  const mEnd = (ym) => ym + "-" + String(new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate()).padStart(2, "0");
+  const build = (first, get) => {
+    if (!first) return [];
+    const pts = [{ d: first, pl: 0, isFirst: true }];
+    let cum = 0;
+    use.forEach((ym) => { cum += get(ym); const d = mEnd(ym); if (d > first) pts.push({ d: d, pl: cum, isCur: ym === use[use.length - 1] }); });
+    return pts;
+  };
+  const etf = build(etfFirst, (ym) => etfM[ym] || 0);
+  const otc = hasOtc ? build(otcFirst, (ym) => otcM[ym] || 0) : [];
+  const anchor = [etfFirst, otcFirst].filter(Boolean).sort()[0];
+  const all = build(anchor, (ym) => (etfM[ym] || 0) + (otcM[ym] || 0));
+  return { all: all, etf: etf, otc: otc, hasOtc: hasOtc && otc.length > 1 };
 }
 /* TWR 时间加权收益率：∏(Vᵢ − Fᵢ)/Vᵢ₋₁ − 1，剔除资金进出，反映投资能力本身 */
 function calcTWR(pts) {
@@ -1557,7 +1615,8 @@ function renderTrendKpis(pts) {
   const rateTip = "当前收益率＝浮盈亏 ÷ 累计投入（成本口径，与 App 一致）。" +
     "TWR 为近似时间加权：按快照末端资金流逐期剔除转入/转出后算净值，反映投资能力本身；推导资金流依赖成本口径，非精确评价。" +
     xTxt + "。";
-  /* 最大浮亏取全程（场内口径，来自 ACCT_STATS.monthly），补足快照期仅 12 天的盲区 */
+  /* 最大浮亏取全程（2026-10-04 起为**合计**：场内 ACCT_STATS.monthly ＋ 场外财务页 FIN_PL 的 5 个基金渠道），
+     补足快照期仅 12 天的盲区。改口径的原因：走势图的「盈亏全程」已画合计，KPI 再留场内就会自相矛盾。 */
   const whole = buildPnlPts();
   let deepW = null;
   if (whole.length) { deepW = whole[0]; whole.forEach((p) => { if (p.pl < deepW.pl) deepW = p; }); }
@@ -1573,7 +1632,7 @@ function renderTrendKpis(pts) {
         '<div class="k-val' + (flat ? "" : " down") + '"' + (flat ? ' style="color:var(--tx3)"' : "") + ">" + (flat ? "无回撤" : fmtPct(ddv, 2)) + "</div>" +
         '<div class="k-sub" style="color:var(--tx3)">' + (flat ? "区间内步步新高" : mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复")) + "</div></div>";
     })() : "") +
-    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（**场内口径**，含已实现；来自 ACCT_STATS.monthly 月度读数）。⚠ 与「最大回撤（区间）」的全账户净值口径不是同一个数；合计的全程做不到（08-28 之前场外无读数）">最大浮亏 · 场内</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
+    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（2026-10-04 起为**合计口径**＝场内 ＋ 场外 5 个基金渠道，两者都是 App 月度读数）。⚠ 与「最大回撤（区间）」的全账户净值口径不是同一个数；不含现金，招行的理财/黄金按用户口径（债基、低风险）不计入">最大浮亏' + (pnlHasOtc() ? "" : " · 场内") + '</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
 }
 /**
  * 相邻两点间：总资产线与投入线围成的区域，只填浮盈段（绿色；浮亏段不铺色，交叉时按交点拆分）。
@@ -1622,10 +1681,10 @@ function trendTipHtml(p) {
   else s += '<br><span style="color:var(--tx3)">完整归因见下方「快照对比」对应期次</span>';
   return s;
 }
-/* 盈亏全程视图的点气泡（数据为 { d, pl }，场内账户口径） */
+/* 盈亏全程视图的点气泡（数据为 { d, pl }，2026-10-04 起为合计口径＝场内＋场外） */
 function pnlTipHtml(p) {
   return p.d.slice(5).replace("-", ".") + ' 账户累计盈亏 <b style="color:var(--' + (p.pl >= 0 ? "up" : "down") + ')">' + fmtAmt(p.pl) + " 元</b>" +
-    '<br><span style="color:var(--tx3)">场内账户口径（含已实现）</span>';
+    '<br><span style="color:var(--tx3)">' + (pnlHasOtc() ? "合计口径（场内 ＋ 场外，含已实现）" : "场内账户口径（含已实现）") + "</span>";
 }
 /* ---- X 轴刻度：月份刻度 + 月度分界竖线（三个视图共用） ----
  * 三处横轴都是按时间线性的（X = mL + (t−t0)/span×宽），所以知道分界与末点即可推算任意点日期；
@@ -1733,7 +1792,7 @@ function renderDdView(box, pts) {
       ? "已于 <b class=\"up\">" + mdOf(pts[recI].d) + "</b> 修复"
       : "<b class=\"warn\">尚未修复</b>，当前 " + fmtPct(dd[dd.length - 1], 2)),
     "口径：资金流调整后的单位净值回撤 —— 按 TWR 方式逐期剔除转入/转出后再算（避免把转账造成的资产跳变当成回撤），" +
-    "起点净值归一为 1。与 KPI 的「最大浮亏」（场内 App 累计浮亏口径）不是同一个数。" +
+    "起点净值归一为 1。与 KPI 的「最大浮亏」（App 累计浮亏口径＝场内＋场外）不是同一个数。" +
     "区间随上方「时间范围」变化；「已修复」指最深点之后净值是否回到过该次峰值。");
 }
 function renderTrend(todayVal, todayCost) {
@@ -1898,10 +1957,12 @@ function renderTrend(todayVal, todayCost) {
 }
 
 /* ---- crosshair：指针吸附最近点，读数条常显于图上（触摸/鼠标通用；touch-action:pan-y 保证页面可滚） ---- */
-/* 视图②：盈亏全程（06-01 起，月度）—— 补足 SNAPSHOTS 只覆盖 08-28 起的缺口，呈现建仓以来的盈亏全貌（含 7 月深亏）。
-   ⚠ 口径为场内账户（含已实现），与「金额」视图的全账户（含场外+现金）不同，摘要条已标注。 */
+/* 视图②：盈亏全程（月度）—— 补足 SNAPSHOTS 只覆盖 08-28 起的缺口，呈现建仓以来的盈亏全貌（含 7 月深亏）。
+   2026-10-04 起画**三条线**：合计（蓝，粗线＋分色面积＝主角）／场内（青）／场外（黄）。
+   ⚠ 不含现金；招行理财/黄金按用户口径不计入（那是债基、低风险）。口径细节见 buildPnlSeries 与图例 ⓘ。 */
 function renderPnlView(box) {
-  const pts = buildPnlPts();
+  const SR = buildPnlSeries();
+  const pts = SR.all;
   if (pts.length < 2) {
     box.innerHTML = '<div class="trend-empty">暂无月度盈亏读数：在 data.js 的 ACCT_STATS.monthly 补 App 月度盈亏，即可生成建仓以来全程曲线。</div>';
     return;
@@ -1910,7 +1971,8 @@ function renderPnlView(box) {
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
-  const vs = pts.map((p) => p.pl).concat([0]);   // 含 0，保证零轴在视野内
+  /* 值域要覆盖**三条线**（否则场内/场外那两条会被裁到框外）；含 0 保证零轴在视野内 */
+  const vs = pts.map((p) => p.pl).concat(SR.etf.map((p) => p.pl), SR.otc.map((p) => p.pl), [0]);
   let lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
   const pad = (hi - lo) * 0.15 || Math.abs(lo) * 0.2 || 100;
   lo -= pad; hi += pad;
@@ -1943,6 +2005,17 @@ function renderPnlView(box) {
         '<polygon points="' + P(xi) + "," + P(zeroY) + " " + P(px[i + 1]) + "," + P(py[i + 1]) + " " + P(px[i + 1]) + "," + P(zeroY) + '" style="fill:var(--' + col(d2) + ')" opacity=".16"/>';
     }
   }
+  /* 场内 / 场外两条细线（2026-10-04）：x 按**日期**定位 —— 它们的起点与合计不同（场外 03-03、场内 06-01），
+     按下标取 X() 会串位。画在合计之前，让合计那条压在它们上面。 */
+  const XD = (d) => mL + (Date.parse(d) - t0) / span * (W - mL - mR);
+  if (pnlHasOtc()) {
+    [["cyan", SR.etf], ["yellow", SR.otc]].forEach((pair) => {
+      const arr = pair[1];
+      if (arr.length < 2) return;
+      svg += '<polyline class="pnl-comp" points="' + arr.map((p) => P(XD(p.d)) + "," + P(Y(p.pl))).join(" ") +
+        '" fill="none" style="stroke:var(--' + pair[0] + ');stroke-width:2;opacity:.85"/>';
+    });
+  }
   svg += '<polyline points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + '" fill="none" style="stroke:var(--blue);stroke-width:2"/>';
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
@@ -1960,10 +2033,12 @@ function renderPnlView(box) {
   showXhair(pts.length - 1);   // 读数条默认显示最新一期
   /* 结论行：「最深浮亏」及其日期 KPI 行已有，这里只留本视图独有的「自最深回升」 */
   const dDeep = pts[pts.length - 1].pl - pts[deepI].pl;
-  setTrendSum("场内账户 · 自全程最深" + (dDeep >= 0 ? "回升 " : "又跌 ") + "<b class=\"" + cls(dDeep) + "\">" + fmtAbs2(dDeep) + "</b> 元",
-    "口径：场内账户累计盈亏（券商 App，含已实现盈亏与税费），自 2026-01-01 起、月度读数拼接。" +
-    "与「金额」视图的全账户（场内 + 场外 + 现金）不同，故曲线与图例都不含场外。" +
-    "「最深」＝建仓以来累计浮亏的最大值（7 月那波深亏），回升 = 当前值 − 最深值。");
+  setTrendSum((pnlHasOtc() ? "合计（场内＋场外）" : "场内账户") + " · 自全程最深" + (dDeep >= 0 ? "回升 " : "又跌 ") + "<b class=\"" + cls(dDeep) + "\">" + fmtAbs2(dDeep) + "</b> 元",
+    "口径：**合计** ＝ 场内（券商 App 月度读数，含已实现盈亏与税费）＋ 场外 5 个基金渠道（平台 App 月度账单：" +
+    "蚂蚁/南方/博时/广发/华安）；两条都是 App 原始读数，各自从建仓月起（场外 2026-03、场内 2026-06）。" +
+    "⚠ 不含现金；招行的理财/黄金按用户口径（债基、低风险）不计入；平安证券是场内本身，计入会重复。" +
+    "⚠ 两条来源口径不同名：场外全年 −1,964（月度账单）vs −2,149（快照持仓收益），差约 180 元属已知口径差。" +
+    "「最深」＝全程累计浮亏的最大值（7 月那波），回升 = 当前值 − 最深值。");
 }
 /* 视图③：收益率（%）—— 组合 vs 基准。剔除规模影响，直接看效率与是否跑赢躺平 */
 function renderRateView(box, pts) {
@@ -2082,11 +2157,13 @@ function showXhair(i) {
     let deep = L.pts[0];
     L.pts.forEach((q) => { if (q.pl < deep.pl) deep = q; });
     const off = p.pl - deep.pl;
-    ro.innerHTML = roHead("按月", "", "月度读数：券商 App 的月度盈亏（场内账户口径、含已实现），每期一个点，不是每日") +
+    ro.innerHTML = roHead("按月", "", "月度读数：App 的月度盈亏（" + (pnlHasOtc() ? "合计 ＝ 场内 ＋ 场外 5 个基金渠道" : "场内账户") + "，含已实现），每期一个点，不是每日") +
       '<div class="ro-grid">' + roCell("累计盈亏", fmtAmt(p.pl), null, cls(p.pl)) +
         (mon === null ? "" : roCell("当月", fmtAmt(mon), null, cls(mon))) +
         roCell("距最深", fmtAmt(off), '<span class="ro-sub">（' + mdOf(deep.d) + "）</span>", cls(off)) + "</div>" +
-      '<div class="ro-attr"><span class="nb"><span class="ro-k">场内账户口径 · 含已实现 —— 与「快照对比」的全账户（含场外与现金）不是一回事</span></span></div>';
+      '<div class="ro-attr"><span class="nb"><span class="ro-k">' + (pnlHasOtc()
+        ? "合计口径 · 场内＝券商 App（含已实现）｜场外＝平台 App 月度账单 5 个基金渠道（蚂蚁/南方/博时/广发/华安）；不含现金，招行理财与黄金按用户口径不计入"
+        : "场内账户口径 · 含已实现 —— 场外月度读数未加载") + "</span></span></div>";
   } else if (mode === "rate") {
     const N = trendNav(L.pts), tw = N.nav[k] - 1;
     const bi = benchRelAt(L.pts, k);

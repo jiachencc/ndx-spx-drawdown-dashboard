@@ -252,6 +252,40 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
   check("逐笔明细带净值的行数 = 独立复算 " + expect + " 笔", listed === expect, "明细里 " + listed + " 行");
 }
 
+/* ③h 盈亏全程三条线（2026-10-04 加）：① chip 标签 ② 三个序列都在
+   ③ **合计末值 = 独立复算**（ACCT_STATS.monthly ＋ 财务页 FIN_PL 的 5 个 fund 渠道）——
+      这条最关键：数据跨文件（还跨页引用 finance-data.js），抄错 / 读错不会报错，只会画出一条似是而非的线 */
+{
+  const chip = [...win.document.querySelectorAll("#trend-views .tchip")].find((b) => /盈亏全程/.test(b.textContent));
+  check("走势视图含「盈亏全程」" + (chip ? "（标签：" + chip.textContent.trim() + "）" : "（缺）"), !!chip);
+  /* ⚠ 渲染层必须单独验：2026-10-04 那个 TDZ bug 正是「数据函数好、渲染却降级」
+     （chip 退回「· 场内」、图上只画一条线），只看 buildPnlSeries() 的输出是抓不到的 ✗ */
+  if (chip) chip.click();
+  await new Promise((r) => win.setTimeout(r, 80));
+  const draws = [...win.document.querySelectorAll("#trend-box svg polyline")];
+  check("盈亏全程图上确实画了 3 条线（合计 ＋ 场内 ＋ 场外）", draws.length >= 3,
+    "SVG 里 " + draws.length + " 条折线 · 图例：" + ((win.document.getElementById("trend-legend") || {}).textContent || "").replace(/\s+/g, " ").trim().slice(0, 60));
+  /* ⚠ 必须切回「金额」视图：本节之后的读数条检查（走势卡读数含最新总资产 / 浮盈亏）看的是金额视图 ✗ */
+  const back = [...win.document.querySelectorAll("#trend-views .tchip")].find((b) => b.textContent.trim().indexOf("金额") === 0);
+  if (back) back.click();
+  await new Promise((r) => win.setTimeout(r, 80));
+  const ser = (typeof win.buildPnlSeries === "function") ? win.buildPnlSeries() : null;
+  check("盈亏全程三条线都在（合计 / 场内 / 场外）",
+    !!ser && ser.all.length >= 2 && ser.etf.length >= 2 && ser.otc.length >= 2 && ser.hasOtc,
+    ser ? ("合计 " + ser.all.length + " 点 · 场内 " + ser.etf.length + " · 场外 " + ser.otc.length) : "win.buildPnlSeries 不可用");
+  /* ⚠ ACCT_STATS 在 data.js（生成块），不在 positions-data.js（人工块）—— 本页两个都加载 */
+  const genSrc = readFileSync(path.join(root, "data.js"), "utf8");
+  const AS = (() => { const c = vm.createContext({}); vm.runInContext(genSrc.match(/^const ACCT_STATS = \{[\s\S]*?^\};/m)[0] + "\nthis.o = ACCT_STATS;", c, { timeout: 500 }); return c.o; })();
+  const fdSrc = readFileSync(path.join(root, "finance", "finance-data.js"), "utf8");
+  const FP = (() => { const c = vm.createContext({}); vm.runInContext(fdSrc.match(/^const FIN_PL = \{[\s\S]*?^\};/m)[0] + "\nthis.o = FIN_PL;", c, { timeout: 500 }); return c.o; })();
+  const FA = (() => { const c = vm.createContext({}); vm.runInContext(fdSrc.match(/^const FIN_ACCOUNTS = \[[\s\S]*?\n\];/m)[0] + "\nthis.o = FIN_ACCOUNTS;", c, { timeout: 500 }); return c.o; })();
+  let want = AS.monthly.reduce((a, m) => a + m.pnl, 0);
+  FA.filter((a) => a.kind === "fund").forEach((a) => Object.keys(FP[a.id] || {}).forEach((k) => { if (typeof FP[a.id][k] === "number") want += FP[a.id][k]; }));
+  const got = (ser && ser.all.length) ? ser.all[ser.all.length - 1].pl : null;
+  check("盈亏全程「合计」末值 = 独立复算 " + Math.round(want) + " 元",
+    got !== null && Math.abs(got - want) <= 1, "曲线 " + (got === null ? "—" : got.toFixed(2)) + " vs 复算 " + want.toFixed(2));
+}
+
 /* ④ 配置图：现金段显示的必须是快照现金 */
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
