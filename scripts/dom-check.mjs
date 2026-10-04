@@ -208,6 +208,11 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
   /* 静默天数的基准日必须是场外快照日（用系统「今天」会让这张表每天自己变形） */
   const note = win.document.querySelector("#otclog-card .otc-note");
   check("体检表口径注写明基准日 " + OC.updated, !!note && note.textContent.indexOf(OC.updated) >= 0);
+  /* 用户要求：定投中的行要标出**当前定投额** —— 漏了就是个静默的体验回退（标签只剩状态） */
+  const liveChips = [...win.document.querySelectorAll("#otclog-card .dca-chip.ok")];
+  check("定投中的行都标了当前定投额（" + liveChips.length + " 行）",
+    liveChips.length > 0 && liveChips.every((el) => /元\/笔/.test(el.textContent)),
+    liveChips.map((el) => el.textContent.trim()).join(" / ") || "没有「定投中」的行");
 }
 
 /* ④ 配置图：现金段显示的必须是快照现金 */

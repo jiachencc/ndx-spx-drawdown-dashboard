@@ -683,9 +683,21 @@ function renderOtcLog() {
     const last = ok.map((t) => t.d).sort().pop() || null;
     const first = log.map((t) => t.d).sort()[0] || null;
     const inv = ok.reduce((a, t) => a + (/赎回/.test(t.act) ? -t.amt : t.amt), 0);
-    const amts = {}; ok.forEach((t) => { amts[t.amt] = (amts[t.amt] || 0) + 1; });
-    const top = Object.entries(amts).sort((a, b) => b[1] - a[1])[0];
-    return { f, log, ok, bad, first, last, quiet: daysTo(last), inv, mode: top ? (+top[0] + "元×" + top[1]) : null };
+    /* 当前定投额（2026-10-04 用户要求「在定投中就写上金额」）：
+       取**末尾连续同额**的定投笔，而不是历史众数 —— 实测两者常常不同：
+         华安 A/C 当前 5 元/笔（连续 4 笔），历史主流却是 100 元 ×43；
+         摩根当前 500 元/笔（连续 5 笔），历史主流 100 元 ×33；
+         广发纳指F 当前 30 元/笔（连续 6 笔），历史主流 100 元 ×51。
+       run = 该额已连续多少笔（用来证明这是"计划"，不是一次性误操作）。 */
+    const dc = ok.filter((t) => /定投/.test(t.act)).sort((a, b) => (a.d < b.d ? -1 : 1));
+    let cur = null;
+    if (dc.length) {
+      const lastD = dc[dc.length - 1];
+      let run = 1;
+      for (let i = dc.length - 2; i >= 0 && dc[i].amt === lastD.amt; i--) run++;
+      cur = { amt: lastD.amt, run, d: lastD.d };
+    }
+    return { f, log, ok, bad, first, last, quiet: daysTo(last), inv, cur };
   }).sort((a, b) => (b.quiet === null ? -1 : b.quiet) - (a.quiet === null ? -1 : a.quiet));   // 停得最久的排最前
   /* 档位是我定的**提示**阈值（不是官方口径）：≤7 天 定投中 · 8~30 偏慢 · >30 已停投 */
   const st = (q) => q === null ? { k: "无成功笔", c: "warn" }
@@ -695,10 +707,18 @@ function renderOtcLog() {
     + '<th class="n">已成交投入</th><th class="n">App 持仓收益</th></tr></thead><tbody>';
   rows.forEach((r) => {
     const s = st(r.quiet);
+    const live = s.c === "ok";                                  // 定投中
+    /* 标签：定投中 → 补上**当前定投额**（用户要求）；其余状态只报状态（停投的金额已是历史） */
     h += '<tr><td><span class="f-nm">' + esc(nmOf(r.f)) + '</span><span class="dca-chip ' + s.c + '">' + s.k
-      + (r.quiet !== null && s.c !== "ok" ? " " + r.quiet + " 天" : "") + "</span>"
+      + (live && r.cur ? " · " + r.cur.amt + "元/笔" : "")
+      + (!live && r.quiet !== null ? " " + r.quiet + " 天" : "") + "</span>"
       + '<span class="f-meta">' + r.ok.length + " 笔成功" + (r.bad.length ? " · " + r.bad.length + " 笔异常" : "")
-      + " · 末笔 " + d5(r.last) + (r.mode ? " · 主流 " + r.mode : "") + "</span></td>"
+      + " · 末笔 " + d5(r.last)
+      /* ⚠ 这里必须跟着标签走：定投中给「该额连续 N 笔」（证明它是计划），否则给「末次定投」；
+         原来写的「主流 X元×N」是历史众数，会和当前额打架（华安 5 元/笔 vs 主流 100 元×43）。 */
+      + (live && r.cur ? " · 该额连续 " + r.cur.run + " 笔"
+        : r.cur ? " · 末次定投 " + r.cur.amt + "元（" + d5(r.cur.d) + "）"
+          : " · 无定投（仅申购 / 转换）") + "</span></td>"
       + '<td class="n f-inv">' + fmtYuan(r.inv) + "</td>"
       + '<td class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</td></tr>";
   });
@@ -731,6 +751,9 @@ function renderOtcLog() {
   h += '<div class="otc-note"><b>口径</b>：数据取自 App 的场外交易记录（<b>OTC_LOG</b>，' + totN + " 笔），无新增抓取。"
     + "<br><b>静默</b>＝距最后一笔<b>成功</b>多少天，基准日为场外快照日 " + asOf + "（不是系统今天 —— 否则这张表每天自己变形）；"
     + "档位是我定的提示阈值：≤7 天 定投中 · 8~30 偏慢 · &gt;30 已停投，只作提醒、不是规则。"
+    + "<br><b>当前定投额</b>（标签里的「N元/笔」）＝取<b>末尾连续同额</b>的定投笔，<b>不是历史众数</b> —— 实测两者常不同："
+    + "华安 A/C 当前 5 元/笔（连续 4 笔）而历史主流是 100 元×43；摩根当前 500 元/笔（连续 5 笔）而主流 100 元×33。"
+    + "只对<b>定投中</b>的行标注；停投的金额已是历史，故只在副行写「末次定投 X元（日期）」。"
     + "<br><b>已成交投入</b>＝Σ「成功」笔金额（赎回 / 转换出作扣减），<b>不含在途</b> —— 与「本金与收益」卡里的"
     + "「投入」（含在途，如南方 400 元）差一个在途数，两处口径不同是有意的。"
     + "<br><b>App 持仓收益</b>是原读数；「本金与收益」卡那个是「市值 ＋ 赎回 − 投入」算出来的 —— 同源不同算，"
