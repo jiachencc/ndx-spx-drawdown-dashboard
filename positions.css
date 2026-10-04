@@ -825,8 +825,15 @@
   @keyframes sellflash { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--down-solid); } }
   .buy-tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: var(--fs-xs); font-family: var(--mono); color: var(--tx); white-space: nowrap; box-shadow: var(--tip-shadow); pointer-events: none; font-feature-settings: "tnum"; }
   .pos-tier { display: inline-block; font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 7px; margin-left: 6px; font-family: var(--sans); white-space: nowrap; }
-  .pos-tier.t-low { background: var(--up-bg); color: var(--green); border: 1px solid var(--up-line); }
-  .pos-tier.t-mid { background: var(--tint); color: var(--tx2); border: 1px solid var(--tint-line); }   /* 中性位 = 无信号，走灰调 */
+  /* ⚠ 位置档位（2026-10-04 P0 统一）：**一律走「青 → 灰 → 黄」冷→暖梯度，位置类禁用红绿** ——
+     红/绿在本页已被「盈亏」占用（--up/--down）：同一张表里红色的数字是"亏"、红色的 chip 却是"高位"，
+     读起来会打架 ✗（场外水位原来就是"高位=红、低位=绿"）。三套语义各占一套色，互不越界：
+       · 盈亏类     → --up / --down（绿 / 红）      只有它能用红绿
+       · 位置类     → 青 / --tx2 / 黄（本次统一）   偏低 … 中位 … 偏高（场内持仓卡 ＋ 场外水位共用本类）
+       · 状态与诊断类 → --green / --warn / --red    定投中·偏慢·已停投 ｜ 体检档位 a/b/c/d（.dca-chip / .chk-tbl）
+     ⚠ 与场内「三点水位梯」同色：那套本来就是 青=成本 / 文字色=现价 / 黄=高点 ✓ 本次让档位与它对齐。 */
+  .pos-tier.t-low { background: var(--info-bg); color: var(--cyan); border: 1px solid var(--info-line); }
+  .pos-tier.t-mid { background: var(--tint); color: var(--tx2); border: 1px solid var(--tint-line); }   /* 中性位 = 无信号，走灰调（青与黄之间的过渡，不用红绿） */
   .pos-tier.t-high { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }   /* 偏高 = 预警而非危险，与 strat “减仓” / 水位梯 “已达加仓档” 共用 --warn */
 
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }

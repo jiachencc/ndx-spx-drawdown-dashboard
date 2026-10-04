@@ -268,8 +268,15 @@ const fmtQty = (v) => Math.trunc(v).toLocaleString("en-US", { maximumFractionDig
 
 /* ---- 布局/展示常量 ---- */
 const CONFIG = {
+  /* ── 位置类阈值（2026-10-04 P0 统一到这一处，别处不许再写死）─────────────────────────
+     ⚠ 两个量**不同名、不可混用**，故阈值也不同（这点是刻意的，不是没统一）：
+        · TIER_LOW/HIGH（35 / 65）＝ **成本位**在区间中的分位 —— 成本是多笔买入的平均，天然聚在中间
+        · POS_LOW/HIGH（20 / 80） ＝ **现价**在 52 周区间中的分位 —— 价格本来就常走到两端
+     颜色规范见 positions.css 里 .pos-tier 的注释：位置类一律 青→灰→黄，红绿只留给盈亏。 */
   TIER_LOW: 35,
   TIER_HIGH: 65,
+  POS_LOW: 20,
+  POS_HIGH: 80,
   BUY_BIN: 2.5,
   BUY_STACK_MAX: 3,
   BUY_DOT_BASE: 5,
@@ -895,7 +902,12 @@ function renderOtcLevel() {
   const lasts = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length)
     ? ((SNAPSHOTS.filter((x) => x.items).at(-1) || {}).items || {}) : {};
   const clamp = (v) => Math.max(0, Math.min(1, v));
-  const band = (p) => p >= 0.8 ? { k: "高位", c: "bad" } : p <= 0.2 ? { k: "低位", c: "ok" } : { k: "中位", c: "warn" };
+  /* 档位与颜色**与场内持仓卡同一套**（2026-10-04 P0 统一）：
+     措辞 偏低/中位/偏高 ✓ 类名 .pos-tier t-low/t-mid/t-high ✓（位置类＝青/灰/黄，禁用红绿 —— 原来这里是
+     "高位=红、低位=绿"，与同页的盈亏红绿打架 ✗）；阈值走 CONFIG.POS_LOW/HIGH（现价位置口径，
+     与场内那个"成本位置"的 TIER_* 不是同一个量，别互相套用 ✗）。 */
+  const band = (p) => p * 100 >= CONFIG.POS_HIGH ? { k: "偏高", c: "t-high" }
+    : p * 100 <= CONFIG.POS_LOW ? { k: "偏低", c: "t-low" } : { k: "中位", c: "t-mid" };
   const rows = OTC.funds.map((f) => {
     const it = lasts[f.code] || {}, n = f.nav, span = n.hi - n.lo;
     const costNav = (it.qty && it.cost) ? it.cost / it.qty : null;
@@ -911,7 +923,9 @@ function renderOtcLevel() {
     const b = band(r.pos);
     h += '<div class="lvl-row" data-code="' + r.f.code + '">'
       + '<div class="lvl-hd"><span class="f-nm">' + esc(plDisplayName(r.f.name)) + "</span>"
-      + '<span class="dca-chip ' + b.c + '">' + b.k + " " + (r.pos * 100).toFixed(0) + "%</span></div>"
+      /* ⚠ 类名必须是 .pos-tier（与场内持仓卡的 52 周分位 chip 同一套青/灰/黄）——
+         这里原来写的是 .dca-chip（那套是"状态类"，绿/黄/红），换类名才算真统一 */
+      + '<span class="pos-tier ' + b.c + '">' + b.k + " " + (r.pos * 100).toFixed(0) + "%</span></div>"
       + '<div class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</div>"
       + '<div class="lvl-meta">' + (r.costNav ? "成本 " + r.costNav.toFixed(4) + " → 现价 " + r.n.close : "成本净值不可得（快照缺份额）")
       + " · 52 周 " + r.n.lo + "~" + r.n.hi + " · 距高 " + fmtPct(r.dist / 100, 1)
@@ -927,8 +941,10 @@ function renderOtcLevel() {
   h += '<div class="otc-note"><b>怎么读</b>：每条轨道 ＝ 该只净值的<b>近 52 周区间</b>（左＝最低、右＝最高）；'
     + "轨道上两个点：<b>实心</b>是现价、<b>青空心</b>是成本净值 —— 两点谁在左谁在右，就是「现价比我买的时候低还是高」。"
     + "<br><b>成本净值</b>＝App「持仓成本」÷ 份额（近似：南方那只 App 成本比逐笔少 400 元、差 ±0.2% 量级，见「本金与收益」卡）。"
-    + "<br><b>档位</b>（高位 ≥80% · 中位 20~80% · 低位 &lt;20%）是我定的提示阈值，<b>不是投资建议</b> —— "
-    + "纳指几只都在高位不等于该停投，中欧在低位也不等于该加仓，这里只负责把水位摆出来。"
+    + "<br><b>档位</b>（偏高 ≥" + CONFIG.POS_HIGH + "% · 中位 " + CONFIG.POS_LOW + "~" + CONFIG.POS_HIGH + "% · 偏低 &lt;" + CONFIG.POS_LOW + "%）"
+    + "是我定的提示阈值，<b>不是投资建议</b> —— 纳指几只都在偏高不等于该停投，中欧在偏低也不等于该加仓，这里只负责把水位摆出来。"
+    + "<br><b>措辞与颜色</b>（2026-10-04 统一）：档位用「偏低 / 中位 / 偏高」，配色与场内持仓卡的 52 周分位 chip **同一套**"
+    + "（青 → 灰 → 黄）；红绿只留给盈亏 —— 否则同一张表里红色的数字是「亏」、红色的 chip 却是「偏高」，会读错。"
     + "<br><b>区间窗口</b>＝东财近 52 周（会随时间滚动），窗口内的最高/最低日期见悬停提示。"
     + "<br>⚠ 同一指数下的多只（纳指 4 只、其中华安 A/C 是<b>同一只基金的两个份额</b>）在顶部「组合占比」里已按主题合并："
     + "纳指合计约 39.7% —— 那一眼看得更清楚，本块只管单只水位。</div>";
@@ -4063,7 +4079,9 @@ function holdCardHtml(row, i, ctx) {
   const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
   const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
   const pct = Math.round(pctOf(p.idxAtCost));
-  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
+  /* 措辞与场外水位统一（2026-10-04 P0）：偏低 / 中位 / 偏高；emoji 去掉 —— 颜色已表达三档，
+     再加一层 emoji 就是第四种信号 ✗（原来是"颜色 ＋ emoji"双重编码）。阈值仍走 CONFIG.TIER_*（成本位口径）。 */
+  const tier = pct < CONFIG.TIER_LOW ? ["t-low", "偏低"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "中位"] : ["t-high", "偏高"];
   const backToCost = p.idxAtCost / m.close - 1;   // Return required from the current price to cost.
   const idxName = MARKET_NAMES[p.idx] || p.idx;
   const isIdxScope = p.idx === "ndx" || p.idx === "spx";
@@ -4099,8 +4117,8 @@ function holdCardHtml(row, i, ctx) {
   const adviceBase = pct < CONFIG.TIER_LOW
     ? '成本处于区间较低位置，但区间位置本身不代表风险较低。'
     : pct <= CONFIG.TIER_HIGH
-      ? '<span aria-hidden="true">🟡</span> 位置中性，按既定纪律执行：日内跌 ≥' + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
-      : '<span aria-hidden="true">🔵</span> 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。';
+      ? "位置中性，按既定纪律执行：日内跌 ≥" + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
+      : "成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。";
   /* 与触发线同一原则：报价日期有值就照常给建议，只在其后标明判断依据的日期与滞后天数 */
   const advice = !health.asOf
     ? "报价日期未核验，此处仅展示历史成本位置，不生成操作建议。"
@@ -4344,8 +4362,8 @@ function holdCardHtml(row, i, ctx) {
        「成本位置 · 分位 64%」取消（那是本次要清掉的第三处"成本"字样）。
        加仓档 chip 也从这一行挪到下方策略行 —— 它是"触发"类信息，与「未触发」同族。 */
     '<div class="lad-line">' + ladChain +
-      '<span class="lad-chips"><span class="pos-tier ' + tier[0] + '" title="你的成本位（下方条上的青色点）在 52 周区间中的位置；三档按四舍五入后的整数分位判定：<35% 低 / 35–65% 中 / >65% 高">' +
-        '<span aria-hidden="true">' + tier[2] + '</span> 52周分位 ' + pct.toFixed(0) + '% · ' + tier[1] + '</span></span>' +
+      '<span class="lad-chips"><span class="pos-tier ' + tier[0] + '" title="你的成本位（下方条上的青色点）在 52 周区间中的位置；三档按四舍五入后的整数分位判定：&lt;' + CONFIG.TIER_LOW + "% 偏低 / " + CONFIG.TIER_LOW + "–" + CONFIG.TIER_HIGH + "% 中位 / &gt;" + CONFIG.TIER_HIGH + '% 偏高（阈值见 CONFIG，措辞与颜色已与场外水位统一）">' +
+        "52周分位 " + pct.toFixed(0) + "% · " + tier[1] + "</span></span>" +
     '</div>' +
     '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
