@@ -1,0 +1,174 @@
+/* 加息周期看板样式（2026-10-06 从 index.html 的 <style> 块**原样搬出**，CSS 一行未改）
+ *
+ * 为什么搬：要求「像 finance 一样 data / css / html 分开」——
+ *   finance/  index.html · finance.css · finance-data.js
+ *   本页原来   index.html（内嵌 166 行 CSS）· font.css（与根目录那份**逐字节相同** ✗）· data/cycles.js
+ * 本次只做两件事，渲染必须完全不变（验收＝计算样式逐项比对，见提交说明）：
+ *   ① <style> 块 → 本文件（内容照抄，只加这段注释）
+ *   ② 删掉重复的 font.css，改用根目录 ../font.css（本页本来就依赖 ../data.js，跨目录依赖是既成事实）
+ * ⚠ 行内 style="…" 27 处本次不动 —— 主仓库还有 101 处同类，要清就一起清。
+ */
+  /* 配色/字号沿用持仓看板的令牌体系，两处看板观感一致 */
+  :root {
+    --bg:#0a0d13; --bg-grad:#0e1526; --card:#121826; --card2:#1a2234;
+    --line:#232e44; --line-soft:#1c2538;
+    --tx:#e2e9f5; --tx2:#8fa0ba;
+    /* --tx3 原来 #6f7f99，在深底上只有 4.37:1，低于 WCAG AA 的 4.5 —— 而所有小字都用它。
+       提到 #7e8ea9 → 5.34:1 达标，同时仍比 --tx2 低 20%，层级没被抹平。 */
+    --tx3:#7e8ea9;
+    --up:#2dd4a7; --down:#f26d7d; --warn:#f7c14e;
+    --spx:#5ba3ff; --ndx:#46c9f0; --sox:#ba8fff;
+    --up-bg:rgba(45,212,167,.12); --down-bg:rgba(242,109,125,.12);
+    --warn-bg:rgba(247,193,78,.10); --blue-bg:rgba(91,163,255,.12);
+    --mono:"JetBrains Mono","SF Mono","Cascadia Code",Consolas,"Courier New",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei","Noto Sans SC",sans-serif;
+    /* 字号：按手机重排，六档分别对应 Android Material 的 caption / label / body 层级。
+       换算依据：本机（iQOO 15，1440×3168，屏宽约 72mm）在常见 DPR 下，
+       1 个 CSS 像素 ≈ 0.15~0.18mm，故 11px 只有约 1.9mm —— 中文偏小，
+       最小一档提到 12px（≈2.1mm），其余同比上移。 */
+    --fs-hero:22px; --fs-lg:17px; --fs-md:15px; --fs-sm:14px; --fs-xs:13px; --fs-xxs:12px;
+    /* 手机页面左右留白：比桌面稍窄，给内容多留几像素 */
+    --pad:10px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(1200px 600px at 85% -10%, rgba(91,163,255,.06), transparent 60%),var(--bg);color:var(--tx);font-family:var(--sans);font-size:var(--fs-md);line-height:1.6;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;text-rendering:optimizeLegibility;
+       padding:0 max(var(--pad),env(safe-area-inset-left)) calc(28px + env(safe-area-inset-bottom,0px)) max(var(--pad),env(safe-area-inset-right))}
+  .wrap{max-width:960px;margin:0 auto}
+  /* 宽表只给大屏；手机上换成卡片（横滑表格在手机上是反模式） */
+  .mob-only{display:none}
+  /* 卡片式数据行：手机上「标签 …… 数值」一行读下来，不用横向滑动 */
+  .mcard{background:var(--card);border:1px solid var(--line-soft);border-radius:12px;padding:12px;margin-bottom:8px}
+  .mcard-h{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-size:var(--fs-sm);font-weight:600;margin-bottom:8px}
+  .mcard-h i{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .mcard-h span{font-size:var(--fs-xxs);color:var(--tx3);font-weight:400;font-family:var(--mono);letter-spacing:.3px}   /* mono 小字加 tracking，日期区间更易读 */
+  .mrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:4px 0;font-size:var(--fs-xs);border-bottom:1px solid var(--line-soft)}
+  .mrow:last-child{border-bottom:0}
+  .mrow>span{color:var(--tx3);flex-shrink:0}
+  .mrow>b{font-family:var(--mono);font-weight:700;text-align:right}
+  .mrow>b em{font-style:normal;color:var(--tx3);font-weight:400;font-size:var(--fs-xxs);margin-left:4px}
+  /* 卡片套在卡片里时，内层退化成"带分隔线的分组"，避免双重边框和双重留白 */
+  .card .mcard{background:none;border:0;border-radius:0;padding:0 0 8px;margin:0 0 9px;border-bottom:1px dashed var(--line-soft)}
+  .card .mcard:last-child{border-bottom:0;padding-bottom:0;margin-bottom:0}
+  @media (max-width:560px){
+    .mob-only{display:block}
+    .desk-only{display:none}
+    .sec{margin-top:20px}
+    .card{padding:11px 10px 9px}
+    .intro{padding:10px}
+    .lead{padding:8px 9px}
+  }
+  /* 320px 这类极窄屏：压缩横条两侧的固定列宽，「当前周期」的数字降一档，
+     否则「28,945.06」这种 9 位的等宽数字会把三格撑破（等宽字不会自动换行） */
+  @media (max-width:340px){
+    .brow{grid-template-columns:72px 1fr 60px}
+    .now-grid .k-val{font-size:var(--fs-xs)}   /* 等宽数字不换行，320px 下必须降档 */
+    .now-grid{gap:6px}
+    .glossary div{grid-template-columns:84px 1fr}
+    .cmp{grid-template-columns:1fr 78px 78px}   /* 少数派对比表：数值列收窄 */
+  }
+  header{padding:max(20px,env(safe-area-inset-top)) 2px 12px}   /* 顶部避开打孔/状态栏 */
+  /* 返回主看板的链接：与主看板的 .theme-btn 观感一致，触摸高度 36px */
+  .navlink{display:inline-flex;align-items:center;gap:5px;min-height:36px;font-size:var(--fs-xs);color:var(--tx2);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:0 13px;background:var(--card2);margin-bottom:10px}
+  h1{font-size:var(--fs-hero);font-weight:800;letter-spacing:.3px}   /* 800 与主看板 h1 一致 */
+  .sub{font-size:var(--fs-xs);color:var(--tx3);margin-top:4px;line-height:1.7}
+  .sec{margin-top:16px}
+  .sec-title{font-size:var(--fs-sm);color:var(--tx2);font-weight:600;margin:0 2px 8px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:12px 12px 10px}
+  .num{font-family:var(--mono);font-feature-settings:"tnum"}
+  .up{color:var(--up)} .down{color:var(--down)} .warn{color:var(--warn)} .mute{color:var(--tx3)}
+
+  /* 当前周期 */
+  .now{border-color:rgba(247,193,78,.35);background:linear-gradient(135deg,var(--warn-bg),transparent 60%),var(--card)}
+  .now-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .now-h b{font-size:var(--fs-lg)}
+  .pill{font-size:var(--fs-xxs);padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--tx3)}
+  .pill.hot{color:var(--warn);border-color:rgba(247,193,78,.4);background:var(--warn-bg)}
+  .now-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .now-grid>div{background:var(--card2);border:1px solid var(--line-soft);border-radius:10px;padding:8px 6px;text-align:center;min-width:0}
+  .k-label{font-size:var(--fs-xxs);color:var(--tx3);margin-bottom:3px}
+  .k-val{font-family:var(--mono);font-size:var(--fs-md);font-weight:700}
+  .k-sub{font-size:var(--fs-xxs);color:var(--tx3);margin-top:3px;font-family:var(--mono);letter-spacing:.3px}
+  .note{font-size:var(--fs-xs);color:var(--tx3);margin-top:8px;line-height:1.7;padding-top:8px;border-top:1px dashed var(--line-soft)}
+
+  /* 总览表 */
+  .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+  .tbl th,.tbl td{padding:7px 4px;text-align:right;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+  .tbl th:first-child,.tbl td:first-child{text-align:left;white-space:normal}
+  .tbl th{font-size:var(--fs-xxs);color:var(--tx3);font-weight:400}
+  .tbl td{font-family:var(--mono);font-feature-settings:"tnum"}
+  .tbl tr:last-child td{border-bottom:0}
+  .tbl .cyc{font-family:var(--sans);position:sticky;left:0;background:var(--card);z-index:1}   /* 手机横滑时周期列钉住 */
+  .tbl .cyc b{display:block;font-size:var(--fs-xs);color:var(--tx)}
+  .tbl .cyc span{font-size:var(--fs-xxs);color:var(--tx3)}
+  .tbl .dd{display:block;font-size:var(--fs-xxs);color:var(--tx3)}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* 曲线 */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:0 2px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .chips::-webkit-scrollbar{display:none}
+  /* 手指点按目标：高度提到 36px（原来约 24px，手机上偏小、容易点错） */
+  .chip{flex-shrink:0;display:inline-flex;align-items:center;min-height:36px;font-size:var(--fs-xs);padding:0 14px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--tx2);cursor:pointer;font-family:var(--mono)}
+  .chip.on{background:var(--blue-bg);color:var(--spx);border-color:rgba(91,163,255,.35);font-weight:600}
+  .chart{margin-top:2px}
+  .chart+.chart{border-top:1px dashed var(--line-soft);margin-top:14px;padding-top:12px}
+  .chart-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+  .chart-h b{font-size:var(--fs-sm)}
+  .chart-h span{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);letter-spacing:.3px}
+  /* 图表交互：touch-action:none 让横向拖动归图表（不触发页面滚动），读数条常驻占位防跳动 */
+  .cbox{touch-action:none;cursor:crosshair}
+  .chart-readout{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);font-feature-settings:"tnum";text-align:center;min-height:18px;margin-top:4px;line-height:1.55}
+  .chart-readout b{color:var(--tx2);font-weight:600}
+  svg{display:block;width:100%;height:auto}
+  .legend{display:flex;gap:10px 14px;flex-wrap:wrap;justify-content:center;font-size:var(--fs-xxs);color:var(--tx3);padding:8px 2px 2px}
+  .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+
+  /* ── 周期详情卡：先结论 → 再对比 → 后细节 ── */
+  .cycles{display:grid;gap:10px}
+  .cyc-card{background:var(--card);border:1px solid var(--line-soft);border-radius:14px;padding:14px 12px 12px}
+  .cyc-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .cyc-head h3{font-size:var(--fs-md);font-weight:700}
+  .cyc-meta{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);margin-top:3px;line-height:1.7;letter-spacing:.3px}
+  .cyc-why{font-size:var(--fs-xs);color:var(--tx3);margin-top:5px;line-height:1.7}
+  /* 一句话结论：左侧色条作视觉锚点即可，不再铺底色块（原来 14px 反白大块，比数据还抢眼） */
+  .lead{font-size:var(--fs-xs);color:var(--tx2);border-left:2px solid var(--spx);padding:1px 0 1px 8px;margin:8px 0 2px;line-height:1.6}
+  .blk{margin-top:12px}
+  .blk-h{font-size:var(--fs-xxs);color:var(--tx2);font-weight:600;margin-bottom:6px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+  .blk-h em{font-style:normal;color:var(--tx3);font-weight:400}
+  /* 横条对比：中间竖线是 0%，向左＝跌、向右＝涨，条长按本卡最大值缩放 */
+  /* 标签列 82px：13px 字号下「费城半导体」6 字 = 78px 正好放得下；数值列 66px 容纳 +120.9% */
+  .brow{display:grid;grid-template-columns:82px 1fr 66px;gap:8px;align-items:center;padding:4px 0;font-size:var(--fs-xs)}
+  .brow .nm{display:flex;align-items:center;gap:5px;color:var(--tx2)}
+  .brow .nm i{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .track{position:relative;height:13px;background:var(--line-soft);border-radius:3px}
+  .track .zero{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
+  .track .bar{position:absolute;top:2px;bottom:2px;border-radius:3px;opacity:.85}
+  .brow .val{text-align:right;font-family:var(--mono);font-weight:700;font-size:var(--fs-sm)}
+  .under{font-size:var(--fs-xxs);color:var(--tx3);margin-top:5px;line-height:1.7;font-family:var(--mono);letter-spacing:.3px}
+  .kvs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .kv{background:var(--card2);border:1px solid var(--line-soft);border-radius:9px;padding:7px 5px;text-align:center;min-width:0}
+  .kv .t{font-size:var(--fs-xxs);color:var(--tx3);margin-bottom:2px}
+  .kv .v{font-family:var(--mono);font-size:var(--fs-sm);font-weight:700}
+  /* 12 个月大数下面的小字（3/6 个月、定投/一次性拆解）。
+     原来没有这条规则，整行回落到正文 15px——又大又放不下折成两截。 */
+  .kv .s{font-size:var(--fs-xxs);color:var(--tx3);font-family:var(--mono);margin-top:2px;line-height:1.55}
+  /* 术语表 */
+  .glossary{display:grid;gap:0}
+  .glossary div{display:grid;grid-template-columns:92px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:var(--fs-xs);line-height:1.7}
+  .glossary div:last-child{border-bottom:0}
+  .glossary b{color:var(--tx2);font-weight:600}
+  .glossary span{color:var(--tx3)}
+  .intro{background:var(--card2);border:1px solid var(--line-soft);border-radius:12px;padding:12px;font-size:var(--fs-xs);line-height:1.7;color:var(--tx2)}
+  .intro b{color:var(--tx)}
+  /* 少数派对比：三列小表格（列头只出现一次）。
+     原来每行是「数值+标签 ×2」的长句，284px 里塞 300px 的内容必在中间乱折；
+     左列 62px 也装不下「1994 起点 4.75%」。改成表格后各格只有短内容，永不折。 */
+  .cmp{display:grid;grid-template-columns:1fr 92px 92px;gap:0 8px;align-items:baseline;margin-top:8px}
+  .cmp .h{font-size:var(--fs-xxs);color:var(--tx3);text-align:right;padding-bottom:3px;white-space:nowrap}
+  .cmp .h:first-child{text-align:left}
+  .cmp .id{font-size:var(--fs-xs);color:var(--tx2);font-family:var(--mono);padding:6px 0;border-top:1px solid var(--line-soft);white-space:nowrap}
+  .cmp .v{font-family:var(--mono);font-size:var(--fs-sm);font-weight:700;text-align:right;padding:6px 0;border-top:1px solid var(--line-soft)}
+  footer{margin-top:24px;font-size:var(--fs-xs);color:var(--tx3);line-height:1.7;border-top:1px solid var(--line-soft);padding-top:12px}
+  footer b{color:var(--tx2)}
+  footer a{color:var(--spx);text-decoration:none}
+  @media (max-width:420px){ .tbl{font-size:var(--fs-xs)} }
