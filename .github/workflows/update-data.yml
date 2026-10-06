@@ -38,10 +38,9 @@ jobs:
           node-version: "22"
       - name: Regression tests (synthetic, offline)
         run: node --test scripts/test-dashboard.mjs
-      - name: Validate actual schema and all historical snapshots
-        run: node scripts/check-data.mjs
-      - name: Fed-cycle dashboard data gate
-        run: node scripts/check-fed.mjs
+      # 门禁单一真源：与 pre-commit 钩子调同一个脚本（eslint / dom-check 缺失时自动跳过）
+      - name: All data gates (scripts/verify-all.mjs)
+        run: node scripts/verify-all.mjs
 
   update:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
