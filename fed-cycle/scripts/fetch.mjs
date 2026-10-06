@@ -40,18 +40,45 @@ const parseNasdaq = (txt) => {
   }).filter((x) => x.c > 0).reverse();
 };
 const idx = {};
+/* ── 纳指100 / 费半 ──
+ * 取数策略（2026-10-06 重构，按用户要求「短窗 ＋ 本地历史拼接」）：
+ *   主体 ＝ 本地 fed-data.json 的全史（有就用它，快且免发长请求）
+ *          —— 但**必须保留长窗分支**：fed-data.json 被 .gitignore 忽略，CI 是全新 checkout、没有它 ✗
+ *   末梢 ＝ Nasdaq **短窗**（近 60 天）：实测长窗（1990 起 + limit=99999）末端只到 10-02，
+ *          而同一 API 的短窗有到 10-05 → 短窗补上末尾那几天（同日以短窗为准，它更新更准）。
+ *   于是「走势对比少一截」从源头不会发生，不再依赖后面的补末梢兜底。
+ */
+const localBody = (k) => {
+  try {
+    const j = JSON.parse(fs.readFileSync('fed-data.json', 'utf8'));
+    const a = j[k];
+    return Array.isArray(a) && a.length > 500 ? a.map((x) => ({ d: x.d, c: x.c })) : null;
+  } catch (e) { return null; }
+};
+const nasdaqWindow = async (sym, days) => {
+  const from = new Date(Date.parse(TODAY) - days * 864e5).toISOString().slice(0, 10);
+  return parseNasdaq(await get(`https://api.nasdaq.com/api/quote/${sym}/historical?assetclass=index&fromdate=${from}&todate=${TODAY}&limit=9999`));
+};
+const mergeBy = (base, add) => { const m = new Map(base.map((x) => [x.d, x])); add.forEach((x) => m.set(x.d, x)); return [...m.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); };
+
 for (const [key, sym] of [['ndx', 'NDX'], ['sox', 'SOX']]) {
-  const raw = parseNasdaq(await get(`https://api.nasdaq.com/api/quote/${sym}/historical?assetclass=index&fromdate=1990-01-01&todate=${TODAY}&limit=99999`));
-  /* 恒定值段体检：连续 ≥20 个交易日收盘完全相同的开头，判为占位数据 */
-  let cut = 0;
-  for (let i = 0; i < raw.length - 20; i++) {
-    if (raw[i].c === raw[i + 19].c) { cut = i + 20; } else break;
+  let base = localBody(key), src = '本地 fed-data.json';
+  if (!base) {
+    const raw = parseNasdaq(await get(`https://api.nasdaq.com/api/quote/${sym}/historical?assetclass=index&fromdate=1990-01-01&todate=${TODAY}&limit=99999`));
+    /* 恒定值段体检：连续 ≥20 个交易日收盘完全相同的开头，判为占位数据 */
+    let cut = 0;
+    for (let i = 0; i < raw.length - 20; i++) { if (raw[i].c === raw[i + 19].c) { cut = i + 20; } else break; }
+    if (cut > 0) console.log('  ⚠ ' + sym + ' 开头 ' + cut + ' 个交易日（' + raw[0].d + ' → ' + raw[cut - 1].d + '）收盘恒为 ' + raw[0].c + '，判定为占位数据，已丢弃');
+    base = cut ? raw.slice(cut) : raw;
+    src = '长窗（Nasdaq 全史：CI 无本地文件时走这条）';
   }
-  if (cut > 0) {
-    console.log('  ⚠ ' + sym + ' 开头 ' + cut + ' 个交易日（' + raw[0].d + ' → ' + raw[cut - 1].d + '）收盘恒为 ' + raw[0].c + '，判定为占位数据，已丢弃');
-  }
-  idx[key] = cut ? raw.slice(cut) : raw;
-  console.log('  ' + sym + '  ' + idx[key].length + ' 个交易日  ' + idx[key][0].d + ' → ' + idx[key][idx[key].length - 1].d + '   （来源 Nasdaq 官方 API）');
+  let tail = [];
+  try { tail = await nasdaqWindow(sym, 60); } catch (e) { console.log('  ⚠ ' + sym + ' 短窗取数失败（' + e.message + '），末梢可能落后'); }
+  const merged = mergeBy(base, tail);
+  const added = merged.length - base.length;
+  idx[key] = merged;
+  console.log('  ' + sym + '  ' + merged.length + ' 个交易日  ' + merged[0].d + ' → ' + merged[merged.length - 1].d
+    + '   （主体 ' + src + ' ＋ 短窗 60 天' + (added > 0 ? '，末梢补 ' + added + ' 根' : '，末梢无新增') + '）');
 }
 
 /* ── 最新报价（新浪，GBK）──
