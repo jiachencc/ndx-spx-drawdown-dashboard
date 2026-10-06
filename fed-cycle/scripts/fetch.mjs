@@ -79,6 +79,50 @@ try {
   console.log('  ⚠ 报价抓取失败（' + e.message + '），页面将只用历史序列');
 }
 
+/* ── 补末梢（2026-10-06 加）──────────────────────────────────────────────
+ * 问题：三个源的更新速度不一样 —— 用户发现「走势对比」里 spx/sox 比 ndx 少一截。
+ *   实测（2026-10-06）：historyofmarket（SPX）只到 10-02、Nasdaq 的 SOX 同样滞后，
+ *   而腾讯 usINX / usNDX 的日线已到 10-05。
+ * 规则：谁落后于「三条里最新的那天」，就用腾讯 qfq 日线补那几天（同日不覆盖、只在变长时采用）。
+ * 说明：腾讯没有 usSOX 日线（实测返回空数组）→ SOX 补不上时会打印原因，不静默。
+ */
+const tencent = async (sym) => {
+  const txt = await get('https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param=' + sym + ',day,,,320,qfq', 'text/plain');
+  const j = JSON.parse(txt);
+  const d = j.data && j.data[sym] && j.data[sym].day;
+  return Array.isArray(d) ? d.map((r) => ({ d: r[0], c: parseFloat(r[2]) })).filter((x) => x.c > 0) : [];
+};
+/* Nasdaq 短窗补数（2026-10-06 加，实测必需）：
+ *   长窗请求（1990 起 + limit=99999）拿回的 SOX 只到 10-02，但**同一个 API 的短窗请求有到 10-05**
+ *   —— 所以这不是源滞后，是本脚本的取数窗口问题；补末梢时用短窗再要一次即可。 */
+const nasdaqTail = async (k) => {
+  const sym = k === 'ndx' ? 'NDX' : k === 'sox' ? 'SOX' : null;
+  if (!sym) return [];
+  const from = new Date(Date.parse(TODAY) - 45 * 864e5).toISOString().slice(0, 10);
+  const txt = await get('https://api.nasdaq.com/api/quote/' + sym + '/historical?assetclass=index&fromdate=' + from + '&todate=' + TODAY + '&limit=9999');
+  return parseNasdaq(txt);
+};
+const TOPUP = { spx: 'usINX', ndx: 'usNDX', sox: 'usSOX' };
+const S3 = { spx, ndx: idx.ndx, sox: idx.sox };
+const maxD = Object.values(S3).map((a) => a[a.length - 1].d).sort().pop();
+for (const k of Object.keys(S3)) {
+  const cur = S3[k];
+  const curEnd = cur[cur.length - 1].d;
+  if (curEnd >= maxD) continue;
+  try {
+    let add = await tencent(TOPUP[k]);
+    /* 腾讯拿不到或没到最新 → 再试 Nasdaq 短窗（SOX 走这条） */
+    if (!add.length || add[add.length - 1].d <= curEnd) add = await nasdaqTail(k);
+    const m = new Map(cur.map((x) => [x.d, x]));
+    add.forEach((x) => { if (!m.has(x.d)) m.set(x.d, x); });
+    const merged = [...m.values()].sort((a, b) => (a.d < b.d ? -1 : 1));
+    if (merged.length > cur.length) {
+      console.log('  补末梢 ' + k + '：' + curEnd + ' → ' + merged[merged.length - 1].d + '（腾讯 ' + TOPUP[k] + '，+' + (merged.length - cur.length) + ' 根）');
+      cur.length = 0; cur.push(...merged);
+    } else console.log('  补末梢 ' + k + '：腾讯 ' + TOPUP[k] + ' 无可补数据（末仍 ' + curEnd + '）');
+  } catch (e) { console.log('  补末梢 ' + k + ' 失败：' + e.message); }
+}
+
 fs.writeFileSync('fed-data.json', JSON.stringify({
   fetchedAt: new Date().toISOString().slice(0, 10),
   source: {
