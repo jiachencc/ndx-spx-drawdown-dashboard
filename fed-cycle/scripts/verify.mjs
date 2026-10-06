@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 const html = fs.readFileSync('index.html', 'utf8');
-const dataJs = fs.readFileSync('data/cycles.js', 'utf8');
+const dataJs = fs.readFileSync('fed-data.js', 'utf8');
 const pageJs = html.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/)[1];
 const mk = () => {
   const e = { style: {}, dataset: {}, children: [], textContent: '', _h: '', clientWidth: 360,
@@ -76,7 +76,7 @@ console.log('  图表数: ' + allBoxes.length + '（全部叠加模式＝3 个�
      ① 三条序列的最新交易日必须一致（这天事故里正是这里露馅：NDX/SOX 比 SPX 晚 6 个交易日）；
      ② 最新交易日距今不得超过 5 个自然日（容周末 + 假日；超了说明抓取静默失败了）。
    任一条不过就把退出码设为 1 —— update.sh 用的是 `set -e`，会当场失败，不再绿着糊过去。 */
-const S = JSON.parse(fs.readFileSync('data/series.json', 'utf8'));
+const S = JSON.parse(fs.readFileSync('fed-data.json', 'utf8'));
 const lastOf = (k) => (Array.isArray(S[k]) && S[k].length ? S[k][S[k].length - 1].d : null);
 const L = { spx: lastOf('spx'), ndx: lastOf('ndx'), sox: lastOf('sox') };
 const uniq = [...new Set(Object.values(L).filter(Boolean))].sort();

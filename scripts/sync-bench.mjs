@@ -3,7 +3,7 @@
  *
  * 数据来源（合并使用）：
  *   ① 在线 NDX 日线：scripts/fetch_and_update.mjs 的 series()（Yahoo ^NDX，失败自动退 Stooq）
- *   ② 同仓库子目录 fed-cycle/data/series.json（本地开发常有，含 1996 起全史）
+ *   ② 同仓库子目录 fed-cycle/fed-data.json（本地开发常有，含 1996 起全史）
  *   合并规则：本地先放、在线覆盖同日（两者都是官方收盘，同日期一般只差舍入）。
  *
  * 为什么必须有 ①（2026-09-22 的教训）：CI 里没有兄弟仓库那个文件 ✗，
@@ -30,7 +30,7 @@ import { series as fetchBars } from "./fetch_and_update.mjs";
 const DRY = process.argv.includes("--dry");
 const OFFLINE = process.argv.includes("--offline");
 const DATA = "data.js";
-const SERIES = "fed-cycle/data/series.json";
+const SERIES = "fed-cycle/fed-data.json";
 /* ⚠ 2026-09-30 修：SNAPSHOTS 2026-09-27 已从 positions.html 移到 positions-data.js
    （那次重构「同步 9 个脚本」时漏了本脚本）→ 本步自 09-27 起在 CI 里必然抛错、被 continue-on-error 吞掉：
    走势图那条「同节奏纳指」虚线因此一直停在 09-24。改读数据文件，与 data-quality.mjs 同法。 */
@@ -45,7 +45,13 @@ const readDates = () => {
 
 /* 本地序列：可缺、可坏，都只警告不中断（在线源才是主力） */
 function readLocal() {
-  if (!fs.existsSync(SERIES)) return null;
+  if (!fs.existsSync(SERIES)) {
+    /* 加固（2026-10-06）：原来这里是 `return null` —— 静默降级，页面上只表现为「那条线不再补」。
+      该文件是 fed-cycle 的原始日线（.gitignore 忽略、CI 里本来就不存在），本地兜底才用得到；
+       故这里只警告、不中断，但**必须留下可 grep 的痕迹**（与 CI 日志、数据门禁对齐）。 */
+    console.warn("  [BENCH 兜底] ⚠ 找不到 " + SERIES + "（fed-cycle 的原始日线；忽略项，CI 里不存在）→ 本地兜底不可用，只能靠在线源");
+    return null;
+  }
   try {
     const j = JSON.parse(fs.readFileSync(SERIES, "utf8"));
     if (!Array.isArray(j.ndx)) throw new Error("没有 ndx 序列");

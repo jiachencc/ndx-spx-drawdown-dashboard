@@ -9,8 +9,8 @@ data.private.backup.js
 outputs/
 
 # 加息周期看板的原始日线（1.2MB，且每次刷新都会变；用 fed-cycle/update.sh 可重新抓取）
-# 页面真正加载的是同目录的 data/cycles.js（构建产物），必须入库
-fed-cycle/data/series.json
+# 页面真正加载的是同目录的 fed-data.js（构建产物），必须入库
+fed-cycle/fed-data.json
 
 # 本地会话记忆（IDE 副产物，非项目文件）
 .workbuddy-ai/

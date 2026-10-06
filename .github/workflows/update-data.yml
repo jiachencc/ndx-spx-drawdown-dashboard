@@ -67,7 +67,7 @@ jobs:
       # 走势图那条「同节奏纳指」虚线才能画到最后一点。只插入缺失日期：
       # 已有值不覆盖，块内手写注释与排版也不动（原实现重建整块，会把注释冲掉）。
       # 数据源优先在线抓 ^NDX（复用本 job 上面用过的 Yahoo 源，CI 里可用），
-      # 拿不到才退回同仓库子目录 fed-cycle/data/series.json（本地常有、CI 里没有）。
+      # 拿不到才退回同仓库子目录 fed-cycle/fed-data.json（本地常有、CI 里没有）。
       # continue-on-error：补不上只是那条线停在前一天，不影响日更与其它数据。
       # 加息周期看板（fed-cycle）自己的数据 —— 它不在主流程里，靠本步刷新。
       # 放在 sync-bench 之前：sync-bench 拿不到在线序列时会**退回读它的 series.json**，先刷新 = 兜底数据也新。
@@ -75,7 +75,7 @@ jobs:
       # 路径守卫（2026-10-06 改名 fed-cycle-dashboard → fed-cycle）：这个文件是 pages 真正加载的产物，
       # 一旦路径被改坏，下面的更新步骤是 continue-on-error、提交步骤又会静默跳过 —— 只有本步会响。
       - name: Fed-cycle path guard
-        run: test -f fed-cycle/data/cycles.js || { echo "✗ fed-cycle/data/cycles.js 缺失（路径被改过？）"; exit 1; }
+        run: test -f fed-cycle/fed-data.js || { echo "✗ fed-cycle/fed-data.js 缺失（路径被改过？）"; exit 1; }
 
       - name: Fed-cycle dashboard data (cycles.js)
         continue-on-error: true
@@ -96,10 +96,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet data.js fed-cycle/data/cycles.js; then
+          if git diff --quiet data.js fed-cycle/fed-data.js; then
             echo "no business data change"
             exit 0
           fi
-          git add data.js fed-cycle/data/cycles.js
+          git add data.js fed-cycle/fed-data.js
           git commit -m "data(auto): validated source update"
           git push

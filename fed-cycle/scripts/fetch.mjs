@@ -79,7 +79,7 @@ try {
   console.log('  ⚠ 报价抓取失败（' + e.message + '），页面将只用历史序列');
 }
 
-fs.writeFileSync('data/series.json', JSON.stringify({
+fs.writeFileSync('fed-data.json', JSON.stringify({
   fetchedAt: new Date().toISOString().slice(0, 10),
   source: {
     spx: { name: 'History of Market', url: 'https://historyofmarket.com/api/sp500/price.json', license: 'CC BY 4.0' },
@@ -90,4 +90,4 @@ fs.writeFileSync('data/series.json', JSON.stringify({
   quotes,
   ndx: idx.ndx, sox: idx.sox, spx,
 }));
-console.log('  → data/series.json  ' + (fs.statSync('data/series.json').size / 1024).toFixed(0) + ' KB');
+console.log('  → fed-data.json  ' + (fs.statSync('fed-data.json').size / 1024).toFixed(0) + ' KB');

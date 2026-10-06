@@ -1,4 +1,4 @@
-/* 由日线序列算出每个加息周期的统计 → data/cycles.js（供静态页直接 <script> 引用）
+/* 由日线序列算出每个加息周期的统计 → fed-data.js（供静态页直接 <script> 引用）
  *
  * 口径（页面会原样标注，避免"看起来是同一个数其实不是"）：
  *   基准日 = 首次加息日的【前一个交易日】收盘 —— 相当于"加息前最后一天建仓"
@@ -11,7 +11,7 @@
  */
 import fs from 'node:fs';
 
-const S = JSON.parse(fs.readFileSync('data/series.json', 'utf8'));
+const S = JSON.parse(fs.readFileSync('fed-data.json', 'utf8'));
 const CYCLES = [
   { id: '1994', name: '1994 预防式加息', first: '1994-02-04', last: '1995-02-01', hikes: 7,  rate: '3.00% → 6.00%', why: '通胀预期抬头，12 个月连加 7 次，被称"债券大屠杀"', tag: '软着陆' },
   { id: '1999', name: '1999 泡沫前收紧', first: '1999-06-30', last: '2000-05-16', hikes: 6,  rate: '4.75% → 6.50%', why: '经济过热 + 科网狂潮，末次加息后 10 个月泡沫见顶破裂', tag: '泡沫顶' },
@@ -158,8 +158,8 @@ const js = '/* 由 scripts/build.mjs 生成，请勿手改。数据源与口径�
   + 'const META = ' + JSON.stringify({ builtAt: new Date().toISOString().slice(0, 19).replace('T', ' '), source: S.source, fetchedAt: S.fetchedAt, quotes: S.quotes || null }, null, 1) + ';\n'
   + 'const CYCLES = ' + JSON.stringify(out, null, 1) + ';\n'
   + 'const SUMMARY = ' + JSON.stringify(summary, null, 1) + ';\n';
-fs.writeFileSync('data/cycles.js', js);
-console.log('  → data/cycles.js  ' + (fs.statSync('data/cycles.js').size / 1024).toFixed(0) + ' KB\n');
+fs.writeFileSync('fed-data.js', js);
+console.log('  → fed-data.js  ' + (fs.statSync('fed-data.js').size / 1024).toFixed(0) + ' KB\n');
 /* 控制台核对表 */
 const f = (v, dp = 1) => (v === null ? '  —  ' : (v >= 0 ? '+' : '') + v.toFixed(dp) + '%');
 console.log('周期'.padEnd(20) + '指数'.padEnd(12) + '加息段涨跌'.padStart(10) + '最大回撤'.padStart(10) + '  见顶(距首加)'.padStart(16) + '  回本(交易日)'.padStart(12) + '  加息后12月'.padStart(11));
