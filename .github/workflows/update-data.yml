@@ -40,6 +40,8 @@ jobs:
         run: node --test scripts/test-dashboard.mjs
       - name: Validate actual schema and all historical snapshots
         run: node scripts/check-data.mjs
+      - name: Fed-cycle dashboard data gate
+        run: node scripts/check-fed.mjs
 
   update:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

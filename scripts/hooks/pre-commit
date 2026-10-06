@@ -31,6 +31,13 @@ if ! node scripts/check-finance.mjs; then
 fi
 echo "pre-commit: check-finance ✓"
 
+# 加息周期看板（fed-cycle/）：结构问题阻止提交；外部源滞后的新鲜度告警不阻断。
+if ! node scripts/check-fed.mjs; then
+  echo "pre-commit: 加息周期看板门禁未通过 → 已阻止提交（详见上方输出）"
+  exit 1
+fi
+echo "pre-commit: check-fed ✓"
+
 log="${TMPDIR:-/tmp}/precommit-test.log"
 if ! node --test scripts/test-dashboard.mjs >"${log}" 2>&1; then
   echo "pre-commit: 回归测试未通过 → 已阻止提交（详见 ${log}）"

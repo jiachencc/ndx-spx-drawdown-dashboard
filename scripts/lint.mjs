@@ -29,12 +29,19 @@ const inlineOf = (file) => {
 /* 个人财务看板（2026-10-01 新增）：数据层与页面内联脚本一起交给 eslint ——
    它自己的数据域与 data.js 无关，故不拼接；但 sharesCheck 与持仓页共用同一套规则。 */
 const financeDataJs = readFileSync(path.join(root, "finance", "finance-data.js"), "utf8");
+/* 加息周期看板（fed-cycle/，2026-10-06 纳入）：构建产物 ＋ 页面内联脚本。
+   它的数据域只有 META/CYCLES/SUMMARY（build.mjs 生成），与 data.js 无关；
+   页面对主仓库的引用（DEFAULT/POSITIONS）都在 typeof 守卫之后，故**不拼 data.js**
+   —— 否则 data.js 与 fed-data.js 的同名顶层 const 会重复声明、直接解析失败。 */
+const fedDataJs = readFileSync(path.join(root, "fed-cycle", "fed-data.js"), "utf8");
 const units = [
   ["data.js", dataJs],
   ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + inlineOf("positions.html")],
   ["index.inline.js", dataJs + "\n;\n" + inlineOf("index.html")],
   ["finance-data.js", financeDataJs],
   ["finance.inline.js", financeDataJs + "\n;\n" + inlineOf("finance/index.html")],
+  ["fed-data.js", fedDataJs],
+  ["fed.inline.js", fedDataJs + "\n;\n" + inlineOf("fed-cycle/index.html")],
 ];
 
 const dir = path.join(tmpdir(), "ndx-lint-" + process.pid);
