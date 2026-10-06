@@ -107,7 +107,7 @@ const MONTHLY = [
  * 为什么是 6 个月：一次典型中级调整常走 1~3 个月，22 个交易日常只看到半程；
  *   130 根能覆盖「顶 → 跌 → 反弹」全过程，又不至于和「回撤深度尺 / 历史回撤表」的尺度重复。
  * ⚠ 下面这批是 2026-09-27 **手填**的 130 根：当天 Yahoo（^NDX/^GSPC）与 stooq 兜底双双不可用
- *   （Yahoo 403、stooq 被 JS 挑战拦截），故取 fed-cycle-dashboard/data/series.json ——
+ *   （Yahoo 403、stooq 被 JS 挑战拦截），故取 fed-cycle/data/series.json ——
  *   NDX = Nasdaq 官方 api.nasdaq.com/api/quote/NDX/historical、SPX = historyofmarket.com/api/sp500/price.json
  *   （皆官方 / CC BY 4.0 口径），末值与 DEFAULT.ndx/spx.close **分毫不差**（30,608.13 / 7,743.41，差 0.00），
  *   且 1M 切片首日 = 2026-08-26，与原先 22 点版本完全衔接；下次脚本抓取成功会自动覆盖成 Yahoo 口径。 */
@@ -3239,7 +3239,7 @@ const FEES = {
  * 缺省时走势图自动跳过基准线并在图例提示，其余功能不受影响。
  * 键必须与快照日期（SNAPSHOTS[].d）一致；非交易日填「截至该日的最新收盘」。
  * 本次补全来源（2026-09-19）：
- *   ① ≤09-16 —— 仓库自带 fed-cycle-dashboard/data/series.json 的 NDX 日线（已与 git 历史里
+ *   ① ≤09-16 —— 仓库自带 fed-cycle/data/series.json 的 NDX 日线（已与 git 历史里
  *      每日 data(auto) 提交的 DEFAULT.ndx.close 交叉验证：09-04~09-16 共 7 天，逐日一致 ✓）；
  *   ② 09-17 / 09-18 —— git 历史里 data(auto) 的官方读数（series.json 当时尚未覆盖，落盘日早于收盘）。
  * 维护：可跑 node scripts/sync-bench.mjs 自动补齐缺失日期（只补不覆盖，已有值优先）。 */
@@ -3258,7 +3258,7 @@ const BENCH = {
   "2026-09-18": 29644.17,   // git 历史 data(auto) 官方读数
   /* 09-19/20 周末休市；09-21 的真值取 data.js 的 DEFAULT.ndx.close（Yahoo 抓取，SOURCE_META.ndx.asOf = 09-21）；
      09-22 的美股要北京时间 09-23 凌晨才收盘 → 按本节规则「截至该日的最新收盘」沿用 09-21。
-     ⚠ 这两天**不要**跑 scripts/sync-bench.mjs 去补：它读的 fed-cycle-dashboard/data/series.json 当时还停在
+     ⚠ 这两天**不要**跑 scripts/sync-bench.mjs 去补：它读的 fed-cycle/data/series.json 当时还停在
        09-16（末值 28,945.06），拿它补会把基准线凭空拉低 5%（比 09-18 的 29,644 还低）。脚本已加保护。 */
   "2026-09-21": 30482.35,   // = DEFAULT.ndx.close（SOURCE_META.ndx.asOf 09-21）
   "2026-09-22": 30482.35,   // 美股未收盘，按规则沿用 09-21

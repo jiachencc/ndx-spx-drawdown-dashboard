@@ -3,7 +3,7 @@
  *
  * 数据来源（合并使用）：
  *   ① 在线 NDX 日线：scripts/fetch_and_update.mjs 的 series()（Yahoo ^NDX，失败自动退 Stooq）
- *   ② 兄弟仓库 fed-cycle-dashboard/data/series.json（本地开发常有，含 1996 起全史）
+ *   ② 同仓库子目录 fed-cycle/data/series.json（本地开发常有，含 1996 起全史）
  *   合并规则：本地先放、在线覆盖同日（两者都是官方收盘，同日期一般只差舍入）。
  *
  * 为什么必须有 ①（2026-09-22 的教训）：CI 里没有兄弟仓库那个文件 ✗，
@@ -30,7 +30,7 @@ import { series as fetchBars } from "./fetch_and_update.mjs";
 const DRY = process.argv.includes("--dry");
 const OFFLINE = process.argv.includes("--offline");
 const DATA = "data.js";
-const SERIES = "fed-cycle-dashboard/data/series.json";
+const SERIES = "fed-cycle/data/series.json";
 /* ⚠ 2026-09-30 修：SNAPSHOTS 2026-09-27 已从 positions.html 移到 positions-data.js
    （那次重构「同步 9 个脚本」时漏了本脚本）→ 本步自 09-27 起在 CI 里必然抛错、被 continue-on-error 吞掉：
    走势图那条「同节奏纳指」虚线因此一直停在 09-24。改读数据文件，与 data-quality.mjs 同法。 */
