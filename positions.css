@@ -1370,3 +1370,8 @@
   #snap-attr .sa-head span { color: var(--tx3); font-size: var(--fs-xxs); }
   #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }
   #snap-attr .sa-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* 快照对比 · 第三个视图「投入 vs 市场」（2026-10-07 重做）*/
+  #snap-flow[hidden] { display: none; }
+  #snap-flow .sf-sum { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: var(--fs-xs); color: var(--tx3); padding: 4px 0 0; }
+  #snap-flow .sf-sum b { color: var(--tx); font-family: var(--mono); }

@@ -104,9 +104,11 @@ try {
   <div class="view-switch" id="snap-switch" role="tablist" aria-label="快照对比视图">
     <button class="vs-btn on" data-view="log" role="tab" aria-selected="true">逐期明细</button>
     <button class="vs-btn" data-view="attr" role="tab" aria-selected="false">盈亏归因</button>
+    <button class="vs-btn" data-view="flow" role="tab" aria-selected="false">投入 vs 市场</button>
   </div>
   <div class="card tight" id="snap-list" style="padding:4px 14px;"></div>
   <div class="card tight" id="snap-attr" hidden></div>
+  <div class="card tight" id="snap-flow" hidden></div>
 
   <h2 class="sec-title" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
   <div class="card tight" id="acct-card"></div>
@@ -1300,19 +1302,102 @@ function renderSnapAttr() {
     + "</div>";
   el.innerHTML = h;
 }
-/* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
+/* ── 快照对比 · 投入 vs 市场（2026-10-07 重做；第三个视图，方案 B）────────────────────────
+ * 回答的问题：**总市值的变化里，多少是新投进去的钱、多少是市场给的** ✓（原来完全没有这个视角）
+ *
+ * ⚠ 第一版设计已被数据否掉（见同日的 revert 提交）：快照自带的 total 字段 15/18 期缺失、
+ *   且其值与 Σ市值 差 25,443 元（**语义不同**）→ 不可作基准 ✗。
+ * 本版**只用 items**（每期都有 cost/pl/val ✓），靠恒等式自证：
+ *   市值 = 成本 ＋ 盈亏  ⇒  ΔΣ市值 = ΔΣ成本 ＋ ΔΣ盈亏（逐项成立，残差只在舍入）
+ *   净投入   = ΔΣ成本 ＋ Δ现金
+ *   市场盈亏 = ΔΣ盈亏
+ * · 与人工填的 flow（仅 6/19 期）对照：反推已被验证与其**完全吻合**（最大差异 0 元 ✓）
+ *
+ * 图型：每期两根柱（蓝=净投入 · 绿/红=市场盈亏），零线居中。
+ * 缺 items 的期跳过并在图注写明（**不补 0** —— 补 0 会被误读成"这期没变"）；
+ * 所有数值过 isFinite 守卫：宁可显示「—」，也绝不把 NaN 写到屏幕上 ✗（第一版就栽在这里）。
+ */
+function renderSnapFlow() {
+  const el = $("snap-flow");
+  if (!el) return;
+  const S = ((typeof SNAPSHOTS !== "undefined" && SNAPSHOTS) || []);
+  const num = (v) => (Number.isFinite(+v) ? +v : 0);
+  const sumOf = (o, k) => Object.values(o || {}).reduce((a, x) => a + num(x && x[k]), 0);
+  const rows = [];
+  for (let i = 1; i < S.length; i++) {
+    const a = S[i - 1], b = S[i];
+    if (!a.items || !b.items) { rows.push({ d: b.d, skip: true }); continue; }
+    const dCost = sumOf(b.items, "cost") - sumOf(a.items, "cost");
+    const dPl = sumOf(b.items, "pl") - sumOf(a.items, "pl");
+    const dVal = sumOf(b.items, "val") - sumOf(a.items, "val");
+    const dCash = num(b.cash) - num(a.cash);
+    rows.push({ d: b.d, invest: dCost + dCash, mkt: dPl, resid: dVal - (dCost + dCash) - dPl,
+      flow: Number.isFinite(+b.flow) ? +b.flow : null });
+  }
+  const ok = rows.filter((r) => !r.skip);
+  if (!ok.length) { el.innerHTML = '<div class="otc-note">没有可拆的两期（缺 items）。</div>'; return; }
+  const yuan = (v) => (Number.isFinite(v) ? fmtYuan(v) : "—");
+  const sumInv = ok.reduce((s, r) => s + r.invest, 0);
+  const sumMkt = ok.reduce((s, r) => s + r.mkt, 0);
+  const i0 = rows.findIndex((r) => !r.skip), i1 = rows.map((r) => !r.skip).lastIndexOf(true);
+  const v0 = sumOf((S[i0] || {}).items, "val");
+  const v1 = sumOf((S[Math.min(i1 + 1, S.length - 1)] || {}).items, "val");
+  const resid = Math.max.apply(null, ok.map((r) => Math.abs(r.resid)).concat([0]));
+  const closeGap = Math.abs(v1 - (v0 + sumInv + sumMkt));
+  const flows = ok.filter((r) => r.flow != null).map((r) => ({ d: r.d, real: r.flow, calc: r.invest }));
+  const flowGap = flows.length ? Math.max.apply(null, flows.map((x) => Math.abs(x.real - x.calc))) : 0;
+
+  const mx = Math.max.apply(null, ok.map((r) => Math.max(Math.abs(r.invest), Math.abs(r.mkt))).concat([1]));
+  const W = 360, PADL = 48, PADR = 6, PADT = 8, PADB = 22, H = 190;
+  const plotW = W - PADL - PADR, half = (H - PADT - PADB) / 2 - 3, zeroY = PADT + half + 3;
+  const step = plotW / ok.length, bw = Math.max(2, step / 2 - 2);
+  let svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="每期净投入与市场盈亏（零线居中）">';
+  [1, 0, -1].forEach((k) => { const y = zeroY - k * half;
+    svg += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="1"/>'
+      + '<text x="' + (PADL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="var(--tx3)">' + (k === 0 ? "0" : fmtYuan(mx)) + "</text>"; });
+  ok.forEach((r, i) => {
+    const x0 = PADL + i * step + 1.5;
+    const bar = (v, x, col, label) => { const hh = Math.max(0.5, Math.abs(v) / mx * half), y = v >= 0 ? zeroY - hh : zeroY;
+      return '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + hh + '" fill="' + col + '" opacity=".92"><title>'
+        + r.d + "　" + label + "　" + fmtAmt(v) + " 元</title></rect>"; };
+    svg += bar(r.invest, x0, "#5ba3ff", "净投入");
+    svg += bar(r.mkt, x0 + bw + 1.5, r.mkt >= 0 ? "#2dd4a7" : "#e0576b", "市场盈亏");
+    if (ok.length <= 12 || i % 2 === 0)
+      svg += '<text x="' + (x0 + bw) + '" y="' + (H - 7) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + r.d.slice(5) + "</text>";
+  });
+  svg += "</svg>";
+
+  let h = '<div class="sa-head"><b>投入 vs 市场</b><span>每期两根：蓝=净投入（我又投进去的钱）· 绿/红=市场盈亏（赚/亏）</span></div>';
+  h += '<div class="sf-sum"><span>期初市值 <b>' + yuan(v0) + '</b></span><span>＋ 净投入 <b class="up">' + fmtAmt(sumInv) + '</b></span>'
+    + '<span>＋ 市场盈亏 <b class="' + cls(sumMkt) + '">' + fmtAmt(sumMkt) + '</b></span><span>＝ 期末市值 <b>' + yuan(v1) + "</b></span></div>";
+  h += svg;
+  h += '<div class="sa-legend"><span><i style="background:#5ba3ff"></i>净投入</span>'
+    + '<span><i style="background:#2dd4a7"></i>市场盈亏(赚)</span><span><i style="background:#e0576b"></i>市场盈亏(亏)</span></div>';
+  h += '<div class="otc-note"><b>口径</b>：市值 = 成本 ＋ 盈亏 → <b>净投入</b>＝ΔΣ成本（＋现金变化）· <b>市场盈亏</b>＝ΔΣ盈亏。'
+    + "<br>不用快照自带 total（实测 15/18 期缺该字段、且其值与 Σ市值 差 25,443 元、语义不同 ✗）。"
+    + "<br><b>自检</b>：逐期残差 |ΔΣ市值 − 净投入 − 市场盈亏| 最大 " + yuan(resid) + " 元；"
+    + "汇总收口差 |期末 − (期初+净投入+市场盈亏)| " + yuan(closeGap) + " 元（都应为 0 或分位舍入 ✓）。"
+    + (flows.length ? "<br><b>与人工 flow 对照</b>（仅 " + flows.length + " 期有）：最大差异 " + yuan(flowGap) + " 元 → "
+      + flows.map((x) => x.d.slice(5) + " 填" + yuan(x.real) + "/算" + yuan(x.calc)).join(" · ") : "")
+    + (rows.filter((r) => r.skip).length ? "<br>⚠ 跳过 " + rows.filter((r) => r.skip).length + " 期（缺 items）：" + rows.filter((r) => r.skip).map((r) => r.d.slice(5)).join(" ") : "")
+    + "</div>";
+  el.innerHTML = h;
+}
+/* 视图切换（三个视图：逐期明细 / 盈亏归因 / 投入 vs 市场）
    用 onclick 赋值而非 addEventListener —— render() 会重跑，避免重复绑监听。 */
 function bindSnapSwitch() {
-  const box = $("snap-switch"), log = $("snap-list"), attr = $("snap-attr");
-  if (!box || !log || !attr) return;
+  const box = $("snap-switch");
+  if (!box) return;
+  const view = { log: $("snap-list"), attr: $("snap-attr"), flow: $("snap-flow") };
+  if (!view.log || !view.attr || !view.flow) return;
   box.onclick = (e) => {
-    const b = e.target.closest(".vs-btn");
-    if (!b) return;
-    const v = b.dataset.view;
-    box.querySelectorAll(".vs-btn").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
-    log.hidden = v !== "log";
-    attr.hidden = v !== "attr";
+    const btn = e.target.closest(".vs-btn");
+    if (!btn) return;
+    const v = btn.dataset.view;
+    box.querySelectorAll(".vs-btn").forEach((x) => { const on = x === btn; x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
+    Object.keys(view).forEach((k) => { view[k].hidden = k !== v; });
     if (v === "attr") renderSnapAttr();
+    if (v === "flow") renderSnapFlow();
   };
 }
 
