@@ -1370,33 +1370,3 @@
   #snap-attr .sa-head span { color: var(--tx3); font-size: var(--fs-xxs); }
   #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }
   #snap-attr .sa-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
-
-  /* 快照对比 · 第三个视图「投入 vs 市场」（2026-10-07 重做）*/
-  #snap-flow[hidden] { display: none; }
-  #snap-flow .sf-sum { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: var(--fs-xs); color: var(--tx3); padding: 4px 0 0; }
-  #snap-flow .sf-sum b { color: var(--tx); font-family: var(--mono); }
-
-  /* 快照对比 · 盈亏归因的下钻明细（2026-10-07 P2）*/
-  #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
-  #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
-  #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
-  #snap-attr .sd-row { display: flex; align-items: center; gap: 6px; padding: 1.5px 0; font-size: var(--fs-xxs); }
-  #snap-attr .sd-nm { flex: 0 0 92px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #snap-attr .sd-bar { flex: 1 1 auto; height: 7px; background: rgba(255,255,255,.05); border-radius: 2px; overflow: hidden; }
-  #snap-attr .sd-bar i { display: block; height: 100%; border-radius: 2px; }
-  #snap-attr .sd-amt { flex: 0 0 62px; text-align: right; font-family: var(--mono); }
-  #snap-attr .sd-pct { flex: 0 0 34px; text-align: right; color: var(--tx3); font-family: var(--mono); }
-  @media (max-width: 380px) { #snap-attr .sd-nm { flex-basis: 74px; } }
-
-  /* 快照对比 · 归因矩阵 ＋ 形态切换（2026-10-07）*/
-  #snap-attr .sa-form { display: inline-flex; gap: 4px; }
-  #snap-attr .sa-mx-wrap { overflow-x: auto; }
-  #snap-attr table.sa-mx { width: 100%; border-collapse: collapse; font-size: var(--fs-xxs); font-family: var(--mono); }
-  #snap-attr table.sa-mx th { font-size: 9px; font-weight: 700; color: var(--tx3); padding: 2px 3px; text-align: center; white-space: nowrap; }
-  #snap-attr table.sa-mx td { padding: 1.5px 3px; text-align: center; border: 1px solid rgba(10,13,19,.6); white-space: nowrap; }
-  #snap-attr table.sa-mx .mx-d { color: var(--tx3); text-align: left; font-size: 9px; }
-  #snap-attr table.sa-mx tr[data-i] { cursor: pointer; }
-  #snap-attr table.sa-mx tr[data-i]:hover td { outline: 1px solid var(--blue); }
-  #snap-attr table.sa-mx .mx-sum { font-weight: 700; }
-  #snap-attr table.sa-mx .mx-skip td { color: var(--tx3); font-style: italic; background: rgba(255,255,255,.03); }
-  #snap-attr table.sa-mx .mx-foot td { border-top: 1px solid var(--line); }
