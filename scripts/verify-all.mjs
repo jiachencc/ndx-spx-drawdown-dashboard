@@ -26,6 +26,8 @@ const steps = [
   ["check-fed（加息周期看板数据）", ["node", ["scripts/check-fed.mjs"]]],
   ["cross-check（跨文件一致性）", ["node", ["scripts/cross-check.mjs"]]],
   ["regression（回归测试）", ["node", ["--test", "scripts/test-dashboard.mjs"]]],
+  ["inline-compile（页面内联脚本可编译）", ["node", ["--input-type=module", "-e",
+    "import{readFileSync}from\x27node:fs\x27;for(const f of [\x27index.html\x27,\x27positions.html\x27,\x27finance/index.html\x27,\x27fed-cycle/index.html\x27]){const h=readFileSync(f,\x27utf8\x27);const m=[...h.matchAll(/<script\\b(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(x=>x[1]).join(String.fromCharCode(10)+\x27;\x27+String.fromCharCode(10));new Function(m);}"]]],
   has("eslint") ? ["eslint（7 个检查单元）", ["node", ["scripts/lint.mjs", "--quiet"]]]
     : ["eslint", null, "跳过：未安装 eslint（本地工具，CI 与门禁不依赖）"],
   hasPlaywright() ? ["dom-check（页面 DOM 断言）", ["node", ["scripts/dom-check.mjs"]]]
