@@ -1370,3 +1370,28 @@
   #snap-attr .sa-head span { color: var(--tx3); font-size: var(--fs-xxs); }
   #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }
   #snap-attr .sa-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────
+     取证结论（截图 ＋ 探针，非推测）：
+     ① 文字色变量被污染：`:root` 的 --tx = #e2e9f5（浅色 ✓），但在 #snap-attr 内解析成
+        **#16243b**（深色 ✗）—— 某处浅色主题变量块在 .card 作用域里重定义了它 ✗
+        → 之前「外链 color:var(--tx)」与「内联 color:var(--tx)」两条路都白试，就是这个原因 ✓
+        → 这里在本容器内**重新声明**为浅色值（下游 th/td/明细全部自动跟着变 ✓）
+     ② 明细横条**根本没渲染**：探针确认样式表里没有 .sd-bar 规则 → display:inline、width:0 ✓
+        → 下面把 .sa-detail / .sd-* 整套补回（这段曾随一次撤回丢失 ✗）
+     ③ 表头与日期列被挤到 22~44px → 文字折行、矩阵显得又高又乱 ✓
+        → 显式 nowrap（窄屏靠横向滚动、不折行 ✗ 折行会把行高撑爆 ✓） */
+  #snap-attr { --tx: #e2e9f5; --tx2: #c8d3e4; --tx3: #93a3bb; }
+  #snap-attr table.sa-mx { width: max-content; min-width: 100%; }
+  #snap-attr table.sa-mx th, #snap-attr table.sa-mx td { white-space: nowrap; }
+  #snap-attr table.sa-mx .mx-d { color: var(--tx3); font-size: 9px; }
+  #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
+  #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
+  #snap-attr .sd-row { display: flex; align-items: center; gap: 6px; padding: 1.5px 0; font-size: var(--fs-xxs); }
+  #snap-attr .sd-nm { flex: 0 0 92px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #snap-attr .sd-bar { flex: 1 1 auto; display: block; height: 7px; background: rgba(255, 255, 255, .06); border-radius: 2px; overflow: hidden; }
+  #snap-attr .sd-bar i { display: block; height: 100%; border-radius: 2px; }
+  #snap-attr .sd-amt { flex: 0 0 62px; text-align: right; font-family: var(--mono); }
+  #snap-attr .sd-pct { flex: 0 0 34px; text-align: right; color: var(--tx3); font-family: var(--mono); }
+  @media (max-width: 380px) { #snap-attr .sd-nm { flex-basis: 74px; } #snap-attr .sd-amt { flex-basis: 56px; } }

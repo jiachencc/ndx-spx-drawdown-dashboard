@@ -1239,8 +1239,8 @@ const SA_THEME = (() => {
   return t;
 })();
 const SA_META = {
-  ndx: ["纳指100", "#5ba3ff"], spx: ["标普500", "#46c9f0"], kr: ["中韩半导体", "#a97bff"],
-  jp: ["日本", "#f7c14e"], hkus: ["港股·中概", "#3ddc97"], global: ["全球(主动)", "#8899aa"],
+  ndx: ["纳指", "#5ba3ff"], spx: ["标普", "#46c9f0"], kr: ["中韩", "#a97bff"],
+  jp: ["日经", "#f7c14e"], hkus: ["港股·中概", "#3ddc97"], global: ["全球", "#8899aa"],
   semi: ["半导体(美)", "#e07a5f"],
 };
 const SA_NAME = (() => {                       // 标的名（从任一期的 items 取，用于悬停）
@@ -1265,7 +1265,7 @@ function renderSnapAttr() {
     const items = {};
     Object.keys(b.items).forEach((c) => { if (a.items[c]) items[c] = num(b.items[c].pl) - num(a.items[c].pl); });
     const byT = {};
-    Object.entries(items).forEach(([c, v]) => { const t = SA_THEME[c] || "global"; byT[t] = (byT[t] || 0) + v; });
+    Object.entries(items).forEach(([c, v]) => { const t = TKEY(SA_THEME[c] || "global"); byT[t] = (byT[t] || 0) + v; });
     const big = [], small = [];
     Object.entries(byT).forEach(([t, v]) => { (Math.abs(v) >= MIN ? big : small).push({ k: t, v }); });
     if (small.length) big.push({ k: "other", v: small.reduce((s, x) => s + x.v, 0) });
@@ -1273,7 +1273,9 @@ function renderSnapAttr() {
     live.push({ d: b.d, items, seg: big, net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
-  const metaOf = (k) => SA_META[k] || (k === "other" ? ["其他(<500元)", "#66788e"] : [k, "#8899aa"]);
+  /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
+  function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：上方聚合处就要用 ✓
+  const metaOf = (k) => { k = TKEY(k); return SA_META[k] || (k === "other" ? ["其他", "#66788e"] : [k, "#8899aa"]); };
   const themes = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];
   const mx = Math.max.apply(null, live.flatMap((p) => p.seg.map((x) => Math.abs(x.v))).concat([1]));
   const cellBg = (v) => { const a = Math.abs(v), lv = a >= mx * 0.6 ? 1 : a >= mx * 0.25 ? 0.7 : a >= mx * 0.08 ? 0.45 : 0.22;
