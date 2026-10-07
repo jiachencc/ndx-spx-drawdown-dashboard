@@ -1352,77 +1352,85 @@ function renderSnapFlow() {
     if (!a.items || !b.items) { rows.push({ d: b.d, skip: true }); continue; }
     const dCost = sumOf(b.items, "cost") - sumOf(a.items, "cost");
     const dPl = sumOf(b.items, "pl") - sumOf(a.items, "pl");
-    const dVal = sumOf(b.items, "val") - sumOf(a.items, "val");
+    const dVal = sumOf(b.items, "val") - sumOf(a.items, "val");     // ★ 真值：这期账户市值净增多少
     const dCash = num(b.cash) - num(a.cash);
-    rows.push({ d: b.d, invest: dCost + dCash, mkt: dPl, resid: dVal - (dCost + dCash) - dPl,
+    rows.push({ d: b.d, invest: dCost + dCash, mkt: dPl, dVal, resid: dVal - (dCost + dCash) - dPl,
       flow: Number.isFinite(+b.flow) ? +b.flow : null });
   }
   const ok = rows.filter((r) => !r.skip);
   if (!ok.length) { el.innerHTML = '<div class="otc-note">没有可拆的两期（缺 items）。</div>'; return; }
-  const sumInv = ok.reduce((s, r) => s + r.invest, 0), sumMkt = ok.reduce((s, r) => s + r.mkt, 0);
+  const sumInv = ok.reduce((s, r) => s + r.invest, 0);
+  const sumMkt = ok.reduce((s, r) => s + r.mkt, 0);
+  const sumVal = ok.reduce((s, r) => s + r.dVal, 0);
   const i0 = rows.findIndex((r) => !r.skip), i1 = rows.map((r) => !r.skip).lastIndexOf(true);
   const v0 = sumOf((S[i0] || {}).items, "val"), v1 = sumOf((S[Math.min(i1 + 1, S.length - 1)] || {}).items, "val");
   const resid = Math.max.apply(null, ok.map((r) => Math.abs(r.resid)).concat([0]));
-  const closeGap = Math.abs(v1 - (v0 + sumInv + sumMkt));
   const flows = ok.filter((r) => r.flow != null).map((r) => ({ d: r.d, real: r.flow, calc: r.invest }));
   const flowGap = flows.length ? Math.max.apply(null, flows.map((x) => Math.abs(x.real - x.calc))) : 0;
+  const W = 360, PADL = 48, PADR = 8;
+  const mark = (v) => (Number.isFinite(v) && Math.abs(v) >= 1 ? fmtAmt(v) : "");
 
-  /* ① 每期两根柱（净投入 / 市场盈亏） */
-  const mx = Math.max.apply(null, ok.map((r) => Math.max(Math.abs(r.invest), Math.abs(r.mkt))).concat([1]));
-  const W = 360, PADL = 48, PADR = 6, PADT = 8, PADB = 22, H = 170;
-  const plotW = W - PADL - PADR, half = (H - PADT - PADB) / 2 - 3, zeroY = PADT + half + 3;
-  const step = plotW / ok.length, bw = Math.max(2, step / 2 - 2);
-  let svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="每期净投入与市场盈亏">';
+  /* ① 每期**一根**柱 = ΔΣ市值（真值）—— P4：柱子从 28 根降到 14 根、每根宽一倍 ✓
+        为什么不用"净投入/市场盈亏"两根：拆解本身有残差（最大见注）✗，
+        柱高用真值就不会出现"柱子加起来对不上"的观感 ✗；而"投入 vs 市场"的对比交给下方累计线 ✓ */
+  const mx = Math.max.apply(null, ok.map((r) => Math.abs(r.dVal)).concat([1]));
+  const H = 210, PADT = 14, PADB = 24;
+  const half = (H - PADT - PADB) / 2 - 4, zeroY = PADT + half + 4;
+  const plotW = W - PADL - PADR, step = plotW / ok.length, bw = Math.max(8, step - 5);
+  let svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="每期账户市值净增（真值）">';
   [1, 0, -1].forEach((k) => { const y = zeroY - k * half;
-    svg += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="1"/>'
+    svg += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="' + (k === 0 ? 1.4 : 1) + '"/>'
       + '<text x="' + (PADL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="var(--tx3)">' + (k === 0 ? "0" : fmtYuan(mx)) + "</text>"; });
   ok.forEach((r, i) => {
-    const x0 = PADL + i * step + 1.5;
-    const bar = (v, x, col, label) => { const hh = Math.max(0.5, Math.abs(v) / mx * half), y = v >= 0 ? zeroY - hh : zeroY;
-      return '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + hh + '" fill="' + col + '" opacity=".92"><title>'
-        + r.d + "　" + label + "　" + fmtAmt(v) + " 元</title></rect>"; };
-    svg += bar(r.invest, x0, "#5ba3ff", "净投入");
-    svg += bar(r.mkt, x0 + bw + 1.5, r.mkt >= 0 ? "#2dd4a7" : "#e0576b", "市场盈亏");
-    if (ok.length <= 12 || i % 2 === 0)
-      svg += '<text x="' + (x0 + bw) + '" y="' + (H - 7) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + r.d.slice(5) + "</text>";
+    const x = PADL + i * step + 2.5, hh = Math.max(1, Math.abs(r.dVal) / mx * half), y = r.dVal >= 0 ? zeroY - hh : zeroY;
+    svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + hh + '" fill="' + (r.dVal >= 0 ? "#2dd4a7" : "#e0576b") + '" opacity=".9"><title>'
+      + r.d + "　市值净增 " + fmtAmt(r.dVal) + " 元（净投入 " + fmtAmt(r.invest) + " ＋ 市场 " + fmtAmt(r.mkt) + "）</title></rect>";
+    svg += '<text x="' + (x + bw / 2) + '" y="' + (H - 7) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + r.d.slice(5) + "</text>";
+    const showNum = ok.length <= 12 || i % 2 === 0;
+    if (showNum) {
+      const ny = r.dVal >= 0 ? Math.max(PADT + 8, zeroY - hh - 3) : Math.min(H - PADB - 2, zeroY + hh + 9);
+      svg += '<text x="' + (x + bw / 2) + '" y="' + ny + '" text-anchor="middle" font-size="8.5" fill="' + (r.dVal >= 0 ? "#2dd4a7" : "#e0576b") + '">' + mark(r.dVal) + "</text>";
+    }
   });
   svg += "</svg>";
 
-  /* ② 累计折线（2026-10-07 加）：累计净投入 / 累计市场盈亏
-     为什么用累计而不是逐期折线：期与期之间不等间隔（有缺失日），逐期连线会暗示不存在的中间值 ✗；
-     累计只依赖端点 ✓，且单调好读 —— 回答"这一个月是在投钱还是在赚钱"。 */
-  let cum = 0, cumI = 0, cumM = 0;
-  const pts = ok.map((r, i) => { cumI += r.invest; cumM += r.mkt; return { i, d: r.d, ci: cumI, cm: cumM }; });
+  /* ② 累计折线（投入 vs 市场的对比在这里）—— 只连"有 items 的期"、**不插值** ✓
+        （期与期不等间隔；插值会暗示不存在的中间值 ✗）*/
+  let ci = 0, cm = 0;
+  const pts = ok.map((r, i) => { ci += r.invest; cm += r.mkt; return { i, d: r.d, ci, cm }; });
   const cmx = Math.max.apply(null, pts.flatMap((p) => [Math.abs(p.ci), Math.abs(p.cm)]).concat([1]));
-  const H2 = 130, PADT2 = 10, PADB2 = 20, half2 = (H2 - PADT2 - PADB2) / 2, zy2 = PADT2 + half2;
+  const H2 = 210, PADT2 = 12, PADB2 = 22, half2 = (H2 - PADT2 - PADB2) / 2, zy2 = PADT2 + half2;
   const sx = (i) => PADL + (pts.length <= 1 ? 0 : i * (plotW / (pts.length - 1)));
   const sy = (v) => zy2 - v / cmx * half2;
   let svg2 = '<svg width="100%" height="' + H2 + '" viewBox="0 0 ' + W + " " + H2 + '" role="img" aria-label="累计净投入与累计市场盈亏">';
   [1, 0, -1].forEach((k) => { const y = zy2 - k * half2;
-    svg2 += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="1"/>'
+    svg2 += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="' + (k === 0 ? 1.4 : 1) + '"/>'
       + '<text x="' + (PADL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="var(--tx3)">' + (k === 0 ? "0" : fmtYuan(cmx)) + "</text>"; });
-  [["ci", "#5ba3ff", "累计净投入"], ["cm", "#2dd4a7", "累计市场盈亏"]].forEach(([k, col, label]) => {
-    svg2 += '<polyline fill="none" stroke="' + col + '" stroke-width="1.8" points="' + pts.map((p) => sx(p.i) + "," + sy(p[k]).toFixed(1)).join(" ") + '"/>';
-    pts.forEach((p) => { svg2 += '<circle cx="' + sx(p.i) + '" cy="' + sy(p[k]).toFixed(1) + '" r="1.6" fill="' + col + '"><title>'
+  [["ci", "#5ba3ff", "累计净投入"], ["cm", "#2dd4a7", "累计市场盈亏"]].forEach(([k, col, label], n) => {
+    svg2 += '<polyline fill="none" stroke="' + col + '" stroke-width="2" points="' + pts.map((p) => sx(p.i).toFixed(1) + "," + sy(p[k]).toFixed(1)).join(" ") + '"/>';
+    pts.forEach((p) => { svg2 += '<circle cx="' + sx(p.i).toFixed(1) + '" cy="' + sy(p[k]).toFixed(1) + '" r="1.8" fill="' + col + '"><title>'
       + p.d + "　" + label + "　" + fmtAmt(p[k]) + " 元</title></circle>"; });
     const lp = pts[pts.length - 1];
-    svg2 += '<text x="' + (sx(lp.i) - 2) + '" y="' + (sy(lp[k]) + (k === "ci" ? -4 : 10)) + '" text-anchor="end" font-size="9" fill="' + col + '">' + fmtAmt(lp[k]) + "</text>";
+    svg2 += '<text x="' + (sx(lp.i) - 3) + '" y="' + (sy(lp[k]) + (n === 0 ? -5 : 11)) + '" text-anchor="end" font-size="9.5" fill="' + col + '">' + fmtAmt(lp[k]) + "</text>";
   });
-  [0, pts.length - 1].forEach((i) => { if (pts[i]) svg2 += '<text x="' + sx(i) + '" y="' + (H2 - 5) + '" text-anchor="' + (i ? "end" : "start") + '" font-size="9" fill="var(--tx3)">' + pts[i].d.slice(5) + "</text>"; });
+  [0, pts.length - 1].forEach((i) => { if (pts[i]) svg2 += '<text x="' + sx(i) + '" y="' + (H2 - 6) + '" text-anchor="' + (i ? "end" : "start") + '" font-size="9" fill="var(--tx3)">' + pts[i].d.slice(5) + "</text>"; });
   svg2 += "</svg>";
 
-  let h = '<div class="sa-head"><b>投入 vs 市场</b><span>上：每期两根柱 · 下：累计两条线（谁在推动账户增长）</span></div>';
-  h += '<div class="sf-sum"><span>期初市值 <b>' + yuan(v0) + '</b></span><span>＋ 净投入 <b class="up">' + fmtAmt(sumInv) + '</b></span>'
-    + '<span>＋ 市场盈亏 <b class="' + cls(sumMkt) + '">' + fmtAmt(sumMkt) + '</b></span><span>＝ 期末市值 <b>' + yuan(v1) + "</b></span></div>";
+  let h = '<div class="sa-head"><b>投入 vs 市场</b><span>上：每期市值净增（真值）· 下：累计投入与累计市场（拆解对比）</span></div>';
+  h += '<div class="sf-sum"><span>期初市值 <b>' + yuan(v0) + ' ｜ </b></span><span>净投入 <b class="up">' + fmtAmt(sumInv) + '</b></span>'
+    + '<span>市场盈亏 <b class="' + cls(sumMkt) + '">' + fmtAmt(sumMkt) + '</b></span><span>市值净增（真值） <b class="' + cls(sumVal) + '">' + fmtAmt(sumVal) + '</b></span>'
+    + '<span>期末市值 <b>' + yuan(v1) + "</b></span></div>";
   h += '<div class="sa-bars">' + svg + "</div>";
   h += '<div class="sa-bars">' + svg2 + "</div>";
-  h += '<div class="sa-legend"><span><i style="background:#5ba3ff"></i>净投入 / 累计净投入</span>'
-    + '<span><i style="background:#2dd4a7"></i>市场盈亏(赚) / 累计市场盈亏</span><span><i style="background:#e0576b"></i>市场盈亏(亏)</span></div>';
-  h += '<div class="otc-note"><b>口径</b>：市值 = 成本 ＋ 盈亏 → <b>净投入</b>＝ΔΣ成本（＋现金变化）· <b>市场盈亏</b>＝ΔΣ盈亏。'
+  h += '<div class="sa-legend"><span><i style="background:#5ba3ff"></i>投入（折线=累计净投入）</span>'
+    + '<span><i style="background:#2dd4a7"></i>市场（绿=赚 · 红=亏 · 折线=累计市场盈亏）</span>'
+    + '<span class="sd-hint">柱＝每期市值净增、绿赚红亏</span></div>';
+  h += '<div class="otc-note"><b>口径</b>：市值 = 成本 ＋ 盈亏 → <b>净投入</b>＝ΔΣ成本（＋现金变化）· <b>市场盈亏</b>＝ΔΣ盈亏；'
+    + '<b>柱子用的是 ΔΣ市值 真值</b>（不是拆解之和 —— 拆解有残差，见下）✓。'
     + "<br>不用快照自带 total（实测 15/18 期缺该字段、且其值与 Σ市值 差 25,443 元、语义不同 ✗）。"
-    + "<br><b>自检</b>：逐期残差 |ΔΣ市值 − 净投入 − 市场盈亏| 最大 " + yuan(resid) + " 元；"
-    + "汇总收口差 |期末 − (期初+净投入+市场盈亏)| " + yuan(closeGap) + " 元。"
-    + "<br>累计线**只连有 items 的期**（缺的期不插值 ✗ —— 期与期之间本就不等间隔）。"
+    + "<br><b>自检</b>：逐期残差 |ΔΣ市值 − 净投入 − 市场盈亏| 最大 " + yuan(resid) + " 元 —— "
+    + "这正是「柱子（真值）与拆解之和的差」，故柱子不拿它当高度 ✓；期末收口差 " + yuan(Math.abs(v1 - (v0 + sumVal))) + " 元。"
+    + "<br>累计线只连有 items 的期、**不插值** ✓（期与期本就不等间隔）。"
     + (flows.length ? "<br><b>与人工 flow 对照</b>（仅 " + flows.length + " 期有）：最大差异 " + yuan(flowGap) + " 元 → "
       + flows.map((x) => x.d.slice(5) + " 填" + yuan(x.real) + "/算" + yuan(x.calc)).join(" · ") : "")
     + "</div>";
