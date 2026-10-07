@@ -1375,3 +1375,15 @@
   #snap-flow[hidden] { display: none; }
   #snap-flow .sf-sum { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: var(--fs-xs); color: var(--tx3); padding: 4px 0 0; }
   #snap-flow .sf-sum b { color: var(--tx); font-family: var(--mono); }
+
+  /* 快照对比 · 盈亏归因的下钻明细（2026-10-07 P2）*/
+  #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
+  #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
+  #snap-attr .sd-row { display: flex; align-items: center; gap: 6px; padding: 1.5px 0; font-size: var(--fs-xxs); }
+  #snap-attr .sd-nm { flex: 0 0 92px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #snap-attr .sd-bar { flex: 1 1 auto; height: 7px; background: rgba(255,255,255,.05); border-radius: 2px; overflow: hidden; }
+  #snap-attr .sd-bar i { display: block; height: 100%; border-radius: 2px; }
+  #snap-attr .sd-amt { flex: 0 0 62px; text-align: right; font-family: var(--mono); }
+  #snap-attr .sd-pct { flex: 0 0 34px; text-align: right; color: var(--tx3); font-family: var(--mono); }
+  @media (max-width: 380px) { #snap-attr .sd-nm { flex-basis: 74px; } }

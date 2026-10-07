@@ -1219,88 +1219,121 @@ function renderImpl() {
   renderClosed();
   /* 逐卡兜底：原先整页共用一个 try/catch，renderSnapLog 抛异常会连累后面两张卡，
      且兜底只写 pos-list，快照区静默空白、看不出是坏了还是没数据。 */
-  /* ── 快照对比 · 盈亏归因（2026-10-07 加：视图切换的第二个视图）────────────────────────────
- * 用户要求：在「快照对比」卡里加视图切换，先做「盈亏归因」（现有文字视图一行不改）。
- * 指标：相邻两期之间 **各标的的 Δpl**（累计盈亏之差）。
- *   为什么 Δpl 就是"这段谁赚谁亏"：pl = 市值 − 成本；期间若加仓，市值与成本同增、相减抵消
- *   → Δpl ≈ 纯市场贡献 ✓（只在分红/费用上留极小残差）。
- * 图型：双向堆积柱（正向上、负向下），颜色按**主题**分族（13 只 → 几族，比 13 色好读）。
- * 数据：SNAPSHOTS（缺 items 的期**跳过并在图注写明**，不补 0 —— 补 0 会被误读成"这期没变"）。
- * 成本：默认不渲染（切到该视图才算）→ 零首屏开销；每段 <title> 给标的与金额。
+  /* ── 快照对比 · 盈亏归因（2026-10-07 重做：P1 减维度 ＋ P2 下钻 ＋ P4 标注）───────────────
+ * 用户反馈：原图"太小看不清"。原因不是粗细，而是**维度太多**：
+ *   实测 390px 下 18 期 × 13 只 = 182 个柱段，每期柱宽 ~17px、段高常 1~3px ✗
+ *   → 静态缩略图同时表达 18×13 两个维度，本来就不可能看清 ✗（再放大也只是 1px 变 3px）
+ *
+ * P1 减维度：按**主题**聚合（13 只 → 6 族）；|值| < 500 元的主题并入「其他」
+ *    → 每期最多 7 段，段高普遍 5~20px ✓ 颜色从 13 色降到 ≤7 色 ✓
+ *    ⚠ 不用"最小段高"假装看得见（那会让图失真 ✗）—— 宁可并成「其他」✓
+ * P2 下钻：点某一期 → 图下方出该期**逐只**明细（横条 + 名称 + 金额 + 占该期变动比）★ 这才是"看清"
+ *    默认自动选**净变动最大**的那一期，进页面就有内容 ✓
+ * P4 标注：零线加粗 · 正/负区微底 · 柱顶标该期合计 · 每段 title 补"该期合计 + 该段占比"
+ *
+ * 指标口径不变：相邻两期之间各标的的 Δpl（纯市场贡献；加仓时市值与成本同增、相减抵消）。
+ * 数据：缺 items 的期跳过并在图注写明（不补 0）；所有数值过 isFinite 守卫（宁可显示「—」也不显示 NaN ✗）。
  */
-const SA_THEME = (() => {
-  const t = {};
-  ((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).forEach((x) => { t[x.code] = x.idx; });
-  ((typeof OTC !== "undefined" && OTC.funds) || []).forEach((f) => { t[f.code] = f.theme; });
-  return t;
-})();
-const SA_META = {
-  ndx: ["纳指100", "#5ba3ff"], spx: ["标普500", "#46c9f0"], kr: ["中韩半导体", "#a97bff"],
-  jp: ["日本", "#f7c14e"], hkus: ["港股·中概", "#3ddc97"], global: ["全球(主动)", "#8899aa"],
-  semi: ["半导体(美)", "#e07a5f"],
-};
-const SA_NAME = (() => {                       // 标的名（从任一期的 items 取，用于悬停）
-  const m = {};
-  ((typeof SNAPSHOTS !== "undefined" && SNAPSHOTS) || []).forEach((s) => {
-    Object.entries(s.items || {}).forEach(([c, it]) => { if (!m[c]) m[c] = it.name; });
-  });
-  return m;
-})();
 function renderSnapAttr() {
   const el = $("snap-attr");
   if (!el) return;
   const S = ((typeof SNAPSHOTS !== "undefined" && SNAPSHOTS) || []);
+  const num = (v) => (Number.isFinite(+v) ? +v : 0);
+  const yuan = (v) => (Number.isFinite(v) ? fmtYuan(v) : "—");
+  const MIN = 500;                                   // 主题聚合后，小于它的并入「其他」（元）
   const rows = [];
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
     if (!a.items || !b.items) { rows.push({ d: b.d, skip: true }); continue; }
     const items = {};
-    Object.keys(b.items).forEach((code) => { if (a.items[code]) items[code] = b.items[code].pl - a.items[code].pl; });
+    Object.keys(b.items).forEach((code) => { if (a.items[code]) items[code] = num(b.items[code].pl) - num(a.items[code].pl); });
     rows.push({ d: b.d, items });
   }
-  const ok = rows.filter((r) => !r.skip);
-  if (!ok.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
-  const sum = (r) => Object.values(r.items).reduce((s, v) => s + v, 0);
-  const mx = Math.max.apply(null, ok.map((r) => Math.abs(sum(r))).concat([1]));
-  const themes = [...new Set(ok.flatMap((r) => Object.values(r.items).length ? Object.keys(r.items).map((c) => SA_THEME[c] || "global") : []))];
-  /* 名义宽 360 ＋ SVG 用 width=100%（下一行）：随卡片自适应，宽度永不超过卡片 ——
-     第一版用 clientWidth-4 做像素宽，实测 390px 下卡片溢出 10px ✗（card 自带 14px 左右内边距）。 */
-  const W = 360, PADL = 48, PADR = 8, PADT = 8, PADB = 22;
-  const H = 190, plotW = W - PADL - PADR, half = (H - PADT - PADB) / 2 - 3, zeroY = PADT + half + 3;
-  const bw = Math.max(3, plotW / ok.length - 3);
-  let svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="每期盈亏归因：正向上、负向下，颜色按主题分族">';
-  [1, 0, -1].forEach((k) => { const y = zeroY - k * half;
-    svg += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="1"/>'
-      + '<text x="' + (PADL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="var(--tx3)">' + (k === 0 ? "0" : fmtYuan(mx)) + "</text>"; });
-  ok.forEach((r, i) => {
-    const x = PADL + i * (plotW / ok.length) + 1.5;
+  const okRaw = rows.filter((r) => !r.skip);
+  if (!okRaw.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
+  const per = okRaw.map((r) => {
     const byT = {};
-    Object.entries(r.items).forEach(([code, v]) => { const t = SA_THEME[code] || "global"; (byT[t] = byT[t] || []).push([code, v]); });
+    Object.entries(r.items).forEach(([c, v]) => { const t = SA_THEME[c] || "global"; byT[t] = (byT[t] || 0) + v; });
+    const big = [], small = [];
+    Object.entries(byT).forEach(([t, v]) => { (Math.abs(v) >= MIN ? big : small).push({ k: t, v }); });
+    if (small.length) big.push({ k: "other", v: small.reduce((s, x) => s + x.v, 0) });
+    big.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    return { d: r.d, items: r.items, seg: big, net: Object.values(r.items).reduce((s, v) => s + v, 0) };
+  });
+  const metaOf = (k) => SA_META[k] || (k === "other" ? ["其他(<500元)", "#66788e"] : [k, "#8899aa"]);
+  const themes = [...new Set(per.flatMap((p) => p.seg.map((x) => x.k)))];
+  const mx = Math.max.apply(null, per.map((p) => {
+    const up = p.seg.filter((x) => x.v > 0).reduce((s, x) => s + x.v, 0);
+    const dn = Math.abs(p.seg.filter((x) => x.v < 0).reduce((s, x) => s + x.v, 0));
+    return Math.max(up, dn, 1);
+  }));
+  const W = 360, PADL = 48, PADR = 6, PADT = 12, PADB = 22, H = 240;
+  const plotW = W - PADL - PADR, half = (H - PADT - PADB) / 2 - 4, zeroY = PADT + half + 4;
+  const step = plotW / per.length, bw = Math.max(6, step - 4);
+  let svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="每期盈亏归因（按主题聚合，点某期看该期逐只明细）">';
+  svg += '<rect x="' + PADL + '" y="' + PADT + '" width="' + plotW + '" height="' + (zeroY - PADT) + '" fill="#2dd4a7" opacity=".04"/>'
+    + '<rect x="' + PADL + '" y="' + zeroY + '" width="' + plotW + '" height="' + (H - PADB - zeroY) + '" fill="#e0576b" opacity=".04"/>';
+  [1, 0, -1].forEach((k) => { const y = zeroY - k * half;
+    svg += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="' + (k === 0 ? 1.4 : 1) + '"/>'
+      + '<text x="' + (PADL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="var(--tx3)">' + (k === 0 ? "0" : fmtYuan(mx)) + "</text>"; });
+  per.forEach((p, i) => {
+    const x = PADL + i * step + 2;
+    svg += '<g data-i="' + i + '" style="cursor:pointer">';
     let up = 0, dn = 0;
-    Object.keys(byT).forEach((t) => {
-      const col = (SA_META[t] || ["", "#8899aa"])[1];
-      byT[t].sort((p, q) => Math.abs(q[1]) - Math.abs(p[1])).forEach(([code, v]) => {
-        const hh = Math.max(0.5, Math.abs(v) / mx * half);
-        const y = v >= 0 ? zeroY - up - hh : zeroY + dn;
-        svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + hh + '" fill="' + col + '" opacity=".92"><title>'
-          + esc(SA_NAME[code] || code) + "　" + fmtAmt(v) + " 元</title></rect>";
-        if (v >= 0) up += hh; else dn += hh;
-      });
+    p.seg.forEach((s) => {
+      if (!s.v) return;
+      const hh = Math.max(0.6, Math.abs(s.v) / mx * half);
+      const y = s.v >= 0 ? zeroY - up - hh : zeroY + dn;
+      svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + hh + '" fill="' + metaOf(s.k)[1] + '" stroke="rgba(10,13,19,.5)" stroke-width=".6"><title>'
+        + p.d + "　" + esc(metaOf(s.k)[0]) + "　" + fmtAmt(s.v) + " 元"
+        + (p.net ? "（该期合计 " + fmtAmt(p.net) + "，占 " + (Math.abs(s.v) / Math.abs(p.net) * 100).toFixed(0) + "%）" : "") + "</title></rect>";
+      if (s.v >= 0) up += hh; else dn += hh;
     });
-    if (ok.length <= 12 || i % 2 === 0)
-      svg += '<text x="' + (x + bw / 2) + '" y="' + (H - 7) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + r.d.slice(5) + "</text>";
+    svg += "</g>";
+    if (per.length <= 12 || i % 2 === 0) {
+      svg += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + p.d.slice(5) + "</text>";
+      const netY = p.net >= 0 ? Math.max(PADT + 8, zeroY - up - 3) : Math.min(H - PADB - 1, zeroY + dn + 9);
+      svg += '<text x="' + (x + bw / 2) + '" y="' + netY + '" text-anchor="middle" font-size="8.5" fill="' + (p.net >= 0 ? "#2dd4a7" : "#e0576b") + '">' + fmtAmt(p.net) + "</text>";
+    } else {
+      svg += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + p.d.slice(5) + "</text>";
+    }
   });
   svg += "</svg>";
+
+  /* P2 下钻：点某期 → 该期逐只（按 |变动| 排序，横条宽 ∝ 金额）。默认选净变动最大的那期。 */
+  let cur = per.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
+  const detail = () => {
+    const p = per[cur];
+    const list = Object.entries(p.items).map(([c, v]) => ({ c, v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
+    return '<div class="sa-detail">'
+      + '<div class="sd-head">' + p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）"
+      + '<span class="sd-hint">点上方任一期的柱子可切换</span></div>'
+      + list.map((x) => '<div class="sd-row"><span class="sd-nm">' + esc(SA_NAME[x.c] || x.c) + "</span>"
+        + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:"
+        + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+        + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
+        + '<span class="sd-pct">' + (x.v / (p.net || 1) * 100).toFixed(0) + "%</span></div>").join("")
+      + "</div>";
+  };
   const skips = rows.filter((r) => r.skip);
-  let h = '<div class="sa-head"><b>盈亏归因</b><span>相邻两期之间各标的的盈亏变化（正=这段赚、负=亏）</span></div>' + svg;
-  h += '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + (SA_META[t] || ["", "#8899aa"])[1] + '"></i>'
-    + esc((SA_META[t] || [t])[0]) + "</span>").join("") + "</div>";
-  h += '<div class="otc-note"><b>口径</b>：用「累计盈亏 pl 的两期之差」→ 纯市场贡献 ✓'
-    + "（加仓时市值与成本同增、相减抵消；只有分红/费用留极小残差）。"
-    + "<br>颜色按主题分族（13 只 → " + themes.length + " 族）；悬停任一段可看标的名与金额 ✓。"
-    + (skips.length ? "<br>⚠ 有 " + skips.length + " 期缺 items，已跳过（**不补 0** —— 补 0 会被误读成「这期没变」）：" + skips.map((r) => r.d.slice(5)).join(" ") : "")
+  el.innerHTML = '<div class="sa-head"><b>盈亏归因</b><span>按主题聚合（13 只 → ' + themes.length + ' 族）· 点柱子看该期逐只明细</span></div>'
+    + '<div class="sa-bars">' + svg + "</div>"
+    + '<div class="sa-detail-box">' + detail() + "</div>"
+    + '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + metaOf(t)[1] + '"></i>' + esc(metaOf(t)[0]) + "</span>").join("")
+    + '<span class="sd-hint">竖条＝该期合计（绿赚红亏）</span></div>'
+    + '<div class="otc-note"><b>口径</b>：各标的「累计盈亏 pl」的**两期之差** → 纯市场贡献 ✓（加仓时市值与成本同增、相减抵消）。'
+    + "<br><b>为什么按主题聚合</b>：13 只 × 18 期 = 182 段，在手机宽度下段高常不足 3px、看不清 ✗；"
+    + "聚合后每期 ≤ 7 段 ✓，要精确到只时**点那一期的柱子**（下方明细）✓。"
+    + "<br>小于 " + MIN + " 元的主题并入「其他」（不用「最小段高」假装看得见 ✗）✓。"
+    + (skips.length ? "<br>⚠ 有 " + skips.length + " 期缺 items，已跳过（不补 0）：" + skips.map((r) => r.d.slice(5)).join(" ") : "")
     + "</div>";
-  el.innerHTML = h;
+  el.querySelector(".sa-bars").onclick = (e) => {
+    const g = e.target.closest("g[data-i]");
+    if (!g) return;
+    cur = +g.dataset.i;
+    el.querySelector(".sa-detail-box").innerHTML = detail();
+  };
 }
 /* ── 快照对比 · 投入 vs 市场（2026-10-07 重做；第三个视图，方案 B）────────────────────────
  * 回答的问题：**总市值的变化里，多少是新投进去的钱、多少是市场给的** ✓（原来完全没有这个视角）
