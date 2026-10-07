@@ -1257,13 +1257,13 @@ function renderSnapAttr() {
   if (!el) return;
   const S = ((typeof SNAPSHOTS !== "undefined" && SNAPSHOTS) || []);
   const num = (v) => (Number.isFinite(+v) ? +v : 0);
-  const yuan = (v) => (Number.isFinite(v) ? fmtYuan(v) : "—");
   const MIN = 500;
-  const mode = el.dataset.mode || "matrix";      // 默认矩阵（手机上唯一读得清的形态）
-  const per = [];                                // 含 skip 行，索引与数据行对齐，便于矩阵按下标下钻
+  /* 只保留**两期都有 items** 的期（缺的整期隐藏，但要如实写明隐藏了哪几期 —— 不静默、更不补 0 ✗）。
+     用户要求：缺 items 的期隐藏掉；并去掉柱状形态（只留矩阵）。 */
+  const live = [], hidden = [];
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
-    if (!a.items || !b.items) { per.push({ d: b.d, skip: true }); continue; }
+    if (!a.items || !b.items) { hidden.push(b.d.slice(5)); continue; }
     const items = {};
     Object.keys(b.items).forEach((c) => { if (a.items[c]) items[c] = num(b.items[c].pl) - num(a.items[c].pl); });
     const byT = {};
@@ -1272,108 +1272,57 @@ function renderSnapAttr() {
     Object.entries(byT).forEach(([t, v]) => { (Math.abs(v) >= MIN ? big : small).push({ k: t, v }); });
     if (small.length) big.push({ k: "other", v: small.reduce((s, x) => s + x.v, 0) });
     big.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
-    per.push({ d: b.d, items, seg: big, net: Object.values(items).reduce((s, v) => s + v, 0) });
+    live.push({ d: b.d, items, seg: big, net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
-  const live = per.filter((p) => !p.skip);
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   const metaOf = (k) => SA_META[k] || (k === "other" ? ["其他(<500元)", "#66788e"] : [k, "#8899aa"]);
   const themes = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];
+  const mx = Math.max.apply(null, live.flatMap((p) => p.seg.map((x) => Math.abs(x.v))).concat([1]));
+  const cellBg = (v) => { const a = Math.abs(v), lv = a >= mx * 0.6 ? 1 : a >= mx * 0.25 ? 0.7 : a >= mx * 0.08 ? 0.45 : 0.22;
+    return v >= 0 ? "rgba(45,212,167," + lv + ")" : "rgba(224,87,107," + lv + ")"; };
+  const colSum = (t) => live.reduce((a, p) => a + ((p.seg.find((x) => x.k === t) || { v: 0 }).v), 0);
+  const allSum = live.reduce((a, p) => a + p.net, 0);
 
-  let body = "";
-  if (mode === "matrix") {
-    /* 矩阵：行=期（含缺 items 的整行灰显）· 列=主题 · 单元格=该期该主题的 Δpl · 右侧合计列、底部全期行
-       为什么矩阵更合适：18×6 个格子，320px 下每格约 35×14px ✓（柱状图同数据下段高只有 1~3px ✗） */
-    const mx = Math.max.apply(null, live.flatMap((p) => p.seg.map((x) => Math.abs(x.v))).concat([1]));
-    const cellBg = (v) => { const a = Math.abs(v), lv = a >= mx * 0.6 ? 1 : a >= mx * 0.25 ? 0.7 : a >= mx * 0.08 ? 0.45 : 0.22;
-      return v >= 0 ? "rgba(45,212,167," + lv + ")" : "rgba(224,87,107," + lv + ")"; };
-    body += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
-      + themes.map((t) => "<th>" + esc(metaOf(t)[0]) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
-    per.forEach((p, i) => {
-      if (p.skip) { body += '<tr class="mx-skip"><td class="mx-d">' + p.d.slice(5) + '</td><td colspan="' + (themes.length + 1) + '">缺 items · 跳过（不补 0）</td></tr>'; return; }
-      const byT = {};
-      p.seg.forEach((s) => { byT[s.k] = s.v; });
-      body += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + "</td>"
-        + themes.map((t) => { const v = byT[t];
-          return '<td class="mx-c"' + (v == null ? "" : ' style="background:' + cellBg(v) + '"') + ">" + (v == null ? "" : fmtAmt(v)) + "</td>"; }).join("")
-        + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
-    });
-    const colSum = (t) => live.reduce((a, p) => a + ((p.seg.find((x) => x.k === t) || { v: 0 }).v), 0);
-    const allSum = live.reduce((a, p) => a + p.net, 0);
-    body += '<tr class="mx-foot"><td class="mx-d">全期</td>'
-      + themes.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
-      + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
-  } else {
-    /* 柱状（保留为可选）：主题聚合后的双向堆积柱 */
-    const mx = Math.max.apply(null, live.map((p) => {
-      const up = p.seg.filter((x) => x.v > 0).reduce((s, x) => s + x.v, 0);
-      const dn = Math.abs(p.seg.filter((x) => x.v < 0).reduce((s, x) => s + x.v, 0));
-      return Math.max(up, dn, 1);
-    }));
-    const W = 360, PADL = 48, PADR = 6, PADT = 12, PADB = 22, H = 240;
-    const plotW = W - PADL - PADR, half = (H - PADT - PADB) / 2 - 4, zeroY = PADT + half + 4;
-    const step = plotW / live.length, bw = Math.max(6, step - 4);
-    let svg = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="每期盈亏归因（主题聚合，点某期看逐只明细）">';
-    [1, 0, -1].forEach((k) => { const y = zeroY - k * half;
-      svg += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="' + (k === 0 ? "var(--line)" : "var(--line-soft)") + '" stroke-width="' + (k === 0 ? 1.4 : 1) + '"/>'
-        + '<text x="' + (PADL - 4) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="var(--tx3)">' + (k === 0 ? "0" : fmtYuan(mx)) + "</text>"; });
-    live.forEach((p, i) => {
-      const x = PADL + i * step + 2;
-      svg += '<g data-i="' + per.indexOf(p) + '" style="cursor:pointer">';
-      let up = 0, dn = 0;
-      p.seg.forEach((s) => { if (!s.v) return;
-        const hh = Math.max(0.6, Math.abs(s.v) / mx * half), y = s.v >= 0 ? zeroY - up - hh : zeroY + dn;
-        svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + hh + '" fill="' + metaOf(s.k)[1] + '" stroke="rgba(10,13,19,.5)" stroke-width=".6"><title>'
-          + p.d + "　" + esc(metaOf(s.k)[0]) + "　" + fmtAmt(s.v) + " 元</title></rect>";
-        if (s.v >= 0) up += hh; else dn += hh; });
-      svg += "</g>";
-      if (live.length <= 12 || i % 2 === 0) {
-        svg += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="var(--tx3)">' + p.d.slice(5) + "</text>";
-        const ny = p.net >= 0 ? Math.max(PADT + 8, zeroY - up - 3) : Math.min(H - PADB - 1, zeroY + dn + 9);
-        svg += '<text x="' + (x + bw / 2) + '" y="' + ny + '" text-anchor="middle" font-size="8.5" fill="' + (p.net >= 0 ? "#2dd4a7" : "#e0576b") + '">' + fmtAmt(p.net) + "</text>";
-      }
-    });
-    svg += "</svg>";
-    body += '<div class="sa-bars">' + svg + "</div>";
-  }
+  let h = '<div class="sa-head"><b>盈亏归因</b><span>行=期 · 列=主题（13 只 → ' + themes.length + ' 族）· 点任一行看该期逐只</span></div>';
+  h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
+    + themes.map((t) => "<th>" + esc(metaOf(t)[0]) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
+  live.forEach((p, i) => {
+    const byT = {};
+    p.seg.forEach((s) => { byT[s.k] = s.v; });
+    h += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + "</td>"
+      + themes.map((t) => { const v = byT[t];
+        return '<td class="mx-c"' + (v == null ? "" : ' style="background:' + cellBg(v) + '"') + ">" + (v == null ? "" : fmtAmt(v)) + "</td>"; }).join("")
+      + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
+  });
+  h += '<tr class="mx-foot"><td class="mx-d">全期</td>'
+    + themes.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
+    + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
 
-  /* 下钻（两种形态共用）：点行/点柱 → 该期逐只明细。默认选净变动最大的那期。 */
-  let cur = live.map((p) => [Math.abs(p.net), per.indexOf(p)]).sort((a, b) => b[0] - a[0])[0][1];
+  /* 下钻：点某行 → 该期逐只明细。默认选净变动最大的那期。 */
+  let cur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
   const detail = () => {
-    const p = per[cur];
-    if (!p || p.skip) return '<div class="sa-detail"><div class="sd-head">' + (p ? p.d : "") + " 这一期缺 items（跳过）</div></div>";
+    const p = live[cur];
     const list = Object.entries(p.items).map(([c, v]) => ({ c, v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     return '<div class="sa-detail"><div class="sd-head">' + p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）"
-      + '<span class="sd-hint">点上方任一行/柱可切换</span></div>'
+      + '<span class="sd-hint">点上方任一行可切换</span></div>'
       + list.map((x) => '<div class="sd-row"><span class="sd-nm">' + esc(SA_NAME[x.c] || x.c) + "</span>"
         + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:" + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
         + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
         + '<span class="sd-pct">' + (x.v / (p.net || 1) * 100).toFixed(0) + "%</span></div>").join("") + "</div>";
   };
-  const skips = per.filter((p) => p.skip);
-  el.innerHTML = '<div class="sa-head"><b>盈亏归因</b>'
-    + '<span class="sa-form"><button class="vs-btn' + (mode === "matrix" ? " on" : "") + '" data-form="matrix" type="button">矩阵</button>'
-    + '<button class="vs-btn' + (mode === "bars" ? " on" : "") + '" data-form="bars" type="button">柱状</button></span>'
-    + '<span>按主题聚合（13 只 → ' + themes.length + ' 族）· 点任意行/柱看该期逐只</span></div>'
-    + body
-    + '<div class="sa-detail-box">' + detail() + "</div>"
-    + '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + metaOf(t)[1] + '"></i>' + esc(metaOf(t)[0]) + "</span>").join("")
-    + '<span class="sd-hint">' + (mode === "matrix" ? "颜色深浅＝量级（不是占比）" : "竖条＝该期合计（绿赚红亏）") + "</span></div>"
-    + '<div class="otc-note"><b>口径</b>：各标的「累计盈亏 pl」的**两期之差** → 纯市场贡献 ✓（加仓时市值与成本同增、相减抵消）。'
-    + "<br><b>为什么有两种形态</b>：矩阵适合手机上「哪几期、哪一族」一眼扫完（18×6 格 ✓）；柱状适合看单期构成 ✓。"
-    + "<br>小于 " + MIN + " 元的主题并入「其他」；缺 items 的期**整行标灰并写明**（不补 0 ✓）。"
-    + (skips.length ? "<br>⚠ 跳过 " + skips.length + " 期：" + skips.map((p) => p.d.slice(5)).join(" ") : "")
+  h += '<div class="sa-detail-box">' + detail() + "</div>";
+  h += '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + metaOf(t)[1] + '"></i>' + esc(metaOf(t)[0]) + "</span>").join("")
+    + '<span class="sd-hint">颜色深浅＝量级（不是占比）</span></div>';
+  h += '<div class="otc-note"><b>口径</b>：各标的「累计盈亏 pl」的**两期之差** → 纯市场贡献 ✓（加仓时市值与成本同增、相减抵消）。'
+    + "<br>小于 " + MIN + " 元的主题并入「其他」（不用最小段高假装看得见 ✗）。"
+    + (hidden.length ? "<br>⚠ 已**隐藏** " + hidden.length + " 期（缺 items，无法归因）：" + hidden.join(" ") + " —— 隐藏而非补 0 ✓" : "")
     + "</div>";
+  el.innerHTML = h;
   const box = el.querySelector(".sa-detail-box");
-  const pick = (i) => { cur = i; box.innerHTML = detail(); };
-  el.querySelectorAll(".sa-form .vs-btn").forEach((btn) => {
-    btn.onclick = () => { el.dataset.mode = btn.dataset.form; renderSnapAttr(); };
+  el.querySelectorAll(".sa-mx tbody tr[data-i]").forEach((tr) => {
+    tr.onclick = () => { cur = +tr.dataset.i; box.innerHTML = detail(); };
   });
-  if (mode === "matrix") {
-    el.querySelectorAll(".sa-mx tbody tr[data-i]").forEach((tr) => { tr.onclick = () => pick(+tr.dataset.i); });
-  } else {
-    el.querySelector(".sa-bars").onclick = (e) => { const g = e.target.closest("g[data-i]"); if (g) pick(+g.dataset.i); };
-  }
 }
 /* ── 快照对比 · 投入 vs 市场（2026-10-07 重做；第三个视图，方案 B）────────────────────────
  * 回答的问题：**总市值的变化里，多少是新投进去的钱、多少是市场给的** ✓（原来完全没有这个视角）
