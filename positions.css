@@ -1355,3 +1355,18 @@
     #trend-box svg polyline { stroke: #000 !important; }
     #trend-box svg circle { fill: #000 !important; stroke: #fff !important; }
   }
+
+  /* ── 快照对比 · 视图切换 ＋ 盈亏归因图（2026-10-07 加）────────────────────────────────
+     ⚠ #snap-attr[hidden] / #snap-list[hidden] 必须显式 display:none：
+       `hidden` 属性靠 UA 样式生效，而 .card 的 display 规则会盖掉它 → 不写这两条，切走之后还看得见 ✗ */
+  #snap-attr[hidden], #snap-list[hidden] { display: none; }
+  .view-switch { display: flex; gap: 6px; margin: 2px 0 6px; }
+  .vs-btn { font: inherit; font-size: var(--fs-xs); color: var(--tx2); background: rgba(255,255,255,.05);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .vs-btn:hover { color: var(--tx); border-color: var(--line); }
+  .vs-btn.on { color: var(--blue); border-color: var(--blue); }
+  .vs-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  #snap-attr .sa-head { font-size: var(--fs-xs); color: var(--tx2); padding: 4px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  #snap-attr .sa-head span { color: var(--tx3); font-size: var(--fs-xxs); }
+  #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }
+  #snap-attr .sa-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
