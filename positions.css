@@ -1387,3 +1387,16 @@
   #snap-attr .sd-amt { flex: 0 0 62px; text-align: right; font-family: var(--mono); }
   #snap-attr .sd-pct { flex: 0 0 34px; text-align: right; color: var(--tx3); font-family: var(--mono); }
   @media (max-width: 380px) { #snap-attr .sd-nm { flex-basis: 74px; } }
+
+  /* 快照对比 · 归因矩阵 ＋ 形态切换（2026-10-07）*/
+  #snap-attr .sa-form { display: inline-flex; gap: 4px; }
+  #snap-attr .sa-mx-wrap { overflow-x: auto; }
+  #snap-attr table.sa-mx { width: 100%; border-collapse: collapse; font-size: var(--fs-xxs); font-family: var(--mono); }
+  #snap-attr table.sa-mx th { font-size: 9px; font-weight: 700; color: var(--tx3); padding: 2px 3px; text-align: center; white-space: nowrap; }
+  #snap-attr table.sa-mx td { padding: 1.5px 3px; text-align: center; border: 1px solid rgba(10,13,19,.6); white-space: nowrap; }
+  #snap-attr table.sa-mx .mx-d { color: var(--tx3); text-align: left; font-size: 9px; }
+  #snap-attr table.sa-mx tr[data-i] { cursor: pointer; }
+  #snap-attr table.sa-mx tr[data-i]:hover td { outline: 1px solid var(--blue); }
+  #snap-attr table.sa-mx .mx-sum { font-weight: 700; }
+  #snap-attr table.sa-mx .mx-skip td { color: var(--tx3); font-style: italic; background: rgba(255,255,255,.03); }
+  #snap-attr table.sa-mx .mx-foot td { border-top: 1px solid var(--line); }
