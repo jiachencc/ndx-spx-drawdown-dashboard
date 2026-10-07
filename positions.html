@@ -1234,6 +1234,24 @@ function renderImpl() {
  * 指标口径不变：相邻两期之间各标的的 Δpl（纯市场贡献；加仓时市值与成本同增、相减抵消）。
  * 数据：缺 items 的期跳过并在图注写明（不补 0）；所有数值过 isFinite 守卫（宁可显示「—」也不显示 NaN ✗）。
  */
+const SA_THEME = (() => {
+  const t = {};
+  ((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).forEach((x) => { t[x.code] = x.idx; });
+  ((typeof OTC !== "undefined" && OTC.funds) || []).forEach((f) => { t[f.code] = f.theme; });
+  return t;
+})();
+const SA_META = {
+  ndx: ["纳指100", "#5ba3ff"], spx: ["标普500", "#46c9f0"], kr: ["中韩半导体", "#a97bff"],
+  jp: ["日本", "#f7c14e"], hkus: ["港股·中概", "#3ddc97"], global: ["全球(主动)", "#8899aa"],
+  semi: ["半导体(美)", "#e07a5f"],
+};
+const SA_NAME = (() => {                       // 标的名（从任一期的 items 取，用于悬停）
+  const m = {};
+  ((typeof SNAPSHOTS !== "undefined" && SNAPSHOTS) || []).forEach((s) => {
+    Object.entries(s.items || {}).forEach(([c, it]) => { if (!m[c]) m[c] = it.name; });
+  });
+  return m;
+})();
 function renderSnapAttr() {
   const el = $("snap-attr");
   if (!el) return;
