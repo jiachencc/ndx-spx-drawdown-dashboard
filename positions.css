@@ -1395,3 +1395,25 @@
   #snap-attr .sd-amt { flex: 0 0 62px; text-align: right; font-family: var(--mono); }
   #snap-attr .sd-pct { flex: 0 0 34px; text-align: right; color: var(--tx3); font-family: var(--mono); }
   @media (max-width: 380px) { #snap-attr .sd-nm { flex-basis: 74px; } #snap-attr .sd-amt { flex-basis: 56px; } }
+
+  /* ── 盈亏归因矩阵 · 第二轮修复（2026-10-07）───────────────────────────────────────────
+     截图取证发现：上一轮"#snap-attr 内重声明 --tx/--tx2/--tx3"**没生效** ✗
+     → 表现为：标题「盈亏归因」、明细里的基金名、提示文字全是深色压深底、几乎不可读 ✗
+     → 原因：污染源是**更具体选择器里的非 important 定义** ✗ → 同优先级的我的声明输了 ✗
+     → 修法：变量声明加 !important（合法且能压过任何非 important 定义 ✓）
+        顺带补上 .sa-mx-wrap 的横向滚动（320px 下表格被撑宽 → 卡片溢出 68px ✗），
+        并把单元格内边距放宽（数字列贴在一起 ✗）、右侧留白（合计列贴边 ✗）。 */
+  #snap-attr { --tx: #e2e9f5 !important; --tx2: #c8d3e4 !important; --tx3: #93a3bb !important; }
+  #snap-attr .sa-mx-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #snap-attr table.sa-mx th, #snap-attr table.sa-mx td { padding: 2px 5px; }
+  #snap-attr table.sa-mx td.mx-c { padding: 2px 6px; }
+  #snap-attr table.sa-mx th.mx-d, #snap-attr table.sa-mx td.mx-d { padding-left: 2px; }
+  #snap-attr table.sa-mx th.mx-sum, #snap-attr table.sa-mx td.mx-sum { padding-right: 8px; }
+
+  /* ── 第三轮：矩阵**数据单元格**的文字色（标题/名称/提示已在上一轮变浅 ✓）──────────────
+     探针实测：名称/标题/提示已是浅色 ✓（!important 变量覆盖生效 ✓），
+     但 td.mx-c 仍是 rgb(22,36,59) ✗ → 说明它的颜色**不是从变量来的**，
+     而是某条更具体选择器直接给的 ✗ → 变量覆盖对它无效。
+     这里用「更具体选择器 ＋ !important」直取颜色（只作用于数据格；
+     合计列 .mx-sum 保持 up/down 的红绿语义不变 ✓）。 */
+  #snap-attr table.sa-mx tbody td.mx-c { color: #e2e9f5 !important; }
