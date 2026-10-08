@@ -208,11 +208,17 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
   /* 静默天数的基准日必须是场外快照日（用系统「今天」会让这张表每天自己变形） */
   const note = win.document.querySelector("#otclog-card .otc-note");
   check("体检表口径注写明基准日 " + OC.updated, !!note && note.textContent.indexOf(OC.updated) >= 0);
-  /* 用户要求：定投中的行要标出**当前定投额** —— 漏了就是个静默的体验回退（标签只剩状态） */
+  /* 用户要求：定投中的行要标出**当前定投额** —— 漏了就是个静默的体验回退（标签只剩状态）
+     ⚠ 2026-10-08 修正：原来还要求 liveChips.length > 0，那是把"录入那一天恰好有定投中的行"
+       当成了不变的真理 ✗ —— 场外定投自 08-30 起改为手动申购、末笔多在 09-29/30；
+       过国庆长假（7 天）后「静默 ≤7 天」的行**必然为 0**，门禁会在这种**正常状态**下报红
+       （本次录 10-08 数据时正是被它拦下的）。改为只要求"有则必须标出当前额" ✓
+       —— 那才是用户当初要防的回退点；并把 0 行的情况写进消息，不让它变成静默的假绿 ✓ */
   const liveChips = [...win.document.querySelectorAll("#otclog-card .dca-chip.ok")];
   check("定投中的行都标了当前定投额（" + liveChips.length + " 行）",
-    liveChips.length > 0 && liveChips.every((el) => /元\/笔/.test(el.textContent)),
-    liveChips.map((el) => el.textContent.trim()).join(" / ") || "没有「定投中」的行");
+    liveChips.every((el) => /元\/笔/.test(el.textContent)),
+    liveChips.length ? liveChips.map((el) => el.textContent.trim()).join(" / ")
+      : "当前没有「定投中」的行（末笔静默已 >7 天）—— 断言只要求「有则标出」");
 }
 
 /* ③f 场外净值水位（2026-10-04 加）：① 8 只一场不落 ② 现价标记的位置必须等于独立复算的区间位置
