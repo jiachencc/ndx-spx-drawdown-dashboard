@@ -695,6 +695,22 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
        （此行由 2026-10-09 自己踩出来：初版断言报「全期 227 vs Σ各行 8914」—— 数字对不上的是检查本身 ✗） */
     const footCells = foot ? [...foot.querySelectorAll(".mx-sum")] : [];
     const footSum = numOf(footCells.length ? footCells[footCells.length - 1] : null);
+    /* 换维度不该改任何数（2026-10-09 加，用户要求 B）——「平台 / 场内·场外」两种维度下，
+       逐行合计必须与主题维度**同一批真值**一致 ✓（维度只决定"列怎么切"，不参与金额 ✓） */
+    ["plat", "acct"].forEach((dim) => {
+      const b2 = mx.querySelector('[data-dim="' + dim + '"]');
+      if (b2) b2.click();
+      const rows2 = [...mx.querySelectorAll("tbody tr")].filter((tr) => !tr.classList.contains("mx-foot"));
+      const nCol2 = rows2.length ? rows2[0].children.length - 2 : 0;   // 减去「期」与「合计」两列 ✓
+      const bad2 = rows2.filter((tr) => {
+        const d = ((tr.querySelector(".mx-d") || {}).textContent || "").trim().slice(0, 5);
+        if (!(d in truth)) return false;
+        const v = numOf(tr.querySelector(".mx-sum"));
+        return !Number.isFinite(v) || Math.abs(v - truth[d]) > 2;
+      }).map((tr) => ((tr.querySelector(".mx-d") || {}).textContent || "").trim().slice(0, 5));
+      check("盈亏归因换维度（" + (dim === "plat" ? "按平台" : "场内·场外") + "，" + nCol2 + " 列）后逐行合计不变",
+        nCol2 > 1 && bad2.length === 0, bad2.length ? "对不上：" + bad2.join("、") : "逐行一致 ✓");
+    });
     const bodySum = rows.reduce((a, tr) => a + (numOf(tr.querySelector(".mx-sum")) || 0), 0);
     check("盈亏归因「全期」行 ＝ Σ 各行 " + money(bodySum),
       Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= 2,

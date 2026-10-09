@@ -1443,6 +1443,8 @@
   .vs-btn:hover { color: var(--tx); border-color: var(--line); }
   .vs-btn.on { color: var(--blue); border-color: var(--blue); }
   .vs-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  /* 归因维度切换器（2026-10-09 加）：沿用主视图 .vs-btn 的控件语言 ✓，放在小标题之上 ✓ */
+  #snap-attr .sa-dims { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 4px; }
   #snap-attr .sa-head { font-size: var(--fs-xs); color: var(--tx2); padding: 4px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   #snap-attr .sa-head span { color: var(--tx3); font-size: var(--fs-xxs); }
   #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }
