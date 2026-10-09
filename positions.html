@@ -3049,8 +3049,16 @@ function closedEtfRows() {
       sym: o.sym, theme: themeOf(o.sym), n: o.n,
       buy: o.first, sell: o.last,
       days: (o.first && o.last) ? Math.round((new Date(o.last) - new Date(o.first)) / 864e5) : null,
-      pnl: o.realized, cost: o.buyAmt, cash: o.cash,
-      rate: o.buyAmt ? o.realized / o.buyAmt * 100 : 0,
+      /* ⚠ 2026-10-09 改口径（用户：「卡片那个数偏大……按实际结果比较好」✓）
+         pnl ＝ **生命周期实际结果** ＝ Σ卖出净额 − Σ买入含费（含双边费用 ✓、**不重复计** ✓，
+         与券商 App「累计收益」同类 ✓）。
+         旧口径「Σ逐笔 realized」**偏大** ✗：摊薄口径下每笔卖出后会重算剩余份额成本，逐笔相加减
+         会把亏损**重复计一遍** —— 实测差：中韩 −13,681.06（逐笔）vs **−13,217.10**（实际）；
+         港美 −10,346.91 vs **−5,270.50** ✓。
+         ⚠ log 里逐笔的 realized **保持不动** ✓ —— 快照对比的「清仓行」要靠它反推卖出回款
+           （回款 = realized ＋ 期初成本 ✓），与本卡是两个用途 ✓ */
+      pnl: o.cash - o.buyAmt, cost: o.buyAmt, cash: o.cash,
+      rate: o.buyAmt ? (o.cash - o.buyAmt) / o.buyAmt * 100 : 0,
     }))
     .sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));   // 新的在前
 }
@@ -3106,8 +3114,10 @@ function renderClosed() {
   const qNote = '<div class="strat-note" id="closed-q">' +
     "来源与口径：<b>场外</b>＝支付宝 App「清仓分析」页的<b>原读数</b>（2026-09-30 三张完整版：每行含持有区间 / 清仓收益 / 清仓收益率）；" +
     "平台直销的四个渠道（广发 / 南方 / 博时 / 华安）<b>从未清仓过</b> → 这 " + otR.length + " 笔就是场外的全部清仓史 ✓。<br>" +
-    "<b>场内</b>＝本页由 <code>POSITIONS.log</code> <b>推导</b>：份数回放、期末归零者＝已了结；已实现＝该标的<b>历次</b>卖出的 " +
-    "<code>realized</code> 之和（data-quality 门禁强制卖出行必须带它 ✓）；投入＝Σ(买入金额 ＋ 单边费) ✓。<br>" +
+    "<b>场内</b>＝本页由 <code>POSITIONS.log</code> <b>推导</b>：份数回放、期末归零者＝已了结；" +
+    "盈亏＝<b>生命周期实际结果</b>＝Σ卖出净额 − Σ买入含费（含双边费用 ✓、不重复计 ✓）；投入＝Σ(买入金额 ＋ 单边费) ✓。<br>" +
+    "⚠ 为什么**不用**「Σ逐笔 realized」：摊薄口径下每笔卖出后会重算剩余份额成本，逐笔相加减会把亏损<b>重复计一遍</b> ✗ ——" +
+    "例：中韩 −13,681.06（逐笔）vs <b>−13,217.10</b>（实际）；港美 −10,346.91 vs <b>−5,270.50</b>（2026-10-09 与用户核对后改 ✓）。<br>" +
     "两半都是「已卖出兑现的盈亏」、分属<b>不同账户</b>、无重复计入 → <b>可以相加</b> ✓；但仍分场内 / 场外两栏 —— " +
     "因为这决定了你信哪一份（App 原读数 vs 本页推导）。<br>" +
     "⚠ <b>回款 ≠ 盈亏</b>：回款是卖出收回的现金（场内每只都给出精确值 ✓；场外 App 不给这个读数 ✗）。<br>" +

@@ -335,18 +335,27 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED;", c, { timeout: 500 }); return c.o;
   })();
   const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+  /* ⚠ 口径与页面一致（2026-10-09 改）：场内已了结的盈亏 = **生命周期实际结果**
+     = Σ卖出净额 − Σ买入含费（含双边费用、不重复计 ✓）；不再用「Σ逐笔 realized」✗
+     （摊薄口径下逐笔相加减会把亏损重复计一遍：中韩 −13,681.06 vs −13,217.10、港美 −10,346.91 vs −5,270.50 ✗）
+     费用规则也照页面：note 里写了「费 X」用它、否则按 5 元（＝ CONFIG.FEE_PER_SIDE）✓ */
+  const FEE = 5;
+  const feeOf = (e) => { const m = String(e.note || "").match(/费\s*([\d.]+)/); return m ? parseFloat(m[1]) : FEE; };
   const agg = {}, lastSell = {};
   ((POS && POS.log) || []).forEach((e) => {
     const k = String(e.sym || ""); if (!k) return;
-    const o = agg[k] || (agg[k] = { qty: 0, realized: 0 });
+    const o = agg[k] || (agg[k] = { qty: 0, buy: 0, cash: 0 });
     if (isSell(e)) {
       o.qty -= (e.qty || 0);
-      o.realized += (typeof e.realized === "number" ? e.realized : 0);
+      o.cash += (e.qty || 0) * (e.cost || 0) - feeOf(e);
       lastSell[k] = (!lastSell[k] || e.d > lastSell[k]) ? e.d : lastSell[k];
-    } else o.qty += (e.qty || 0);
+    } else {
+      o.qty += (e.qty || 0);
+      o.buy += (e.qty || 0) * (e.cost || 0) + feeOf(e);
+    }
   });
-  const etfClosed = Object.keys(agg).map((k) => ({ k, ...agg[k] })).filter((o) => o.qty === 0);
-  const sEtf = etfClosed.reduce((a, o) => a + o.realized, 0);
+  const etfClosed = Object.keys(agg).map((k) => ({ k, pnl: agg[k].cash - agg[k].buy })).filter((o, i) => agg[Object.keys(agg)[i]].qty === 0);
+  const sEtf = etfClosed.reduce((a, o) => a + o.pnl, 0);
   const sOtc = CL ? CL.items.reduce((a, r) => a + r.pnl, 0) : 0;
   const totEl = cardEl ? cardEl.querySelector("#closed-all-total") : null;
   check("清仓历史总行 = 场外 " + money(sOtc) + " ＋ 场内 " + money(sEtf),
