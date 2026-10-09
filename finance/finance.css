@@ -25,7 +25,12 @@
   --up-bg: rgba(45,212,167,.12);   --up-line: rgba(45,212,167,.30);
   --down-bg: rgba(242,109,125,.12); --down-line: rgba(242,109,125,.30);
   --warn-bg: rgba(247,193,78,.10);
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* 2026-10-09 与 index.html / positions.css / fed-cycle.css **对齐**（用户：其他 html 都用 JetBrains）
+     原先写的是 ui-monospace, SFMono-Regular, "SF Mono", Menlo, … ✗ —— 在 macOS 上解析到 SF Mono，
+     于是本页所有等宽数字一直是 SF Mono，**不是 JetBrains** ✗（最靠前的可用字体胜出，故必须放第一）
+     ⚠ 这一条必须与 <link rel="stylesheet" href="../font.css"> 同时存在才生效：
+       font.css 提供 'JetBrains Mono' 的 @font-face，这里只是把它排到栈首 ✓ */
+  --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
   --fs-xs: 12px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 20px;
 }
 * { box-sizing: border-box; }
@@ -168,3 +173,18 @@ footer b { color: var(--tx2); }
   .abrief .b-k { margin-top: 5px; }
   .mrow { grid-template-columns: 30px 1fr 74px; gap: 6px; }   /* 逐月条：窄屏也保住完整金额那一列 */
 }
+
+/* ── 数字字体统一（2026-10-09，用户：「其他 html 都用 JetBrains」）━━━━━━━━━━━━━━━━━━━━━━━━
+   做法与 positions.html / index.html 同日一致：playwright 审计「文本以数字为主、字体是 sans」
+   的叶子元素，归类处置 ✓ 本页改前 11 个 / 6 种签名，**全部都是数字字段**，没有名称类 →
+   故一口气全改 ✓
+   ✎ .legend b（"总资产 943,405 元" / "0.00"）· ol li b（说明里的金额：24,582.64 / +202.48）
+     · .kpi .k-label（期间标签"1–6 月" / "7 月" / "8–9 月"）· .abrief .b-k（"7月那波 −34,820.69"）
+     · header.hero .sub span（副标题里的数字）
+   ★ 中文会自然回退（--mono 栈里只有拉丁字体）→ 只改数字外观，中文一字不变 ✓ */
+.legend b,
+.notes .legend b,
+ol li b,
+.kpi .k-label,
+.abrief .b-k,
+.hero .sub span { font-family: var(--mono); font-feature-settings: "tnum"; }

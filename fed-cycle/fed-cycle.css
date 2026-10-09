@@ -172,3 +172,18 @@
   footer b{color:var(--tx2)}
   footer a{color:var(--spx);text-decoration:none}
   @media (max-width:420px){ .tbl{font-size:var(--fs-xs)} }
+
+/* ── 数字字体统一（2026-10-09，用户：「其他 html 都用 JetBrains」）━━━━━━━━━━━━━━━━━━━━━━━━
+   playwright 审计：改前 34 个 / 10 种签名。与 finance 不同，本页**大部分是标的名称** ✗ →
+   只改真正的数字字段，名称一律保留 sans ✓
+   ✎ 改（数值/日期）：.mrow span（"档 −15%（t2）"）· .now-h b（"2026-09-16 加息 25bp"）
+     · .now-h .pill（"3.75% → 4.00%"）· .note b（"3.75%"）
+   ✗ 保留 sans（**不是漏网**，别下轮又来"修"）：.kvs .kv .t（22 处，全是"标普500"/"纳指100"）
+     · .now-grid .k-label · tbody th · .chart-h b（同上，都是指数名）
+     · td.cyc b（"2015 正常化" / "2026 重启加息"）· .cyc-head h3（周期标题）
+     —— 它们是把年份/数字写进**名称与标题**，套 mono 会让数字比汉字更跳 ✗ 与语义不符
+   ★ 中文会自然回退（--mono 栈里只有拉丁字体）→ 只改数字外观，中文一字不变 ✓ */
+.mrow span,
+.now-h b,
+.now-h .pill,
+.note b { font-family: var(--mono); font-feature-settings: "tnum"; }
