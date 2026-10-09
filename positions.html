@@ -1738,8 +1738,11 @@ function renderSnapAttr() {
     /* ── 下：累计（起点基线 ＋ 折线，**按缺口分段** ✓）── */
     g += '<line x1="' + mL + '" y1="' + yCumTop.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yCumTop.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
     g += '<line x1="' + mL + '" y1="' + yC(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yC(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
-    g += '<line x1="' + mL + '" y1="' + yC(c0).toFixed(1) + '" x2="' + X(baseD).toFixed(1) + '" y2="' + yC(c0).toFixed(1)
-      + '" style="stroke:var(--tx3)" stroke-dasharray="4 3"/>';
+    /* ⚠ 起点那条虚线**删掉** ✓：X(baseD) ≡ mL ✓ → 它长度恒为 0 ✗（画了也看不见 ✓）；
+       "起点 X" 标签原来右对齐挂在 mL−5 ✓ → 文字宽约 52px，窄屏会**越界出画布左缘 5px** ✗
+       （2026-10-10 用户报「折线图有遮挡」✓ —— 探针实测越界元素就这一个 ✓）
+       → 改成画在绘图区**内侧**、锚在起点上方 ✓（顺带把这个坑写进 layout-check 的常驻检查 ✓）。 */
+    g += '<circle cx="' + X(baseD).toFixed(1) + '" cy="' + yC(c0).toFixed(1) + '" r="2.4" fill="' + tcol + '"/>';
     const segsOut = [];
     let segPts = [[X(baseD), yC(c0)]];
     ser.forEach((x, i) => {
@@ -1764,7 +1767,7 @@ function renderSnapAttr() {
     g += lab(mL - 5, yBarTop + hBar, fmtAmt(-Math.round(mxB)));
     g += lab(mL - 5, yC(hi) + 8, fmtAmt(Math.round(hi)));
     g += lab(mL - 5, yC(lo) + 3, fmtAmt(Math.round(lo)));
-    g += lab(mL - 5, yC(c0) + 3, "起点 " + fmtAmt(Math.round(c0)));
+    g += lab(mL + 3, yC(c0) - 5, "起点 " + fmtAmt(Math.round(c0)), "start");   // 画在绘图区**内侧** ✓（挂左边会越界 ✗）
     const midI = Math.floor((ser.length - 1) / 2);
     [0, midI, ser.length - 1].forEach((i, k2) => {
       if (i < 0 || !ser[i]) return;
@@ -1846,9 +1849,10 @@ function renderSnapAttr() {
     if (lo - pad < 0 && hi + pad > 0)
       g += '<line x1="' + mL + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + Y(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
     g += '<line x1="' + mL + '" y1="' + Y(hi).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + Y(hi).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
-    series.forEach((s2) => {                                        // 各列：细线 ✓
-      g += '<polyline class="sa-line" points="' + s2.cum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ") + '"'
-        + ' fill="none" stroke="' + s2.col + '" stroke-width="1.4"/>';
+    series.forEach((s2) => {                                        // 各列：细线 ✓（可被图例点亮 ✓）
+      g += '<polyline class="sa-line sa-col-line" data-colk="' + esc(s2.k) + '"'
+        + ' points="' + s2.cum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ") + '"'
+        + ' fill="none" stroke="' + s2.col + '" stroke-width="1.4" opacity=".85"/>';
     });
     const tPts = [];
     for (let i = 0; i <= live.length; i++) {
@@ -1867,7 +1871,9 @@ function renderSnapAttr() {
       g += lab2(X(live[i].d), H - 6, live[i].d.slice(5), k3 === 0 ? "start" : (k3 === 2 ? "end" : "middle"));
     });
     const legend = series.slice().sort((a, b) => Math.abs(b.end) - Math.abs(a.end))
-      .map((s2) => '<span class="sa-all-k"><i style="background:' + s2.col + '"></i>' + esc(colNameOf(s2.k))
+      .map((s2) => '<span class="sa-all-k" data-legend="' + esc(s2.k) + '" tabindex="0" role="button"'
+        + ' aria-label="' + esc("点亮「" + colNameOf(s2.k) + "」这条线（终值 " + fmtAmt(s2.end) + " 元）") + '">'
+        + '<i style="background:' + s2.col + '"></i>' + esc(colNameOf(s2.k))
         + ' <b class="' + cls(s2.end) + '">' + fmtAmt(s2.end) + "</b></span>").join("");
     return '<div class="sa-detail sa-chart" data-all-end="' + total2.toFixed(2) + '" data-all-n="' + series.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
@@ -1894,36 +1900,32 @@ function renderSnapAttr() {
      若将来要做回"按主题配色"，再恢复色块 ✓。 */
   h += '<div class="sa-legend"><span class="sd-hint">底色深浅＝量级（<b>对数</b>尺度，不是占比；绿＝赚 / 红＝亏）'
     + " · 「·」＝该期该列无标的</span></div>";
-  h += '<div class="otc-note"><b>口径</b>：每只标的**本期的真实贡献** —— 在持＝Δpl ✓（加仓时市值与成本同增、相减抵消 ✓）；'
-    + "建仓＝当期 pl ✓；<b>清仓</b>＝卖出回款 − 期初市值 ✓（场内取流水 realized ＋ 期初成本 ✓；场外取 OTC_LOG 的赎回笔 ✓）。"
-    + "三分支同源（periodContrib ✓），因此**每行合计 ＝ 卡头那一期的「本期盈亏」** ✓ —— 清仓也不会漏 "
-    + "（2026-10-09 之前只遍历后一期、清仓标被跳过记 0 ✗，10.09 行因此虚高 +635.40 ✗；门禁 ④j 现在盯着 ✓）。"
-    + "<br>底色＝<b>对数</b>尺度（2026-10-09 改，与 finance「账户 × 月 收益矩阵」同一套 alpha 公式）："
-    + "跨两个数量级的变动都能分辨 ✓ —— 所以**不再**有「小于 N 元并入其他」那一档 ✗"
-    + "（那一档画出来与「该主题当期无标的」长得一样，容易误读 ✗）。"
-    + "<br>格里的「·」＝该期该主题<b>没有可归因的标的</b>（当时尚未持有，不是「变动为 0」）；"
-    + "悬停任一<b>格</b>看该主题当期的成员与逐只金额，点任一<b>行</b>看该期全部逐只明细 ✓"
-    + "<br><b>三级下钻</b>（2026-10-09 加 ✓）：<b>点格子</b> → 下方只列该格成员（成员之和 ≡ 格子里那个数 ✓）；"
-    + "<b>点成员</b> → 该只的<b>逐期轨迹</b>：各期贡献 ＋ 本期流水事件（场内建仓 / 加仓 / 减仓 / 清仓 ✓）"
-    + "＋ <b>本期快照对比</b>（份数 / 单价 / 市值 / 摊薄成本的 A→B ✓）＋ <b>生涯累计</b>（＝期初结转 ＋ 各期贡献之和 ✓）；"
-    + "「← 返回」逐级回退 ✓、格子可 Tab 到并回车 ✓。⚠ 快照对比只<b>摆事实</b> ✓ —— 不做「价格贡献 vs 份数贡献」的拆分 ✗："
-    + "摊薄成本口径下那需要假设成本摊销顺序 ✗，拆出来的两个数无法与券商 App 对账 ✗。"
-    + "<br><b>点列头</b>（2026-10-09 加 ✓）→ 该列的<b>逐期贡献 ＋ 累计</b>图：上＝本期贡献、下＝累计 ✓，"
-    + "两块面板<b>各用自己的尺</b> ✗ 不做双 y 轴（贡献是千元级、累计是万元级 ✗，同轴会把柱子压成一条线 ✓）；"
-    + "x 轴按<b>实际日期间距</b>铺开 ✓ —— 矩阵把每「期」当等宽 ✗，而 08-28→09-30 隔一个月、10-08→10-09 只隔一天 ✗，"
-    + "铺开后才看得出哪段被压扁了 ✓；起点结转画成<b>左侧虚线基线</b> ✓（它不是一期 ✗，画成柱子会被读成「第一期就亏 6,782」✗）；"
-    + "点柱子 → 落到那一格 ✓。⚠ 真·日频数据本仓库<b>没有</b> ✓（持仓只有快照时点 ✓）—— 要按日得先建行情抓取管线 ✓。"
-    + "<br><b>「全期」＝ 账户起点 → " + lastD.slice(5) + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(lastPl) + " ✓），"
-    + "不是「某段窗口内的变化量」✗（旧版只覆盖 " + baseD.slice(5) + " 之后，于是「全期」成了变化量 ✗、与累计收益差 8,278 ✗；"
-    + "2026-10-09 加了「期初结转」行之后两者合流 ✓，表上方那行小字就是这两个数 ✓）。"
-    + "<br><b>「期初结转」行 ＝ 账户起点 → " + baseD.slice(5) + " 的累计结果</b>（该期 Σ逐只 pl ＝ " + fmtAmt(carryTotal) + " ✓；"
-    + "场内自 06-01 起、场外自 03-03 起 ✓）；它下面是逐期行，只保留前后两期都有 items 的对 ✓ —— "
-    + "缺 items 的那几对已<b>并入这一行</b> ✓，不是丢掉 ✗。"
-    + "⚠ 这一行含「在持标的自买入以来的结果」✓，但<b>不含场外那 17 笔已清仓</b>"
+  /* ── 口径与边界：**默认折叠**（2026-10-10 用户：「把下面口径什么的精简一些，默认折叠」）──────────
+     改前它是一坨**常显**长文 ✗ —— 探针实测：1440 下 446px、**380 下 840px** ✗（半屏都是小字 ✓）。
+     现在：① 收进 <details class="pf-fold">（复用全页折叠块版式 ✓，summary 就是小节题 ✓，默认关闭 ✓）；
+           ② 正文压到 4 段 ✓ —— 只留**口径事实与边界** ✓；
+              历史沿革（旧版怎么错、哪条门禁盯着）搬回代码注释里 ✗（那儿才是它该待的地方 ✓）。
+     ⚠ 数字仍从数据层取 ✓（不写死 ✓）：lastD / lastPl / baseD / carryTotal / closedOtcSum / hidden ✓。 */
+  h += '<details class="pf-fold"><summary class="snap-sec">口径与边界 <span class="snap-cnt">（点开看：口径三分支 · 全期与期初结转 · 下钻入口 · 不含哪些）</span></summary>'
+    + '<div class="otc-note">'
+    + "<b>口径</b>：每只标的<b>本期的真实贡献</b> —— 在持＝Δpl ✓ · 建仓＝当期 pl ✓ · <b>清仓</b>＝卖出回款 − 期初市值 ✓"
+    + "（场内取流水 realized ＋ 期初成本 ✓；场外取 OTC_LOG 的赎回笔 ✓）；三分支同源（periodContrib ✓），"
+    + "故<b>每行合计 ≡ 卡头那期的「本期盈亏」</b> ✓。格里的「·」＝该期该列<b>没有可归因的标的</b> ✓（不是「变动为 0」✗）；"
+    + "底色＝<b>对数</b>尺度（跨两个数量级都能分辨 ✓）。"
+    + "<br><b>「全期」＝ 账户起点 → " + lastD.slice(5) + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(lastPl) + " ✓）；"
+    + "<b>「期初结转」行 ＝ 账户起点 → " + baseD.slice(5) + "</b>（该期 Σ逐只 pl ＝ " + fmtAmt(carryTotal) + " ✓；"
+    + "场内自 06-01 起、场外自 03-03 起 ✓）。⚠ 期初结转<b>不含场外那 17 笔已清仓</b>"
     + (closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(closedOtcSum) + " ✓）")
-    + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 ✗ → 无法归入本金 ✓，只在「清仓历史」卡 ✓"
-    + "（场内那 2 只已清仓<b>不同</b> ✓ —— 它们已通过本金修正进了总账 ✓）。"
-    + (hidden.length ? "<br>⚠ 已<b>并入</b>「期初结转」的相邻对共 " + hidden.length + " 个（相邻对里有一期缺 items，无法逐期归因）：" + hidden.join(" ") + " ✓" : "")
+    + "：那批只有 App 的 pnl、没有成本与赎回去向 ✗ → 归不进本金 ✓，只在「清仓历史」卡 ✓；"
+    + "场内那 2 只已清仓<b>不同</b> ✓ —— 它们已由本金修正进总账 ✓。"
+    + (hidden.length ? "（缺 items 的 " + hidden.length + " 个相邻对已<b>并入期初结转</b> ✓：" + hidden.join(" ") + " ✓）" : "")
+    + "<br><b>下钻入口</b>：点格子 → 该格成员 ✓ · 点成员 → 该只逐期轨迹（＋本期快照对比：份数 / 单价 / 市值 / 摊薄成本 A→B ✓）"
+    + " · 点列头 → 该列贡献 ＋ 累计图（两块面板各用自己的尺 ✗ 不做双 y 轴 ✓；x 轴按<b>实际日期间距</b> ✓）"
+    + " · 点「全期」行头 → 各列生涯贡献排序 ✓ · 点「合计」列头 → 整表累计曲线 ✓。"
+    + "⚠ 快照对比只<b>摆事实</b> ✓ —— 不做「价格 vs 份数」的贡献拆分 ✗（摊薄口径下需假设摊销顺序 ✗，拆出来的数无法与 App 对账 ✗）。"
+    + "<br>键盘：格子用<b>方向键</b>移动、Enter 打开 ✓（整表只占一个 Tab 位 ✓）；图内 ←/→ 逐期 ✓；"
+    + "缺口处<b>断开折线</b>、不插值 ✓；真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）。"
+    + "</div></details>";
     + "</div>";
   /* ── 列头图的**悬停 / 键盘**（2026-10-09 第四步 B：A1~A4）──────────────────────────────
      铁律：**外科式更新** ✓ —— 只改几个节点的 class 与读数文本 ✓，
@@ -2034,9 +2036,43 @@ function renderSnapAttr() {
     cells.forEach((c2) => c2.setAttribute("tabindex", c2 === pick ? "0" : "-1"));
     saRove = { d: pick.getAttribute("data-d"), col: pick.getAttribute("data-col") };
   };
+  /* ── 整表对比图的**图例点亮**（2026-10-10 用户报「折线图有遮挡」）──────────────────────
+     列多的时候（6 条）近水平的线必然互相压住 ✗ —— 这是线图本身的毛病 ✓，不是数据错 ✓。
+     治法：指到 / 聚焦某个图例，就把其它线压暗到 0.12 ✓（总累计那条**不参与** ✓，它始终是参照 ✓）。
+     鼠标与键盘**共用一套** ✓（pointerenter/leave ＋ focusin/out ✓，不写两份逻辑 ✗）；
+     ⚠ 依旧外科式：只改 opacity 与一个 class ✓，不重渲染 ✗（否则会闪 ✓）。
+     ⚠ pointerout 要判 relatedTarget ✓：在**图例内部**从一格移到另一格时，
+       若一收到 out 就复位，会闪一下 ✓（先复位再点亮 ✓）→ 只有真正离开图例才复位 ✓。 */
+  const wireAllChart = () => {
+    const box = el.querySelector(".sa-chart[data-all-end]");
+    if (!box) return;
+    const lines = Array.prototype.slice.call(box.querySelectorAll("polyline.sa-col-line"));
+    const leg = box.querySelector(".sa-all-legend");
+    if (!lines.length || !leg) return;
+    const chips = Array.prototype.slice.call(leg.querySelectorAll("[data-legend]"));
+    const setOn = (k2) => {
+      lines.forEach((l2) => { l2.setAttribute("opacity", (!k2 || l2.getAttribute("data-colk") === k2) ? ".85" : ".12"); });
+      chips.forEach((c2) => c2.classList.toggle("on", !!k2 && c2.getAttribute("data-legend") === k2));
+    };
+    const chipOf = (t2) => (t2 && t2.closest ? t2.closest("[data-legend]") : null);
+    leg.onpointerover = (e) => { const c2 = chipOf(e.target); if (c2) setOn(c2.getAttribute("data-legend")); };
+    leg.onpointerout = (e) => { if (!leg.contains(e.relatedTarget)) setOn(null); };
+    leg.onfocusin = (e) => { const c2 = chipOf(e.target); if (c2) setOn(c2.getAttribute("data-legend")); };
+    leg.onfocusout = (e) => { if (!leg.contains(e.relatedTarget)) setOn(null); };
+    /* Enter/Space：把当前这条**钉住**（再按一次取消 ✓）—— 键盘也能"选一条看" ✓ */
+    leg.onkeydown = (e) => {
+      if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+      const c2 = chipOf(e.target);
+      if (!c2) return;
+      e.preventDefault();
+      const k2 = c2.getAttribute("data-legend");
+      setOn(c2.classList.contains("on") ? null : k2);
+    };
+  };
   el.innerHTML = h;
   wireColChart();
   wireRoving();
+  wireAllChart();
   /* ── 交互分派（2026-10-09 第三步）：**一次点击与一次按键走同一套** ✓（不伪造事件对象 ✗）─────────────
      优先级＝最内层先行 ✓：面包屑返回 → 格子 → 成员行 → 维度切换 → 期行 → 期初行 ✓
      ⚠ 格子长在行里 ✗ → 必须先判格子 ✓，否则点一下格子会顺带把"期"也切了 ✓。

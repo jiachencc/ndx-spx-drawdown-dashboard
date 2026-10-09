@@ -1544,7 +1544,11 @@
      线多（6 条）时不标线端 ✗（易撞 ✓）→ 图下一行色块 ＋ 名 ＋ **终值** ✓（按 |值| 排序 ✓）。 */
   #snap-attr .sa-all-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; padding: 2px 0 3px;
     font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono); font-feature-settings: "tnum"; }
-  #snap-attr .sa-all-k { display: inline-flex; align-items: center; gap: 4px; }
+  #snap-attr .sa-all-k { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 3px; }
+  /* 被点亮的那条（2026-10-10 ✓）：文字提亮 ＋ 色块加一圈晕 ✓ —— 与"线被压暗"配合，一眼看出是哪条 ✓ */
+  #snap-attr .sa-all-k.on { color: var(--tx); }
+  #snap-attr .sa-all-k.on i { box-shadow: 0 0 0 2px rgba(147, 163, 187, .4); }
+  #snap-attr .sa-all-k:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   #snap-attr .sa-all-k i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
   #snap-attr .sa-all-k b { font-weight: 700; }
   #snap-attr .sa-chart-note { font-size: var(--chk-fs-mini); color: var(--tx3); line-height: 1.5; padding-top: 3px; }
@@ -1566,7 +1570,11 @@
   #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
   #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
   #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
-  #snap-attr .sd-row { display: flex; align-items: center; gap: 6px; padding: 1.5px 0; font-size: var(--fs-xxs); }
+  /* 逐只明细行 —— 这里只管**布局** ✓，字号**不在这儿定** ✗：
+     文件后面还有一块"字号统一"（同样是 #snap-attr .sd-row ✓ 后置同优先级 ✓）会把字号盖掉 ✓
+     —— 两处各写一份必然漂 ✗（2026-10-10 就踩了：这里改成 9px、实测仍是 10px ✗）
+     → 字号只留**一处权威**（见后面那块 ✓）。 */
+  #snap-attr .sd-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
   #snap-attr .sd-nm { flex: 0 0 92px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #snap-attr .sd-bar { flex: 1 1 auto; display: block; height: 7px; background: rgba(255, 255, 255, .06); border-radius: 2px; overflow: hidden; }
   #snap-attr .sd-bar i { display: block; height: 100%; border-radius: 2px; }
@@ -1652,6 +1660,10 @@
        div.alt-grp-head > b       例："纳指100" / "标普500"   ← 分组标题
      套 mono 会让名称里的数字比汉字更"等宽跳出来" ✗，与语义不符 —— 保留 sans ✓ */
   #snap-attr .sd-head { font-size: var(--chk-fs); }
-  #snap-attr .sd-row { font-size: var(--chk-fs); padding: 1px 0; }
+  /* ⚠ 逐只明细的**字号权威处**（全页只此一行 ✓）——
+     2026-10-10 用户：「逐只明细字体小一些」✓ → 由 --chk-fs（10px）降到 **--chk-fs-mini（9px）** ✓，
+     与「矩阵表格 / 图注 / 期列」**同一档** ✓（本容器里的 --fs-xxs 被污染成 10px ✗，
+     所以绝不要回头用 --fs-xxs 写这里 ✗）。 */
+  #snap-attr .sd-row { font-size: var(--chk-fs-mini); padding: 1px 0; }
   #snap-attr .sd-hint { font-size: var(--chk-fs-mini); }
   #snap-attr .sd-nm { flex-basis: 104px; }

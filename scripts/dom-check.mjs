@@ -1053,8 +1053,35 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         check("整表累计曲线的总终值 ≡ 全期合计 " + money(footAll2),
           Number.isFinite(endAll) && Math.abs(endAll - footAll2) < 0.01,
           "data-all-end=" + (Number.isFinite(endAll) ? endAll : "—") + " · 全期行 " + footAll2);
+        /* 图例点亮（2026-10-10 加，起于用户报「折线图有遮挡」✓）——
+           列多时近水平线互相压住 ✗ → 指到/聚焦某个图例就把其它线压暗 ✓。
+           这里直接派发 pointerover 验**逻辑** ✓（jsdom 没有真实命中测试 ✗）；
+           真实鼠标那一半由 layout-check 与人工复核覆盖 ✓。 */
+        const chip0 = mx.querySelector(".sa-all-legend [data-legend]");
+        if (chip0) {
+          chip0.dispatchEvent(new win.MouseEvent("pointerover", { bubbles: true }));
+          const lns = [...mx.querySelectorAll("polyline.sa-col-line")];
+          const dim = lns.filter((l) => l.getAttribute("opacity") === ".12").length;
+          check("整表对比图：图例点亮一条 → 其它 " + dim + " 条压暗 ✓",
+            lns.length > 1 && dim === lns.length - 1 && !!mx.querySelector(".sa-all-legend .sa-all-k.on"),
+            "线 " + lns.length + " 条 · 压暗 " + dim + " 条 · 点亮标记 " + !!mx.querySelector(".sa-all-legend .sa-all-k.on"));
+        } else {
+          check("整表对比图有可点亮的图例（[data-legend]）", false, "找不到图例项");
+        }
         const bk5 = mx.querySelector('.sa-detail-box [data-nav="period"]');
         if (bk5) bk5.click();
+      }
+      /* ④p 口径注**默认折叠 ＋ 已精简**（2026-10-10 用户：「把下面口径什么的精简一些，默认折叠」）——
+         改前它是一坨常显长文 ✗（探针实测：1440 下 446px、**380 下 840px** ✗ —— 半屏都是小字 ✓）；
+         现在收进 <details class="pf-fold"> ✓ 且默认关闭 ✓、正文压到 4 段 ✓。 */
+      {
+        const fold = mx.querySelector("details.pf-fold");
+        const sum = fold ? fold.querySelector("summary") : null;
+        const txt = fold ? fold.textContent.replace(/\s+/g, " ").trim() : "";
+        check("口径注默认折叠（details 未 open ✓）＋ 已精简（" + txt.length + " 字 ≤ 1100 ✓）",
+          !!fold && !fold.hasAttribute("open") && !!sum && txt.length <= 1100,
+          fold ? "open=" + fold.hasAttribute("open") + " · 摘要「" + (sum ? sum.textContent.replace(/\s+/g, " ").trim().slice(0, 34) : "?")
+            + "」 · 全文 " + txt.length + " 字" : "找不到 details.pf-fold");
       }
     }
   }

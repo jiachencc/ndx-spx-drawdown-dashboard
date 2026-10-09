@@ -42,7 +42,21 @@ const audit = (p) => p.evaluate(() => {
     if (w > c.clientWidth + 1)
       bad.push((c.id || String(c.className || "?")).split(" ")[0] + "：SVG " + Math.round(w) + " > 容器 " + c.clientWidth);
   });
-  return { ov: document.documentElement.scrollWidth - iw, bad: bad, nSvg: document.querySelectorAll("svg").length };
+  /* 图内元素**不得越出画布**（2026-10-10 加）—— 起因：归因列头图里「起点 +6,443」这个标签
+     右对齐挂在绘图区左边界外 ✓ → 窄屏**越界出画布 5px** ✗ 被裁掉 ✗（用户报「折线图有遮挡」✓）。
+     这类问题只有真实布局测得出 ✗（jsdom 的 getBoundingClientRect 全是 0 ✓）→ 做成常驻断言 ✓。 */
+  const out = [];
+  document.querySelectorAll("#snap-attr .sa-chart-svg").forEach((s) => {
+    const sr = s.getBoundingClientRect();
+    s.querySelectorAll("text, circle, rect, polyline").forEach((e) => {
+      const q = e.getBoundingClientRect();
+      if (q.width <= 0 && q.height <= 0) return;
+      const over = Math.max(sr.left - q.left, q.right - sr.right, sr.top - q.top, q.bottom - sr.bottom);
+      if (over > 0.5)
+        out.push(e.tagName + "「" + (e.textContent || "").trim().slice(0, 8) + "」越界 " + Math.round(over) + "px");
+    });
+  });
+  return { ov: document.documentElement.scrollWidth - iw, bad: bad, out: out, nSvg: document.querySelectorAll("svg").length };
 });
 
 /* 把按需渲染的归因视图也点亮（列头图是真实像素画的 ✓ 必须一起查 ✓） */
@@ -73,6 +87,9 @@ for (const w of [1440, 760, 380]) {
   check("首屏 " + w + "px：页面无横向溢出" + (w === 380 ? "（含归因列头图 ✓）" : ""), r.ov <= 0,
     r.ov > 0 ? "溢出 " + r.ov + "px" : "溢出 0px ✓");
   check("首屏 " + w + "px：每个 SVG 都不超出容器（共 " + r.nSvg + " 个）", r.bad.length === 0, r.bad.slice(0, 3).join(" · "));
+  /* 只在 380 档查"图内元素越界" ✓：那一档才把按需渲染的列头图打开 ✓（没图时查了也是空 ✓ 假绿 ✗） */
+  if (w === 380)
+    check("首屏 380px：图内元素不越出画布（列头图已打开 ✓）", r.out.length === 0, r.out.slice(0, 3).join(" · "));
   await p.close();
 }
 
