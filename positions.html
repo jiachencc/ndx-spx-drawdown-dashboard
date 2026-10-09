@@ -1255,7 +1255,6 @@ function renderSnapAttr() {
   if (!el) return;
   const S = ((typeof SNAPSHOTS !== "undefined" && SNAPSHOTS) || []);
   const num = (v) => (Number.isFinite(+v) ? +v : 0);
-  const MIN = 500;
   /* 只保留**两期都有 items** 的期（缺的整期隐藏，但要如实写明隐藏了哪几期 —— 不静默、更不补 0 ✗）。
      用户要求：缺 items 的期隐藏掉；并去掉柱状形态（只留矩阵）。 */
   const live = [], hidden = [];
@@ -1266,11 +1265,13 @@ function renderSnapAttr() {
     Object.keys(b.items).forEach((c) => { if (a.items[c]) items[c] = num(b.items[c].pl) - num(a.items[c].pl); });
     const byT = {};
     Object.entries(items).forEach(([c, v]) => { const t = TKEY(SA_THEME[c] || "global"); byT[t] = (byT[t] || 0) + v; });
-    const big = [], small = [];
-    Object.entries(byT).forEach(([t, v]) => { (Math.abs(v) >= MIN ? big : small).push({ k: t, v }); });
-    if (small.length) big.push({ k: "other", v: small.reduce((s, x) => s + x.v, 0) });
-    big.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
-    live.push({ d: b.d, items, seg: big, net: Object.values(items).reduce((s, v) => s + v, 0) });
+    /* 2026-10-09（借 finance 收益矩阵的做法）：原来这里按 500 元把「小」主题并进「其他」✗ ——
+       那条门槛的**唯一理由**是底色用线性分档、小金额画出来看不见；
+       现在底色改成对数尺度（见 cellBg），小变动照样看得见 → 门槛失去理由，去掉 ✓
+       效果：主题列不再出现"因小被吞"的空白 —— 那正是用户 10-08 问「是缺数据还是没显示」的成因 ✗ */
+    const seg = Object.entries(byT).map(([t, v]) => ({ k: t, v }));
+    seg.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
+    live.push({ d: b.d, items, seg, net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
@@ -1278,20 +1279,40 @@ function renderSnapAttr() {
   const metaOf = (k) => { k = TKEY(k); return SA_META[k] || (k === "other" ? ["其他", "#66788e"] : [k, "#8899aa"]); };
   const themes = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];
   const mx = Math.max.apply(null, live.flatMap((p) => p.seg.map((x) => Math.abs(x.v))).concat([1]));
-  const cellBg = (v) => { const a = Math.abs(v), lv = a >= mx * 0.6 ? 1 : a >= mx * 0.25 ? 0.7 : a >= mx * 0.08 ? 0.45 : 0.22;
-    return v >= 0 ? "rgba(45,212,167," + lv + ")" : "rgba(224,87,107," + lv + ")"; };
+  /* 底色＝**对数**尺度（2026-10-09 借 finance「账户 × 月 收益矩阵」的 alpha 公式，同一套口径 ✓）：
+     线性分档下 8 万与 800 元的色差几乎看不出，只能靠"并入其他"回避 ✗；
+     对数尺度让跨两个数量级的变动都能分辨 ✓（透明度落在 0.10~0.60，负值同区间换红色 ✓）。
+     ⚠ 下限给 0.10 而不是 0：全透明会让"有值但极小"退回成"看起来是空格" ✗ */
+  const cellBg = (v) => {
+    const lv = 0.10 + 0.50 * Math.min(1, Math.log10(Math.abs(v) + 10) / Math.log10(mx + 10));
+    return v >= 0 ? "rgba(45,212,167," + lv.toFixed(3) + ")" : "rgba(224,87,107," + lv.toFixed(3) + ")";
+  };
   const colSum = (t) => live.reduce((a, p) => a + ((p.seg.find((x) => x.k === t) || { v: 0 }).v), 0);
   const allSum = live.reduce((a, p) => a + p.net, 0);
 
-  let h = '<div class="sa-head"><b>盈亏归因</b><span>行=期 · 列=主题（13 只 → ' + themes.length + ' 族）· 点任一行看该期逐只</span></div>';
+  /* 单元格：三态**分开表达**（借 finance 收益矩阵的同一套思路 ✓）
+     ① 该期该主题「没有可归因的标的」（当时尚未持有 → 没有 Δpl）→ 淡色「·」＋ tooltip 明说是「缺」不是 0 ✓
+     ② 变动恰为 0 → 照常画出 0（0 是**真实读数**，与"缺"是两回事 ✓）
+     ③ 其余 → 对数尺度上色 ＋ 数字；悬停给出该期该主题的**成员与逐只金额** ✓
+     ★ 为什么必须有 ①：以前它和「小到被并入其他」长得一模一样 ✗ —— 用户 10-08 看到空格只能来问我 ✗ */
+  const cellOf = (p, t) => {
+    const s = p.seg.find((x) => x.k === t);
+    if (!s) {
+      return '<td class="mx-c mx-na" title="' + esc(p.d + "：" + metaOf(t)[0] + " 这一期没有可归因的标的（当时尚未持有，不是「变动为 0」）") + '">·</td>';
+    }
+    const mem = Object.entries(p.items)
+      .filter(([c]) => TKEY(SA_THEME[c] || "global") === t)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .map(([c, x]) => (SA_NAME[c] || c) + "　" + fmtAmt(x)).join("\n");
+    return '<td class="mx-c" style="background:' + cellBg(s.v) + '" title="'
+      + esc(metaOf(t)[0] + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）")) + '">' + fmtAmt(s.v) + "</td>";
+  };
+  let h = '<div class="sa-head"><b>盈亏归因</b><span>行=期 · 列=主题（13 只 → ' + themes.length + ' 族）· 点任一行看该期逐只 · 悬停任一格看成员</span></div>';
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + themes.map((t) => "<th>" + esc(metaOf(t)[0]) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
   live.forEach((p, i) => {
-    const byT = {};
-    p.seg.forEach((s) => { byT[s.k] = s.v; });
     h += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + "</td>"
-      + themes.map((t) => { const v = byT[t];
-        return '<td class="mx-c"' + (v == null ? "" : ' style="background:' + cellBg(v) + '"') + ">" + (v == null ? "" : fmtAmt(v)) + "</td>"; }).join("")
+      + themes.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
   h += '<tr class="mx-foot"><td class="mx-d">全期</td>'
@@ -1313,9 +1334,13 @@ function renderSnapAttr() {
   };
   h += '<div class="sa-detail-box">' + detail() + "</div>";
   h += '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + metaOf(t)[1] + '"></i>' + esc(metaOf(t)[0]) + "</span>").join("")
-    + '<span class="sd-hint">颜色深浅＝量级（不是占比）</span></div>';
+    + '<span class="sd-hint">颜色深浅＝量级（<b>对数</b>尺度，不是占比）· 「·」＝该期该主题无标的</span></div>';
   h += '<div class="otc-note"><b>口径</b>：各标的「累计盈亏 pl」的**两期之差** → 纯市场贡献 ✓（加仓时市值与成本同增、相减抵消）。'
-    + "<br>小于 " + MIN + " 元的主题并入「其他」（不用最小段高假装看得见 ✗）。"
+    + "<br>底色＝<b>对数</b>尺度（2026-10-09 改，与 finance「账户 × 月 收益矩阵」同一套 alpha 公式）："
+    + "跨两个数量级的变动都能分辨 ✓ —— 所以**不再**有「小于 N 元并入其他」那一档 ✗"
+    + "（那一档画出来与「该主题当期无标的」长得一样，容易误读 ✗）。"
+    + "<br>格里的「·」＝该期该主题<b>没有可归因的标的</b>（当时尚未持有，不是「变动为 0」）；"
+    + "悬停任一<b>格</b>看该主题当期的成员与逐只金额，点任一<b>行</b>看该期全部逐只明细 ✓"
     + (hidden.length ? "<br>⚠ 已**隐藏** " + hidden.length + " 期（缺 items，无法归因）：" + hidden.join(" ") + " —— 隐藏而非补 0 ✓" : "")
     + "</div>";
   el.innerHTML = h;
