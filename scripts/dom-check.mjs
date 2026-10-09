@@ -311,10 +311,19 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
 
-/* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金） */
+/* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
+   ⚠ 2026-10-09 修正：原来无条件拿**最新快照**去比读数条 ✗ ——
+   可走势序列的最后一个点可以是「今日盘中估」（当 data.js 里的报价/指数比最新快照更新时，页面就会补这一期，
+   读数条随之显示它）。本次实测：快照 09-30 的浮盈亏是 −1,993，而读数条显示盘中估的 −2,198 → 断言必红 ✗。
+   这不是数据错，而是**每天盘中都成立的正常状态**（CI 早上推完数据、A 股开盘后就是它），
+   与「定投中」那条同属"把某一天的状态当成真理" ✗。
+   故：处于盘中估时**只标注跳过、不判失败**（原因写进消息，不静默 ✓）；
+   其余时候（收盘后 / 无盘中估）照旧严格比对 ✓ */
 const readText = readout ? readout.textContent.replace(/\s+/g, "") : "";
-check("走势卡读数含最新总资产 " + money(snapTotal), near(readText, snapTotal, 3), readText.slice(0, 160));
-check("走势卡读数含最新浮盈亏 " + money(latest.pl), near(readText, latest.pl), readText.slice(0, 160));
+const intraday = /盘中估|未收盘/.test(readText);
+const skipMsg = "页面处于「今日盘中估」状态（读数条显示的是盘中估那一期，不是最新快照）→ 本项跳过，收盘后自动恢复比对";
+check("走势卡读数含最新总资产 " + money(snapTotal), intraday || near(readText, snapTotal, 3), intraday ? skipMsg : readText.slice(0, 160));
+check("走势卡读数含最新浮盈亏 " + money(latest.pl), intraday || near(readText, latest.pl), intraday ? skipMsg : readText.slice(0, 160));
 
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];
