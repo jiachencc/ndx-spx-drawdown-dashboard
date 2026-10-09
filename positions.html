@@ -2891,21 +2891,38 @@ function snapActions(prev, cur) {
       o.amt += (Number.isFinite(t.amt) ? t.amt : 0); o.n++;
     });
   });
-  if (!acts.length && !Object.keys(otcAgg).length) return "";
+  /* 银行转入 / 转出（FLOWS 手账 ✓）—— 2026-10-09 用户：「如果有银行转入转出 就加上 银行转入/转出 标签」✓。
+     取数判据与 flowsNet() **完全一致**（同一区间、同一字段 f.d / f.amt ✓），只是这里逐笔列出而非求和 ✓。
+     ⚠ FLOWS 在公开仓库里**恒为空数组** ✓（隐私约定：收入侧指纹不入库，见 data.js 那段的注释）→
+       本段一枚标签都不产出 ✓；本地补录（data.private.backup.js 或临时填写）后才会出现 ✓ 且不会落库 ✗。
+     ▸ 配色沿用旧「银行进出」KPI 那套：转入＝add（青 · info）、转出＝cut（黄 · warn）✓ ——
+       不用 up/down（绿/红）✗：转账不是赚亏，用赚亏色会误导 ✓ */
+  const bankParts = [];
+  const flRows = ((typeof FLOWS !== "undefined" && Array.isArray(FLOWS)) ? FLOWS : [])
+    .filter((f) => f.d > prev.d && f.d <= cur.d).slice()
+    .sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1));
+  flRows.forEach((f) => {
+    const inn = f.amt >= 0;
+    bankParts.push('<span class="snap-tag ' + (inn ? "add" : "cut") + '" title="' +
+      esc("银证转账 " + (inn ? "转入" : "转出") + " " + Math.abs(f.amt) + " 元 · " + f.d + (f.note ? " · " + f.note : "")) + '">' +
+      (inn ? "银行转入 " : "银行转出 ") + esc(fmtYuan(Math.abs(f.amt))) + " 元 · " + esc(f.d.slice(5)) + "</span>");
+  });
+  if (!acts.length && !Object.keys(otcAgg).length && !bankParts.length) return "";
   const buy = {}, sell = [];
   acts.forEach((e) => {
     if (/卖出|减仓|清仓/.test(e.act)) sell.push(e);
     else buy[e.sym] = (buy[e.sym] || 0) + e.qty;
   });
-  const parts = [];
+  /* 顺序：外部（银行）→ 场内买卖 → 场外定投 ✓ —— 钱从哪来、然后怎么变成持仓，顺着读 ✓ */
+  const parts = bankParts.slice();
   Object.keys(buy).forEach((s) => parts.push('<span class="snap-tag add">买入 ' + esc(s) + " " + fmtQty(buy[s]) + ' 份</span>'));
   sell.forEach((e) => parts.push('<span class="snap-tag close">卖出 ' + esc(e.sym) + " " + fmtQty(e.qty) + ' 份</span>'));
-  /* 场外：申购/定投＝钱进（用 add 绿 ✓）、赎回＝钱出（用 cut ✓），与场内那两类同一个视觉语言 ✓ */
+  /* 场外：申购/定投＝钱进（用 add ✓）、赎回＝钱出（用 cut ✓），与场内那两类同一个视觉语言 ✓ */
   Object.keys(otcAgg).map((k) => otcAgg[k]).sort((a, b) => b.amt - a.amt)
     .forEach((o) => parts.push('<span class="snap-tag ' + (/赎回/.test(o.act) ? "cut" : "add") + '" title="' +
       esc(otcName(o.code) + " · " + o.code + " · " + o.act + " " + o.amt + " 元" + (o.n > 1 ? "（" + o.n + " 笔）" : "")) + '">' +
       esc(o.act) + " " + esc(otcName(o.code)) + " " + fmtYuan(o.amt) + " 元" + (o.n > 1 ? "（" + o.n + " 笔）" : "") + "</span>"));
-  return '<div class="snap-line acts snap-sec"><span class="n" title="场内＝券商买卖流水（POSITIONS.log）；场外＝定投 / 申购 / 赎回流水（OTC_LOG，只列「成功」的笔）。两边金额口径不同：场内按份数成交、场外按扣款金额 ✓">动作</span><span class="v">' + parts.join("") + "</span></div>";
+  return '<div class="snap-line acts snap-sec"><span class="n" title="银行＝银证转账手账（FLOWS；公开仓库里恒为空，本地补录才有 ✓）；场内＝券商买卖流水（POSITIONS.log）；场外＝定投 / 申购 / 赎回（OTC_LOG，只列「成功」的笔）。三者金额口径不同：场内按份数成交、场外按扣款金额、银证按转账金额 ✓">动作</span><span class="v">' + parts.join("") + "</span></div>";
 }
 /* 事件标签：单一来源（中文 → 配色 class），文案即 key。
    原来 CLS（中文→class）与 TXT（class→中文）是两张互逆的表，只改一张就会标签与配色错位。 */
