@@ -363,6 +363,47 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
 }
 
+/* ④d 快照对比：「清仓行」的本期盈亏必须是**这只本期真正的盈亏**，不能是「上期浮盈亏的相反数」✗
+   （2026-10-09 用户报的 bug：中韩半导体ETF华泰被清掉，行内显示 **+12,649**，而它是**亏着卖**的 ——
+     旧口径 -(a.pl) 把"浮亏不再挂在账上"当成了收益 ✗✗；正确口径 = 卖出回款 − 本期期初市值。
+     实测：69,155.00 − 69,722.40 = **−567.40**（＝当日价跌 (4.587→4.550)×15,200 = −562.40 − 费 5.00 ✓）。
+   本断言**独立复算**（不读页面的中间量）：对最新一期的每一只场内清仓标的，
+   回款 = 该只在本期的卖出行 realized ＋ 期初成本 → 期望值必须出现在快照卡文本里 ✓） */
+{
+  const snapRows = (() => {
+    const m = readFileSync(path.join(root, "positions-data.js"), "utf8").match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m);
+    if (!m) return [];
+    const c = vm.createContext({});
+    vm.runInContext(m[0] + "\nthis.o = SNAPSHOTS;", c, { timeout: 500 });
+    return c.o;
+  })();
+  const P2 = (() => {
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
+    if (!m) return null;
+    const c = vm.createContext({});
+    vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 });
+    return c.o;
+  })();
+  const full = snapRows.filter((s) => s.items);
+  const prevS = full[full.length - 2], curS = full[full.length - 1];
+  const cleared = prevS ? Object.keys(prevS.items).filter((code) => !curS.items[code]) : [];
+  const want = cleared.filter((code) => /ETF|LOF/.test(prevS.items[code].name)).map((code) => {
+    const nm = prevS.items[code].name;
+    const sell = ((P2 && P2.log) || []).filter((e) => /卖出|减仓|清仓/.test(String(e.act || "")) &&
+      e.sym === nm && e.d > prevS.d && e.d <= curS.d)[0];
+    return (sell && Number.isFinite(sell.realized))
+      ? { nm: nm, v: (sell.realized + (prevS.items[code].cost || 0)) - (prevS.items[code].val || 0) } : null;
+  }).filter(Boolean);
+  const snapEl = win.document.getElementById("snap-list");
+  const snapTxt = snapEl ? snapEl.textContent.replace(/\s+/g, "") : "";
+  const bad = want.filter((w) => !near(snapTxt, w.v, 1));
+  check("快照对比「清仓行」本期盈亏 = 回款 − 期初市值（复算 " + want.length + " 只：" +
+    want.map((w) => w.nm.slice(0, 8) + " " + Math.round(w.v)).join("、") + "）",
+    want.length > 0 && bad.length === 0,
+    bad.length ? "卡里找不到：" + bad.map((w) => w.nm + " 应 " + w.v.toFixed(2)).join("、")
+      : (snapEl ? "逐只核对通过 ✓" : "页面里没有 #snap-list"));
+}
+
 /* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
    ⚠ 2026-10-09 修正：原来无条件拿**最新快照**去比读数条 ✗ ——
    可走势序列的最后一个点可以是「今日盘中估」（当 data.js 里的报价/指数比最新快照更新时，页面就会补这一期，
