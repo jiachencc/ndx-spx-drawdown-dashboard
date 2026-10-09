@@ -1471,6 +1471,36 @@
   #snap-attr table.sa-mx tbody tr.mx-carry > td { border-top: 1px dashed var(--line-soft); }
   #snap-attr table.sa-mx tbody tr.mx-carry .mx-d { font-weight: 700; letter-spacing: .02em; }
 
+  /* ── 归因矩阵三级下钻（2026-10-09 第三步）───────────────────────────────────────────
+     选中态要**一眼可辨**（否则点完不知道点中了哪 ✓）：格子环形描边 ＋ 表头列高亮 ＋ 该行日期/合计格染色 ✓。
+     ⚠ 行染色只挑 mx-d / mx-sum 两格：数据格有**内联 background**（对数色阶 ✓），
+       样式表里的 background-image 盖不过内联的 background 简写 ✗ → 硬染会白费力气 ✓ */
+  #snap-attr table.sa-mx td.mx-click { cursor: pointer; }
+  #snap-attr table.sa-mx td.mx-click:hover { box-shadow: inset 0 0 0 1px rgba(147, 163, 187, .55); }
+  #snap-attr table.sa-mx td.mx-click:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  #snap-attr table.sa-mx td.mx-sel { box-shadow: inset 0 0 0 2px var(--blue); }
+  #snap-attr table.sa-mx th.mx-selc { color: var(--tx); text-decoration: underline; }
+  #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-d,
+  #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-sum { background: rgba(147, 163, 187, .14); }
+
+  /* ── 下钻面板（三级视图共用）───────────────────────────────────────────────────── */
+  #snap-attr .sa-back { font-size: var(--chk-fs-mini); font-family: var(--sans); color: var(--tx2);
+    background: none; border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 5px; margin-right: 2px; cursor: pointer; }
+  #snap-attr .sa-back:hover { color: var(--tx); border-color: var(--blue); }
+  #snap-attr .sd-click { cursor: pointer; border-radius: 4px; }
+  #snap-attr .sd-click:hover { background: rgba(147, 163, 187, .12); }
+  #snap-attr .sd-click:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  /* 轨迹里"一期一大块"：块间虚线分隔 ✓（与矩阵的期行分隔同一语言 ✓） */
+  #snap-attr .sd-hrow { padding: 2px 0 3px; border-top: 1px dashed var(--line-soft); }
+  #snap-attr .sd-hrow:first-child { border-top: 0; }
+  #snap-attr .sd-hd { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap;
+    font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono); }
+  #snap-attr .sd-hd b { color: var(--tx2); }
+  #snap-attr .sd-hd i { font-style: normal; }
+  #snap-attr .sd-ev { font-size: var(--chk-fs-mini); font-family: var(--sans); color: var(--tx3);
+    background: rgba(147, 163, 187, .10); border-radius: 3px; padding: 0 4px; }
+  #snap-attr .sd-cmp { font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono); padding-left: 2px; }
+
   /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────
      取证结论（截图 ＋ 探针，非推测）：
      ① 文字色变量被污染：`:root` 的 --tx = #e2e9f5（浅色 ✓），但在 #snap-attr 内解析成

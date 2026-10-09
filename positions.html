@@ -1308,6 +1308,10 @@ const SA_NAME = (() => {                       // 标的名（从任一期的 it
    选择记在 localStorage（与 trendView / trendRange 同一套做法 ✓；隐私模式下忽略 ✓） */
 let saDim = "theme";
 try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /* 隐私模式下忽略 */ }
+/* 下钻选择（2026-10-09 第三步 ✓）：null＝整期视图；{k:"cell",d,col}＝某格；{k:"hold",code,back}＝某只的轨迹。
+   ⚠ 必须是**模块级**：切一次维度就整块重渲染 ✗，函数内的局部变量留不下 ✓（与 saDim 同一理由 ✓）。
+   ⚠ 不进 localStorage ✓ —— 它是一次性交互状态 ✓，刷新后回到"净变动最大那期"更合理 ✓。 */
+let saSel = null;
 function renderSnapAttr() {
   const el = $("snap-attr");
   if (!el) return;
@@ -1348,7 +1352,9 @@ function renderSnapAttr() {
        （旧注释保留在此：500 元「并入其他」那档早在 10-09 就废了 ✓ —— 底色改对数尺度后失去理由 ✓） */
     const nClose = Object.keys(kinds).filter((c) => kinds[c] === "close");
     const nNa = Object.keys(kinds).filter((c) => kinds[c] === "na");
-    live.push({ d: b.d, items: items, kinds: kinds, nClose: nClose, nNa: nNa,
+    /* rawA / rawB 留住两期的**原始 items**（qty / cost / val ✓）—— 下钻第三步的「本期快照对比」要用 ✓
+       （items 里只有算好的金额 ✗，看不出"是净值跌了还是份数变了" ✓） */
+    live.push({ d: b.d, items: items, kinds: kinds, nClose: nClose, nNa: nNa, rawA: a.items, rawB: b.items,
       net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
   /* ── 「期初结转」行的取值（A，2026-10-09）────────────────────────────────────────────
@@ -1367,6 +1373,10 @@ function renderSnapAttr() {
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
   function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：本函数内任意位置可用 ✓
+  /* 该格 / 该只 是否当前选中（2026-10-09 第三步的下钻高亮 ✓）。
+     写成**函数声明**：cellOf / carryCell 在下面几行就要调它 ✓（const 箭头会撞 TDZ ✗）。 */
+  function selIsCell(d, col) { return !!(saSel && saSel.k === "cell" && saSel.d === d && saSel.col === col); }
+  function selIsHold(code) { return !!(saSel && saSel.k === "hold" && saSel.code === code); }
   /* ── 归因维度（2026-10-09 加，用户要求 A ＋ B）───────────────────────────────────────
      默认**主题** ✓；另两种是"要查时切一下"的补充 ✓（顶部小切换器 ✓，选择记 localStorage ✓）。
      为什么不默认平台（实测两者都 6 列，但平台维度在这套账户上会**塌缩** ✗）：
@@ -1421,8 +1431,14 @@ function renderSnapAttr() {
       .map(([c, x]) => (SA_NAME[c] || c)
         + (saDim === "plat" ? "" : " · " + (isOnExchange(c) ? "平安证券" : (srcLabel(c).s || "场外")))
         + "　" + fmtAmt(x)).join("\n");
-    return '<td class="mx-c" style="background:' + cellBg(s.v) + '" title="'
-      + esc(colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）")) + '">' + fmtAmt(s.v) + "</td>";
+    /* 可点（2026-10-09 第三步 ✓）：点该格 → 下方只列这一格的成员 ✓。
+       data-v／data-cell-sum 给门禁 ④l 用**精确值** ✓（显示按整元取整 ✗，分辨不出漂移 ✓）；
+       tabindex ＋ role=button ＋ aria-label 让键盘与读屏也能到 ✓（与页内其它可点元素同一套 ✓）。 */
+    return '<td class="mx-c mx-click' + (selIsCell(p.d, t) ? " mx-sel" : "") + '" data-cell="1"'
+      + ' data-d="' + esc(p.d) + '" data-col="' + esc(t) + '" data-v="' + s.v.toFixed(2) + '"'
+      + ' tabindex="0" role="button" aria-label="' + esc("看 " + p.d + " 这一期「" + colNameOf(t) + "」的成员，合计 " + fmtAmt(s.v) + " 元") + '"'
+      + ' style="background:' + cellBg(s.v) + '" title="'
+      + esc(colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(s.v) + "</td>";
   };
   /* 维度切换器（2026-10-09 加，B）——沿用主视图那个 .vs-btn 的控件语言 ✓ */
   let h = '<div class="sa-dims">' + Object.keys(DIMS).map((k) =>
@@ -1451,7 +1467,8 @@ function renderSnapAttr() {
     + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(allSum) + ' ✓（同一口径、同一个数 ✓；'
     + baseD.slice(5) + " 之前的账在「期初结转」行里 ✓）</span></div>";
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
-    + cols.map((t) => "<th>" + esc(colNameOf(t)) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
+    + cols.map((t) => "<th" + (saSel && saSel.k === "cell" && saSel.col === t ? ' class="mx-selc"' : "")
+      + ">" + esc(colNameOf(t)) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
      渲染走 live.slice().reverse() ✓，data-i 仍指向**原下标** ✓（点击下钻的映射不变 ✓）。
      日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只 ✓）；
@@ -1462,7 +1479,8 @@ function renderSnapAttr() {
       ? '<span class="mx-close" title="' + esc("本期清仓：" + p.nClose.map((c) => SA_NAME[c] || c).join("、") + "（金额已按「回款 − 期初市值」计入本行 ✓）") + '">清' + p.nClose.length + "</span>" : "")
       + (p.nNa && p.nNa.length
         ? '<span class="mx-close warn" title="' + esc("本期清仓但查不到流水，**无法归因**（未按 0 计 ✗）：" + p.nNa.map((c) => SA_NAME[c] || c).join("、")) + '">⚠</span>' : "");
-    h += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + mark + "</td>"
+    h += '<tr data-i="' + i + '"' + (saSel && saSel.k === "cell" && saSel.d === p.d ? ' class="mx-hlr"' : "") + '>'
+      + '<td class="mx-d">' + p.d.slice(5) + mark + "</td>"
       + cols.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
@@ -1483,11 +1501,15 @@ function renderSnapAttr() {
       .map(([c, x]) => (SA_NAME[c] || c)
         + (saDim === "plat" ? "" : " · " + (isOnExchange(c) ? "平安证券" : (srcLabel(c).s || "场外")))
         + "　" + fmtAmt(x)).join("\n");
-    return '<td class="mx-c" style="background:' + cellBg(v) + '" title="'
-      + esc(colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + baseD + " 的累计结果）\n" + (mem || "（无成员明细）")) + '">' + fmtAmt(v) + "</td>";
+    return '<td class="mx-c mx-click' + (selIsCell("__carry", t) ? " mx-sel" : "") + '" data-cell="1"'
+      + ' data-d="__carry" data-col="' + esc(t) + '" data-v="' + v.toFixed(2) + '"'
+      + ' tabindex="0" role="button" aria-label="' + esc("看期初结转「" + colNameOf(t) + "」的成员，合计 " + fmtAmt(v) + " 元") + '"'
+      + ' style="background:' + cellBg(v) + '" title="'
+      + esc(colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + baseD + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(v) + "</td>";
   };
   const carryIn = Object.entries(carryItems).filter(([c]) => isOnExchange(c)).reduce((a, x) => a + x[1], 0);
-  h += '<tr class="mx-carry" data-carry="' + carryTotal.toFixed(2) + '" data-carry-d="' + baseD + '" title="' + esc(
+  h += '<tr class="mx-carry' + (saSel && saSel.k === "cell" && saSel.d === "__carry" ? " mx-hlr" : "") + '"'
+    + ' data-carry="' + carryTotal.toFixed(2) + '" data-carry-d="' + baseD + '" title="' + esc(
       "期初结转 ＝ 账户起点 → " + baseD + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(carryTotal) + " 元\n"
       + "场内 " + fmtAmt(carryIn) + " ＋ 场外 " + fmtAmt(carryTotal - carryIn)
       + "（场内自 2026-06-01 起、流水完整 ✓；场外＝在持 8 只自 2026-03-03 起 ✓）\n"
@@ -1505,31 +1527,133 @@ function renderSnapAttr() {
     + cols.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
     + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
 
-  /* 下钻：点某行 → 该期逐只明细。默认选净变动最大的那期。
-     ⚠ 2026-10-09（A）：多了「期初结转」行 → cur 用 **"carry"** 表示它 ✓（不能用 live 的下标 ✗，那会指向错误的一期 ✗）。
-       它的明细是"各标的到基准期的**累计结果**"，不是"本期变动" ✓ —— 标题里写明，避免读者按逐期口径读 ✗。 */
+  /* ── 三级下钻（2026-10-09 第三步 A~F，用户问：「逐只明细还能细化吗？比如我点击某一个格子？」）───────
+     层级：**整期**（点行 ✓）→ **该格**（点格子 ✓：某一主题 × 某一期）→ **该只的逐期轨迹**（点成员 ✓）
+     状态 saSel（模块级，见文件里 saDim 旁边 ✓）：
+       null ＝ 整期视图（cur 仍决定是哪一期 ✓）· {k:"cell", d, col} · {k:"hold", code, back}
+     数据**全部来自现有 items / periodContrib / POSITIONS.log / OTC_LOG** ✓ —— 不新增口径 ✓：
+       · 该格成员之和 ≡ 格子里那个数 ✓（两处都用 colKeyOf 过滤 ✓，门禁 ④l 断言 ✓）
+       · 逐期轨迹各期之和 ＋ 期初结转 ≡ 生涯累计 ✓（门禁 ④l 断言 ✓）
+       · 「本期快照对比」只**摆事实**（份数 / 单价 / 市值 / 摊薄成本 的 A→B ✓）——
+         刻意**不做**"价格贡献 vs 份数贡献"的拆分 ✗：摊薄成本口径下必须假设成本摊销顺序 ✗，
+         拆出来的两个数无法与券商 App 对账 ✗ → 那就成了用户最不想要的"歧义数据" ✓
+     键盘：格子与成员行都 tabindex=0 ＋ role=button ＋ aria-label ✓，Enter/Space 与点击走同一套分派 ✓。 */
   let cur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
-  const detail = () => {
+  const nameOf = (code) => (SA_NAME[code] || (baseSnap && baseSnap.items[code] && baseSnap.items[code].name) || code);
+  const fmtPx = (v) => (v >= 0 ? "" : "−") + Math.abs(v).toFixed(4);   // 单价 / 净值：4 位（场内 1.6 元档要看得见档位 ✓）
+  const periodOf = (d) => live.find((p) => p.d === d) || null;
+  /* 该只在各期的贡献（**新在上** ✓ 与矩阵一致；含值为 0 的期 ✓ —— 0 是真实读数 ✗ 不是"缺" ✓） */
+  const histOf = (code) => live.filter((p) => p.items[code] !== undefined)
+    .map((p) => ({ d: p.d, v: p.items[code], kind: (p.kinds || {})[code] || "",
+      rawA: (p.rawA || {})[code], rawB: (p.rawB || {})[code] })).reverse();
+  /* 生涯累计 ＝ 期初结转那段 ＋ 各期贡献之和 ✓（两段同源 ✓，不是另算一套 ✗） */
+  const totalOf = (code) => num(carryItems[code]) + live.reduce((a, p) => a + num(p.items[code]), 0);
+  /* 该只在本期（prevD, d] 的流水事件：场内按名称/代码匹配 POSITIONS.log ✓（建仓/加仓/减仓/清仓 ＋ 已实现 ✓）；
+     场外按代码查 OTC_LOG ✓ —— 那张表只有申购/定投、**没有赎回** ✗，所以只能报"本期 N 笔申购 · 共 X 元" ✓ */
+  const eventsOf = (code, prevD, d) => {
+    const out = [];
+    if (isOnExchange(code)) {
+      const nm = nameOf(code);
+      (((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])).forEach((e) => {
+        if (!(e.d > prevD && e.d <= d) || (e.sym !== nm && e.sym !== code)) return;
+        out.push(e.d.slice(5) + " " + (e.act || "成交") + (e.qty ? " " + fmtQty(e.qty) + " 份" : "")
+          + (Number.isFinite(e.realized) ? "（已实现 " + fmtAmt(e.realized) + "）" : "")
+          + (e.note ? " · " + e.note : ""));
+      });
+    } else {
+      const arr = (((typeof OTC_LOG !== "undefined" && OTC_LOG && OTC_LOG[code]) || [])).filter((e) => e.d > prevD && e.d <= d);
+      if (arr.length) out.push("本期 " + arr.length + " 笔申购 · 共 " + fmtYuan(arr.reduce((a, e) => a + num(e.amt), 0)) + " 元");
+    }
+    return out;
+  };
+  const kindMark = (k) => (k === "close" ? '<em class="sd-k">清仓</em>'
+    : (k === "na" ? '<em class="sd-k na">⚠ 不可归因</em>' : ""));
+  const pctTxt = (v, base) => (base ? (v / base * 100).toFixed(0) + "%" : "—");
+  /* 一行（成员 / 轨迹里的某一期 ✓）——clickCode 非空则可点 ✓（下钻到该只的轨迹 ✓，门禁 ④l 靠它 ✓） */
+  const rowHtml = (nm, v, wTop, pct, km, clickCode) => '<div class="sd-row' + (clickCode ? " sd-click" : "") + '"'
+    + (clickCode ? ' data-hold="' + esc(clickCode) + '" tabindex="0" role="button" aria-label="'
+      + esc("看 " + nameOf(clickCode) + " 的逐期轨迹") + '"' : "")
+    + '><span class="sd-nm">' + nm + (km || "") + "</span>"
+    + '<span class="sd-bar"><i style="width:' + (Math.abs(v) / (wTop || 1) * 100).toFixed(1) + "%;background:" + (v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+    + '<span class="sd-amt ' + cls(v) + '">' + fmtAmt(v) + "</span>"
+    + '<span class="sd-pct">' + pct + "</span></div>";
+  /* 视图① 整期（含「期初结转」那一段 ✓）：点行切换期 ✓、点格子只看该格 ✓、点标的下钻轨迹 ✓ */
+  const viewPeriod = () => {
     const isCarry = cur === "carry";
-    const p = isCarry ? { d: baseD, items: carryItems, kinds: {}, net: carryTotal, carry: true } : live[cur];
-    const list = Object.entries(p.items).map(([c, v]) => ({ c, v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    const p = isCarry ? { d: baseD, items: carryItems, kinds: {}, net: carryTotal } : live[cur];
+    const list = Object.entries(p.items).map(([c, v]) => ({ c: c, v: v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     return '<div class="sa-detail"><div class="sd-head">'
-      + (isCarry
-        ? "期初结转 · 账户起点 → " + baseD + " 的逐只累计结果（合计 " + fmtAmt(carryTotal) + " 元）"
+      + (isCarry ? "期初结转 · 账户起点 → " + baseD + " 的逐只累计结果（合计 " + fmtAmt(carryTotal) + " 元）"
         : p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）")
-      + '<span class="sd-hint">点上方任一行可切换</span></div>'
-      + list.map((x) => {
-        /* 逐只标出「这只本期是什么性质」（2026-10-09 加）：清仓 ✓ ／ 清仓但不可归因 ⚠ ✓
-           不可归因那种 v＝0 是"缺"而不是"没赚没赔" ✗ —— 必须显式写出来 ✓ */
-        const k = (p.kinds || {})[x.c];
-        const km = k === "close" ? '<em class="sd-k">清仓</em>'
-          : (k === "na" ? '<em class="sd-k na">⚠ 不可归因</em>' : "");
-        return '<div class="sd-row"><span class="sd-nm">' + esc(SA_NAME[x.c] || x.c) + km + "</span>"
-          + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:" + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
-          + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
-          + '<span class="sd-pct">' + (x.v / (p.net || 1) * 100).toFixed(0) + "%</span></div>";
-      }).join("") + "</div>";
+      + '<span class="sd-hint">点上方任一行切换期 · 点<b>格子</b>只看该格 · 点<b>标的</b>看它的逐期轨迹</span></div>'
+      + list.map((x) => rowHtml(esc(nameOf(x.c)), x.v, top, pctTxt(x.v, p.net), kindMark((p.kinds || {})[x.c]), x.c)).join("")
+      + "</div>";
+  };
+  /* 视图② 某一格（某主题 × 某期 ✓）——只列该格成员；合计＝格子里那个数 ✓（门禁 ④l 断言 ✓） */
+  const viewCell = (d, col) => {
+    const isCarry = d === "__carry";
+    const p = isCarry ? null : periodOf(d);
+    const items = isCarry ? carryItems : (p ? p.items : {});
+    const list = Object.entries(items).filter(([c]) => colKeyOf(c) === col)
+      .map(([c, v]) => ({ c: c, v: v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    const sum = list.reduce((a, x) => a + x.v, 0);
+    const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
+    return '<div class="sa-detail" data-cell-sum="' + sum.toFixed(2) + '"><div class="sd-head">'
+      + '<button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
+      + (isCarry ? "期初结转（账户起点 → " + baseD + "）" : d) + " · <b>" + esc(colNameOf(col)) + "</b>这一格"
+      + "（合计 " + fmtAmt(sum) + " 元 · " + list.length + " 只）"
+      + '<span class="sd-hint">点标的看它的逐期轨迹 ✓</span></div>'
+      + (list.length
+        ? list.map((x) => rowHtml(esc(nameOf(x.c)), x.v, top, pctTxt(x.v, sum), kindMark((p && p.kinds || {})[x.c]), x.c)).join("")
+        : '<div class="sd-row"><span class="sd-nm">该格本期没有成员 ✓</span></div>')
+      + "</div>";
+  };
+  /* 视图③ 某一只的**逐期轨迹**（B：各期贡献 ＋ 流水事件）＋ **本期快照对比**（C）＋ **生涯累计两段式**（F） */
+  const viewHold = (code) => {
+    const hist = histOf(code);
+    const total = totalOf(code);
+    const carryV = num(carryItems[code]);
+    const top = Math.max.apply(null, hist.map((x) => Math.abs(x.v)).concat([Math.abs(carryV), 1]));
+    const back = (saSel && saSel.k === "hold" && saSel.back) ? saSel.back : null;
+    const out = [];
+    if (carryItems[code] !== undefined) {
+      out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + baseD.slice(5) + "</i></div>"
+        + '<div class="sd-row"><span class="sd-nm">起点之前的累计结果</span>'
+        + '<span class="sd-bar"><i style="width:' + (Math.abs(carryV) / top * 100).toFixed(1) + "%;background:"
+        + (carryV >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+        + '<span class="sd-amt ' + cls(carryV) + '">' + fmtAmt(carryV) + "</span>"
+        + '<span class="sd-pct">' + pctTxt(carryV, total) + "</span></div></div>");
+    }
+    hist.forEach((h2) => {
+      const i = live.findIndex((p) => p.d === h2.d);
+      const p = i >= 0 ? live[i] : null;
+      const prevD = i > 0 ? live[i - 1].d : baseD;
+      const ev = eventsOf(code, prevD, h2.d);
+      const A = h2.rawA, B = h2.rawB;
+      const px = (it) => ((it && it.qty) ? it.val / it.qty : null);
+      const seg = [];
+      if (B) {
+        seg.push("份数 " + (A ? fmtQty(A.qty) + " → " : "") + fmtQty(B.qty));
+        if (px(B) !== null) seg.push("单价 " + (A && px(A) !== null ? fmtPx(px(A)) + " → " : "") + fmtPx(px(B)));
+        if (A) seg.push("市值 " + fmtYuan(A.val) + " → " + fmtYuan(B.val) + " · 摊薄成本 " + fmtYuan(A.cost) + " → " + fmtYuan(B.cost));
+      }
+      out.push('<div class="sd-hrow"><div class="sd-hd"><b>' + h2.d.slice(5) + "</b>"
+        + (ev.length ? '<i class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(ev.join(" ／ ")) + "</i>" : "")
+        + "</div>" + rowHtml("本期贡献", h2.v, top, pctTxt(h2.v, p ? p.net : 0), kindMark(h2.kind), null)
+        + (seg.length ? '<div class="sd-cmp">' + esc(seg.join(" · ")) + "</div>" : "")
+        + "</div>");
+    });
+    return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
+      + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
+      + "<b>" + esc(nameOf(code)) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转 ✓）· <b>生涯累计 " + fmtAmt(total) + "</b>"
+      + '<span class="sd-hint">生涯累计 ＝ 期初结转 ' + fmtAmt(carryV) + " ＋ 各期贡献之和 ✓（门禁 ④l 盯着 ✓）</span></div>"
+      + out.join("") + "</div>";
+  };
+  const detail = () => {
+    if (saSel && saSel.k === "hold") return viewHold(saSel.code);
+    if (saSel && saSel.k === "cell") return viewCell(saSel.d, saSel.col);
+    return viewPeriod();
   };
   h += '<div class="sa-detail-box">' + detail() + "</div>";
   /* ⚠ 2026-10-09 删掉原来的**主题色块图例** ✗ —— 用户问：「逐只明细 后面几个颜色是不是没有用到？」✓
@@ -1548,6 +1672,11 @@ function renderSnapAttr() {
     + "（那一档画出来与「该主题当期无标的」长得一样，容易误读 ✗）。"
     + "<br>格里的「·」＝该期该主题<b>没有可归因的标的</b>（当时尚未持有，不是「变动为 0」）；"
     + "悬停任一<b>格</b>看该主题当期的成员与逐只金额，点任一<b>行</b>看该期全部逐只明细 ✓"
+    + "<br><b>三级下钻</b>（2026-10-09 加 ✓）：<b>点格子</b> → 下方只列该格成员（成员之和 ≡ 格子里那个数 ✓）；"
+    + "<b>点成员</b> → 该只的<b>逐期轨迹</b>：各期贡献 ＋ 本期流水事件（场内建仓 / 加仓 / 减仓 / 清仓 ✓）"
+    + "＋ <b>本期快照对比</b>（份数 / 单价 / 市值 / 摊薄成本的 A→B ✓）＋ <b>生涯累计</b>（＝期初结转 ＋ 各期贡献之和 ✓）；"
+    + "「← 返回」逐级回退 ✓、格子可 Tab 到并回车 ✓。⚠ 快照对比只<b>摆事实</b> ✓ —— 不做「价格贡献 vs 份数贡献」的拆分 ✗："
+    + "摊薄成本口径下那需要假设成本摊销顺序 ✗，拆出来的两个数无法与券商 App 对账 ✗。"
     + "<br><b>「全期」＝ 账户起点 → " + lastD.slice(5) + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(lastPl) + " ✓），"
     + "不是「某段窗口内的变化量」✗（旧版只覆盖 " + baseD.slice(5) + " 之后，于是「全期」成了变化量 ✗、与累计收益差 8,278 ✗；"
     + "2026-10-09 加了「期初结转」行之后两者合流 ✓，表上方那行小字就是这两个数 ✓）。"
@@ -1561,22 +1690,62 @@ function renderSnapAttr() {
     + (hidden.length ? "<br>⚠ 已<b>并入</b>「期初结转」的相邻对共 " + hidden.length + " 个（相邻对里有一期缺 items，无法逐期归因）：" + hidden.join(" ") + " ✓" : "")
     + "</div>";
   el.innerHTML = h;
-  const box = el.querySelector(".sa-detail-box");
-  el.querySelectorAll(".sa-mx tbody tr[data-i]").forEach((tr) => {
-    tr.onclick = () => { cur = +tr.dataset.i; box.innerHTML = detail(); };
-  });
-  /* 「期初结转」行的下钻（A）：与期行同一套 ✓，只是 cur 用 "carry" ✓ */
-  const carryTr = el.querySelector(".sa-mx tbody tr.mx-carry");
-  if (carryTr) carryTr.onclick = () => { cur = "carry"; box.innerHTML = detail(); };
-  /* 维度切换（2026-10-09，B）：整块重渲染 ✓（简单、无状态漂移 ✓）。
-     用**容器委托**而不是逐个绑按钮 ✓ —— 与渲染次数无关，也不会随重渲染丢监听 ✓。
-     ⚠ 它不干扰行点击：行上的 onclick 先触发、这里再收到冒泡，但 closest("[data-dim]") 为空 → 直接 return ✓ */
-  el.onclick = (e) => {
-    const b = e.target.closest("[data-dim]");
-    if (!b || b.dataset.dim === saDim) return;
-    saDim = b.dataset.dim;
-    try { localStorage.setItem("snapAttrDim", saDim); } catch (err) { /* 隐私模式下忽略 */ }
+  /* ── 交互分派（2026-10-09 第三步）：**一次点击与一次按键走同一套** ✓（不伪造事件对象 ✗）─────────────
+     优先级＝最内层先行 ✓：面包屑返回 → 格子 → 成员行 → 维度切换 → 期行 → 期初行 ✓
+     ⚠ 格子长在行里 ✗ → 必须先判格子 ✓，否则点一下格子会顺带把"期"也切了 ✓。
+     选择态一变就**整块重渲染**（高亮要跟着动 ✓）→ 再把焦点放回等价元素 ✓（键盘用户不会"掉出去" ✗）。 */
+  const refocus = () => {
+    let t = null;
+    if (saSel && saSel.k === "cell") t = el.querySelector('[data-cell][data-d="' + saSel.d + '"][data-col="' + saSel.col + '"]');
+    else if (saSel && saSel.k === "hold") t = el.querySelector('[data-hold="' + saSel.code + '"]');
+    if (t && t.focus) t.focus();
+  };
+  const setSel = (s, newCur) => {
+    if (newCur !== undefined) cur = newCur;
+    saSel = s;
     renderSnapAttr();
+    refocus();
+  };
+  const actOn = (target) => {
+    if (!target || !target.closest) return false;
+    const nav = target.closest("[data-nav]");
+    if (nav) {
+      if (nav.dataset.nav === "cell" && saSel && saSel.k === "hold" && saSel.back) { setSel(saSel.back); return true; }
+      setSel(null);                                    // 回到整期（cur 不动 ✓ 就是进来时那一期 ✓）
+      return true;
+    }
+    const cell = target.closest("[data-cell]");
+    if (cell) {                                        // 点格子 → 只看该格 ✓
+      const d = cell.dataset.d;
+      const i = live.findIndex((p) => p.d === d);
+      setSel({ k: "cell", d: d, col: cell.dataset.col }, d === "__carry" ? "carry" : (i >= 0 ? i : cur));
+      return true;
+    }
+    const hold = target.closest("[data-hold]");
+    if (hold) {                                        // 点成员 → 该只的逐期轨迹 ✓（记住从哪来 ✓）
+      setSel({ k: "hold", code: hold.dataset.hold, back: (saSel && saSel.k === "cell") ? saSel : null });
+      return true;
+    }
+    const dim = target.closest("[data-dim]");
+    if (dim) {                                         // 换维度：**清空下钻** ✓（维度一变、格的语义就变 ✗）
+      if (dim.dataset.dim === saDim) return true;
+      saDim = dim.dataset.dim;
+      try { localStorage.setItem("snapAttrDim", saDim); } catch (err) { /* 隐私模式下忽略 */ }
+      saSel = null;
+      renderSnapAttr();
+      return true;
+    }
+    const row = target.closest("tr[data-i]");
+    if (row) { setSel(null, +row.dataset.i); return true; }      // 点期行 → 整期 ✓
+    if (target.closest("tr.mx-carry")) { setSel(null, "carry"); return true; }   // 点期初行 → 那一段 ✓
+    return false;
+  };
+  /* 用**容器委托**：与渲染次数无关，也不会随重渲染丢监听 ✓（原来的逐元素绑法已删 ✗） */
+  el.onclick = (e) => { actOn(e.target); };
+  /* 键盘：格子与成员行是 role=button ＋ tabindex=0 ✓ → Enter / Space 与点击同义 ✓ */
+  el.onkeydown = (e) => {
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    if (actOn(e.target)) e.preventDefault();
   };
 }
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
