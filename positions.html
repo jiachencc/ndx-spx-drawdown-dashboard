@@ -2058,7 +2058,7 @@ function renderTrend(todayVal, todayCost) {
   const yTicks = [yLo, (yLo + yHi) / 2, yHi];
   let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="资产走势：' +
     pts.length + " 个数据点，总资产 " + fmtYuan(pts[0].val) + " → " + fmtYuan(pts[pts.length - 1].val) +
-    "，累计浮盈亏 " + fmtAmt(pts[pts.length - 1].val - pts[pts.length - 1].cost) + ' 元">';
+    "，累计收益（含已实现）" + fmtAmt(pts[pts.length - 1].val - pts[pts.length - 1].cost) + ' 元">';
   yTicks.forEach((tv) => {
     const y = Y(tv).toFixed(1);
     svg += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
@@ -3082,7 +3082,12 @@ function snapPairHtml(prev, cur) {
        标签用「本期」而非「当日盈亏」—— 卡头空间紧，跨度已由日期与 vs 说明（跨周末会写「跨 N 天」）。 */
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（跨 " + spanDays + " 天）" : "") + "</span>" +
-      snapHeadKpi("本期", dPl) + (typeof cur.pl === "number" ? snapHeadKpi("总盈亏", cur.pl) : "") +
+      /* ⚠ 2026-10-09 改：卡头「总盈亏」原来直接取快照 pl（＝摊薄口径的在持浮盈亏 ✗）——
+         10-09 一期显示 19,988 ✗，而汇总卡 / 本金卡的「累计收益（含已实现）」是 1,496 ✓，
+         同一个词两处两个意思 ✗（本轮 A 方案把本金加回清仓已实现后就露出来了 ✓）。
+         改用 snapPl()＝真·累计收益（含已实现 ✓）：10-09 起与前者不再相等，10-08 及以前 gap=0 → 一个数都不变 ✓。
+         每只**在持**行的小计仍用逐只 pl ✓（持仓级口径，本就含该只的部分卖出 ✓）。 */
+      snapHeadKpi("本期", dPl) + (typeof cur.pl === "number" ? snapHeadKpi("总盈亏", snapPl(cur)) : "") +
       (cur.tag ? '<span class="snap-tag ' + snapTagCls(cur.tag) + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
     /* 三格 KPI（总资产 / 总变化 / 银行进出）＋ 紧跟其后的银行进出小账本（2026-09-24 用户要求）——
        这三项原来是卡内三行文字；卡头的「本期 / 总盈亏」保持不变。 */
@@ -3902,7 +3907,9 @@ function renderSnapLog() {
   if (snaps.length >= 2) {
     const a = snaps[0], b = snaps[snaps.length - 1];
     const dTot = snapTotal(b) - snapTotal(a);
-    const dPl = (typeof a.pl === "number" && typeof b.pl === "number") ? b.pl - a.pl : dTot - snapFlow(a, b);
+    /* ⚠ 2026-10-09 改（同逐期卡卡头）：用 snapPl()（含已实现 ✓）而不是原始 pl ✗ ——
+       跨 10-09 的区间若按 Δpl 算会凭空多出清仓已兑现的 18,492 ✗。gap 在 10-08 及以前为 0 → 历史区间不变 ✓。 */
+    const dPl = (typeof a.pl === "number" && typeof b.pl === "number") ? snapPl(b) - snapPl(a) : dTot - snapFlow(a, b);
     /* 每个「标签 + 数字」整对 nowrap（一次性内联样式）：中文可以在**任意两字之间**断行，
        只加 &nbsp; 挡不住 —— 手机实测会把「总资产」拆成「总资 / 产 +106,524」（更难看）。
        折行只允许落在「 · 」这些分隔符处；.nb 在本文件是分区作用域（.trend-readout/.ro-* 各一份），
@@ -3941,7 +3948,7 @@ function renderSnapLog() {
   const base = snaps[0];
   const baseHtml = '<article class="snap-item"><h3 class="snap-head"><time class="snap-date" datetime="' + base.d + '">' + base.d.slice(5).replace("-", ".") + "</time>" +
     '<span class="snap-vs">基线快照 · ' + (base.items ? Object.keys(base.items).length + " 项明细 · " : "简快照 · ") + "总资产 " + fmtYuan(snapTotal(base)) +
-    (typeof base.pl === "number" ? " · 浮盈亏 " + fmtAmt2(base.pl) : "") + "</span></h3>" +
+    (typeof base.pl === "number" ? " · 累计收益 " + fmtAmt2(snapPl(base)) : "") + "</span></h3>" +
     '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">之后的快照将与它自动对比</span></div></article>';
   /* 只摊开最新 N 期，其余折进折叠区——逐期卡每张都很长，全铺开会把页面顶到看不完。
    * 区间累计卡（上方总结）始终保留，所以折叠不会遮住"整体怎么样了"。 */
