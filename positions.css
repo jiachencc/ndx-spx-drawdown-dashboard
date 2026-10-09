@@ -1509,12 +1509,36 @@
   #snap-attr table.sa-mx th[data-onsel] { color: var(--tx); text-decoration: underline; }
   /* 图：与仓库其它图同一套（真实像素宽 ＋ viewBox ✓）；
      text 的 fill 必须带 !important —— 本容器内的变量被更具体选择器污染过 ✗（见上方四轮修正的注释 ✓） */
-  #snap-attr .sa-chart-svg { display: block; margin: 4px 0 3px; max-width: 100%; }
+  /* ⚠ `height: auto` 是必需的 ✗ 别改成固定高：
+     svg 带 width/height 属性 ✓，但容器可能比它窄 ✗ → 只给 max-width:100% 的话，
+     svg 的 **box** 变窄而**高度不变** ✗ → 比例与 viewBox 不符 → preserveAspectRatio 默认(meet)
+     会把内容**上下居中留白** ✓ —— 留白那几像素上没有命中带 ✗（2026-10-09 实测：悬停到累计面板底部"没反应" ✓）。
+     `width:100% ＋ height:auto` 让 box 与 viewBox 同比例 ✓ → 无留白 ✓ 整块命中区都有效 ✓。 */
+  #snap-attr .sa-chart-svg { display: block; margin: 4px 0 3px; width: 100%; height: auto; }
   #snap-attr .sa-chart-svg .sa-bar { cursor: pointer; }
   #snap-attr .sa-chart-svg .sa-bar.up { fill: rgba(45, 212, 167, .78); }
   #snap-attr .sa-chart-svg .sa-bar.down { fill: rgba(224, 87, 107, .78); }
   #snap-attr .sa-chart-svg .sa-bar:hover, #snap-attr .sa-chart-svg .sa-bar:focus-visible { fill: var(--blue); }
   #snap-attr .sa-chart-svg text { font-family: var(--mono); font-size: 9px; fill: #93a3bb !important; }
+
+  /* ── 列头图的交互层（2026-10-09 第四步 B：A1~A4）──────────────────────────────────────
+     命中测试规则：**装饰元素一律不吃指针** ✓（线 / 文字 / 折线 / 圆点 / 高亮圈 ✓），
+     只有**整列命中带** .sa-band 吃 ✓ → 于是"悬停在图上任意一处"都能稳定命中某一期 ✓，
+     不会出现"指针压在折线上就没反馈"的坏体验 ✓（圆点小、本来就点不中 ✗）。 */
+  #snap-attr .sa-chart-svg line,
+  #snap-attr .sa-chart-svg text,
+  #snap-attr .sa-chart-svg polyline,
+  #snap-attr .sa-chart-svg circle { pointer-events: none; }
+  #snap-attr .sa-chart-svg rect.sa-bar { pointer-events: none; }
+  #snap-attr .sa-chart-svg rect.sa-band { pointer-events: all; fill: transparent; cursor: pointer; }
+  /* 选中/悬停的那一期：整列淡淡染一层 ✓（比十字虚线更轻、也不挡数据 ✓） */
+  #snap-attr .sa-chart-svg rect.sa-band.on { fill: rgba(147, 163, 187, .13); }
+  #snap-attr .sa-chart-svg rect.sa-band:focus-visible { outline: none; }
+  #snap-attr .sa-chart-svg:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  /* 读数行（A2）：**固定一行** ✓ —— 内容长短变化不让下方图上下跳 ✓（min-height 兜住两行 ✓） */
+  #snap-attr .sa-ch-read { font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono);
+    font-feature-settings: "tnum"; min-height: 13px; padding: 1px 0 2px; line-height: 1.45; }
+  #snap-attr .sa-ch-read b { color: var(--tx2); }
   #snap-attr .sa-chart-note { font-size: var(--chk-fs-mini); color: var(--tx3); line-height: 1.5; padding-top: 3px; }
 
   /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────

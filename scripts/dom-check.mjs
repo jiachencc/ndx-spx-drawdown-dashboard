@@ -932,9 +932,59 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
           const bk = mx.querySelector(".sa-detail-box [data-nav]");
           if (bk) bk.click();
           const back = mx.querySelector(".sa-detail-box .sa-detail");
-          check("归因列头图：「← 返回」回整期（且关掉图 ✓）",
-            !!back && !back.hasAttribute("data-cell-sum") && !mx.querySelector(".sa-chart"),
-            !back ? "返回后没有明细块 ✗" : "返回后仍停在格 / 图视图 ✗");
+          /* ⚠ 2026-10-09 第四步 B：从**图上**点进某一格之后，返回先回**那张图** ✓（不是一步跨到整期 ✗）——
+             所以要**再点一次**才回整期 ✓（两级回退 ✓，与"轨迹 → 那一格"同一套 ✓）。
+             （初版这里只点一下就断言"已回整期" ✗ —— 又是被自己的门禁抓出来的 ✓） */
+          const ch3 = !!mx.querySelector(".sa-chart-svg");
+          const bkP = mx.querySelector('.sa-detail-box [data-nav="period"]');
+          if (bkP) bkP.click();
+          const back2 = mx.querySelector(".sa-detail-box .sa-detail");
+          check("归因列头图：两级返回（该格 → 图 → 整期 ✓）",
+            ch3 && !!back2 && !back2.hasAttribute("data-cell-sum") && !mx.querySelector(".sa-chart"),
+            !ch3 ? "第一级返回没有回到那张图 ✗" : (!back2 ? "第二级返回后没有明细块 ✗" : "第二级返回后仍停在图 / 格 ✗"));
+          /* ④n 列头图的**交互**（A1~A4，2026-10-09 第四步 B）——
+             在 jsdom 里没有真实命中测试 ✗，所以直接**派发事件**驱动同一套处理函数 ✓
+             （pointermove 派发到 .sa-band 上 ✓、keydown 派发到 svg 上 ✓ —— 与真实操作走同一分支 ✓）：
+               ① 整列命中带 ≡ 期数 ✓
+               ② 派发 pointermove → 读数行出现该期日期 ✓（悬停预览 ✓）
+               ③ ←/→ 能逐期移动 ✓（键盘可达 ✓，且**不给 16 根柱子各一个 Tab 位** ✓：图是单一焦点 ✓）
+               ④ Enter → 落到**该格** ✓（与鼠标点击同一个分派 ✓，落点一致 ✓） */
+          {
+            const th2 = mx.querySelector("thead th[data-colhead]");
+            if (th2) th2.click();
+            const ch2 = mx.querySelector(".sa-chart");
+            const svg2 = mx.querySelector(".sa-chart-svg");
+            const bands2 = svg2 ? [...svg2.querySelectorAll("rect.sa-band")] : [];
+            check("列头图：整列命中带 ≡ 期数（" + bands2.length + " 条 ✓，2px 圆点根本点不中 ✗）",
+              !!svg2 && bands2.length === liveN, svg2 ? "命中带 " + bands2.length + " · 期望 " + liveN : "没有 .sa-chart-svg");
+            if (svg2 && bands2.length) {
+              const read2 = mx.querySelector(".sa-ch-read");
+              const bnd = bands2[Math.min(2, bands2.length - 1)];
+              bnd.dispatchEvent(new win.MouseEvent("pointermove", { bubbles: true }));
+              const txt1 = read2 ? read2.textContent.replace(/\s+/g, " ").trim() : "";
+              check("列头图：悬停某期 → 读数行给出该期与累计（" + txt1.slice(0, 46) + "…）",
+                !!read2 && txt1.indexOf(bnd.getAttribute("data-d")) >= 0 && txt1.indexOf("累计到该期") >= 0,
+                read2 ? "读数：" + txt1.slice(0, 90) : "没有 .sa-ch-read");
+              /* 键盘：先聚焦图（单一焦点 ✓），再 ← 一次 → 选中期应前移一位 ✓ */
+              svg2.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+              const txt2 = read2 ? read2.textContent.replace(/\s+/g, " ").trim() : "";
+              check("列头图：←/→ 逐期浏览（图是单一焦点 ✓，不给每根柱子各一个 Tab 位 ✗）",
+                !!read2 && txt2 !== txt1 && txt2.indexOf("累计到该期") >= 0, "← 之后读数：" + txt2.slice(0, 80));
+              /* ⚠ 期望值必须在**回车之前**读 ✗（Enter 会重新渲染、图就没了 ✓ —— 初版在这里读 null ✗） */
+              const curBand = mx.querySelector(".sa-chart-svg rect.sa-band.on");
+              const wantV = curBand ? Number(curBand.getAttribute("data-v")) : NaN;
+              svg2.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+              const cv2 = mx.querySelector(".sa-detail-box .sa-detail");
+              const cs2 = cv2 ? Number(cv2.getAttribute("data-cell-sum")) : NaN;
+              check("列头图：Enter → 落到**该格**（与点柱子同一个分派 ✓）",
+                Number.isFinite(cs2) && Number.isFinite(wantV) && Math.abs(cs2 - wantV) < 0.01,
+                "cellSum=" + (Number.isFinite(cs2) ? cs2 : "—") + " vs 命中带 data-v=" + wantV);
+              const bkC = mx.querySelector('.sa-detail-box [data-nav="back"]');
+              if (bkC) bkC.click();
+              const bkP = mx.querySelector('.sa-detail-box [data-nav="period"]');
+              if (bkP) bkP.click();
+            }
+          }
         }
       }
     }

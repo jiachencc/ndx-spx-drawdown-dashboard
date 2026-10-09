@@ -1312,6 +1312,10 @@ try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /*
    ⚠ 必须是**模块级**：切一次维度就整块重渲染 ✗，函数内的局部变量留不下 ✓（与 saDim 同一理由 ✓）。
    ⚠ 不进 localStorage ✓ —— 它是一次性交互状态 ✓，刷新后回到"净变动最大那期"更合理 ✓。 */
 let saSel = null;
+/* 列头图的选中期（2026-10-09 第四步 B：A1~A4）—— 也是**模块级** ✓：
+   悬停/按键会改它 ✓，而从某一格「← 返回」回来会整块重渲染 ✗ → 重渲染后靠它把选中期恢复出来 ✓。
+   col 记的是当前是哪一列 ✓：换列就把 i 复位成 -1 ✓（否则会把上一列的"第 7 期"错当成这一列的 ✓）。 */
+let saChart = { col: null, i: -1 };
 function renderSnapAttr() {
   const el = $("snap-attr");
   if (!el) return;
@@ -1319,7 +1323,7 @@ function renderSnapAttr() {
   const num = (v) => (Number.isFinite(+v) ? +v : 0);
   /* 只保留**两期都有 items** 的期（缺的整期隐藏，但要如实写明隐藏了哪几期 —— 不静默、更不补 0 ✗）。
      用户要求：缺 items 的期隐藏掉；并去掉柱状形态（只留矩阵）。 */
-  const live = [], hidden = [];
+  const live = [], hidden = [], hiddenFull = [];   // hiddenFull 存**完整日期** ✓（画图判缺口要用 ✓，见 colSeries）
   /* ── 矩阵的三段口径（2026-10-09 两轮：先 B 后 A —— 用户先问「全期 +8,278 是真的盈利吗？累计收益不是 +1,496 吗？」，
         随后确认「场内 6 月起、场外 2~3 月起、场外有的已清仓」并选了 A）────────────────────────────
      ① 逐期行：只保留**前后两期都有 items** 的对 ✓
@@ -1334,7 +1338,7 @@ function renderSnapAttr() {
   let baseD = null, basePl = 0, lastD = null, lastPl = 0;
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
-    if (!a.items || !b.items) { hidden.push(b.d.slice(5)); continue; }
+    if (!a.items || !b.items) { hidden.push(b.d.slice(5)); hiddenFull.push(b.d); continue; }
     if (!baseD) { baseD = a.d; basePl = snapPl(a); }
     lastD = b.d; lastPl = snapPl(b);
     /* ★ 2026-10-09 改：取值改调 periodContrib()（★ 唯一实现 ★）——
@@ -1605,8 +1609,12 @@ function renderSnapAttr() {
       .map(([c, v]) => ({ c: c, v: v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     const sum = list.reduce((a, x) => a + x.v, 0);
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
+    /* 从**图上**点进来的那一格（2026-10-09 第四步 B）：返回要回**那张图** ✓ 而不是一步跨到整期 ✗
+       —— 与"轨迹 → 那一格"同一套两级回退逻辑 ✓（saSel.back 记着来路 ✓）。 */
+    const backToChart = !!(saSel && saSel.k === "cell" && saSel.back && saSel.back.k === "col");
     return '<div class="sa-detail" data-cell-sum="' + sum.toFixed(2) + '"><div class="sd-head">'
-      + '<button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
+      + '<button type="button" class="sa-back" data-nav="' + (backToChart ? "back" : "period") + '">'
+      + (backToChart ? "← 回到该列的图" : "← 回到整期") + "</button>"
       + (isCarry ? "期初结转（账户起点 → " + baseD + "）" : d) + " · <b>" + esc(colNameOf(col)) + "</b>这一格"
       + "（合计 " + fmtAmt(sum) + " 元 · " + list.length + " 只）"
       + '<span class="sd-hint">点标的看它的逐期轨迹 ✓</span></div>'
@@ -1667,15 +1675,31 @@ function renderSnapAttr() {
      柱位＝该期的**实际区间**（前一期日期 → 本期日期 ✓）→ 长间隔自然变宽 ✓（这是日期轴的全部意义 ✓）。
      起点结转画成**左侧虚线基线** ✓ —— 它不是"一期" ✗，画成柱子会被读成"第一期就亏 6,782" ✗。
      柱子可点 → 落到**那一格** ✓（与三级下钻无缝接上 ✓，用的是同一套 data-cell 属性 ✓）。 */
-  const viewColChart = (col) => {
-    const ser = live.map((p, i) => ({
-      d: p.d, p0: (i > 0 ? live[i - 1].d : baseD),
+  /* 本列的逐期序列 —— **一处实现、两处消费** ✓（viewColChart 画它、wireColChart 交互也用它 ✓，不会漂 ✗）
+     gap：本期起点与本期之间若夹着"缺 items 的被跳过对" → 累计这一段**断开** ✓（不插值 ✓，
+     这正是图注里那句"缺口不插值"的兑现 ✓ —— 原实现是一笔连到底 ✗，话没做实 ✗）。 */
+  const colSeries = (col) => live.map((p, i) => {
+    const p0 = i > 0 ? live[i - 1].d : baseD;
+    return {
+      d: p.d, p0: p0, i: i,
       v: num(((p.seg.find((x) => x.k === col)) || { v: 0 }).v),
-    }));
+      gap: hiddenFull.some((h2) => h2 > p0 && h2 <= p.d),
+    };
+  });
+  const viewColChart = (col) => {
+    if (saChart.col !== col) { saChart.col = col; saChart.i = -1; }   // 换了一列 → 复位选中期 ✓（见 saChart 声明处 ✓）
+    const ser = colSeries(col);
     const c0 = num(carryByCol[col]);                       // 账户起点 → baseD 的累计（基线 ✓）
     const barsSum = ser.reduce((a, x) => a + x.v, 0);
     const cEnd = c0 + barsSum;
-    const W = Math.max(300, Math.round((el.clientWidth || 690) - 6));   // 与仓库其它图同一套：真实像素 ✓
+    /* ⚠ 宽度要量**画图的那个容器**（.sa-detail-box ✓），不是整张卡 ✗ ——
+       与走势图同一套做法（它也量 box.clientWidth ✓，box 就是图表容器 ✓）。
+       2026-10-09 自己踩过：原来量 el.clientWidth（卡片 690 ✓），而详情面板只有 ~670 ✗
+       → svg 被 max-width:100% 缩了 3% ✗、preserveAspectRatio 又把它上下居中 ✓
+       → 上下各留 2~5px 空白带 ✗ 命中带在那几像素上失效 ✗（悬停到累计面板底部就"没反应"✓）。
+       ⚠ 首次渲染时旧面板可能还不存在 ✓ → 父级 `.sa-detail` 与卡片同宽域 ✓，退化取值安全 ✓。 */
+    const host = el.querySelector(".sa-detail-box") || el;
+    const W = Math.max(300, Math.round(host.clientWidth || 690));
     const H = 176, mL = 56, mR = 16, mT = 12, mB = 24;
     const hBar = 58, hCum = 58, gap = 18;
     const yBarTop = mT, yCumTop = mT + hBar + gap;
@@ -1683,38 +1707,47 @@ function renderSnapAttr() {
     const X = (d) => mL + (Date.parse(d) - t0) / span * (W - mL - mR);
     const mxB = Math.max.apply(null, ser.map((x) => Math.abs(x.v)).concat([1]));
     const zB = yBarTop + hBar / 2, kB = (hBar / 2 - 2) / mxB;
+    const cum = [c0];
+    ser.forEach((x) => cum.push(cum[cum.length - 1] + x.v));
     const lo = Math.min(c0, cEnd), hi = Math.max(c0, cEnd);
     const padC = (hi - lo || Math.abs(c0) || 1) * 0.15;
     const yC = (v) => yCumTop + hCum - ((v - (lo - padC)) / ((hi + padC) - (lo - padC) || 1)) * hCum;
     const tcol = cEnd >= 0 ? "#2dd4a7" : "#e0576b";
     let g = "";
-    /* ── 上：本期贡献（零线居中 ✓）── */
+    /* ── 上：本期贡献（零线居中 ✓）──
+       ⚠ 柱子**不再**各自带 tabindex ✗：那样一张图会有 16 个 Tab 位 ✗（Tab 键变迷宫 ✓）。
+         键盘改由**整张图**统一接管 ✓（图是单一焦点 ✓，←/→ 逐期、Enter 查看 ✓，见 wireColChart ✓）。 */
     g += '<line x1="' + mL + '" y1="' + zB.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + zB.toFixed(1) + '" style="stroke:var(--line)"/>';
     ser.forEach((x) => {
       const x1 = X(x.p0), x2 = X(x.d), h2 = Math.abs(x.v) * kB;
       const y = x.v >= 0 ? zB - h2 : zB;
-      const mem = Object.entries((live.find((q) => q.d === x.d) || {}).items || {})
-        .filter(([c]) => colKeyOf(c) === col).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-        .map(([c, v2]) => "　" + nameOf(c) + "　" + fmtAmt(v2)).join("\n");
       g += '<rect class="sa-bar ' + (x.v >= 0 ? "up" : "down") + '" x="' + Math.min(x1, x2 - 1.5).toFixed(1)
         + '" y="' + y.toFixed(1) + '" width="' + Math.max(1.5, x2 - x1 - 1.5).toFixed(1)
         + '" height="' + Math.max(0.8, h2).toFixed(1) + '" rx="1.5"'
-        + ' data-cell="1" data-d="' + esc(x.d) + '" data-col="' + esc(col) + '" data-v="' + x.v.toFixed(2) + '"'
-        + ' tabindex="0" role="button" aria-label="' + esc(x.d + " " + colNameOf(col) + " " + fmtAmt(x.v) + " 元，点开看该格成员") + '">'
-        + "<title>" + esc(x.d + " 这一期 · " + colNameOf(col) + "　" + fmtAmt(x.v) + " 元\n" + mem + "\n点一下 → 看这一格的逐只 ✓") + "</title></rect>";
+        + ' data-cell="1" data-d="' + esc(x.d) + '" data-col="' + esc(col) + '" data-v="' + x.v.toFixed(2) + '"/>';
     });
-    /* ── 下：累计（起点基线 ＋ 折线 ＋ 两端点 ✓）── */
+    /* ── 下：累计（起点基线 ＋ 折线，**按缺口分段** ✓）── */
     g += '<line x1="' + mL + '" y1="' + yCumTop.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yCumTop.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
     g += '<line x1="' + mL + '" y1="' + yC(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yC(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
     g += '<line x1="' + mL + '" y1="' + yC(c0).toFixed(1) + '" x2="' + X(baseD).toFixed(1) + '" y2="' + yC(c0).toFixed(1)
       + '" style="stroke:var(--tx3)" stroke-dasharray="4 3"/>';
-    const pts = [[X(baseD), yC(c0)]];
-    let acc = c0;
-    ser.forEach((x) => { acc += x.v; pts.push([X(x.d), yC(acc)]); });
-    g += '<polyline points="' + pts.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ") + '" fill="none" stroke="'
-      + tcol + '" stroke-width="1.6"/>';
-    g += '<circle cx="' + pts[0][0].toFixed(1) + '" cy="' + pts[0][1].toFixed(1) + '" r="2.2" fill="' + tcol + '"/>';
-    g += '<circle cx="' + pts[pts.length - 1][0].toFixed(1) + '" cy="' + pts[pts.length - 1][1].toFixed(1) + '" r="2.2" fill="' + tcol + '"/>';
+    const segsOut = [];
+    let segPts = [[X(baseD), yC(c0)]];
+    ser.forEach((x, i) => {
+      if (x.gap) { if (segPts.length > 1) segsOut.push(segPts); segPts = []; }   // 缺口 → 断开 ✓
+      segPts.push([X(x.d), yC(cum[i + 1])]);
+    });
+    if (segPts.length > 1) segsOut.push(segPts);
+    segsOut.forEach((pts) => {
+      const dAttr = pts.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ");
+      g += '<polyline class="sa-line" points="' + dAttr + '" fill="none" stroke="' + tcol + '" stroke-width="1.6"/>';
+    });
+    /* 顶点圆点（每个拐点一个**视觉锚点** ✓；命中靠下面的透明带 ✓ —— 2px 的圆点根本点不中 ✗） */
+    ser.forEach((x, i) => {
+      g += '<circle class="sa-vertex" cx="' + X(x.d).toFixed(1) + '" cy="' + yC(cum[i + 1]).toFixed(1) + '" r="2.4" fill="' + tcol + '"/>';
+    });
+    /* 选中期高亮圈（悬停 / ←→ 移动时显示 ✓，初始隐藏 ✓） */
+    g += '<circle class="sa-hl" cx="0" cy="0" r="5.2" fill="none" stroke="' + tcol + '" stroke-width="1.6" style="display:none"/>';
     /* ── 轴标签（左＝两块面板各两条 ✓；下＝首/中/末三个日期 ✓）── */
     const lab = (x, y, s, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s) + "</text>";
     g += lab(mL - 5, zB + 3, "0");
@@ -1728,16 +1761,31 @@ function renderSnapAttr() {
       if (i < 0 || !ser[i]) return;
       g += lab(X(ser[i].d), H - 8, ser[i].d.slice(5), k2 === 0 ? "start" : (k2 === 2 ? "end" : "middle"));
     });
+    /* ── 命中带（**每个"期"一整列** ✓，从柱面板顶到累计面板底 ✓，最后画＝在最上层 ✓）──
+       为什么要它 ✗：让"拐点可点"落成**整列可点** ✓ —— 手指 45px 对 2px 的圆点根本点不中 ✗，
+       而且悬停预览也需要一个够大的落点 ✓；圆点只当视觉锚点 ✓（pointer-events:none ✓）。 */
+    ser.forEach((x, i) => {
+      const x1 = X(x.p0), x2 = X(x.d);
+      g += '<rect class="sa-band" data-i="' + i + '" x="' + x1.toFixed(1) + '" y="0" width="' + Math.max(1, x2 - x1).toFixed(1)
+        + '" height="' + H + '" data-cell="1" data-d="' + esc(x.d) + '" data-col="' + esc(col) + '" data-v="' + x.v.toFixed(2) + '">'
+        + "<title>" + esc(x.d + " 这一期 · " + colNameOf(col) + "　" + fmtAmt(x.v) + " 元（点一下看这一格的逐只 ✓）") + "</title></rect>";
+    });
     return '<div class="sa-detail sa-chart" data-col="' + esc(col) + '" data-c0="' + c0.toFixed(2) + '" data-bars="' + barsSum.toFixed(2)
       + '" data-end="' + cEnd.toFixed(2) + '" data-n="' + ser.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
       + "<b>" + esc(colNameOf(col)) + "</b> · 逐期贡献与累计（" + ser.length + " 期 ✓ · 按实际日期间距 ✓）· <b>合计 " + fmtAmt(cEnd) + "</b>"
-      + '<span class="sd-hint">上＝本期贡献、下＝累计（各用自己的尺 ✗ 不做双 y 轴 ✓）· 点柱子 → 看那一格的逐只 ✓</span></div>'
-      + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
-      + esc(colNameOf(col) + " 逐期贡献与累计：起点 " + fmtAmt(c0) + " 元 → 末期 " + fmtAmt(cEnd) + " 元，共 " + ser.length + " 期") + '">'
+      + '<span class="sd-hint">上＝本期贡献、下＝累计（各用自己的尺 ✗ 不做双 y 轴 ✓）</span></div>'
+      /* 读数行（A2）：拐点相对柱子的增量信息就是"到那期为止的累计" ✓ —— 放图**上方**固定一行 ✓，
+         悬停/移动时更新 ✓、aria-live 让读屏也能听见 ✓；不整块重渲染 ✗（见 wireColChart ✓）。 */
+      + '<div class="sa-ch-read" aria-live="polite">悬停或按 ←/→ 逐期查看 ✓ 　点一下 → 看这一格的逐只 ✓</div>'
+      + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '"'
+      + ' tabindex="0" role="group" aria-label="'
+      + esc(colNameOf(col) + " 逐期贡献与累计图：起点 " + fmtAmt(c0) + " 元 → 末期 " + fmtAmt(cEnd) + " 元，共 " + ser.length + " 期。"
+        + "用左右方向键逐期浏览，按其值可读出该期贡献与累计；回车查看该期该列的逐只明细。") + '">'
       + g + "</svg>"
       + '<div class="sa-chart-note">x 轴按<b>实际日期间距</b>铺开 ✓（矩阵把每期当等宽 ✗，这里能看出哪段被压扁 ✓）；'
-      + "缺口（缺 items 的相邻对）不插值 ✗ —— 真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）。</div></div>";
+      + "缺口（缺 items 的相邻对）**断开折线** ✓ 不插值 ✗ —— 真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）；"
+      + "每个<b>拐点</b>都可点（整列命中，含触屏 ✓）→ 落到那一格 ✓。</div></div>";
   };
   const detail = () => {
     if (saSel && saSel.k === "col") return viewColChart(saSel.col);
@@ -1784,7 +1832,75 @@ function renderSnapAttr() {
     + "（场内那 2 只已清仓<b>不同</b> ✓ —— 它们已通过本金修正进了总账 ✓）。"
     + (hidden.length ? "<br>⚠ 已<b>并入</b>「期初结转」的相邻对共 " + hidden.length + " 个（相邻对里有一期缺 items，无法逐期归因）：" + hidden.join(" ") + " ✓" : "")
     + "</div>";
+  /* ── 列头图的**悬停 / 键盘**（2026-10-09 第四步 B：A1~A4）──────────────────────────────
+     铁律：**外科式更新** ✓ —— 只改几个节点的 class 与读数文本 ✓，
+     **绝不**在 pointermove 里整块重渲染 ✗（那样会闪、还会把焦点与滚动位置一起冲掉 ✗）。
+     可点的是**整条期列**（.sa-band ✓），不是 2px 的圆点 ✗ —— 手指 45px 对 2px 根本点不中 ✓；
+     圆点（.sa-vertex）只当视觉锚点 ✓，被选中的那期用高亮圈（.sa-hl）圈出来 ✓。
+     键盘（A4）：图本身是**单一焦点** ✓ —— ←/→ 逐期、Enter 查看该格 ✓、Esc 取消 ✓
+     （不给 16 根柱子各一个 Tab 位 ✗，那会把 Tab 键变成迷宫 ✓）。
+     ⚠ 重渲染后（例如从某一格「← 返回」回来 ✓）用 saChart.i 把上次那期恢复出来 ✓。 */
+  const wireColChart = () => {
+    const box = el.querySelector(".sa-chart");
+    if (!box) return;
+    const svg = box.querySelector(".sa-chart-svg");
+    const read = box.querySelector(".sa-ch-read");
+    if (!svg || !read) return;
+    const boxCol = box.getAttribute("data-col");
+    const ser = colSeries(boxCol);
+    const cum = [num(carryByCol[boxCol])];
+    ser.forEach((x) => cum.push(cum[cum.length - 1] + x.v));
+    const bands = Array.prototype.slice.call(svg.querySelectorAll("rect.sa-band"));
+    const dots = Array.prototype.slice.call(svg.querySelectorAll("circle.sa-vertex"));
+    const hl = svg.querySelector("circle.sa-hl");
+    const idle = "悬停或按 ←/→ 逐期查看 ✓ 　点一下 → 看这一格的逐只 ✓";
+    const show = (i) => {
+      if (!(i >= 0 && i < ser.length)) return;
+      saChart.i = i;
+      bands.forEach((b2, k) => b2.classList.toggle("on", k === i));
+      if (hl && dots[i]) {
+        hl.style.display = "";
+        hl.setAttribute("cx", dots[i].getAttribute("cx"));
+        hl.setAttribute("cy", dots[i].getAttribute("cy"));
+      }
+      const x = ser[i];
+      const mem = Object.entries((live[x.i] || {}).items || {})
+        .filter(([c]) => colKeyOf(c) === boxCol).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+      read.innerHTML = "<b>" + x.d + "</b> · 本期贡献 <b class=\"" + cls(x.v) + "\">" + fmtAmt(x.v) + "</b>"
+        + " · 累计到该期 <b class=\"" + cls(cum[i + 1]) + "\">" + fmtAmt(cum[i + 1]) + "</b>"
+        + (mem.length ? " · " + mem.slice(0, 3).map(([c, v2]) => esc(nameOf(c)) + " " + fmtAmt(v2)).join(" · ")
+          + (mem.length > 3 ? " 等 " + mem.length + " 只" : "") : "");
+    };
+    const hide = () => {
+      saChart.i = -1;
+      bands.forEach((b2) => b2.classList.remove("on"));
+      if (hl) hl.style.display = "none";
+      read.innerHTML = idle;
+    };
+    svg.onpointermove = (e) => {
+      const b2 = (e.target && e.target.closest) ? e.target.closest("rect.sa-band") : null;
+      if (b2) show(+b2.getAttribute("data-i"));
+      else hide();
+    };
+    svg.onpointerleave = hide;
+    svg.onkeydown = (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        const step = e.key === "ArrowRight" ? 1 : -1;
+        const nxt = saChart.i < 0 ? (step > 0 ? 0 : ser.length - 1)
+          : Math.max(0, Math.min(ser.length - 1, saChart.i + step));
+        show(nxt);
+        e.preventDefault();
+      } else if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        const b2 = svg.querySelector('rect.sa-band[data-i="' + (saChart.i < 0 ? 0 : saChart.i) + '"]');
+        if (b2) { e.preventDefault(); actOn(b2); }   // 与鼠标点击**同一个分派** ✓（落点一致 ✓）
+      } else if (e.key === "Escape") {
+        hide();
+      }
+    };
+    if (saChart.i >= 0) show(saChart.i);             // 重渲染后恢复选中期 ✓
+  };
   el.innerHTML = h;
+  wireColChart();
   /* ── 交互分派（2026-10-09 第三步）：**一次点击与一次按键走同一套** ✓（不伪造事件对象 ✗）─────────────
      优先级＝最内层先行 ✓：面包屑返回 → 格子 → 成员行 → 维度切换 → 期行 → 期初行 ✓
      ⚠ 格子长在行里 ✗ → 必须先判格子 ✓，否则点一下格子会顺带把"期"也切了 ✓。
@@ -1806,8 +1922,9 @@ function renderSnapAttr() {
     if (!target || !target.closest) return false;
     const nav = target.closest("[data-nav]");
     if (nav) {
-      if (nav.dataset.nav === "cell" && saSel && saSel.k === "hold" && saSel.back) { setSel(saSel.back); return true; }
-      setSel(null);                                    // 回到整期（cur 不动 ✓ 就是进来时那一期 ✓）
+      /* 两级回退：轨迹 → 进来时那一格 ✓；从**图上**点进的格 → 回到那张图 ✓（2026-10-09 第四步 B） */
+      if ((nav.dataset.nav === "back" || nav.dataset.nav === "cell") && saSel && saSel.back) { setSel(saSel.back); return true; }
+      setSel(null);                                    // 其余情况：回到整期（cur 不动 ✓ 就是进来时那一期 ✓）
       return true;
     }
     const colh = target.closest("[data-colhead]");
@@ -1816,10 +1933,13 @@ function renderSnapAttr() {
       return true;
     }
     const cell = target.closest("[data-cell]");
-    if (cell) {                                        // 点格子 → 只看该格 ✓
+    if (cell) {                                        // 点格子 / 点图上的柱子·命中带 → 只看该格 ✓
       const d = cell.dataset.d;
       const i = live.findIndex((p) => p.d === d);
-      setSel({ k: "cell", d: d, col: cell.dataset.col }, d === "__carry" ? "carry" : (i >= 0 ? i : cur));
+      /* 图上点进来的 → 记下来路，返回就回那张图 ✓（不是在两级回退里跳空 ✗） */
+      const fromChart = !!(cell.closest && cell.closest(".sa-chart-svg"));
+      setSel({ k: "cell", d: d, col: cell.dataset.col, back: fromChart ? { k: "col", col: cell.dataset.col } : null },
+        d === "__carry" ? "carry" : (i >= 0 ? i : cur));
       return true;
     }
     const hold = target.closest("[data-hold]");
