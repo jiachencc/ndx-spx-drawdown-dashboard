@@ -2988,12 +2988,17 @@ function closedEtfRows() {
   log.forEach((e) => {
     const k = String(e.sym || "");
     if (!k) return;
-    const o = by[k] || (by[k] = { sym: k, qty: 0, buyAmt: 0, realized: 0, first: null, last: null, n: 0 });
+    const o = by[k] || (by[k] = { sym: k, qty: 0, cash: 0, buyAmt: 0, realized: 0, first: null, last: null, n: 0 });
     o.n++;
     if (isSellAct(e)) {
       o.qty -= (e.qty || 0);
       o.realized += (typeof e.realized === "number" ? e.realized : 0);
-      o.last = e.d;                                   // 最后一笔卖出（清仓那笔）
+      const sf = logFee(e);
+      o.cash += (e.qty || 0) * (e.cost || 0) - (sf === null ? CONFIG.FEE_PER_SIDE : sf);   // 卖出净回款 ✓
+      /* ⚠ 必须取**最新**那笔卖出日：流水是"新在上"（log 新的在前），直接赋值会取到**最早**那笔 ✗
+         —— 2026-10-09 实测：中韩显示 09-16、港美显示 08-13，而两者的清仓日都是 10-09 ✗。
+         （当天新加的门禁只校验了只数与金额，没盯日期，所以是我自己复核时发现的 ✗ → 现已补断言 ✓） */
+      if (!o.last || e.d > o.last) o.last = e.d;
     } else {
       o.qty += (e.qty || 0);
       const fee = logFee(e);
@@ -3009,7 +3014,7 @@ function closedEtfRows() {
       sym: o.sym, theme: themeOf(o.sym), n: o.n,
       buy: o.first, sell: o.last,
       days: (o.first && o.last) ? Math.round((new Date(o.last) - new Date(o.first)) / 864e5) : null,
-      pnl: o.realized, cost: o.buyAmt,
+      pnl: o.realized, cost: o.buyAmt, cash: o.cash,
       rate: o.buyAmt ? o.realized / o.buyAmt * 100 : 0,
     }))
     .sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));   // 新的在前
@@ -3087,7 +3092,34 @@ function renderClosed() {
   const cnt = $("closed-cnt");
   /* 标题栏计数要覆盖卡内**两组**（场内 + 场外），否则标题写着"支付宝 17 只"、卡里却有场内那半 ✗ */
   const exRows = closedEtfRows();
-  if (cnt) cnt.textContent = "（场外 · 支付宝 " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 投入 ≈" + fmtYuan(costAll) +
+  /* ---- 总分结构（2026-10-09 用户要求：先给「总清仓盈亏」KPI，再分场内 / 场外）---------------------
+     为什么这次**可以相加**（我上午写过"两组不相加" ✗ —— 那是**过度保守**，经复核改正 ✓）：
+       · 两半都是「已卖出兑现的盈亏」，**同质** ✓
+       · 分属**不同账户**（券商 vs 支付宝渠道）→ 不存在同一笔被计两次 ✓
+         （唯一名字重叠 160644 是同一基金的**不同份额类别**，两条流水各自独立 ✓）
+     ⚠ 但**来源不同**（场内＝本页由 POSITIONS.log 推导、含费用；场外＝支付宝「清仓分析」App 原读数）
+       → 两段各自标源、各自小结，总行只做"合计"这一个动作 ✓ */
+  const kExSum = exRows.reduce((a, r) => a + r.pnl, 0);
+  const kExCost = exRows.reduce((a, r) => a + r.cost, 0);
+  const kExCash = exRows.reduce((a, r) => a + (r.cash || 0), 0);
+  const kAllPnl = sum + kExSum, kAllCost = costAll + kExCost;
+  const kSellAll = rows.map((r) => r.sell).concat(exRows.map((r) => r.sell)).filter(Boolean).sort();
+  const kWins = ups.length + exRows.filter((r) => r.pnl > 0).length;
+  const kHeadHtml =
+    '<div class="closed-total" id="closed-all-total"><span>总清仓盈亏（' + (rows.length + exRows.length) + " 笔 · 场外 " + rows.length + " 笔 ＋ 场内 " + exRows.length + ' 只）</span><b class="' + cls(kAllPnl) + '">' + fmt2(kAllPnl) + "</b></div>" +
+    '<div class="closed-brief">' +
+      '<span class="b-k">投入 ≈</span><span class="b-v">' + fmtYuan(kAllCost) + " 元（场内精确 ✓；场外由「盈亏 ÷ 收益率」反推 ≈）</span>" +
+      '<span class="b-k">加权收益率</span><span class="b-v ' + cls(kAllPnl) + '">' + pc(kAllCost ? kAllPnl / kAllCost * 100 : 0) + "</span>" +
+      '<span class="b-k">胜率</span><span class="b-v">' + kWins + "/" + (rows.length + exRows.length) + " 笔</span>" +
+      '<span class="b-k">清仓回款</span><span class="b-v">场内 <b>' + fmtYuan(kExCash) + "</b> 元（＝Σ卖出净额 ✓）；场外 App 不给此读数 ✗</span>" +
+      '<span class="b-k">清仓时间</span><span class="b-v">' + (kSellAll.length ? kSellAll[0] + " ~ " + kSellAll[kSellAll.length - 1] : "—") + "</span>" +
+      '<span class="b-k">口径</span><span class="b-v">场外＝支付宝「清仓分析」<b>App 原读数</b>；场内＝<b>本页由 POSITIONS.log 推导</b>（含费用）。' +
+        "两半分属不同账户、无重复计入 → 可相加 ✓。⚠ <b>回款 ≠ 盈亏</b>：前者是收回的现金，后者是赚赔</span>" +
+    "</div>" +
+    '<div class="closed-row" style="margin-top:4px"><span class="c-nm"><b>场外 · 支付宝「清仓分析」</b><span class="c-code">' + rows.length + " 笔</span>" +
+      '<div class="c-meta">App 原读数 · 明细见下方「展开全部」· 类别为手工标注</div></span><span class="c-v ' + cls(sum) + '">' + fmt2(sum) + "</span></div>";
+  if (cnt) cnt.textContent = "（总 " + fmt2(sum + kExSum) + " 元 ＝ 场外 " + fmt2(sum) + " ＋ 场内 " + fmt2(kExSum) +
+    " · 场外 支付宝 " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 投入 ≈" + fmtYuan(costAll) +
     " 元 · 加权收益率 ≈ " + pc(rateAll) + " · 平均持有 " + (avgDays === null ? "—" : avgDays.toFixed(1)) +
     " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）" +
     (exRows.length ? "　＋　场内已了结 " + exRows.length + " 只 · 合计 " + fmt2(exRows.reduce((a, r) => a + r.pnl, 0)) + " 元（由流水现算）" : "");
@@ -3124,6 +3156,7 @@ function renderClosed() {
       '</span><span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>";
   }).join("");
   el.innerHTML =
+    kHeadHtml +
     byCat.map((g) => '<div class="closed-row"><span class="c-nm"><b>' + esc(g.label) + '</b><span class="c-code">' + g.n + ' 只</span></span><span class="c-v ' + cls(g.sum) + '">' + fmt2(g.sum) + "</span></div>").join("") +
     '<div class="closed-total"><span>合计清仓盈亏' + qBtn + "（" + rows.length + " 只）</span><b class=\"" + cls(sum) + '">' + fmt2(sum) + "</b></div>" +
     qNote +
@@ -3149,7 +3182,7 @@ function renderClosed() {
         meta.push("收益率 " + pc(r.rate));
         meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US"));
         meta.push(r.n + " 笔流水");
-        return '<div class="closed-row"><span class="c-nm"><b>' + esc(r.sym) + "</b>" +
+        return '<div class="closed-row" data-sym="' + esc(r.sym) + '"><span class="c-nm"><b>' + esc(r.sym) + "</b>" +
             (r.theme ? '<span class="c-code">' + esc(r.theme) + "</span>" : "") +
             '<div class="c-meta">' + esc(meta.join(" · ")) + "</div></span>" +
             '<span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>";
