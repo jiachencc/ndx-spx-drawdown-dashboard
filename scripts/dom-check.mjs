@@ -757,6 +757,124 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         "全期 data-all=" + (Number.isFinite(gotAll) ? gotAll : "—") + " · 期望 " + ePl.toFixed(2)
           + "（差 " + (Number.isFinite(gotAll) && Number.isFinite(ePl) ? (gotAll - ePl).toFixed(2) : "—") + "）");
     }
+    /* ④l 归因矩阵的**三级下钻**（2026-10-09 加，起于用户问：「逐只明细还能细化吗？比如我点击某一个格子？」）——
+       三条**不变量**（都与页面外的源数据独立复算 ✓，不读页面中间量 ✓）：
+         ① 点到某一格 → 下方成员之和 **≡ 格子里那个数** ✓（两处都用 colKeyOf 过滤 ✓ → 少一只、多一只都会红 ✓）
+         ② 点到某只 → 轨迹期数 **≡ 该只出现在多少个「两期都有 items」的对里** ✓（漏一期 / 多一期都会红 ✓）
+         ③ 生涯累计 **≡ 该只的一生结果** ✓：仍在持 → 最新快照里那只的 pl ✓；已全额清仓 → 流水里那笔 realized ✓
+            （页面那侧是"期初结转 ＋ 各期贡献之和" ✓ —— 两边算法完全不同 ✓，对得上才算数 ✓）
+       另验「← 返回」能退回整期 ✓（不能卡在格 / 轨迹视图里 ✓）。
+       ⚠ 每次点击都会让页面**整块重渲染** ✗ → 元素引用会失效 ✓，所以每一步都**重新 query** ✓（别缓存节点 ✗）。 */
+    {
+      const nameAt = (c) => {
+        for (let i = snaps2.length - 1; i >= 0; i--) if (snaps2[i].items && snaps2[i].items[c]) return snaps2[i].items[c].name;
+        return null;
+      };
+      const cellTd = mx.querySelector("tbody td[data-cell]");
+      if (!cellTd) {
+        check("归因下钻：矩阵格子可点（td[data-cell]）", false, "#snap-attr 里没有可点的格子");
+      } else {
+        const d0 = cellTd.getAttribute("data-d"), col0 = cellTd.getAttribute("data-col");
+        const v0 = Number(cellTd.getAttribute("data-v"));
+        cellTd.click();
+        const box1 = mx.querySelector(".sa-detail-box .sa-detail");
+        const sum1 = box1 ? Number(box1.getAttribute("data-cell-sum")) : NaN;
+        check("归因下钻：格子成员之和 ≡ 格子读数（" + d0 + " · " + col0 + " ＝ " + money(v0) + "）",
+          Number.isFinite(sum1) && Math.abs(sum1 - v0) < 0.01,
+          "data-cell-sum=" + (Number.isFinite(sum1) ? sum1 : "—") + " vs 格子 data-v=" + v0);
+        const holdRow = mx.querySelector(".sa-detail-box .sd-click[data-hold]");
+        const code = holdRow ? holdRow.getAttribute("data-hold") : null;
+        if (!code) {
+          check("归因下钻：格子里的成员可点（.sd-click[data-hold]）", false, "该格里没有可点的成员");
+        } else {
+          holdRow.click();
+          const box2 = mx.querySelector(".sa-detail-box .sa-detail");
+          const gotTotal = box2 ? Number(box2.getAttribute("data-hold-total")) : NaN;
+          const gotN = box2 ? Number(box2.getAttribute("data-hold-n")) : NaN;
+          let wantN = 0;
+          for (let i = 1; i < snaps2.length; i++) {
+            const a = snaps2[i - 1], b = snaps2[i];
+            if (!a.items || !b.items) continue;
+            if (a.items[code] || b.items[code]) wantN++;
+          }
+          const lastS = snaps2[snaps2.length - 1];
+          const held = !!(lastS.items && lastS.items[code]);
+          /* 已全额清仓 → 取流水里那笔 realized ✓（判据与页面 closedCostGap / 本文件 closedGapTo 完全一致 ✓） */
+          const q2 = {}; let closeReal = null;
+          ((LOGPOS && LOGPOS.log) || []).slice().sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1)).forEach((e) => {
+            const s = /卖出|减仓|清仓/.test(String(e.act || "")), before = q2[e.sym] || 0;
+            q2[e.sym] = before + (s ? -(e.qty || 0) : (e.qty || 0));
+            if (s && before > 0 && q2[e.sym] === 0 && Number.isFinite(e.realized) && e.sym === nameAt(code)) closeReal = e.realized;
+          });
+          const wantTotal = held ? Number(lastS.items[code].pl) : closeReal;
+          check("归因下钻：轨迹期数 ≡ 该只出现的相邻对数（" + code + " ＝ " + wantN + " 期）",
+            Number.isFinite(gotN) && gotN === wantN,
+            "页面 data-hold-n=" + (Number.isFinite(gotN) ? gotN : "—") + " · 期望 " + wantN);
+          check("归因下钻：生涯累计 ≡ 该只一生结果（" + code + " ＝ " + (Number.isFinite(wantTotal) ? money(wantTotal) : "—") + " · "
+            + (held ? "在持取最新 pl ✓" : "已清仓取流水 realized ✓") + "）",
+            Number.isFinite(gotTotal) && Number.isFinite(wantTotal) && Math.abs(gotTotal - wantTotal) < 0.5,
+            "页面 data-hold-total=" + (Number.isFinite(gotTotal) ? gotTotal : "—") + " · 期望 "
+              + (Number.isFinite(wantTotal) ? wantTotal : (held ? "最新快照里没有这只的 pl" : "流水里查不到它的清仓 realized")));
+          /* 「← 返回」是**两级**回退 ✓（轨迹 → 那一格 → 整期 ✓）——
+             第一下必须落回**进来时那一格**（不是随便回整期 ✗），第二下才回整期 ✓
+             （初版这里只点了一下就断言"已回整期" ✗ —— 被自己的门禁抓出来 ✓） */
+          const back1 = mx.querySelector(".sa-detail-box [data-nav]");
+          if (back1) back1.click();
+          const box3 = mx.querySelector(".sa-detail-box .sa-detail");
+          const backSum = box3 ? Number(box3.getAttribute("data-cell-sum")) : NaN;
+          check("归因下钻：「← 返回」先退回**进来时那一格**（" + d0 + " · " + col0 + " ＝ " + money(v0) + "）",
+            Number.isFinite(backSum) && Math.abs(backSum - v0) < 0.01,
+            !box3 ? "返回后没有明细块 ✗" : "data-cell-sum=" + (Number.isFinite(backSum) ? backSum : "—") + "（期望 " + v0 + "）");
+          const back2b = mx.querySelector(".sa-detail-box [data-nav]");
+          if (back2b) back2b.click();
+          const box4 = mx.querySelector(".sa-detail-box .sa-detail");
+          check("归因下钻：再点「← 返回」退回整期视图 ✓",
+            !!box4 && !box4.hasAttribute("data-cell-sum") && !box4.hasAttribute("data-hold-total"),
+            !box4 ? "返回后没有明细块 ✗" : "返回后仍停在格 / 轨迹视图 ✗");
+          /* ④l-2 **已清仓**那一支单测一遍 ✓（上面那只碰巧是在持的 ✓，closeReal 分支没被覆盖 ✗）：
+             先从快照里独立找一只「出现过、却不在最新一期」的标的（＝已清仓 ✓），
+             点它出现的那一期 → 在整期视图里点它 → 生涯累计应 ＝ 流水里那笔 realized ✓（与 closedGapTo 同判据 ✓） */
+          const lastItems = snaps2[snaps2.length - 1].items || {};
+          let closedCode = null, closedD = null;
+          for (let i = 1; i < snaps2.length && !closedCode; i++) {
+            const b2 = snaps2[i];
+            if (!b2.items) continue;
+            const c2 = Object.keys(b2.items).find((k) => !lastItems[k]);
+            if (c2) { closedCode = c2; closedD = b2.d; }
+          }
+          if (!closedCode) {
+            check("归因下钻：快照里存在「曾出现但已清仓」的标的（供覆盖 closeReal 路径 ✓）", false, "找不到这样的标的");
+          } else {
+            const tr2 = [...mx.querySelectorAll("tbody tr[data-i]")]
+              .find((tr) => ((tr.querySelector(".mx-d") || {}).textContent || "").indexOf(closedD.slice(5)) >= 0);
+            if (tr2) tr2.click();
+            const hr2 = mx.querySelector('.sa-detail-box [data-hold="' + closedCode + '"]');
+            if (!hr2) {
+              check("归因下钻：已清仓那只在整期视图里仍可点（" + (nameAt(closedCode) || closedCode) + "）", false, "没找到它的成员行");
+            } else {
+              hr2.click();
+              const bb = mx.querySelector(".sa-detail-box .sa-detail");
+              const gt2 = bb ? Number(bb.getAttribute("data-hold-total")) : NaN;
+              const q3 = {}; let want2 = null;
+              ((LOGPOS && LOGPOS.log) || []).slice().sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1)).forEach((e) => {
+                const s = /卖出|减仓|清仓/.test(String(e.act || "")), before = q3[e.sym] || 0;
+                q3[e.sym] = before + (s ? -(e.qty || 0) : (e.qty || 0));
+                if (s && before > 0 && q3[e.sym] === 0 && Number.isFinite(e.realized) && e.sym === nameAt(closedCode)) want2 = e.realized;
+              });
+              check("归因下钻：已清仓那只的生涯累计 ≡ 流水 realized（" + (nameAt(closedCode) || closedCode)
+                + " ＝ " + (Number.isFinite(want2) ? money(want2) : "—") + "）",
+                Number.isFinite(gt2) && Number.isFinite(want2) && Math.abs(gt2 - want2) < 0.5,
+                "页面 data-hold-total=" + (Number.isFinite(gt2) ? gt2 : "—")
+                  + " · 期望 " + (Number.isFinite(want2) ? want2 : "流水里查不到它的清仓 realized"));
+              const bk1 = mx.querySelector(".sa-detail-box [data-nav]");
+              if (bk1) bk1.click();
+              const bk2 = mx.querySelector(".sa-detail-box [data-nav]");
+              if (bk2) bk2.click();
+            }
+          }
+        }
+      }
+    }
   }
   /* 把视图切回「逐期明细」✓ —— 别把状态留给后面的断言 ✗（本块可能是最后一块，但契约要写死 ✓） */
   const back2 = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");
