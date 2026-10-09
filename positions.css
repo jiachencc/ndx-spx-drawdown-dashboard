@@ -1489,6 +1489,32 @@
        th（列名是文字）仍走 sans ✓ —— 与 .est-tbl / .dca-tbl / .chk-tbl 的表头一致 ✓ */
   #snap-attr table.sa-mx td { font-size: var(--chk-fs-mini); padding: 1.5px 5px;
     font-family: var(--mono); font-feature-settings: "tnum"; }
+
+  /* ── 全页数字字体统一（2026-10-09，用户：「整个页面 review 下，统一使用 JetBrains」）━━━━━━━━━
+     做法（不靠眼睛扫 ✓）：playwright 遍历全页（展开所有折叠 + 两种视图各测一遍），
+     挑出「文本以数字为主、字体却是 sans」的叶子元素，按【容器 > 元素】归类，再逐类处置 ✓
+     审计结果（13~19 种签名 / 220 个元素）与处置：
+       ✎ 本次修：真·数字字段 —— 费率/本金的 <i>、档位 chip、已实现金额、以及**口径注里的数值**
+       ✗ 有意保留 sans（写清理由，免得下次又被当成漏网 ✗）：
+         · **名称里带数字**（"纳指100" 这类 .row2 .to i / .alt-grp-head b）—— 它是名字，不是数字 ✗
+         · **散在句子里的计数**（.cnt 的 "13 只"、"合计（8 只 · 391 笔）"）—— 标签文字，跟着散文走 ✓
+     ★ 为什么可以放心大范围套 mono：--mono 栈里**只有拉丁字体**（JetBrains Mono…），
+       中文会自然回退到系统 CJK 字体 → 套上去只改数字与拉丁字母，**中文外观不变** ✓
+       （这也正是本页既有做法：.pl-amt / .s-val / .est-tbl td / .dca-tbl .f-inv / .xr-tbl td.num 都这么用） */
+  .alt-row .alt-name i,
+  .row1 .from i,
+  .otc-note b, .otc-note code, .dca-legend b,
+  .lvl-row .lvl-hd .dca-chip,
+  .log-list .swing-hint .up, .log-list .swing-hint .down,
+  .log-list .log-note,
+  .closed-lead b, .closed-lead i,
+  .sec-title .cnt span,
+  tr.sum td,
+  .footer b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  /* ⚠ 复审计后**有意剩下**的 18 个（不再改，理由：它们不是数字字段，而是"名字里带数字"）：
+       div.row2 > span.to > i     例："纳指100" / "标普500"   ← 标的名称
+       div.alt-grp-head > b       例："纳指100" / "标普500"   ← 分组标题
+     套 mono 会让名称里的数字比汉字更"等宽跳出来" ✗，与语义不符 —— 保留 sans ✓ */
   #snap-attr .sd-head { font-size: var(--chk-fs); }
   #snap-attr .sd-row { font-size: var(--chk-fs); padding: 1px 0; }
   #snap-attr .sd-hint { font-size: var(--chk-fs-mini); }
