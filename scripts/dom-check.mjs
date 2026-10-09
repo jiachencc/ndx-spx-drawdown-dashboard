@@ -577,6 +577,19 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     rows.length > 0 && bad.length === 0, bad.length ? "对不上：" + bad.join("、") : "逐只核对通过 ✓");
 }
 
+/* ④h 快照对比卡头「总盈亏」（2026-10-09 加）—— 它与汇总卡 / 本金卡的「累计收益」是**同一个概念** ✓，
+   原来却直接取快照 pl（在持口径 ✗）：10-09 一期显示 19,988 ✗，而累计收益是 1,496 ✓，
+   同一个词两处两个意思 ✗（本轮 A 方案把本金加回清仓已实现后就露出来了 ✓）。
+   现两处都走 snapPl ✓。断言：最新一期卡头显示的数 ＝ 独立复算的 pl − closedGap ✓
+   （卡头里还有「本期」与日期，但它们都离这个数很远 → near() 不会误判 ✓）。 */
+{
+  const head = win.document.querySelector(".snap-item .snap-head");
+  const t = head ? head.textContent.replace(/\s+/g, "") : "";
+  const want = latest.pl - closedGap;
+  check("快照对比卡头「总盈亏」= 累计收益（含已实现）" + money(want),
+    !!head && /总盈亏/.test(t) && near(t, want, 3), t.slice(0, 120) || "没有 .snap-item .snap-head");
+}
+
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];
 win.document.querySelectorAll("svg *").forEach((el) => {
