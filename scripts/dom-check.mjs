@@ -351,6 +351,33 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   check("清仓历史含场内分组（复算 " + closed.length + " 只 · 已实现 " + money(wantSum) + "）",
     !!etfEl && closed.length > 0 && rowsN === closed.length + 1 && near(txt, wantSum, 0.01),
     etfEl ? ("场内行 " + rowsN + " 行 · 文本含合计 " + (near(txt, wantSum, 0.01) ? "✓" : "✗ 期望 " + money(wantSum))) : "卡内没有 #closed-etf（场内分组缺失）");
+
+  /* ④c 总分结构（2026-10-09 加）：总清仓盈亏 = 场外（CLOSED 原读数）＋ 场内（由流水独立复算）
+     盯住两件最容易错的事：
+       ① 总行只是把两段抄一遍（抄错没有任何人会红 ✗）
+       ② 场内每只的「清仓日」必须取该标的**最后一笔**卖出日 —— 曾因流水"新在上"取成了最早那笔 ✗
+          （2026-10-09 中韩显示 09-16、港美显示 08-13，而两者清仓日都是 10-09 ✗） */
+  const CL = (() => {
+    const m2 = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED = \{[\s\S]*?^\};/m);
+    if (!m2) return null;
+    const c2 = vm.createContext({});
+    vm.runInContext(m2[0] + "\nthis.o = CLOSED;", c2, { timeout: 500 });
+    return c2.o;
+  })();
+  const otcPnl = CL ? CL.items.reduce((a, r) => a + r.pnl, 0) : 0;
+  const etfPnl = closed.reduce((a, o) => a + o.realized, 0);
+  const totEl = cardEl ? cardEl.querySelector("#closed-all-total") : null;
+  check("清仓历史总分：总行 = 场外 " + money(otcPnl) + " ＋ 场内 " + money(etfPnl),
+    !!totEl && near(totEl.textContent.replace(/\s+/g, ""), otcPnl + etfPnl, 0.01),
+    totEl ? totEl.textContent.replace(/\s+/g, " ").trim().slice(0, 110) : "卡内没有 #closed-all-total");
+  const lastSell = {};
+  L.forEach((e) => { if (isSell(e)) lastSell[e.sym] = (!lastSell[e.sym] || e.d > lastSell[e.sym]) ? e.d : lastSell[e.sym]; });
+  const badD = closed.filter((o) => {
+    const row = etfEl ? etfEl.querySelector('[data-sym="' + o.k + '"]') : null;
+    return !row || row.textContent.replace(/\s+/g, "").indexOf(lastSell[o.k].slice(5)) < 0;
+  }).map((o) => o.k + "（应为 " + lastSell[o.k] + "）");
+  check("清仓历史场内：每只「清仓日」= 该标的最后一笔卖出日（" + closed.length + " 只）",
+    !!etfEl && badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
 }
 
 /* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
