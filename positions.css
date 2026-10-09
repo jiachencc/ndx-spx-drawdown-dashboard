@@ -856,6 +856,25 @@
   /* 名字下第二行：笔数 / 异常数 / 末笔日 / 主力金额档（等宽，便于竖着比） */
   table.dca-tbl .f-meta { display: block; font-size: 10px; color: var(--tx3); font-family: var(--mono); margin-top: 1px; }
   table.dca-tbl .f-inv, table.dca-tbl .f-gain { font-family: var(--mono); }
+  /* ── 窄屏：场外定投表 → 卡片（2026-10-09 加；**复用** .chk-tbl 那一套约定，不另造）─────────────
+     为什么现在才做：桌面 3~4 列的表格在 390px 下每列只剩 ~90px，
+     「+22,611」这类数字与列名挤在一起、右对齐的列还会把数字推到贴边 ✗
+     做法与 .chk-tbl 完全同构（隐表头 → 行块化 → 单元格 inline-block → 预埋列名显示出来 ✓）：
+       · 名称行独占一行（它本来就有 f-nm + f-meta 两行 ✓）
+       · 数字列两列一行（50%），列名用小标签放在数字上方 → 手机上没有表头也能读 ✓
+     ⚠ 依赖渲染侧预埋 <i class="c-lb">列名</i>（与 .chk-tbl 同一个类名 ✓ 见 renderOtcLog）：
+       没预埋就像没表头一样认不出哪个数字是什么 ✗ */
+  table.dca-tbl .c-lb { display: none; }
+  @media (max-width: 767px) {
+    table.dca-tbl thead { display: none; }
+    table.dca-tbl, table.dca-tbl tbody, table.dca-tbl tr, table.dca-tbl td { display: block; }
+    table.dca-tbl tr { padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
+    table.dca-tbl td { padding: 0; border: none; }
+    table.dca-tbl td.n { display: inline-block; width: 50%; text-align: left; padding: 4px 0 0; white-space: normal; }
+    table.dca-tbl td.n .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); }
+    table.dca-tbl tr.sum { border-top: 1px solid var(--line); border-bottom: none; font-weight: 700; }
+    table.dca-tbl tr.sum td.n { width: 50%; }
+  }
   .dca-chip { font-size: 9px; border-radius: 999px; padding: 0 5px; margin-left: 5px; border: 1px solid var(--line); color: var(--tx3); white-space: nowrap; }
   .dca-chip.ok { color: var(--green); }
   .dca-chip.warn { color: var(--warn); }
