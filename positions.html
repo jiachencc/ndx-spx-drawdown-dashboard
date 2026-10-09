@@ -52,7 +52,6 @@ try {
     <a class="sec-nav-link" href="#sec-acct">账户</a>
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
-    <a class="sec-nav-link" href="#sec-swing">波段</a>
     <a class="sec-nav-link" href="#sec-otclvl">水位</a>
     <a class="sec-nav-link" href="#sec-otclog">场外</a>
     <a class="sec-nav-link" href="#sec-tools">工具</a>
@@ -94,7 +93,7 @@ try {
   <!-- 板块顺序（2026-09-30 重排，注释与实现同步订正）：
        ① 现状：盈亏总览 → 本金与收益
        ② 过程：资产走势 → 快照对比（走势是一条线，快照是这条线逐期的账，同一件事的两种粒度）
-       ③ 场内：账户统计 → 持仓与操作记录 → 操作体检（诊断紧跟被诊断的对象）→ 波段复盘
+       ③ 场内：账户统计 → 持仓与操作记录 → 操作体检（诊断紧跟被诊断的对象）
        ④ 工具：替换回测 ＋ 费率体检（两块「折叠待展开」，合并成一节）
        ⑤ 归档：清仓历史（发生在首份快照之前、不计入本金与收益，放最后以免打断主线）
        ⚠ 本次改动只有两处：把「操作体检」从 ① 里挪到 ③ 的持仓之后（它夹在「盈亏总览」与「本金与收益」
@@ -121,8 +120,6 @@ try {
   <h2 class="sec-title" id="sec-checkup"><span aria-hidden="true">🩺</span> 操作体检 <span class="cnt" id="chk-cnt"></span></h2>
   <div class="card" id="checkup-card"></div>
 
-  <h2 class="sec-title" id="sec-swing"><span aria-hidden="true">🎯</span> 波段复盘 <span class="cnt" id="swing-cnt"></span></h2>
-  <div class="card tight" id="swing-card"></div>
 
   <!-- 场外定投 · 操作记录（2026-10-04 建）：用户问「场内那块能不能给场外也做一个、有必要吗」。
        结论：能做（数据全在 OTC_LOG 里，391 笔，含 status —— 场内那 57 笔反而没有 status），
@@ -131,7 +128,7 @@ try {
        故本块只保留场内那块没有、而场外最要紧的三样：定投体检（静默天数 + 状态档）、
        异常笔（撤单/失败/部分成功）、391 笔的可折叠明细（按基金分组的原生 <details>）。
        投入 / 收益 / XIRR / TWR 不重复 —— 已在「本金与收益」卡（场内场外 13 只并列）。
-       位置：紧接场内那组（持仓 → 体检 → 波段复盘）之后，作为「场外」独立一组。
+       位置：紧接场内那组（持仓 → 体检）之后，作为「场外」独立一组。
        数据：全部来自已有 OTC_LOG，无新增抓取（下一步的「逐笔盈亏」需先存净值历史，见函数注释）。 -->
   <!-- 场外净值水位（2026-10-04 建）：用户问「场外持仓下一步能做什么」，我提了 ① 主题暴露 ② 同标的费率
        ③ 52 周位置 —— **查完发现 ①② 页面上其实已经都有了**：① 就是顶部「组合占比」配置图（renderAlloc
@@ -167,9 +164,6 @@ try {
   场内市值（估）= ETF 场内报价 × 当前份数；来源未核验时仅为沿用读数｜场外市值与盈亏为 App 快照口径<br>
   各模块标题与卡片头部标注<b>口径日期</b>：<b>场内</b>＝该份报价的成交日（五只若不同则显示区间）｜<b>场外</b>＝App 截图快照日（净值日通常再早一天，逐只见「盈亏总览」行）<br>
   场外成本净值 = 最新净值 ÷（1 + 持有收益率）；场外按净值申赎、无溢价；场外明细卡已并入「盈亏总览」，仅保留逐只盈亏与同步徽章<br>
-  做T 复盘：<b>顺T</b>＝先买后卖、<b>反T</b>＝先卖后买，收益同为（卖出价 − 买入价）× 配对份数 − 双边手续费；
-  间隔超过 <b>10 天</b>记「调仓」，不计入做T。配对规则与反T 开关见 <code>CONFIG.SWING_MATCH</code> / <code>SWING_REVERSE</code>；
-  单条流水可用 <code>tag: "反T"</code>（或 "顺T" / "调仓"）覆盖自动判定<br>
   本页为个人记录工具，不构成投资建议<br>
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
@@ -198,7 +192,7 @@ const $ = (id) => document.getElementById(id);
  *   renderPrincipal()     本金 / 累计收益 / 收益率口径（TWR·XIRR）+ 逐只 XIRR 表 + 逐只体检
  *   renderSnapLog()       快照对比日志（每期一节）    └─ snapPairHtml()  相邻两期 diff 段
  *   renderAcctStats()     账户统计        renderCheckup()  操作体检表（数据来自 opCheckup()）
- *   renderFees()          费率体检        renderAlt()      标的替换回测      renderSwing() 波段复盘
+ *   renderFees()          费率体检        renderAlt()      标的替换回测      
  *
  * ▸ 走势图（KPI / 图例 / 绘制 / 交互各自独立，改一处不会牵动别处）
  *   renderTrend()         总入口（SVG 绘制就在它内部 —— 没有单独的 drawTrend）
@@ -422,7 +416,7 @@ const kindCls = (k) => (k === "swing" ? "sw" : k === "reverse" ? "rv" : "tr");
 const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
 const roundMark = (n) => (n >= 1 && n <= 20 ? CIRCLED[n - 1] : "(" + n + ")");
 /* 全站回路（按需构建一次）。编号跨标的统一、按卖出日期正序 ①②③…
- * —— 各卡内的 ⇄ 角标与「波段复盘」表用的是同一套编号，同一个回路在两处编号一致。 */
+ * —— 各卡内的 ⇄ 角标与持仓卡内的「波段回路」用的是同一套编号，同一个回路在两处编号一致。 */
 let SWING_CACHE = null;
 function swingData() {
   if (SWING_CACHE) return SWING_CACHE;
@@ -449,7 +443,6 @@ function swingStats(rounds) {
     days: n ? rounds.reduce((a, r) => a + r.days, 0) / n : 0 };
 }
 /* 「若一直持有到现在」：用当前报价重算这些回路份额的浮盈亏，作为做T的对照基准 */
-function holdToNow(rounds) { return rounds.reduce((a, r) => a + (r.close - r.bp) * r.qty, 0); }
 /* 把「批次对」聚合成「回路事件」：一次卖出 = 一个回路，即使它由多笔买入批次组成。
  * 做T的心算单位是「这次卖出」而不是「这个批次」——一次卖 3,800 份若按批次拆成 4 条，
  * 次数统计就会被读成「减仓 4 次」，而实际只卖了一次。批次构成挂在行 title 里可查。 */
@@ -1377,7 +1370,6 @@ safeCard("snap-list", "快照对比", renderSnapLog);
   safeCard("acct-card", "场内账户统计", renderAcctStats);
   safeCard("fee-card", "费率体检", renderFees);
   safeCard("alt-card", "标的替换回测", renderAlt);
-  safeCard("swing-card", "波段复盘", renderSwing);
 }
 
 /* ================= 资产走势（快照各期 + 今日估算，双线 + 差值着色） ================= */
@@ -3927,7 +3919,11 @@ function renderAcctStats() {
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
 }
 
-/* ================= 波段复盘（跨标的） =================
+/* ================= 波段配对引擎（跨标的） =================
+ * ⚠ 2026-10-09：**独立的「波段复盘」卡片已按用户要求删除** ✓ —— 但本节的配对内核
+ *   （swingPair / swingData / swingStats / swingEvents / swingRowHtml）**必须保留** ✓：
+ *   它们被「持仓卡 · 波段回路」折叠区（posLogHtml）与 ?debug 自检复用 ✓。
+ *   原文：
  * 单只标的回路样本太少（全部加起来也才个位数），合起来才看得出做T的期望值；
  * 且必须把「波段」与「减仓」分开——混在一起会把超期持仓的亏损算到做T头上。 */
 /* ================= ⓘ 说明浮层（全页共用） =================
@@ -4187,102 +4183,6 @@ function renderAlt() {
     "</details>";
 }
 
-function renderSwing() {
-  const el = $("swing-card");
-  if (!el) return;
-  const sd = swingData();
-  const all = sd.all.map((x) => Object.assign({}, x, { close: sd.close[x.sym] }));
-  const by = (k) => all.filter((x) => x.kind === k);
-  const SW = swingStats(by("swing")), RV = swingStats(by("reverse")), TR = swingStats(by("trim"));
-  $("swing-cnt").innerHTML = "(" + all.length + " 次往返 · " + etfTag() + ")";
-  if (!all.length) {
-    el.innerHTML = '<div class="snap-line"><span class="v" style="color:var(--tx3)">暂无往返——做T复盘至少需要一次「卖出」。</span></div>';
-    return;
-  }
-  const Tn = SW.n + RV.n, Tnet = SW.net + RV.net;
-  const Tdays = Tn ? (SW.days * SW.n + RV.days * RV.n) / Tn : 0;
-  const tRounds = by("swing").concat(by("reverse"));
-  const holdAll = holdToNow(tRounds), edge = Tnet - holdAll;
-  /* 未配对的腿 = 真正的加仓 / 减仓，与做T分开统计 */
-  const ob = sd.open.filter((x) => x.dir === "buy"), os = sd.open.filter((x) => x.dir === "sell");
-  const sumQ = (a) => a.reduce((s, x) => s + x.qty, 0);
-  /* 反T 的降成本：卖出与回补份数相抵，净投入减少「价差×份数」，摊薄成本随之下降 */
-  const hold = {};
-  (POSITIONS.hold || []).forEach((h) => { hold[h.sym] = h.qty; });
-  const cutGross = by("reverse").reduce((s, x) => s + x.gross, 0);
-  const kpi = (label, val, sub, k) =>
-    '<div class="sw-kpi"><div class="sw-label">' + label + "</div>" +
-    '<div class="sw-val ' + (k || "") + '">' + val + "</div>" +
-    (sub ? '<div class="sw-sub">' + sub + "</div>" : "") + "</div>";
-  const sub = (s) => s.n ? "净 " + fmtAmt(s.net) + " · 胜 " + s.win + "/" + s.n + " · 均持 " + s.days.toFixed(1) + " 天" : "暂无";
-  let html = '<div class="sw-kpis">' +
-    kpi("顺T（低买高卖）", SW.n + " 次", sub(SW), SW.n ? cls(SW.net) : "") +
-    kpi("反T（高抛低吸）", RV.n + " 次", sub(RV), RV.n ? cls(RV.net) : "") +
-    kpi("做T 合计", fmtAmt(Tnet), Tn ? Tn + " 次 · 均持 " + Tdays.toFixed(1) + " 天" : "暂无", cls(Tnet)) +
-    kpi("择时优势", fmtAmt(edge), "做T净额 − 一直持有（" + fmtAmt(holdAll) + "）", cls(edge)) +
-    kpi("持仓 / 净减仓", fmtQty(sumQ(ob)) + " / " + fmtQty(sumQ(os)), "份 · 未配对腿 " + ob.length + " / " + os.length + " 笔") +
-  "</div>";
-  /* 结论行：全部由数据推出，不写死文案 */
-  const notes = [];
-  const judge = (s, name) => name + " " + s.n + " 次净 <b class=\"" + cls(s.net) + "\">" + fmtAmt(s.net) + "</b>（平均 " + fmtAmt(s.avg) + "/次）" +
-    (s.net > 0 ? "，是正期望" : "，是负期望——先看配对明细再决定是否继续") + (s.n < 5 ? "；样本仅 " + s.n + " 次，不足以定论" : "");
-  if (SW.n) notes.push(judge(SW, "顺T"));
-  if (RV.n) notes.push(judge(RV, "反T"));
-  if (RV.n) notes.push("反T 把卖出与回补份数相抵，净投入减少 <b>" + fmtAbs2(cutGross) + "</b> 元——等价于把摊薄成本往下拉（差额从挂单里省出来，不是账面浮盈）");
-  if (Tn) notes.push("这 " + Tn + " 次做T的份额若一直持有到今天，同期为 " + fmtAmt(holdAll) + "，做T" + (edge > 0 ? "胜出 <b>" + fmtAbs2(edge) + "</b> 元" : "反而少赚 <b>" + fmtAbs2(-edge) + "</b> 元"));
-  if (TR.n) notes.push("另有 " + TR.n + " 次间隔超过 " + CONFIG.SWING_MAX_DAYS + " 天的往返（调仓级，不计入做T），净 " + fmtAmt(TR.net) +
-    (TR.net < 0 && Math.abs(TR.net) > Math.abs(Tnet) ? "——金额上远大于做T，<b>优先管卖出纪律</b>" : ""));
-  if (ob.length + os.length) notes.push("未配对的 " + ob.length + " 笔买入 / " + os.length + " 笔卖出是真金白银的加减仓，不属于做T，已单独统计");
-  const feeEst = all.filter((x) => x.feeEst).length;
-  html += '<div class="sw-notes">' + notes.map((n) => "· " + n).join("<br>") +
-    (feeEst ? '<br><span style="color:var(--tx3)">· ' + feeEst + " 次往返的手续费按 <b>" + CONFIG.FEE_PER_SIDE + "</b> 元/边估算（备注未记「费 X」），净额前标 ≈</span>" : "") +
-  "</div>";
-  /* 每趟往返对摊薄成本的影响（2026-09-23 加）：取「这趟首腿之前 → 末腿之后」的复算成本价差值
-     （与「逐笔流水」每行的 Δ 是同一套 costTrace 复算值，只是这里取了跨这趟的两端）。
-     ⚠ 口径：配对可能只吃掉某条腿的一部分（x.qty 可小于腿的份数），这里**不按比例切分**，
-     所以它回答「这趟操作期间成本价从多少变成多少」，不是「这趟单独贡献了多少」。
-     元额 ＝ Δ × 末腿之后剩余份数 ＝ 那之后持仓成本总额的净变化。 */
-  const swingCostCell = (x) => {
-    /* 一趟往返的腿：卖出 1 条（x.si）＋ 买入可能多条（x.bis 是**数组**）。
-       按日期把全部腿排一遍，取最早的 before 与最晚的 after —— 反T（先卖后买）也能正确处理。 */
-    const es = (POSITIONS.log || []).filter((e) => e.sym === x.sym);
-    const legs = (x.bis || []).map((i) => es[i]).concat(es[x.si] ? [es[x.si]] : []).filter(Boolean)
-      .sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-    if (legs.length < 2) return "";
-    const f = costTrace().get(legs[0]), l = costTrace().get(legs[legs.length - 1]);
-    if (!f || !l || f.before === null || l.after === null) return "";
-    const dl = l.after - f.before, money = dl * l.qtyAfter;
-    return '<span class="sw-cost ' + (dl <= 0 ? "up" : "down") + '" title="这趟之后摊薄成本 ' +
-      f.before.toFixed(4) + " → " + l.after.toFixed(4) + "（" + (dl <= 0 ? "−" : "+") + Math.abs(dl).toFixed(4) + "/份）；" +
-      "按当时剩余 " + fmtQty(l.qtyAfter) + " 份折算，持仓成本总额" + (money <= 0 ? "减少 " : "增加 ") + fmtAbs2(Math.abs(money)) + " 元。" +
-      "口径：整段跨度（配对只吃部分腿时不按比例切）；成本价下降＝成本被拉低（绿）。" +
-      " ⚠ 颜色与 ↑/↓ 讲的是**成本方向**，不是涨跌" + '">Δ成本 ' +
-      (dl <= 0 ? "↓" : "↑") + Math.abs(dl).toFixed(4) + "/份</span>";
-  };
-  html += all.map((x) => '<div class="swing-row">' +
-      '<span class="sw-no" title="与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致">' + roundMark(x.no) + "</span>" +
-      '<span class="sw-date">' + mdOf(x.d1) + '→' + mdOf(x.d2) + "</span>" +
-      '<span class="sw-sym">' + esc(x.sym) + "</span>" +
-      '<span class="sw-kind ' + kindCls(x.kind) + '">' + KIND_LABEL[x.kind] + "</span>" +
-      '<span class="sw-qty">' + fmtQty(x.qty) + " 份</span>" +
-      '<span class="sw-px">买 ' + x.bp + " 卖 " + x.sp + "</span>" +
-      swingCostCell(x) +
-      '<span class="' + cls(x.pct) + '">' + fmtPct(x.pct) + "</span>" +
-      '<span class="sw-days">' + x.days + " 天</span>" +
-      '<span class="sw-net ' + cls(x.net) + '">' + (x.feeEst ? "≈" : "") + fmtAmt(x.net) + "</span>" +
-    "</div>").join("");
-  html += '<div class="otc-note"><b>一次卖出 = 一个往返</b>：一次卖出若跨多笔买入批次，按加权买入均价合并为一条（批次构成见行悬停）。<br>' +
-    "<b>顺T</b>＝先买后卖（低买高卖）；<b>反T</b>＝先卖后买（高抛低吸，回补后摊薄成本下降）；间隔超过 " + CONFIG.SWING_MAX_DAYS +
-    " 天记「调仓」，不计入做T统计。净额 ＝（卖出价 − 买入价）× 配对份数 − 双边手续费，顺T 反T 同一公式。<br>" +
-    "<b>Δ成本</b>＝这趟首腿之前 → 末腿之后 的摊薄成本价净变化（元/份，悬停看按当时剩余份数折算的元额）——" +
-    "下降（绿）＝成本被拉低，做T、回调买入都会让它下降。<b>口径是整段跨度</b>：配对只吃掉某条腿的一部分时不按比例切分，" +
-    "所以它回答「这趟期间成本价从多少变成多少」，不是「这趟单独贡献了多少」。<br>" +
-    "配对规则 <b>" + CONFIG.SWING_MATCH + "</b>（qty 同份额优先 / near 时间最近 / oldest 最早）；反T 自动识别：" + (CONFIG.SWING_REVERSE ? "<b>已开启</b>" : "关闭（可在 log 条目写 tag: \"反T\" 单笔开启）") +
-    "。编号与各持仓卡「逐笔流水」行尾的 ⇄ 角标一致。券商按 FIFO 结算，与这里的配对不同，差别只在「已实现 / 浮动」如何切分。</div>";
-  el.innerHTML = html;
-}
-
-/* ================= 场内持仓卡 ================= */
 function holdCardHtml(row, i, ctx) {
   const { p, m, r, nav, costAmt, valAmt } = row;
   const { asOfUs, firstDate, totalVal } = ctx;
@@ -5055,7 +4955,7 @@ function opCheckupHtml(p) {
 function posLogHtml(p, r, pl) {
   const entries = (POSITIONS.log || []).filter((e) => e.sym === p.sym);
   if (!entries.length) return "";
-  /* 用全站统一编号的回路事件（与波段复盘表同一套号；已按新在上排好序） */
+  /* 用全站统一编号的回路事件（与持仓卡内的波段回路同一套号；已按新在上排好序） */
   const rounds = swingData().bySym[p.sym] || [];
   const kindOf = (k) => rounds.filter((x) => x.kind === k);
   const S1 = swingStats(kindOf("swing")), S2 = swingStats(kindOf("reverse")), S3 = swingStats(kindOf("trim"));
