@@ -2970,6 +2970,50 @@ function snapPairHtml(prev, cur) {
  * 这些盈亏发生在首份快照（2026-08-28）之前，所以上方「本金与收益」里看不到它们——
  * 不单列出来，以后翻旧账会以为这些从没买过。⚠ 不计入本金 / 累计收益 / 走势归因。
  * 呈现：按类别汇总（低风险债基 vs 权益）+ 全部明细可展开；留档数字精确到分，便于与 App 对账。 */
+/* ---- 场内「已了结」标的（2026-10-09 加，B 方案：清仓历史要能一起回看）-------------------
+ * 数据来源：POSITIONS.log **现算**，不手抄 ✗。
+ *   为什么这么做：场内**没有**「清仓分析」这种 App 页（那是支付宝侧的 ✓），而流水本身完整、
+ *   且 data-quality 门禁**强制卖出行必须带 realized** ✓ → 回放即可推出。
+ *   收益：今后每次场内清仓**自动出现** ✓，且不会产生第二份台账（手抄两份必然漂移 ✗）。
+ * 口径（与页面既有口径对齐，务必别和上面场外那张卡的 App 读数混用 ✗）：
+ *   · 份数回放：买入/建仓 +qty，卖出/减仓/清仓 −qty → **期末份数归零**者＝已了结 ✓
+ *   · 已实现 ＝ 该标的 Σ realized（卖出行；门禁保证存在 ✓）—— 含该标的**历次**卖出，不只是最后一笔 ✓
+ *   · 投入 ＝ Σ(买入 qty × 成交价 ＋ 单边费)，费优先取 note 里的「费 X」、否则 CONFIG.FEE_PER_SIDE ✓
+ *   · 收益率 ＝ 已实现 ÷ 投入（**本页推导**；场外那张卡是 App 的「清仓收益率」，两者不同名 ✗ → 分开列、不相加 ✓）
+ *   · 建仓日＝首笔买入日；清仓日＝使份数归零的那笔卖出日
+ *   · 「清仓后涨跌幅」不涉及：该列 2026-09-30 已按用户要求整列停用 ✓（场内亦无此 App 读数 ✓） */
+function closedEtfRows() {
+  const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
+  const by = {};
+  log.forEach((e) => {
+    const k = String(e.sym || "");
+    if (!k) return;
+    const o = by[k] || (by[k] = { sym: k, qty: 0, buyAmt: 0, realized: 0, first: null, last: null, n: 0 });
+    o.n++;
+    if (isSellAct(e)) {
+      o.qty -= (e.qty || 0);
+      o.realized += (typeof e.realized === "number" ? e.realized : 0);
+      o.last = e.d;                                   // 最后一笔卖出（清仓那笔）
+    } else {
+      o.qty += (e.qty || 0);
+      const fee = logFee(e);
+      o.buyAmt += (e.qty || 0) * (e.cost || 0) + (fee === null ? CONFIG.FEE_PER_SIDE : fee);
+      if (!o.first || e.d < o.first) o.first = e.d;
+    }
+  });
+  /* 主题名（纳指/标普/中韩/日本/港美）：清仓后 POSITIONS.hold 里已经没有它 ✗ → 按名称包含关系反查 ✓ */
+  const themeOf = (nm) => { for (const k in MARKET_NAMES) if (nm.indexOf(MARKET_NAMES[k]) >= 0) return MARKET_NAMES[k]; return ""; };
+  return Object.keys(by).map((k) => by[k])
+    .filter((o) => o.qty === 0)                       // 期末归零 = 已了结 ✓（在持的不会被列进来 ✓）
+    .map((o) => ({
+      sym: o.sym, theme: themeOf(o.sym), n: o.n,
+      buy: o.first, sell: o.last,
+      days: (o.first && o.last) ? Math.round((new Date(o.last) - new Date(o.first)) / 864e5) : null,
+      pnl: o.realized, cost: o.buyAmt,
+      rate: o.buyAmt ? o.realized / o.buyAmt * 100 : 0,
+    }))
+    .sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));   // 新的在前
+}
 function renderClosed() {
   const el = $("closed-card");
   if (!el) return;
@@ -3041,9 +3085,12 @@ function renderClosed() {
   const briefHtml = '<div class="closed-brief">' + brief.map((b) =>
     '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("") + "</div>";
   const cnt = $("closed-cnt");
-  if (cnt) cnt.textContent = "（支付宝 · " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 投入 ≈" + fmtYuan(costAll) +
+  /* 标题栏计数要覆盖卡内**两组**（场内 + 场外），否则标题写着"支付宝 17 只"、卡里却有场内那半 ✗ */
+  const exRows = closedEtfRows();
+  if (cnt) cnt.textContent = "（场外 · 支付宝 " + (C.count || rows.length) + " 只 · 合计 " + fmt2(sum) + " 元 · 投入 ≈" + fmtYuan(costAll) +
     " 元 · 加权收益率 ≈ " + pc(rateAll) + " · 平均持有 " + (avgDays === null ? "—" : avgDays.toFixed(1)) +
-    " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）";
+    " 天 · 盈利 " + winN + "/" + rows.length + " 只 · 均在本页跟踪基线之前清仓）" +
+    (exRows.length ? "　＋　场内已了结 " + exRows.length + " 只 · 合计 " + fmt2(exRows.reduce((a, r) => a + r.pnl, 0)) + " 元（由流水现算）" : "");
   const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
   const span = (a, b) => (a && b ? a + " ~ " + b : "—");
   const qNote = '<div class="strat-note" id="closed-q">'
@@ -3087,7 +3134,41 @@ function renderClosed() {
       "</b>（投入 ≈" + fmtYuan(gEq.c) + " 元，加权 " + pc(gEq.r) + "）—— <b>用了 " +
       (gEq.c ? (gLow.c / gEq.c).toFixed(1) : "—") + " 倍的钱，债基只赚 " + pc(gLow.r) + "，权益亏 " + pc(gEq.r) +
       "</b>，两者相抵才是 " + fmt2(sum) + "。（金额口径看不出这层反差，收益率口径才看得出）</div>" +
-    '<details class="closed-all"><summary>展开全部 ' + rows.length + " 只明细（按盈亏排序）</summary>" + detail + "</details>";
+    '<details class="closed-all"><summary>展开全部 ' + rows.length + " 只明细（按盈亏排序）</summary>" + detail + "</details>" +
+    /* ---- 场内「已了结」（2026-10-09 加，B 方案：清仓历史要能一起回看）------------------------
+       与上面场外那半**分列、不相加** ✗：口径不同名（场内＝券商已实现、含费用；场外＝App 清仓盈亏读数）。
+       数据由 closedEtfRows() 从 POSITIONS.log 现算 ✓（为什么这么做的理由写在该函数注释里）。
+       包一层 #closed-etf：dom-check 要靠它定位场内那一组并独立复算（这张卡此前零断言 ✗）。 */
+    (function () {
+      const ex = closedEtfRows();
+      if (!ex.length) return "";
+      const exSum = ex.reduce((a, r) => a + r.pnl, 0), exCost = ex.reduce((a, r) => a + r.cost, 0);
+      const rowsHtml = ex.map((r) => {
+        const meta = [];
+        if (r.buy && r.sell) meta.push(r.buy.slice(5) + "→" + r.sell.slice(5) + (r.days === null ? "" : " · " + r.days + " 天"));
+        meta.push("收益率 " + pc(r.rate));
+        meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US"));
+        meta.push(r.n + " 笔流水");
+        return '<div class="closed-row"><span class="c-nm"><b>' + esc(r.sym) + "</b>" +
+            (r.theme ? '<span class="c-code">' + esc(r.theme) + "</span>" : "") +
+            '<div class="c-meta">' + esc(meta.join(" · ")) + "</div></span>" +
+            '<span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>";
+      }).join("");
+      return '<div id="closed-etf">' +
+        '<div class="closed-row" style="margin-top:12px"><span class="c-nm"><b>场内 ETF · 已了结</b>' +
+          '<span class="c-code">' + ex.length + " 只</span>" +
+          '<div class="c-meta">由 POSITIONS.log <b>现算</b>（不手抄 App 读数 · 今后每次清仓自动出现）· ' +
+          "已实现口径含费用 · 与上半场外的 App 读数不同名，<b>两处不相加</b></div></span>" +
+          '<span class="c-v ' + cls(exSum) + '">' + fmt2(exSum) + "</span></div>" +
+        rowsHtml +
+        '<div class="closed-total"><span>场内已了结合计（' + ex.length + " 只 · 投入 " + fmtYuan(exCost) + " 元）</span>" +
+          '<b class="' + cls(exSum) + '">' + fmt2(exSum) + "</b></div>" +
+        '<div class="otc-note">口径：份数由流水回放、期末归零者＝已了结 ✓；已实现＝该标的 <b>历次</b>卖出的 realized 之和 ✓；' +
+          "投入＝Σ(买入金额 ＋ 单边费)，费优先取 note 里的「费 X」、否则按 " + CONFIG.FEE_PER_SIDE + " 元估 ✓；" +
+          "收益率＝已实现 ÷ 投入（<b>本页推导</b>，非 App 读数 ✗）。「清仓后涨跌幅」不展示 —— 该列已于 2026-09-30 " +
+          "按用户要求整列停用 ✓（场内本就没有这个 App 读数 ✓）。</div>" +
+        "</div>";
+    })();
 }
 
 /* ===== 本金与收益（一眼看清「投了多少 → 现在多少 → 赚亏多少」）=====
