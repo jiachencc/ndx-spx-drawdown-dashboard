@@ -32,6 +32,10 @@ const steps = [
     : ["eslint", null, "跳过：未安装 eslint（本地工具，CI 与门禁不依赖）"],
   hasPlaywright() ? ["dom-check（页面 DOM 断言）", ["node", ["scripts/dom-check.mjs"]]]
     : ["dom-check", null, "跳过：未找到全局 playwright"],
+  /* 2026-10-09 加：dom-check 跑在 jsdom 里（没有布局 ✗），
+     "元素撑破容器 / 页面横向溢出"这类**真实版面**问题它抓不到 ✗ —— 见 layout-check.mjs 头的由来 ✓ */
+  hasPlaywright() ? ["layout-check（真实版面 · 无横向溢出）", ["node", ["scripts/layout-check.mjs"]]]
+    : ["layout-check", null, "跳过：未找到全局 playwright"],
 ];
 if (DEEP) steps.push(["typecheck（深度）", ["node", ["scripts/typecheck.mjs"]]]);
 
