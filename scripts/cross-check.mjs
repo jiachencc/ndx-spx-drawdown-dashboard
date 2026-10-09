@@ -114,7 +114,28 @@ export function crossIssues(model, html, diag = false) {
     const dCost = sumOf(c.items, "cost", () => true) - sumOf(p.items, "cost", () => true);
     const dVal = sumOf(c.items, "val", () => true) - sumOf(p.items, "val", () => true);
     const dCash = Number.isFinite(c.cash) && Number.isFinite(p.cash) ? c.cash - p.cash : null;
-    const f2 = dCash === null ? null : dCost + dCash;
+    /* 2026-10-09 加：**清仓修正**。某标的从本期 items 里消失（清仓）时，它的成本整块离开 Σ、
+       而卖出回款进了现金 → 原式 ΔΣ成本 ＋ Δ现金 会把它当成"外部流出"✗。
+       真实语义：成本额 − 卖出净额 ＝ **已实现盈亏**，那一块从来不是资金流，故要减掉：
+         flow ＝ ΔΣ成本 ＋ Δ现金 − Σ已实现(清仓)
+       首次触发是 2026-10-09（清仓中韩 82,372.10 / 港美 9,306.10，realized −13,217.10 / −5,274.90）：
+         不修正残差 **−18,282.00** ✗（判红、挡住写入）；修正后 = **+210.00** ＝ 当日场外定投
+         （南方 200 ＋ 华安A/C 各 5）✓✓ —— 与「Δ总资产 ＝ flow ＋ day − 费用」独立吻合（差 0.05 逐只取整）。
+       ⚠ realized 取自 POSITIONS.log 的卖出/减仓/清仓行（按快照 items 的 name 匹配本只最近一笔）。
+         场外清仓（若有）在 log 里没有对应流水 → 无法修正，此时**照实报缺**，不静默放过 ✗。 */
+    let clearRealized = 0; const clearNoFlow = [];
+    for (const code of Object.keys(p.items)) {
+      if (c.items[code]) continue;                       // 还在本期 items 里 → 不是清仓（减仓由摊薄口径自洽 ✓）
+      const nm = (p.items[code] || {}).name || "";
+      const e = (model.POSITIONS?.log || [])
+        .filter((x) => /卖出|减仓|清仓/.test(String(x.act || "")) && x.sym === nm && Number.isFinite(x.realized))
+        .sort((a, b) => (a.d < b.d ? 1 : -1))[0];
+      if (e) clearRealized += e.realized; else clearNoFlow.push(code + "（" + nm + "）");
+    }
+    const f2 = dCash === null ? null : dCost + dCash - clearRealized;
+    if (diag && clearRealized) lines.push("  " + c.d + "  清仓修正 −Σ已实现 " + money(clearRealized) + "（" + (clearNoFlow.length ? "✗ 无法修正：" + clearNoFlow.join("、") : "已全部找到对应流水 ✓") + "）");
+    if (clearNoFlow.length) lines.push("② " + c.d + " 有标的从 items 消失但 **log 里找不到对应的卖出流水**：" + clearNoFlow.join("、") +
+      " → flow 无法按「ΔΣ成本 ＋ Δ现金 − Σ已实现」修正（场外清仓需手工确认口径）");
     const d2 = dVal - dCost;
     const rf = Number.isFinite(c.flow) && f2 !== null ? c.flow - f2 : null;
     const rd = Number.isFinite(c.day) ? c.day - d2 : null;

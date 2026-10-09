@@ -119,7 +119,13 @@ const items = {}; const tips = [];
 const holdCodes = new Set(model.POSITIONS.hold.map((p) => p.code));
 let dCost = 0, dVal = 0;
 for (const [key, idx] of Object.entries(ETF_KEYS)) {
-  const p = nextHold(holdByIdx(idx).code);
+  const hp = holdByIdx(idx);
+  /* 2026-10-09 加：该场内标的**已清仓**（不再在 POSITIONS.hold 里）→ 跳过，不进本期 items。
+     为什么必须跳过：页面「快照对比」正是靠「上期有、本期没有」判**清仓**（tag: "close"）✓。
+     ⚠ 原实现是 `nextHold(holdByIdx(idx).code)` —— 清仓后 holdByIdx 返回 undefined，
+       直接取 .code 会 **TypeError 崩掉整个脚本** ✗（2026-10-09 清仓中韩/港美时实测踩到）。 */
+  if (!hp) { tips.push(idx + "（" + key + "）已不在 POSITIONS.hold 里 → 本期不进 items（页面据此显示「清仓」✓）"); continue; }
+  const p = nextHold(hp.code);
   const close = typeof input.etf[key] === "object" ? input.etf[key].close : input.etf[key];
   const cost = r2(p.qty * p.cost), val = r2(p.qty * close);
   items[p.code] = { name: p.sym, qty: p.qty, cost, val, pl: r2(val - cost) };
@@ -134,13 +140,38 @@ for (const f of input.otc) {
   items[f.code] = { name, qty: f.qty, cost, val: r2(f.value), pl: r2(f.pnl) };
   dCost += cost - pc(f.code); dVal += r2(f.value) - pv(f.code);
 }
+/* 2026-10-09 加（配合 --allow-partial）：本期**没给读数**的场外，沿用上一期快照的 items（份额/成本/市值/收益全同）。
+   为什么非加不可：不分批时，缺的几只**不在 items 里** → 页面把它们读成**清仓** ✗✗（比"沿用"严重得多）。
+   沿用后的诚实性由 OTC.funds[].upd 承担：那几只的 upd 仍是上一期 → 页面显示「N 只未更新」✓、净值日也不动 ✓。
+   ⚠ 场内已清仓的标的不在此列（它们**本来就不该**进 items）—— 靠 otcNow.funds 里有没有这个 code 区分 ✓ */
+if (ALLOW_PARTIAL) {
+  for (const code of Object.keys(prev)) {
+    if (items[code]) continue;
+    if (!otcNow.funds.some((x) => x.code === code)) continue;      // 场内的清仓标的：正确地不进 items ✓
+    items[code] = { ...prev[code] };
+    dCost += (prev[code].cost || 0) - pc(code);
+    dVal += (prev[code].val || 0) - pv(code);
+    tips.push(code + "（" + (prev[code].name || "") + "）本期未给读数 → **沿用上一期快照**，页面会标「未更新」✓");
+  }
+}
 const sumBy = (pick, field) => r2(Object.entries(items).filter(([c]) => pick(c)).reduce((a, [, it]) => a + it[field], 0));
 const pl = sumBy(() => true, "pl");
 const dayOtc = r2(input.otc.reduce((a, f) => a + f.day, 0));
 const dayIn = r2(dVal - dCost);
 const day = Number.isFinite(input.day) ? r2(input.day) : r2(dayIn + dayOtc);
 const dCash = r2(input.cash - last.cash);
-const flow = r2(dCost + dCash);
+/* 2026-10-09 加：流入口径的**例外**与显式覆盖。
+   既有公式 flow ＝ ΔΣ持仓成本 ＋ Δ现金 只在「没有清仓」时成立 ✓（每期 note 都这么写的）。
+   ⚠ 一旦有标的**清仓**，该标的的成本从 Σ 里整块消失、而卖出回款进了现金 →
+     公式凭空多出一大笔（2026-10-09 清掉中韩 82,372.10 ＋ 港美 9,306.10 时实测多算 73,391.20 ✗，
+     真实 flow 是 0 —— 当天只有账户内买卖）。
+   → 有清仓时**必须**在输入里显式给 flow；缺省则告警（不静默给一个错数 ✗）。
+     显式 flow 的口径取**总资产恒等式**：flow ＝ Δ总资产 − day ＋ 当日费用（本项目一贯用它自检）。 */
+const clearedIn = Object.keys(prev).filter((c) => !items[c] && !otcNow.funds.some((x) => x.code === c));
+const flow = Number.isFinite(input.flow) ? r2(input.flow) : r2(dCost + dCash);
+if (clearedIn.length && !Number.isFinite(input.flow))
+  tips.push("⚠ 本期有**清仓**（" + clearedIn.join("/") + "）：ΔΣ成本＋Δ现金 的公式此时不成立 ✗ → 请在输入里显式给 flow（＝Δ总资产 − day ＋ 费用）");
+else if (clearedIn.length) tips.push("清仓 " + clearedIn.join("/") + " → flow 取输入显式值 " + num(flow, 2) + "（总资产恒等式：Δ总资产 − day ＋ 费用 ✓）");
 const totalVal = sumBy(() => true, "val");
 const inVal = sumBy((c) => holdCodes.has(c), "val"), otcVal = sumBy((c) => !holdCodes.has(c), "val");
 
@@ -165,6 +196,10 @@ let dataSrc = dataSrc0, posSrc = posSrc0;
    ⚠ 键与 `{` 之间是对齐空格（`kr:   { close: …`），所以用 \s* 而不是一个空格 —— 初版写死一个空格，
      etfNdx/etfSpx（单个空格）能匹配、kr/n225/hkus（三个空格）整条找不到锚点。 */
 for (const key of Object.keys(ETF_KEYS)) {
+  /* 2026-10-09 加：**已清仓**的场内标的不再写 DEFAULT 报价 —— 我们手上没有它当日的真实成交价，
+     照输入写就会把 priceDate 盖成今天（**伪造时间戳** ✗，与「不允许静默降级 / 不伪造读数」同一底线）。
+     它的报价留给 CI 的定时任务按行情源刷新 ✓（清仓标的不再参与持仓页计算，晚一天无害 ✓）。 */
+  if (!holdByIdx(ETF_KEYS[key])) { tips.push(key + " 已清仓 → 不写 DEFAULT 报价（priceDate 保持原值，等 CI 刷）"); continue; }
   const close = typeof input.etf[key] === "object" ? input.etf[key].close : input.etf[key];
   const given = typeof input.etf[key] === "object" ? input.etf[key].chg : undefined;
   const chg = Number.isFinite(given) ? r3(given) : r3((close / model.DEFAULT[key].close - 1) * 100);
