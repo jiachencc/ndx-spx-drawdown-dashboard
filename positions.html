@@ -1169,10 +1169,48 @@ function renderImpl() {
      操作体检**移出**总览行（2026-09-27 用户改为「单独做一块」）—— 集中在「操作体检」卡片里。 */
   otcRows.forEach((row) => plRows.push({ code: row.f.code, name: plDisplayName(row.f.name), badge: syncBadge(row.f), pl: row.f.pnl, r: row.r, cost: row.costAmt }));
   plRows.sort((a, b) => b.pl - a.pl);
-  /* 盈 / 亏持仓计数（2026-09-30 从汇总卡挪来）：它数的是**本卡下面列的这 13 行**，
-     放在清单头上才对得上账（原来挂在汇总卡里，与这 13 行隔着两块内容）。口径同前：±0.5 元内算持平。 */
+  /* ── 已清仓 · 已兑现（2026-10-09 用户：「盈亏总览是不是要加上已清仓实现的盈亏？灰色区分？」→ A 方案）──────
+     该加 ✓：本卡叫「盈亏**总览**」，却静默地只算持仓浮盈亏（当前 11 项），读者容易以为"总 ＝ 这些行之和"，
+       而实际漏掉了已兑现的 −18,378.13 ✗。但**只加「组头 ＋ 一行汇总 ＋ 跳转」，不搬 19 行明细** ✗：
+         · 明细只在「清仓历史」卡里存一份 —— 同一批数字存两处必然漂移（本仓库 cross-check 门禁就是防这个）；
+           这一行沿用本卡既有的 data-sel → pl-flash 交互，点一下跳到那张卡 ✓。
+         · 卡头计数同时写清「已清仓 N 笔另列」✓，不会与上面的「N 盈 / M 亏」计数混淆 ✓。
+     口径两半来源不同、必须标清（与清仓历史卡同一句话 ✓）：
+       场外＝支付宝「清仓分析」App **原读数**（CLOSED.items）· 场内＝本页由 POSITIONS.log 推导（含双边费用 ✓）。
+     ⚠ **不要**把它与上面的浮盈亏相加成一个"总共赚赔多少" ✗ —— 场外那 17 笔发生在首份快照之前，
+       本金 / 走势口径看不见它们，相加出来的数**不等于**「总资产 − 本金」✗（那样会误导）。
+     ⚠ 视觉（用户问"用灰色区分？"）：**组头用灰 ✓、金额保留 up/down 的绿红 ✗ 不涂灰** ——
+       本页 --tx3 的"灰"有固定含义（未更新 / 次要 / 无数据），涂在金额上会让 −18,378.13 看起来像
+       "这数不可用 / 待更" ✗，与事实相反；次级感改由 .pl-row-cleared 的降透明度承担 ✓ */
+  const clearedOt = (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)) ? CLOSED.items : [];
+  const clearedEtf = closedEtfRows();
+  const clearedN = clearedOt.length + clearedEtf.length;
+  const clearedOtPl = clearedOt.reduce((a, r) => a + (r.pnl || 0), 0);
+  const clearedEtfPl = clearedEtf.reduce((a, r) => a + (r.pnl || 0), 0);
+  const clearedPl = clearedOtPl + clearedEtfPl;
+  const clearedHtml = clearedN
+    ? '<div class="pl-sec"><span>已清仓 · 已兑现</span><span class="pl-sec-h">另一种口径，不计入上面的浮盈亏</span></div>' +
+      '<button type="button" class="pl-row pl-row-cleared" data-sel="#closed-card" aria-label="定位「清仓历史」卡看逐只明细">' +
+        '<span class="pl-top">' +
+          '<span class="pl-nm">清仓累计已兑现</span>' +
+          /* data-pl 给门禁用的**精确值**：显示值按整元取整（fmtAmt ✗），0.01 容差的断言在显示值上
+             分辨不出漂移 ✗；dom-check ④c 拿它比对**独立复算**的结果（场外 CLOSED ＋ 场内流水推导）✓ */
+          '<b class="pl-amt ' + cls(clearedPl) + '" id="pl-cleared-total" data-pl="' + clearedPl.toFixed(2) + '">' + fmtAmt(clearedPl) + '</b>' +
+        '</span>' +
+        '<span class="pl-sub">' +
+          '<span class="pl-src" title="场外 ' + clearedOt.length + ' 笔＝支付宝「清仓分析」App 原读数；场内 ' + clearedEtf.length + ' 只＝本页由 POSITIONS.log 推导（生命周期实际结果、含双边费用）。两半分属不同账户、无重复计入，故可相加；但**不与上面的浮盈亏相加**（场外那批发生在首份快照之前，本金 / 走势口径看不见它们）。">' +
+            clearedN + ' 笔 · 场内 ' + clearedEtf.length + ' ＋ 场外 ' + clearedOt.length + '</span>' +
+          '<span class="pl-right">' +
+            '<span class="pl-base">场内 ' + fmtAmt(clearedEtfPl) + ' · 场外 ' + fmtAmt(clearedOtPl) + '</span>' +
+          '</span>' +
+        '</span>' +
+      '</button>'
+    : '';
+  /* 盈 / 亏持仓计数（2026-09-30 从汇总卡挪来）：数的是**本卡上面那批持仓行**（2026-10-09 清仓中韩/港美后＝11 行；
+     原注释写"这 13 行"已过期 ✗ —— 显示的数字是现算的 ✓ 所以页面没错，只是注释没跟上）。
+     口径同前：±0.5 元内算持平。 */
   const plWin = plRows.filter((x) => x.pl > 0.5).length, plLoss = plRows.filter((x) => x.pl < -0.5).length;
-  $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span> · " + etfTag() + " · " + otcTag() + ")";
+  $("pl-cnt").innerHTML = "(" + plRows.length + " 项持仓 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span> · " + etfTag() + " · " + otcTag() + (clearedN ? " · 已清仓 " + clearedN + " 笔另列" : "") + ")";
   $("pl-list").innerHTML =
     plRows.map((x) => {
       const zero = Math.abs(x.pl) < 0.5;
@@ -1194,7 +1232,7 @@ function renderImpl() {
           "</span>" +
         '</span>' +
         "</button>";
-    }).join("");
+    }).join("") + clearedHtml;
 
   /* ===== 场内持仓卡 ===== */
   $("pos-list").innerHTML = rows.map((row, i) => holdCardHtml(row, i, { asOfUs, firstDate, totalVal })).join("");
