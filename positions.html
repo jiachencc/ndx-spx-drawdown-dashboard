@@ -653,7 +653,7 @@ function renderOtcEst(nc) {
       + (o.sum ? esc(f.name) : esc(plDisplayName(f.name)))      // 合计行不是基金名，别过 plDisplayName
       + (chip ? '<span class="chip">' + chip + "</span>" : "")
       + (o.sub ? '<span class="e-date">' + o.sub + "</span>" : "")
-      + '</td><td class="e-mid">' + mid + '</td><td class="e-amt">'
+      + '</td><td class="e-mid"><i class="c-lb">预估幅度</i>' + mid + '</td><td class="e-amt"><i class="c-lb">预估金额</i>'
       + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
   };
   let h = '<table class="est-tbl"><thead><tr><th class="e-nm">基金 <span class="e-th2">· 净值日 → 指数日</span></th>'
@@ -4456,10 +4456,12 @@ function holdCardHtml(row, i, ctx) {
     const isNow = pp === rbNowPp && Math.abs(pp - curPct) <= 1.5;
     return '<tr' + (pp === 0 ? ' class="rb-cost"' : (isNow ? ' class="rb-now"' : "")) + ">" +
       "<td>" + (pp === 0 ? "0%（回本）" : pp + "%") + (isNow ? ' <span class="rb-here">← 现在</span>' : "") + "</td>" +
-      '<td class="num">' + price.toFixed(4) + "</td>" +
-      '<td class="num ' + cls(price / nowPx - 1) + '">' + fmtPct(price / nowPx - 1, 2) + "</td>" +
-      '<td class="num">' + fmtYuan(val) + "</td>" +
-      '<td class="num ' + cls(pl) + '">' + fmtAmt2(pl) + "</td></tr>";
+      /* 2026-10-09：给数字列预埋手机列名（.c-lb，与 .chk-tbl / .dca-tbl 同一约定）✓
+         首列（档位「0%（回本）」/「+20%」）是这一格的**标题**、整行占满，故不加列名 ✓ */
+      '<td class="num"><i class="c-lb">价格(元/份)</i>' + price.toFixed(4) + "</td>" +
+      '<td class="num ' + cls(price / nowPx - 1) + '"><i class="c-lb">相对现价</i>' + fmtPct(price / nowPx - 1, 2) + "</td>" +
+      '<td class="num"><i class="c-lb">持仓市值</i>' + fmtYuan(val) + "</td>" +
+      '<td class="num ' + cls(pl) + '"><i class="c-lb">浮盈/亏</i>' + fmtAmt2(pl) + "</td></tr>";
   };
   const ladderFold = '<details class="rebound" data-k="' + i + '">' +
     '<summary>' + (curPct < 0 ? "回本阶梯" : "跌回成本阶梯") +

@@ -875,6 +875,23 @@
     table.dca-tbl tr.sum { border-top: 1px solid var(--line); border-bottom: none; font-weight: 700; }
     table.dca-tbl tr.sum td.n { width: 50%; }
   }
+  /* ── 窄屏：场外当日预估（.est-tbl，3 列）与回本阶梯（.rb-tbl，5 列）→ 卡片（2026-10-09 加）──────
+     与 .dca-tbl 同构、与 .chk-tbl 同源（隐表头 → 行块化 → 数字列两列一行 + 预埋列名）✓
+     ⚠ 这两张表的数字列**桌面是右对齐**（.est-tbl td 与 .rb-tbl td.num），
+       卡片模式下必须改左对齐 —— 否则每格里"标签在左、数字被推到格子最右"会散架 ✗ */
+  table.est-tbl .c-lb, table.rb-tbl .c-lb { display: none; }
+  @media (max-width: 767px) {
+    table.est-tbl thead, table.rb-tbl thead { display: none; }
+    table.est-tbl, table.est-tbl tbody, table.est-tbl tr, table.est-tbl td,
+    table.rb-tbl, table.rb-tbl tbody, table.rb-tbl tr, table.rb-tbl td { display: block; }
+    table.est-tbl tr, table.rb-tbl tr { padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
+    table.est-tbl td, table.rb-tbl td { padding: 0; border: none; text-align: left; white-space: normal; }
+    table.est-tbl td.e-mid, table.est-tbl td.e-amt,
+    table.rb-tbl td.num { display: inline-block; width: 50%; padding: 4px 0 0; text-align: left; white-space: nowrap; }
+    table.est-tbl td .c-lb, table.rb-tbl td .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); }
+    /* 回本阶梯的「首列」是档位（0%（回本）/ +20%…）：它是这一格的**标题**，不加列名、整行占满 ✓ */
+    table.rb-tbl tr.rb-more td { padding: 6px 0 0; color: var(--tx3); }
+  }
   .dca-chip { font-size: 9px; border-radius: 999px; padding: 0 5px; margin-left: 5px; border: 1px solid var(--line); color: var(--tx3); white-space: nowrap; }
   .dca-chip.ok { color: var(--green); }
   .dca-chip.warn { color: var(--warn); }
