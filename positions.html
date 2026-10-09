@@ -64,8 +64,12 @@ try {
     <div class="alloc-legend" id="alloc-legend"></div>
     <!-- 场外当日预估 · 逐只拆解（2026-10-03）：挂在汇总卡里 —— 它就是「当日盈亏（估）」场外那格的展开，
          所以不另开板块、也不动导航（导航是"主要区块"的清单，这里是一格的明细）。
-         默认展开：用户要的就是看清每一只；可折叠。版式沿用全页折叠块的 .closed-all。 -->
-    <details class="closed-all" id="otc-est-wrap" open>
+         ⚠ 2026-10-09 起**默认折叠**（用户要求）：它默认展开时会把汇总卡撑高一屏，而总资产与三格 KPI
+           是每天第一眼要看的东西 —— 逐只明细按需点开即可 ✓（点一下 summary ✓）。
+         ⚠ 本块**没有任何 JS 会改 open** ✓（renderOtcEst 只填 #otc-est 的内容）；
+           故折叠状态就是 HTML 属性说了算 ✓，不要在这里加 open、也不要在渲染里补 open ✗。
+         版式沿用全页折叠块的 .closed-all ✓；dom-check ③c 读的是 DOM（与是否展开无关 ✓）故不受影响 ✓。 -->
+    <details class="closed-all" id="otc-est-wrap">
       <summary>📉 场外当日预估 · 逐只拆解 <span id="otc-est-cnt"></span></summary>
       <div id="otc-est"></div>
     </details>
@@ -623,7 +627,8 @@ function implOtcRows() {
  * 为什么单独列：那一格只有一个合计数，而真正想看的是"哪只还没公布、各补了多少、哪只不该当真"。
  * 数据直接用 renderImpl 里算好的 nc（与 KPI 同一份），**不重算** —— 两处各算一遍迟早漂移。
  * 排序：预估的按金额降序 → 净值已追上的（用 App 快照）→ 只给方向的（跟踪弱，不进合计）。
- * 版式沿用全页折叠块（.closed-all）：默认展开（用户要的就是看清每只），可折叠。 */
+ * 版式沿用全页折叠块（.closed-all）：**2026-10-09 起默认折叠** ✓（用户要求 —— 默认展开会把汇总卡
+ *   撑高一屏；要看逐只拆解点一下 summary 即可）。本函数只负责填内容，**不碰 open 状态** ✓。 */
 function renderOtcEst(nc) {
   const box = $("otc-est"), cnt = $("otc-est-cnt");
   if (!box) return;
