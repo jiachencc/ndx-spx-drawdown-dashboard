@@ -988,6 +988,75 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         }
       }
     }
+    /* ④o 交互可达性 ＋ 两个新入口（2026-10-09 加 ①②③）——
+       ① 矩阵的 **roving tabindex**：整表只能有**一个** tabindex="0" ✓
+          （原来 5 列 × 16 行 ＝ **80 个 Tab 位** ✗ —— 这条就是它的回归探针 ✓）；
+          方向键应把 Tab 位挪到相邻格、并把焦点带过去 ✓（只改属性 + focus ✓ 不重渲染 ✓）
+       ② 「全期」行头 → 各列生涯贡献排序条 ✓（合计 ≡ 全期行那格 ✓ 精确到分 ✓）
+       ③ 「合计」列头 → 整表累计曲线（各列 ＋ 总累计 ✓）：线数 ≡ 列数 ＋ 1 ✓、总终值 ≡ 全期合计 ✓ */
+    {
+      const roveCells = [...mx.querySelectorAll('td[data-cell][tabindex="0"]')];
+      check("矩阵 roving：整表只有**一个** Tab 位（不再是 80 个 ✗）", roveCells.length === 1,
+        "tabindex=0 的格子 " + roveCells.length + " 个（应为 1 ✓）");
+      if (roveCells.length === 1) {
+        const c0r = roveCells[0];
+        const idOf = (e2) => e2.getAttribute("data-col") + "@" + e2.getAttribute("data-d");
+        const before = idOf(c0r);
+        c0r.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+        const rove2 = [...mx.querySelectorAll('td[data-cell][tabindex="0"]')];
+        check("矩阵 roving：→ 把 Tab 位挪到右侧相邻格（焦点跟着走 ✓）",
+          rove2.length === 1 && idOf(rove2[0]) !== before && win.document.activeElement === rove2[0],
+          before + " → " + (rove2.length ? idOf(rove2[0]) : "(无)") + " · 焦点 "
+            + (win.document.activeElement ? win.document.activeElement.tagName : "?"));
+      }
+      /* ② 「全期」行头 → 排序条 */
+      const ct = mx.querySelector("[data-coltotal]");
+      if (!ct) {
+        check("「全期」行头可点（data-coltotal）", false, "找不到 [data-coltotal]");
+      } else {
+        const footAll = Number((mx.querySelector("tr.mx-foot") || {}).getAttribute
+          ? mx.querySelector("tr.mx-foot").getAttribute("data-all") : NaN);
+        ct.click();
+        const rk = mx.querySelector(".sa-detail-box .sa-detail[data-cols-sum]");
+        const sumR = rk ? Number(rk.getAttribute("data-cols-sum")) : NaN;
+        const rowSum = rk ? [...rk.querySelectorAll("[data-colrow]")].reduce((a2, e2) => a2 + Number(e2.getAttribute("data-v")), 0) : NaN;
+        check("「全期」行头 → 各列生涯贡献排序条（合计 ≡ 全期行 " + money(footAll) + " ✓）",
+          !!rk && Number.isFinite(sumR) && Math.abs(sumR - footAll) < 0.01 && Math.abs(rowSum - sumR) < 0.01,
+          rk ? "data-cols-sum=" + sumR + " · 逐行之和 " + rowSum.toFixed(2) + " · 全期行 " + footAll : "没有排序条");
+        const oneRow = rk ? rk.querySelector("[data-colrow]") : null;
+        if (oneRow) {
+          const wantCol = oneRow.getAttribute("data-colrow");
+          oneRow.click();
+          const ch4 = mx.querySelector(".sa-chart");
+          check("排序条 → 点一行进该列的逐期图（col=" + wantCol + " ✓）",
+            !!ch4 && ch4.getAttribute("data-col") === wantCol, ch4 ? "data-col=" + ch4.getAttribute("data-col") : "点了没出图");
+          const bk4 = mx.querySelector('.sa-detail-box [data-nav="period"]');
+          if (bk4) bk4.click();
+        } else {
+          check("排序条里有可点的列行（data-colrow）", false, "一条都没有");
+        }
+      }
+      /* ③ 「合计」列头 → 整表累计对比 */
+      const ah = mx.querySelector("[data-allhead]");
+      if (!ah) {
+        check("「合计」列头可点（data-allhead）", false, "找不到 [data-allhead]");
+      } else {
+        const nCol = mx.querySelectorAll("thead th[data-colhead]").length;
+        const footAll2 = Number(mx.querySelector("tr.mx-foot").getAttribute("data-all"));
+        ah.click();
+        const ac = mx.querySelector(".sa-chart[data-all-end]");
+        const lines = ac ? ac.querySelectorAll("polyline").length : 0;
+        const endAll = ac ? Number(ac.getAttribute("data-all-end")) : NaN;
+        check("「合计」列头 → 整表累计曲线（" + nCol + " 列各一条 ＋ 总累计一条 ✓）",
+          !!ac && Number(ac.getAttribute("data-all-n")) === nCol && lines === nCol + 1,
+          ac ? "data-all-n=" + ac.getAttribute("data-all-n") + " · 线数 " + lines + " · 期望 " + nCol + " ＋ 1" : "没有整表对比图");
+        check("整表累计曲线的总终值 ≡ 全期合计 " + money(footAll2),
+          Number.isFinite(endAll) && Math.abs(endAll - footAll2) < 0.01,
+          "data-all-end=" + (Number.isFinite(endAll) ? endAll : "—") + " · 全期行 " + footAll2);
+        const bk5 = mx.querySelector('.sa-detail-box [data-nav="period"]');
+        if (bk5) bk5.click();
+      }
+    }
   }
   /* 把视图切回「逐期明细」✓ —— 别把状态留给后面的断言 ✗（本块可能是最后一块，但契约要写死 ✓） */
   const back2 = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");
