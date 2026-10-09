@@ -1466,9 +1466,15 @@ function renderSnapAttr() {
     + '">累计收益（自账户起点）<b class="' + cls(lastPl) + '">' + fmtAmt(lastPl) + "</b>"
     + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(allSum) + ' ✓（同一口径、同一个数 ✓；'
     + baseD.slice(5) + " 之前的账在「期初结转」行里 ✓）</span></div>";
+  /* 列头**可点**（2026-10-09 第四步 ✓）：点它 → 该列的「逐期贡献 ＋ 累计」图（在矩阵下方 ✓）。
+     这是用户那句「点击表头 是不是也可以按日来做图？」的落点 ✓ —— x 轴铺成**真实日期间距** ✓
+     （真·日频数据仓库里没有 ✗，见 viewColChart 的注释 ✓）。 */
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + cols.map((t) => "<th" + (saSel && saSel.k === "cell" && saSel.col === t ? ' class="mx-selc"' : "")
-      + ">" + esc(colNameOf(t)) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
+      + (saSel && saSel.k === "col" && saSel.col === t ? ' data-onsel="1"' : "")
+      + ' data-colhead="' + esc(t) + '" tabindex="0" role="button" aria-label="'
+      + esc("看「" + colNameOf(t) + "」的逐期贡献与累计图") + '">' + esc(colNameOf(t)) + "</th>").join("")
+    + '<th class="mx-sum">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
      渲染走 live.slice().reverse() ✓，data-i 仍指向**原下标** ✓（点击下钻的映射不变 ✓）。
      日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只 ✓）；
@@ -1650,7 +1656,91 @@ function renderSnapAttr() {
       + '<span class="sd-hint">生涯累计 ＝ 期初结转 ' + fmtAmt(carryV) + " ＋ 各期贡献之和 ✓（门禁 ④l 盯着 ✓）</span></div>"
       + out.join("") + "</div>";
   };
+  /* 视图④ 某一列的**逐期贡献 ＋ 累计**图（2026-10-09 第四步 A，起于用户：「点击表头 是不是也可以按日来做图？」）
+     ——「按日」拆成两半看 ✓：
+       ① 真·日频数据：仓库里**没有** ✗（持仓只有 21 个快照时点 ✓、`nav/price` 只有单点 ✓）
+          → 要做得先建行情抓取管线 ✓（独立项目 ✓），本图不做 ✗；
+       ② **把 x 轴铺成真实日期间距** ✓：这才是本条最实用的那半 ✓ —— 矩阵把每"期"当**等宽** ✗，
+          而 08-28 → 09-30 隔一个月、10-08 → 10-09 只隔一天 ✗ → 铺开后一眼看出"哪段被压扁了" ✓。
+     两块面板**上下分列、各用自己的尺** ✓ —— 刻意不做双 y 轴 ✗：贡献（千元级）与累计（万元级）同轴的话，
+     柱子会被压成一条线 ✗、图就开始撒谎了 ✓。
+     柱位＝该期的**实际区间**（前一期日期 → 本期日期 ✓）→ 长间隔自然变宽 ✓（这是日期轴的全部意义 ✓）。
+     起点结转画成**左侧虚线基线** ✓ —— 它不是"一期" ✗，画成柱子会被读成"第一期就亏 6,782" ✗。
+     柱子可点 → 落到**那一格** ✓（与三级下钻无缝接上 ✓，用的是同一套 data-cell 属性 ✓）。 */
+  const viewColChart = (col) => {
+    const ser = live.map((p, i) => ({
+      d: p.d, p0: (i > 0 ? live[i - 1].d : baseD),
+      v: num(((p.seg.find((x) => x.k === col)) || { v: 0 }).v),
+    }));
+    const c0 = num(carryByCol[col]);                       // 账户起点 → baseD 的累计（基线 ✓）
+    const barsSum = ser.reduce((a, x) => a + x.v, 0);
+    const cEnd = c0 + barsSum;
+    const W = Math.max(300, Math.round((el.clientWidth || 690) - 6));   // 与仓库其它图同一套：真实像素 ✓
+    const H = 176, mL = 56, mR = 16, mT = 12, mB = 24;
+    const hBar = 58, hCum = 58, gap = 18;
+    const yBarTop = mT, yCumTop = mT + hBar + gap;
+    const t0 = Date.parse(baseD), t1 = Date.parse(lastD), span = t1 - t0 || 1;
+    const X = (d) => mL + (Date.parse(d) - t0) / span * (W - mL - mR);
+    const mxB = Math.max.apply(null, ser.map((x) => Math.abs(x.v)).concat([1]));
+    const zB = yBarTop + hBar / 2, kB = (hBar / 2 - 2) / mxB;
+    const lo = Math.min(c0, cEnd), hi = Math.max(c0, cEnd);
+    const padC = (hi - lo || Math.abs(c0) || 1) * 0.15;
+    const yC = (v) => yCumTop + hCum - ((v - (lo - padC)) / ((hi + padC) - (lo - padC) || 1)) * hCum;
+    const tcol = cEnd >= 0 ? "#2dd4a7" : "#e0576b";
+    let g = "";
+    /* ── 上：本期贡献（零线居中 ✓）── */
+    g += '<line x1="' + mL + '" y1="' + zB.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + zB.toFixed(1) + '" style="stroke:var(--line)"/>';
+    ser.forEach((x) => {
+      const x1 = X(x.p0), x2 = X(x.d), h2 = Math.abs(x.v) * kB;
+      const y = x.v >= 0 ? zB - h2 : zB;
+      const mem = Object.entries((live.find((q) => q.d === x.d) || {}).items || {})
+        .filter(([c]) => colKeyOf(c) === col).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .map(([c, v2]) => "　" + nameOf(c) + "　" + fmtAmt(v2)).join("\n");
+      g += '<rect class="sa-bar ' + (x.v >= 0 ? "up" : "down") + '" x="' + Math.min(x1, x2 - 1.5).toFixed(1)
+        + '" y="' + y.toFixed(1) + '" width="' + Math.max(1.5, x2 - x1 - 1.5).toFixed(1)
+        + '" height="' + Math.max(0.8, h2).toFixed(1) + '" rx="1.5"'
+        + ' data-cell="1" data-d="' + esc(x.d) + '" data-col="' + esc(col) + '" data-v="' + x.v.toFixed(2) + '"'
+        + ' tabindex="0" role="button" aria-label="' + esc(x.d + " " + colNameOf(col) + " " + fmtAmt(x.v) + " 元，点开看该格成员") + '">'
+        + "<title>" + esc(x.d + " 这一期 · " + colNameOf(col) + "　" + fmtAmt(x.v) + " 元\n" + mem + "\n点一下 → 看这一格的逐只 ✓") + "</title></rect>";
+    });
+    /* ── 下：累计（起点基线 ＋ 折线 ＋ 两端点 ✓）── */
+    g += '<line x1="' + mL + '" y1="' + yCumTop.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yCumTop.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
+    g += '<line x1="' + mL + '" y1="' + yC(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yC(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
+    g += '<line x1="' + mL + '" y1="' + yC(c0).toFixed(1) + '" x2="' + X(baseD).toFixed(1) + '" y2="' + yC(c0).toFixed(1)
+      + '" style="stroke:var(--tx3)" stroke-dasharray="4 3"/>';
+    const pts = [[X(baseD), yC(c0)]];
+    let acc = c0;
+    ser.forEach((x) => { acc += x.v; pts.push([X(x.d), yC(acc)]); });
+    g += '<polyline points="' + pts.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ") + '" fill="none" stroke="'
+      + tcol + '" stroke-width="1.6"/>';
+    g += '<circle cx="' + pts[0][0].toFixed(1) + '" cy="' + pts[0][1].toFixed(1) + '" r="2.2" fill="' + tcol + '"/>';
+    g += '<circle cx="' + pts[pts.length - 1][0].toFixed(1) + '" cy="' + pts[pts.length - 1][1].toFixed(1) + '" r="2.2" fill="' + tcol + '"/>';
+    /* ── 轴标签（左＝两块面板各两条 ✓；下＝首/中/末三个日期 ✓）── */
+    const lab = (x, y, s, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s) + "</text>";
+    g += lab(mL - 5, zB + 3, "0");
+    g += lab(mL - 5, yBarTop + 8, fmtAmt(Math.round(mxB)));
+    g += lab(mL - 5, yBarTop + hBar, fmtAmt(-Math.round(mxB)));
+    g += lab(mL - 5, yC(hi) + 8, fmtAmt(Math.round(hi)));
+    g += lab(mL - 5, yC(lo) + 3, fmtAmt(Math.round(lo)));
+    g += lab(mL - 5, yC(c0) + 3, "起点 " + fmtAmt(Math.round(c0)));
+    const midI = Math.floor((ser.length - 1) / 2);
+    [0, midI, ser.length - 1].forEach((i, k2) => {
+      if (i < 0 || !ser[i]) return;
+      g += lab(X(ser[i].d), H - 8, ser[i].d.slice(5), k2 === 0 ? "start" : (k2 === 2 ? "end" : "middle"));
+    });
+    return '<div class="sa-detail sa-chart" data-col="' + esc(col) + '" data-c0="' + c0.toFixed(2) + '" data-bars="' + barsSum.toFixed(2)
+      + '" data-end="' + cEnd.toFixed(2) + '" data-n="' + ser.length + '">'
+      + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
+      + "<b>" + esc(colNameOf(col)) + "</b> · 逐期贡献与累计（" + ser.length + " 期 ✓ · 按实际日期间距 ✓）· <b>合计 " + fmtAmt(cEnd) + "</b>"
+      + '<span class="sd-hint">上＝本期贡献、下＝累计（各用自己的尺 ✗ 不做双 y 轴 ✓）· 点柱子 → 看那一格的逐只 ✓</span></div>'
+      + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
+      + esc(colNameOf(col) + " 逐期贡献与累计：起点 " + fmtAmt(c0) + " 元 → 末期 " + fmtAmt(cEnd) + " 元，共 " + ser.length + " 期") + '">'
+      + g + "</svg>"
+      + '<div class="sa-chart-note">x 轴按<b>实际日期间距</b>铺开 ✓（矩阵把每期当等宽 ✗，这里能看出哪段被压扁 ✓）；'
+      + "缺口（缺 items 的相邻对）不插值 ✗ —— 真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）。</div></div>";
+  };
   const detail = () => {
+    if (saSel && saSel.k === "col") return viewColChart(saSel.col);
     if (saSel && saSel.k === "hold") return viewHold(saSel.code);
     if (saSel && saSel.k === "cell") return viewCell(saSel.d, saSel.col);
     return viewPeriod();
@@ -1677,6 +1767,11 @@ function renderSnapAttr() {
     + "＋ <b>本期快照对比</b>（份数 / 单价 / 市值 / 摊薄成本的 A→B ✓）＋ <b>生涯累计</b>（＝期初结转 ＋ 各期贡献之和 ✓）；"
     + "「← 返回」逐级回退 ✓、格子可 Tab 到并回车 ✓。⚠ 快照对比只<b>摆事实</b> ✓ —— 不做「价格贡献 vs 份数贡献」的拆分 ✗："
     + "摊薄成本口径下那需要假设成本摊销顺序 ✗，拆出来的两个数无法与券商 App 对账 ✗。"
+    + "<br><b>点列头</b>（2026-10-09 加 ✓）→ 该列的<b>逐期贡献 ＋ 累计</b>图：上＝本期贡献、下＝累计 ✓，"
+    + "两块面板<b>各用自己的尺</b> ✗ 不做双 y 轴（贡献是千元级、累计是万元级 ✗，同轴会把柱子压成一条线 ✓）；"
+    + "x 轴按<b>实际日期间距</b>铺开 ✓ —— 矩阵把每「期」当等宽 ✗，而 08-28→09-30 隔一个月、10-08→10-09 只隔一天 ✗，"
+    + "铺开后才看得出哪段被压扁了 ✓；起点结转画成<b>左侧虚线基线</b> ✓（它不是一期 ✗，画成柱子会被读成「第一期就亏 6,782」✗）；"
+    + "点柱子 → 落到那一格 ✓。⚠ 真·日频数据本仓库<b>没有</b> ✓（持仓只有快照时点 ✓）—— 要按日得先建行情抓取管线 ✓。"
     + "<br><b>「全期」＝ 账户起点 → " + lastD.slice(5) + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(lastPl) + " ✓），"
     + "不是「某段窗口内的变化量」✗（旧版只覆盖 " + baseD.slice(5) + " 之后，于是「全期」成了变化量 ✗、与累计收益差 8,278 ✗；"
     + "2026-10-09 加了「期初结转」行之后两者合流 ✓，表上方那行小字就是这两个数 ✓）。"
@@ -1698,6 +1793,7 @@ function renderSnapAttr() {
     let t = null;
     if (saSel && saSel.k === "cell") t = el.querySelector('[data-cell][data-d="' + saSel.d + '"][data-col="' + saSel.col + '"]');
     else if (saSel && saSel.k === "hold") t = el.querySelector('[data-hold="' + saSel.code + '"]');
+    else if (saSel && saSel.k === "col") t = el.querySelector('[data-colhead="' + saSel.col + '"]');
     if (t && t.focus) t.focus();
   };
   const setSel = (s, newCur) => {
@@ -1712,6 +1808,11 @@ function renderSnapAttr() {
     if (nav) {
       if (nav.dataset.nav === "cell" && saSel && saSel.k === "hold" && saSel.back) { setSel(saSel.back); return true; }
       setSel(null);                                    // 回到整期（cur 不动 ✓ 就是进来时那一期 ✓）
+      return true;
+    }
+    const colh = target.closest("[data-colhead]");
+    if (colh) {                                        // 点列头 → 该列的逐期贡献＋累计图 ✓
+      setSel({ k: "col", col: colh.dataset.colhead });
       return true;
     }
     const cell = target.closest("[data-cell]");
@@ -1748,6 +1849,17 @@ function renderSnapAttr() {
     if (actOn(e.target)) e.preventDefault();
   };
 }
+/* 归因「列头图」的**窗口缩放重绘**（2026-10-09 第四步 A）——
+   那张图按**真实像素宽**画 ✓（与仓库其它图同一套做法 ✓），窗口一变就会画窄/画宽 ✗
+   → 只在"列头图正开着"时才重画 ✓（矩阵本身是 CSS 撑开的 ✓ 不需要重画 ✓）。
+   防抖 150ms ✓：与走势图的 resize 重绘同一套 ✓，避免拖动窗口时狂重绘 ✓。 */
+let snapAttrRzTimer = null;
+window.addEventListener("resize", () => {
+  const box = $("snap-attr");
+  if (!box || box.hidden || !saSel || saSel.k !== "col") return;
+  clearTimeout(snapAttrRzTimer);
+  snapAttrRzTimer = setTimeout(() => renderSnapAttr(), 150);
+});
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
    用 onclick 赋值而非 addEventListener —— render() 会重跑，避免重复绑监听。 */
 function bindSnapSwitch() {

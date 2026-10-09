@@ -875,6 +875,69 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         }
       }
     }
+    /* ④m 列头图（2026-10-09 第四步 A，起于用户问：「点击表头 是不是也可以按日来做图？」）——
+       真·日频数据仓库里没有 ✗（持仓只有快照时点 ✓），所以做的是**把 x 轴铺成真实日期间距** ✓。
+       四条断言（关键那条与页面**独立复算** ✓）：
+         ① 点列头 → 出图，柱数 ≡ 「前后两期都有 items」的对数 ✓（少一期/多一期都报红 ✓）
+         ② data-end ≡「该列各格的 data-v 之和 ＋ 期初那一格」✓ —— 左边是图里的累计终点 ✓、
+            右边是**矩阵自己渲染出来的精确值** ✓（涉事两处一起校验 ✓，精确到分 ✓）
+         ③ 柱位与**真实日期间距**成比例 ✓ —— 等宽排列必然过不了这条 ✓（这正是这张图存在的理由 ✓）
+         ④ 点柱子 → 落到那一格（cellSum ≡ 柱子 data-v ✓）＋「← 返回」回整期 ✓
+       ⚠ SVG 元素**没有 .click()** ✗（那是 HTMLElement 的 ✓）→ 门禁里一律 dispatchEvent ✓
+         （真实用户点击走的是事件冒泡 ✓，不受影响 ✓） */
+    {
+      const liveN = (() => {
+        let n = 0;
+        for (let i = 1; i < snaps2.length; i++) if (snaps2[i - 1].items && snaps2[i].items) n++;
+        return n;
+      })();
+      const heads = [...mx.querySelectorAll("thead th[data-colhead]")];
+      const th0 = heads[0];
+      if (!th0) {
+        check("归因列头可点（thead th[data-colhead]）", false, "#snap-attr 的列头没有可点标记");
+      } else {
+        const colKey = th0.getAttribute("data-colhead");
+        th0.click();
+        const ch = mx.querySelector(".sa-chart");
+        const rects = [...mx.querySelectorAll(".sa-chart-svg rect.sa-bar")];
+        check("归因列头图：点「" + colKey + "」列头出图，柱数 ＝ 可归因期数 " + liveN,
+          !!ch && rects.length === liveN,
+          ch ? "柱数 " + rects.length + " · data-n=" + ch.getAttribute("data-n") + " · 期望 " + liveN : "点列头后没有 .sa-chart");
+        if (ch) {
+          let sum = 0;
+          mx.querySelectorAll('tbody td[data-cell][data-col="' + colKey + '"]').forEach((td) => { sum += Number(td.getAttribute("data-v")); });
+          const end = Number(ch.getAttribute("data-end"));
+          check("归因列头图：累计终点 ≡ Σ该列各格 ＋ 期初格（" + colKey + " ＝ " + money(end) + "）",
+            Number.isFinite(end) && Math.abs(end - sum) < 0.01,
+            "data-end=" + (Number.isFinite(end) ? end : "—") + " vs 逐格之和 " + sum.toFixed(2));
+          const rt = rects.map((x) => ({ d: Date.parse(x.getAttribute("data-d")), x: +x.getAttribute("x") + +x.getAttribute("width") }));
+          let badX = 0;
+          if (rt.length > 2) {
+            const k2 = (rt[rt.length - 1].x - rt[0].x) / (((rt[rt.length - 1].d - rt[0].d) / 864e5) || 1);
+            rt.forEach((q) => {
+              const want = rt[0].x + (q.d - rt[0].d) / 864e5 * k2;
+              if (Math.abs(q.x - want) > 2) badX++;
+            });
+          }
+          check("归因列头图：柱位按**真实日期间距**铺开（不是等宽 ✗）",
+            rt.length > 2 && badX === 0, badX ? badX + " 根柱位偏离日期比例 > 2px" : "逐根与日期成比例 ✓");
+          const bar0 = rects[0];
+          const bv = bar0 ? Number(bar0.getAttribute("data-v")) : NaN;
+          if (bar0) bar0.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+          const cv = mx.querySelector(".sa-detail-box .sa-detail");
+          const csum = cv ? Number(cv.getAttribute("data-cell-sum")) : NaN;
+          check("归因列头图：点柱子 → 落到那一格（合计 ≡ 柱子 " + money(bv) + "）",
+            Number.isFinite(csum) && Math.abs(csum - bv) < 0.01,
+            "cellSum=" + (Number.isFinite(csum) ? csum : "—") + " vs 柱 data-v=" + bv);
+          const bk = mx.querySelector(".sa-detail-box [data-nav]");
+          if (bk) bk.click();
+          const back = mx.querySelector(".sa-detail-box .sa-detail");
+          check("归因列头图：「← 返回」回整期（且关掉图 ✓）",
+            !!back && !back.hasAttribute("data-cell-sum") && !mx.querySelector(".sa-chart"),
+            !back ? "返回后没有明细块 ✗" : "返回后仍停在格 / 图视图 ✗");
+        }
+      }
+    }
   }
   /* 把视图切回「逐期明细」✓ —— 别把状态留给后面的断言 ✗（本块可能是最后一块，但契约要写死 ✓） */
   const back2 = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");

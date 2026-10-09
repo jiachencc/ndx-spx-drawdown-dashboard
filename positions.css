@@ -1501,6 +1501,22 @@
     background: rgba(147, 163, 187, .10); border-radius: 3px; padding: 0 4px; }
   #snap-attr .sd-cmp { font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono); padding-left: 2px; }
 
+  /* ── 归因矩阵：列头可点 ＋ 该列图表（2026-10-09 第四步 A）─────────────────────────────
+     列头沿用"可点元素"那套反馈（hover 下划线 / focus 环 ✓），与格子(.mx-click)一致 ✓ */
+  #snap-attr table.sa-mx th[data-colhead] { cursor: pointer; }
+  #snap-attr table.sa-mx th[data-colhead]:hover { color: var(--tx); text-decoration: underline; }
+  #snap-attr table.sa-mx th[data-colhead]:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  #snap-attr table.sa-mx th[data-onsel] { color: var(--tx); text-decoration: underline; }
+  /* 图：与仓库其它图同一套（真实像素宽 ＋ viewBox ✓）；
+     text 的 fill 必须带 !important —— 本容器内的变量被更具体选择器污染过 ✗（见上方四轮修正的注释 ✓） */
+  #snap-attr .sa-chart-svg { display: block; margin: 4px 0 3px; max-width: 100%; }
+  #snap-attr .sa-chart-svg .sa-bar { cursor: pointer; }
+  #snap-attr .sa-chart-svg .sa-bar.up { fill: rgba(45, 212, 167, .78); }
+  #snap-attr .sa-chart-svg .sa-bar.down { fill: rgba(224, 87, 107, .78); }
+  #snap-attr .sa-chart-svg .sa-bar:hover, #snap-attr .sa-chart-svg .sa-bar:focus-visible { fill: var(--blue); }
+  #snap-attr .sa-chart-svg text { font-family: var(--mono); font-size: 9px; fill: #93a3bb !important; }
+  #snap-attr .sa-chart-note { font-size: var(--chk-fs-mini); color: var(--tx3); line-height: 1.5; padding-top: 3px; }
+
   /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────
      取证结论（截图 ＋ 探针，非推测）：
      ① 文字色变量被污染：`:root` 的 --tx = #e2e9f5（浅色 ✓），但在 #snap-attr 内解析成
