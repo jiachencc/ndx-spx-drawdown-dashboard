@@ -2888,7 +2888,24 @@ function snapPairHtml(prev, cur) {
     codes.forEach((code) => {
       const a = prev.items[code], b = cur.items[code];
       if (!a) { diffs.push({ code: code, name: b.name, dq: null, dPlItem: b.pl || 0, plCum: b.pl || 0, tag: "open" }); return; }   // 建仓
-      if (!b) { diffs.push({ code: code, name: a.name, dq: null, dPlItem: -(a.pl || 0), plCum: 0, tag: "close" }); return; }       // 清仓
+      if (!b) {
+        /* ⚠ 2026-10-09 修正：清仓行的「本期盈亏」**不能**取「上期浮盈亏的相反数」✗ ——
+           那等于把"浮亏不再挂在账上"当成收益（旧口径 -(a.pl)）：中韩半导体ETF华泰 10-09 被清掉时
+           行内显示 **+12,649**，可它是**亏着卖**的（realized −13,217.10）✗✗ —— 用户一眼看出不对 ✓。
+           正确口径＝**这只在本期真正的盈亏** ＝ 卖出回款 − 本期期初市值：
+             回款 = 该只在本期（prev.d, cur.d] 的卖出行 realized ＋ 该只期初成本 a.cost
+             实测：69,155.00 − 69,722.40 = **−567.40**（＝当日价跌 (4.587→4.550)×15,200 = −562.40 − 费 5.00 ✓）
+           ⚠ 找不到对应流水（或没有 realized）时退回旧口径 —— 数据层门禁强制卖出行带 realized ✓，
+             故现状不会有此分支；真出现时说明数据缺流水，而不是这里的算法问题 ✓ */
+        const sell = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
+          .filter((e) => isSellAct(e) && e.sym === a.name && e.d > prev.d && e.d <= cur.d)[0];
+        const dPlClose = (sell && Number.isFinite(sell.realized))
+          ? (sell.realized + (a.cost || 0)) - (a.val || 0)
+          : -(a.pl || 0);
+        diffs.push({ code: code, name: a.name, dq: null, dPlItem: dPlClose, plCum: 0, tag: "close",
+          noFlow: !(sell && Number.isFinite(sell.realized)) });
+        return;
+      }
       const dq = (b.qty || 0) - (a.qty || 0);
       const dPlItem = (b.pl || 0) - (a.pl || 0);   // 本期盈亏（本位指标，不受申购/赎回扰动）
       /* 全部展示（原按 SNAP_PL_MIN=50 元过滤）：小额变动也要看得见——
