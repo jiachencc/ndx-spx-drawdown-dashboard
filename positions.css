@@ -79,6 +79,14 @@
     --fs-sm: 12px;     /* 次级数值 */
     --fs-xs: 11px;     /* 标签 / 小注 */
     --fs-xxs: 10px;    /* 极小注 / 图内标注 */
+    /* 数据表的**共用字号**（2026-10-09 统一；值沿用 2026-09-27「再小一点」定的 10/9）
+       全局 --fs-* 那套最小只到 10px，而稠密数据表还需要再小一档（9px）→ 单独这两档 ✓
+       ⚠ 名字里的 "chk" 来自最初的使用者（操作体检）—— **现在它是全页数据表共用的**：
+         .chk-tbl / .xr-tbl / 盈亏归因矩阵（#snap-attr）都引用它 ✓（名字沿用，避免改 20+ 处引用 ✗）
+       ★ 为什么要提到 :root：原先 .chk-tbl 自己声明一份、矩阵在 #snap-attr 里**写死** 10px/9px ✗ ——
+         两处同值但不同源 → 改一处必漂 ✗。现在一处定义、多处引用 ✓ */
+    --chk-fs: 10px;
+    --chk-fs-mini: 9px;
     --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     /* 圆角分档：主容器 / 内嵌卡 / 浮层 / chip —— 原来 .card / .kpi / .idx-pop / .snap-tag
@@ -1001,7 +1009,9 @@
   /* ⚠ 本表字号走**局部变量**，不要改全站的 --fs-xs / --fs-xxs（分别被引用 58 / 70 次，
      牵连图例、小注、来源行等处）。--chk-fs 管正文与数字，--chk-fs-mini 管表头 / 列内小标签 / ⓘ / gap 小字。
      2026-09-27 用户要求「再小一点」：11→10、10→9；手机端的 .c-note / .c-lb 也从 mini 取，一并变小。 */
-  .chk-tbl { --chk-fs: 10px; --chk-fs-mini: 9px;
+  /* ⚠ 2026-10-09：--chk-fs / --chk-fs-mini 已提到 :root（全页数据表共用）→ 这里不再重复声明 ✓
+     值未变（10/9），故 .chk-tbl 自身的观感**零变化** ✓ */
+  .chk-tbl {
     width: 100%; border-collapse: collapse; font-size: var(--chk-fs); }
   .chk-tbl th { text-align: left; font-weight: 700; color: var(--tx3); font-size: var(--chk-fs-mini);
     letter-spacing: .06em; padding: 0 8px 7px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -1420,7 +1430,7 @@
   #snap-attr { --tx: #e2e9f5; --tx2: #c8d3e4; --tx3: #93a3bb; }
   #snap-attr table.sa-mx { width: max-content; min-width: 100%; }
   #snap-attr table.sa-mx th, #snap-attr table.sa-mx td { white-space: nowrap; }
-  #snap-attr table.sa-mx .mx-d { color: var(--tx3); font-size: 9px; }
+  #snap-attr table.sa-mx .mx-d { color: var(--tx3); font-size: var(--chk-fs-mini); }   /* 期列：与其它数据表的小字同档 ✓ */
   #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
   #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
   #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
@@ -1459,21 +1469,20 @@
      （用 !important 的理由同上面几条：本容器内的变量被更具体的选择器污染过 ✗，见上方四轮修正的注释） */
   #snap-attr table.sa-mx tbody td.mx-c.mx-na { color: rgba(147, 163, 187, 0.45) !important; }
 
-  /* ── 第四轮：字号对齐其它模块（2026-10-07，用户报「字体太大」）─────────────────────────
-     探针实测：本容器里的文字是 **13px** ✗，而本页其它表格（dca-tbl / est-tbl）实际是 10px ✓
-     → 根因与前三轮**同源**：这个容器里的 --fs-* 变量也被重定义/污染了 ✗
-     → 所以这里**不用变量**、直接给像素值，与其它模块的实际观感对齐 ✓
-        （同时把 .sd-nm 的宽度略放宽 —— 字号变小后名字更容得下 ✓） */
-  #snap-attr .sa-head { font-size: 10px; }
-  #snap-attr .sa-head span { font-size: 9px; }
-  #snap-attr table.sa-mx { font-size: 10px; }
-  #snap-attr table.sa-mx th { font-size: 9px; padding: 2px 5px; }
-  /* 2026-10-09 用户反馈「数字可以再小一些」：10px → **9px**
-     —— 9px 是本页最小的字号档（--chk-fs-mini，表头也用 9px），所以这是"落到既有最小档"，
-        不是随手缩 ✗；再小（8px）会破掉页面统一的字号体系，故到此为止。
-     ⚠ 只动**数据格**（td，含合计列）：表头 th 早已是 9px ✓ 期列 .mx-d 也是 9px ✓ 都不受影响 ✓ */
-  #snap-attr table.sa-mx td { font-size: 9px; padding: 1.5px 5px; }
-  #snap-attr .sd-head { font-size: 10px; }
-  #snap-attr .sd-row { font-size: 10px; padding: 1px 0; }
-  #snap-attr .sd-hint { font-size: 9px; }
+  /* ── 第四轮（2026-10-07「字体太大」）＋ **第五轮（2026-10-09「统一用其它模块那一套」）**
+     第四轮当时是**写死像素** 10px/9px ✗ —— 因为本容器里的 --fs-* 曾被污染成 13px；
+     但"写死"带来新问题：与 .chk-tbl 的 --chk-fs（同为 10/9）**同值不同源** → 改一处必漂 ✗
+     第五轮改为引用**共用的那两档**：--chk-fs(10px) / --chk-fs-mini(9px)，定义已提到 :root ✓
+       → 与操作体检、逐只表（.chk-tbl / .xr-tbl）真正**共用同一套字号** ✓
+     ⚠ 值一个都没变（仍 10/9）：本次是"换引用源"，不是"再调大小" → 观感应为零变化 ✓（下面用探针验）
+     ⚠ 别再写死像素：要调就改 :root 的那两行，**全页数据表一起动** ✓ */
+  #snap-attr .sa-head { font-size: var(--chk-fs); }
+  #snap-attr .sa-head span { font-size: var(--chk-fs-mini); }
+  #snap-attr table.sa-mx { font-size: var(--chk-fs); }
+  #snap-attr table.sa-mx th { font-size: var(--chk-fs-mini); padding: 2px 5px; }
+  /* 数据格（含合计列）比表头再小一档 → 取 mini（9px，与 .chk-tbl 的列内小标签同档 ✓） */
+  #snap-attr table.sa-mx td { font-size: var(--chk-fs-mini); padding: 1.5px 5px; }
+  #snap-attr .sd-head { font-size: var(--chk-fs); }
+  #snap-attr .sd-row { font-size: var(--chk-fs); padding: 1px 0; }
+  #snap-attr .sd-hint { font-size: var(--chk-fs-mini); }
   #snap-attr .sd-nm { flex-basis: 104px; }
