@@ -2671,15 +2671,11 @@ function snapFlowSplit(prev, cur, flow) {
     nSkip: nSkip, skipFrom: skipFrom, skipTo: skipTo, rows: rows, done: seq.length - nSkip,
   };
 }
-/* 卡头关键数（2026-09-24，用户建议）：把「本期盈亏 / 总盈亏」从卡内两整行提到卡头那一行 ——
-   原来它们与「总变化」并列成三行，一眼分不出主次。箭头 + 颜色沿用「总变化」那一套（↑ 绿 --up / ↓ 红 --down），
-   数值等宽。两个调用方（逐期卡 snapPairHtml、区间卡）共用：写成 function 声明，靠提升在模块内任意位置可用。 */
-function snapHeadKpi(label, v) {
-  /* 有箭头就不再带正负号（2026-09-24 用户要求）：↑/↓ 已表方向，再写 +2,454 是重复符号；
-     与「总变化」那一行的写法一致（↑ + 绝对值）。数值仍等宽，跨度不受影响。 */
-  return '<span class="snap-head-k">' + label + '<b class="' + cls(v) + '"><span aria-hidden="true">' +
-    (v >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(v) + "</b></span>";
-}
+/* ⚠ 2026-10-09 删除 snapHeadKpi()（2026-09-24 加）：它把「本期盈亏 / 总盈亏」渲染成卡头的小字胶囊；
+   用户要求这两个数改为 **KPI 格** ✓ → 现在由 snapPartsHtml 里的 tile(arrow(…)) 承担 ✓，
+   本函数已无调用方（留着会被 eslint 判未用变量 ✗）。
+   卡头从此只留「日期 + vs 前一期（跨 N 天）+ 事件标签」✓，先回答"这是哪一期" ✓。
+   （原注释里的另一个调用方「区间卡」早随区间累计卡一起删掉了 —— 区间盈亏现在是小节标题里的一行灰字 ✓。） */
 /* 期间外部资金进出：人工记录优先，否则按 Δ累计投入推导（恒等式：Δ总资产 = Δ浮盈亏 + 资金进出） */
 function snapFlow(prev, cur) {
   if (typeof cur.flow === "number") return cur.flow;
@@ -2851,18 +2847,26 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
       '<div class="kpi"><div class="k-label">' + label + (tip ? tip.btn : "") + "</div>" +
       '<div class="k-val ' + colorCls + '">' + val + "</div>" +
       (sub ? '<div class="k-sub">' + sub + "</div>" : "") + "</div>";
-    /* ⚠ 2026-10-09 按用户要求**只留一格**：「总变化」与「银行进出」两格删除 ✓。
-       理由（用户视角）：卡头已经有「本期 / 总盈亏」两个数，而「总变化 ＝ 盈亏 ＋ 银行进出」
-       是记账视角的分解 —— 每天要看的是"这期总资产变到多少"，不是它由哪两块拼成 ✗。
-       ▸ 保留在代码里的两件（**别当垃圾删** ✗）：
+    /* ⚠ 2026-10-09 两轮调整（都是按用户要求）：
+       ① 删「总变化」「银行进出」两格 ✓（「总变化 ＝ 盈亏 ＋ 银行进出」是记账视角的分解 ✗）；
+       ② 把卡头的「本期 / 总盈亏」**下移进来** ✓（用户：「这两个变化改为 KPI」）。
+       ⇒ 现在三格：**总资产**（期末，副行给期初 ／ **本期盈亏** ／ **总盈亏**（副行给累计收益率 ✓）。
+       ▸ 箭头 + ↑/↓ 沿用原卡头那套（有箭头就不再带正负号 ✓），数值等宽 ✓
+       ▸ 总盈亏那格的副行 ＝ snapPl(cur) ÷ snapCost(cur)，与「本金与收益」卡的累计收益率**同式** ✓
+       ★ 保留在代码里的两件（**别当垃圾删** ✗）：
          · qTot / qFlow 的 ? 浮层文案照常产出、仍挂在 DOM 上（现在暂无按钮触发）——
            「银行进出」那套溯源口径（银证 ＋ 场外申购 ＋ 逐只明细 ＋ 手账实锤）与考证都留在
            snapFlowTip() 里，将来要把格子加回来可直接复用 ✓（详见函数头注释 ✓）。
-         · flow / dTot 仍在别处用：flow 参与卡头「本期盈亏 ＝ 总变化 − 资金进出」✓、
-           dTot 用于区间卡与走势 ✓ —— 所以本函数仍收这两个参数 ✓。
-       ▸ 布局：单格用 .kpi-row.kpi1（一列，占满整行 ✓ 见 positions.css）。 */
-    return '<div class="kpi-row kpi1">' +
+         · flow / dTot 仍在别处用：flow 参与「本期盈亏 ＝ 总变化 − 资金进出」✓、
+           dTot 用于「总资产」格的期初/期末 ✓、也参与走势与区间小注 ✓。
+       ▸ 布局：三格并排用 .kpi-row.kpi3（窄屏 480px 以下自动两列 ✓ 见 positions.css）。 */
+    const arrow = (v) => '<span aria-hidden="true">' + (v >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(v);
+    const plCum = snapPl(cur);
+    const cumBase = snapCost(cur);
+    return '<div class="kpi-row kpi3">' +
         tile("总资产", fmtYuan(tc), "", "期初 " + fmtYuan(tp)) +
+        tile("本期盈亏", arrow(dPl), cls(dPl)) +
+        tile("总盈亏", arrow(plCum), cls(plCum), cumBase ? fmtPct(plCum / cumBase, 2) : "") +
       "</div>" + qTot.note + qFlow.note;
   }
 }
@@ -3136,12 +3140,12 @@ function snapPairHtml(prev, cur) {
        标签用「本期」而非「当日盈亏」—— 卡头空间紧，跨度已由日期与 vs 说明（跨周末会写「跨 N 天」）。 */
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（跨 " + spanDays + " 天）" : "") + "</span>" +
-      /* ⚠ 2026-10-09 改：卡头「总盈亏」原来直接取快照 pl（＝摊薄口径的在持浮盈亏 ✗）——
-         10-09 一期显示 19,988 ✗，而汇总卡 / 本金卡的「累计收益（含已实现）」是 1,496 ✓，
-         同一个词两处两个意思 ✗（本轮 A 方案把本金加回清仓已实现后就露出来了 ✓）。
-         改用 snapPl()＝真·累计收益（含已实现 ✓）：10-09 起与前者不再相等，10-08 及以前 gap=0 → 一个数都不变 ✓。
-         每只**在持**行的小计仍用逐只 pl ✓（持仓级口径，本就含该只的部分卖出 ✓）。 */
-      snapHeadKpi("本期", dPl) + (typeof cur.pl === "number" ? snapHeadKpi("总盈亏", snapPl(cur)) : "") +
+      /* ⚠ 2026-10-09 二次调整（用户：「本期 ↑2,304 总盈亏 ↑1,496 这两个变化改为 KPI」✓）：
+         这两个数从**卡头**下移到卡内 KPI 行（见 snapPartsHtml 的 tiles ✓）——
+         卡头只留「日期 + vs 前一期（跨 N 天）+ 事件标签」✓，一眼先看清是哪一期；
+         数字与「总资产」并排成三格，还多出了副行位置（总盈亏那格挂累计收益率 ✓）。
+         ▸ 口径一字未变：本期盈亏 ＝ 总变化 − 资金进出 ✓；总盈亏 ＝ snapPl(cur) ＝ 真·累计收益（含已实现 ✓，
+           与汇总卡 / 本金卡同一个数 ✓ —— 见 2026-10-09 那条「不再直接取快照 pl ✗」的修正 ✓）。 */
       (cur.tag ? '<span class="snap-tag ' + snapTagCls(cur.tag) + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
     /* 三格 KPI（总资产 / 总变化 / 银行进出）＋ 紧跟其后的银行进出小账本（2026-09-24 用户要求）——
        这三项原来是卡内三行文字；卡头的「本期 / 总盈亏」保持不变。 */

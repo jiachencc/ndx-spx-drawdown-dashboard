@@ -583,11 +583,32 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
    现两处都走 snapPl ✓。断言：最新一期卡头显示的数 ＝ 独立复算的 pl − closedGap ✓
    （卡头里还有「本期」与日期，但它们都离这个数很远 → near() 不会误判 ✓）。 */
 {
-  const head = win.document.querySelector(".snap-item .snap-head");
-  const t = head ? head.textContent.replace(/\s+/g, "") : "";
+  const art = win.document.querySelector(".snap-item");
+  const tiles = art ? [...art.querySelectorAll(".kpi-row .kpi")] : [];
+  const tileOf = (label) => tiles.find((t) => ((t.querySelector(".k-label") || {}).textContent || "").replace(/\s+/g, "") === label) || null;
   const want = latest.pl - closedGap;
-  check("快照对比卡头「总盈亏」= 累计收益（含已实现）" + money(want),
-    !!head && /总盈亏/.test(t) && near(t, want, 3), t.slice(0, 120) || "没有 .snap-item .snap-head");
+  const tl = tileOf("总盈亏");
+  /* ⚠ 2026-10-09 二次调整：这两个数由**卡头**下移成 KPI 格（用户要求）→ 断言改盯格 ✓
+     （「总盈亏」格里只有这个数与累计收益率，near() 不会误判 ✓） */
+  check("快照对比「总盈亏」KPI = 累计收益（含已实现）" + money(want),
+    !!tl && near(tl.textContent, want, 3),
+    tl ? "总盈亏格：" + tl.textContent.replace(/\s+/g, " ").trim() : "最新一期里没有「总盈亏」KPI 格");
+  /* 「本期盈亏」格：独立复算 ＝ Δ总资产 − 记录的 flow（页面 snapFlow 的口径：人工记录优先 ✓）
+     —— 10-09 期实测 2,304 ＝ (534,018.37 − 531,504.53) − 210 ✓（含已实现的当期部分 ✓）。
+     ⚠ 本文件里的 `snapTotal` 是**变量**（最新快照总资产那个数 ✓），不是函数 ✗ ——
+       2026-10-09 初版写成 snapTotal(latest) 直接 TypeError 被门禁自己抓住 ✓，故下面自备两个小工具 ✓
+       （公式与页面的 snapTotal / snapCost 逐字一致 ✓：val 求和 ＋ 现金 / 再减 pl 加清仓加回 ✓）。 */
+  const totOf = (s) => (typeof s.total === "number") ? s.total
+    : Object.values(s.items || {}).reduce((a, x) => a + ((x && x.val) || 0), 0) + (s.cash || 0);
+  const costOf = (s) => (typeof s.total === "number") ? (s.total - (s.pl || 0))
+    : totOf(s) - (s.pl || 0) + (s.d === (latest && latest.d) ? closedGap : 0);
+  const ti = tileOf("本期盈亏");
+  const f = Number.isFinite(latest.flow) ? latest.flow : (costOf(latest) - costOf(prevFull));
+  const wantD = totOf(latest) - totOf(prevFull) - f;
+  check("快照对比「本期盈亏」KPI = Δ总资产 − 资金进出 " + money(wantD),
+    !!ti && near(ti.textContent, wantD, 3),
+    ti ? "本期盈亏格：" + ti.textContent.replace(/\s+/g, " ").trim() + " · 期望 " + wantD.toFixed(2)
+      : "最新一期里没有「本期盈亏」KPI 格");
 }
 
 /* ④i 动作行的「银行转入 / 转出」标签（2026-10-09 加，用户要求「如果有银行转入转出 就加上标签」）
