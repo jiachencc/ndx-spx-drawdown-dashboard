@@ -1304,6 +1304,10 @@ const SA_NAME = (() => {                       // 标的名（从任一期的 it
   });
   return m;
 })();
+/* 归因列维度（2026-10-09 加）：theme＝主题（默认 ✓）/ plat＝平台 / acct＝场内·场外 ✓
+   选择记在 localStorage（与 trendView / trendRange 同一套做法 ✓；隐私模式下忽略 ✓） */
+let saDim = "theme";
+try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /* 隐私模式下忽略 */ }
 function renderSnapAttr() {
   const el = $("snap-attr");
   if (!el) return;
@@ -1324,24 +1328,38 @@ function renderSnapAttr() {
       const r = periodContrib(c, a, b);
       items[c] = r.v; kinds[c] = r.kind;
     });
-    const byT = {};
-    Object.entries(items).forEach(([c, v]) => { const t = TKEY(SA_THEME[c] || "global"); byT[t] = (byT[t] || 0) + v; });
-    /* 2026-10-09（借 finance 收益矩阵的做法）：原来这里按 500 元把「小」主题并进「其他」✗ ——
-       那条门槛的**唯一理由**是底色用线性分档、小金额画出来看不见；
-       现在底色改成对数尺度（见 cellBg），小变动照样看得见 → 门槛失去理由，去掉 ✓
-       效果：主题列不再出现"因小被吞"的空白 —— 那正是用户 10-08 问「是缺数据还是没显示」的成因 ✗ */
-    const seg = Object.entries(byT).map(([t, v]) => ({ k: t, v }));
-    seg.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
+    /* ⚠ 2026-10-09 二次改（用户要求「A ＋ B」把维度做成可切换）：这里**不再**在建期时按主题聚合 ✗ ——
+       改为只留逐只明细（items ✓），列的分组推迟到渲染时按**当前维度**算（见下方的 colKeyOf / segOf ✓）。
+       为什么不在这里聚合：那样切到「按平台 / 场内·场外」时列还是主题的 ✗（聚合发生在建期阶段，切不动 ✓）。
+       （旧注释保留在此：500 元「并入其他」那档早在 10-09 就废了 ✓ —— 底色改对数尺度后失去理由 ✓） */
     const nClose = Object.keys(kinds).filter((c) => kinds[c] === "close");
     const nNa = Object.keys(kinds).filter((c) => kinds[c] === "na");
-    live.push({ d: b.d, items: items, kinds: kinds, seg: seg, nClose: nClose, nNa: nNa,
+    live.push({ d: b.d, items: items, kinds: kinds, nClose: nClose, nNa: nNa,
       net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
-  function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：上方聚合处就要用 ✓
-  const metaOf = (k) => { k = TKEY(k); return SA_META[k] || (k === "other" ? ["其他", "#66788e"] : [k, "#8899aa"]); };
-  const themes = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];
+  function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：本函数内任意位置可用 ✓
+  /* ── 归因维度（2026-10-09 加，用户要求 A ＋ B）───────────────────────────────────────
+     默认**主题** ✓；另两种是"要查时切一下"的补充 ✓（顶部小切换器 ✓，选择记 localStorage ✓）。
+     为什么不默认平台（实测两者都 6 列，但平台维度在这套账户上会**塌缩** ✗）：
+       · 场内只有一家券商 → 「平安证券」一格把纳指 / 标普 / 日经三只不同市场合并（全期 +6,814，占大半 ✗）；
+       · 且与主题部分重合：广发基金 = 广发纳指F（纳指）＋ 广发精选（全球）✗ 又一格并了两种市场 ✗。
+     平台维度的真正用途是**对账** ✓（这数是哪个 App 给的、去哪一页核对 ✓）—— 按需切一下就能看 ✓。 */
+  const DIMS = { theme: "按主题", plat: "按平台", acct: "场内·场外" };
+  const colKeyOf = (c) => {
+    if (saDim === "plat") return isOnExchange(c) ? "平安证券" : (srcLabel(c).f || "场外");
+    if (saDim === "acct") return isOnExchange(c) ? "场内" : "场外";
+    return TKEY(SA_THEME[c] || "global");
+  };
+  const colNameOf = (k) => (saDim === "theme" ? ((SA_META[k] || ["全球"])[0]) : k);   // 平台 / 账户：键即显示名 ✓
+  const segOf = (p) => {                                  // 该期按**当前维度**聚合（大的在前 ✓）
+    const o = {};
+    Object.entries(p.items).forEach(([c, v]) => { const k = colKeyOf(c); o[k] = (o[k] || 0) + v; });
+    return Object.entries(o).map(([k, v]) => ({ k: k, v: v })).sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
+  };
+  live.forEach((p) => { p.seg = segOf(p); });              // 把当前维度的聚合挂回每期 ✓（下方 cellOf / colSum 直接用 ✓）
+  const cols = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];   // 列次序＝首次出现次序 ✓
   const mx = Math.max.apply(null, live.flatMap((p) => p.seg.map((x) => Math.abs(x.v))).concat([1]));
   /* 底色＝**对数**尺度（2026-10-09 借 finance「账户 × 月 收益矩阵」的 alpha 公式，同一套口径 ✓）：
      线性分档下 8 万与 800 元的色差几乎看不出，只能靠"并入其他"回避 ✗；
@@ -1362,18 +1380,30 @@ function renderSnapAttr() {
   const cellOf = (p, t) => {
     const s = p.seg.find((x) => x.k === t);
     if (!s) {
-      return '<td class="mx-c mx-na" title="' + esc(p.d + "：" + metaOf(t)[0] + " 这一期没有可归因的标的（当时尚未持有，不是「变动为 0」）") + '">·</td>';
+      return '<td class="mx-c mx-na" title="' + esc(p.d + "：" + colNameOf(t) + " 这一期没有可归因的标的（当时尚未持有，不是「变动为 0」）") + '">·</td>';
     }
+    /* 成员明细（A：2026-10-09 加**渠道** ✓）—— 用户问"这数是谁的 App 给的、去哪核对"时，悬停即得 ✓。
+       ⚠ 平台维度下"渠道"就是列名本身 → 逐只再写一遍是重复 ✗，那一种不标 ✓。 */
     const mem = Object.entries(p.items)
-      .filter(([c]) => TKEY(SA_THEME[c] || "global") === t)
+      .filter(([c]) => colKeyOf(c) === t)
       .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-      .map(([c, x]) => (SA_NAME[c] || c) + "　" + fmtAmt(x)).join("\n");
+      .map(([c, x]) => (SA_NAME[c] || c)
+        + (saDim === "plat" ? "" : " · " + (isOnExchange(c) ? "平安证券" : (srcLabel(c).s || "场外")))
+        + "　" + fmtAmt(x)).join("\n");
     return '<td class="mx-c" style="background:' + cellBg(s.v) + '" title="'
-      + esc(metaOf(t)[0] + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）")) + '">' + fmtAmt(s.v) + "</td>";
+      + esc(colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）")) + '">' + fmtAmt(s.v) + "</td>";
   };
-  let h = '<div class="sa-head"><b>盈亏归因</b><span>行=期 · 列=主题（13 只 → ' + themes.length + ' 族）· 点任一行看该期逐只 · 悬停任一格看成员</span></div>';
+  /* 维度切换器（2026-10-09 加，B）——沿用主视图那个 .vs-btn 的控件语言 ✓ */
+  let h = '<div class="sa-dims">' + Object.keys(DIMS).map((k) =>
+    '<button type="button" class="vs-btn' + (k === saDim ? " on" : "") + '" data-dim="' + k + '">' + DIMS[k] + "</button>").join("") + "</div>";
+  h += '<div class="sa-head"><b>盈亏归因</b><span>'
+    + (saDim === "theme" ? "行=期 · 列=主题（13 只 → " + cols.length + " 族）"
+      : saDim === "plat" ? "行=期 · 列=平台（券商 ／ 各基金公司与第三方）"
+        : "行=期 · 列=场内 / 场外")
+    + " · 点任一行看该期逐只 · 悬停任一格看成员" + (saDim === "theme" ? "与渠道" : "")
+    + " · <b>换个维度不改合计</b> ✓</span></div>";
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
-    + themes.map((t) => "<th>" + esc(metaOf(t)[0]) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
+    + cols.map((t) => "<th>" + esc(colNameOf(t)) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
      渲染走 live.slice().reverse() ✓，data-i 仍指向**原下标** ✓（点击下钻的映射不变 ✓）。
      日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只 ✓）；
@@ -1385,11 +1415,11 @@ function renderSnapAttr() {
       + (p.nNa && p.nNa.length
         ? '<span class="mx-close warn" title="' + esc("本期清仓但查不到流水，**无法归因**（未按 0 计 ✗）：" + p.nNa.map((c) => SA_NAME[c] || c).join("、")) + '">⚠</span>' : "");
     h += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + mark + "</td>"
-      + themes.map((t) => cellOf(p, t)).join("")
+      + cols.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
   h += '<tr class="mx-foot"><td class="mx-d">全期</td>'
-    + themes.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
+    + cols.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
     + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
 
   /* 下钻：点某行 → 该期逐只明细。默认选净变动最大的那期。 */
@@ -1413,8 +1443,13 @@ function renderSnapAttr() {
       }).join("") + "</div>";
   };
   h += '<div class="sa-detail-box">' + detail() + "</div>";
-  h += '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + metaOf(t)[1] + '"></i>' + esc(metaOf(t)[0]) + "</span>").join("")
-    + '<span class="sd-hint">颜色深浅＝量级（<b>对数</b>尺度，不是占比）· 「·」＝该期该主题无标的</span></div>';
+  /* ⚠ 2026-10-09 删掉原来的**主题色块图例** ✗ —— 用户问：「逐只明细 后面几个颜色是不是没有用到？」✓
+     查实：SA_META 那套主题色**只被这个图例用**过 ✗（矩阵底色是 cellBg 的**对数绿/红** ✓、
+     下钻横条也是绿/红 ✓）→ 屏幕上那几块颜色**不编码任何东西** ✗，是柱状图时代的遗留 ✓
+     （柱状图 2026-10-07 已删 ✓，见函数头注释）。保留后半句说明 —— 它讲的是**真正在用**的色彩编码 ✓。
+     若将来要做回"按主题配色"，再恢复色块 ✓。 */
+  h += '<div class="sa-legend"><span class="sd-hint">底色深浅＝量级（<b>对数</b>尺度，不是占比；绿＝赚 / 红＝亏）'
+    + " · 「·」＝该期该列无标的</span></div>";
   h += '<div class="otc-note"><b>口径</b>：每只标的**本期的真实贡献** —— 在持＝Δpl ✓（加仓时市值与成本同增、相减抵消 ✓）；'
     + "建仓＝当期 pl ✓；<b>清仓</b>＝卖出回款 − 期初市值 ✓（场内取流水 realized ＋ 期初成本 ✓；场外取 OTC_LOG 的赎回笔 ✓）。"
     + "三分支同源（periodContrib ✓），因此**每行合计 ＝ 卡头那一期的「本期盈亏」** ✓ —— 清仓也不会漏 "
@@ -1431,6 +1466,16 @@ function renderSnapAttr() {
   el.querySelectorAll(".sa-mx tbody tr[data-i]").forEach((tr) => {
     tr.onclick = () => { cur = +tr.dataset.i; box.innerHTML = detail(); };
   });
+  /* 维度切换（2026-10-09，B）：整块重渲染 ✓（简单、无状态漂移 ✓）。
+     用**容器委托**而不是逐个绑按钮 ✓ —— 与渲染次数无关，也不会随重渲染丢监听 ✓。
+     ⚠ 它不干扰行点击：行上的 onclick 先触发、这里再收到冒泡，但 closest("[data-dim]") 为空 → 直接 return ✓ */
+  el.onclick = (e) => {
+    const b = e.target.closest("[data-dim]");
+    if (!b || b.dataset.dim === saDim) return;
+    saDim = b.dataset.dim;
+    try { localStorage.setItem("snapAttrDim", saDim); } catch (err) { /* 隐私模式下忽略 */ }
+    renderSnapAttr();
+  };
 }
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
    用 onclick 赋值而非 addEventListener —— render() 会重跑，避免重复绑监听。 */
