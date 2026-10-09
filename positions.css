@@ -1510,7 +1510,11 @@
   .closed-lead b, .closed-lead i,
   .sec-title .cnt span,
   tr.sum td,
-  .footer b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .footer b,
+  /* ⚠ 补漏（同日）：第一次审计只在**一个视图**里测 ✗，漏了快照对比「逐期明细」视图里的 64 个 ——
+     它们全是日期与计数（"券商 10.08 收盘" / "vs 09.30（跨 8 天）" / "13 只"），本来就该同数字一族 ✓
+     教训记在这里：这类全页审计必须**每个视图各测一遍**（切视图是 hidden 切换，一次只测得到一个 ✗） */
+  .snap-group-hint, .snap-vs, .snap-cnt { font-family: var(--mono); font-feature-settings: "tnum"; }
   /* ⚠ 复审计后**有意剩下**的 18 个（不再改，理由：它们不是数字字段，而是"名字里带数字"）：
        div.row2 > span.to > i     例："纳指100" / "标普500"   ← 标的名称
        div.alt-grp-head > b       例："纳指100" / "标普500"   ← 分组标题
