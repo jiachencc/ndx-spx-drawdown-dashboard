@@ -1480,8 +1480,15 @@
   #snap-attr .sa-head span { font-size: var(--chk-fs-mini); }
   #snap-attr table.sa-mx { font-size: var(--chk-fs); }
   #snap-attr table.sa-mx th { font-size: var(--chk-fs-mini); padding: 2px 5px; }
-  /* 数据格（含合计列）比表头再小一档 → 取 mini（9px，与 .chk-tbl 的列内小标签同档 ✓） */
-  #snap-attr table.sa-mx td { font-size: var(--chk-fs-mini); padding: 1.5px 5px; }
+  /* 数据格（含合计列）比表头再小一档 → 取 mini（9px，与 .chk-tbl 的列内小标签同档 ✓）
+     ⚠ **2026-10-09（用户：「数字字体也用统一的 JetBrains」）**：这里原来是"没设 font-family"
+       → 继承正文的 --sans ✗，而全页其它数字都是 var(--mono)（= "JetBrains Mono", …）✓
+       （.pl-amt / .s-val / .est-tbl td / .dca-tbl .f-inv / .sd-amt … 无一例外）
+       → 补上 font-family: var(--mono) ＋ tnum，与它们**同一套** ✓
+       为什么连 .mx-d（期列）一起管：td 上设置即覆盖它，而日期本来也该用等宽（与 .snap-date 同口径 ✓）
+       th（列名是文字）仍走 sans ✓ —— 与 .est-tbl / .dca-tbl / .chk-tbl 的表头一致 ✓ */
+  #snap-attr table.sa-mx td { font-size: var(--chk-fs-mini); padding: 1.5px 5px;
+    font-family: var(--mono); font-feature-settings: "tnum"; }
   #snap-attr .sd-head { font-size: var(--chk-fs); }
   #snap-attr .sd-row { font-size: var(--chk-fs); padding: 1px 0; }
   #snap-attr .sd-hint { font-size: var(--chk-fs-mini); }
