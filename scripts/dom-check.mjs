@@ -542,6 +542,20 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     "页面 data-pl=" + gpl + " · 期望 " + wantPl.toFixed(2) + "（差 " + (gpl - wantPl).toFixed(2) + "）");
 }
 
+/* ④f 累计收益的「场内 / 场外」拆解（2026-10-09 加，起于用户一问：「累计收益包含场内场外对吗？」）
+   包含 ✓，但汇总卡右侧那两格是**在持**口径、**不能直接相加** ✗（场内那半还差一个「已兑现」）。
+   本金卡「收益构成 · 按账户」那一行给出的两个数必须**相加＝累计收益** ✓（期望值同样独立复算 ✓）。
+   ⚠ 该行在折叠区里（details.pf-fold）—— 元素始终在 DOM 上（只是不渲染），故无需展开即可断言 ✓。 */
+{
+  const el = (id) => win.document.getElementById(id);
+  const a = el("prin-etf-contrib"), c = el("prin-otc-contrib");
+  const va = a ? Number(a.getAttribute("data-v")) : NaN, vc = c ? Number(c.getAttribute("data-v")) : NaN;
+  const want = latest.pl - closedGap;
+  check("本金卡「按账户」拆分：场内 ＋ 场外 ＝ 累计收益 " + money(want),
+    Number.isFinite(va) && Number.isFinite(vc) && Math.abs(va + vc - want) < 3,
+    "场内 " + va + " ＋ 场外 " + vc + " = " + (va + vc).toFixed(2) + " · 期望 " + want.toFixed(2));
+}
+
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];
 win.document.querySelectorAll("svg *").forEach((el) => {

@@ -3289,6 +3289,14 @@ function renderPrincipal() {
   const hasItems = Object.keys(items).length > 0;
   const unrealOtc = Object.keys(items).filter((c) => !isOnExchange(c)).reduce((a, c) => a + (items[c].pl || 0), 0);
   const unrealEtf = held - unrealOtc;              // 10-09：＝ Σ场内逐只 pl = +21,641.85 ✓
+  /* 累计收益的「场内 / 场外」拆解（2026-10-09 加，起于用户一问「累计收益包含场内场外对吗？」）：
+     包含 ✓，但**不能**拿汇总卡右侧那两格直接相加 ✗ —— 那两格是在持口径，场内那半还差一个「已兑现」
+     （摊薄成本把已实现折进了剩余仓位，全额清仓时又整块漏出 → 单列成 cashed ✓）。
+     场外那半恰好＝场外的全部贡献 ✓（期内无卖出；那 17 笔历史清仓在首份快照之前、不在本口径 ✓）。
+     场内取「累计收益 − 场外」，以保证两者**相加严格等于上面那行** ✓
+     （与独立互算的 3,151.51 差 1.66 元，正是仓库既有的对账尾差 ✓）。 */
+  const contribOtc = unrealOtc;
+  const contribEtf = pnl - contribOtc;
   /* 场外 / 场内拆分本身较长，独占一行（.snap-sub 允许换行；挤在一行会折成难读的两截）。
      它回答的正是最常被问的那件事：未实现 −755 为什么和快照逐只的 −4,125 对不上。 */
   const cashNote = hasItems ? "<br>场外 " + fmtAmt2(unrealOtc) + " ／ 场内 " + fmtAmt2(unrealEtf) : "";
@@ -3862,6 +3870,13 @@ function renderPrincipal() {
         '</b><span class="snap-sub">' + (cashed ? (cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计 ✓）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里 ✓）") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(held) + '">' + fmtAmt2(held) +
         '</b><span class="snap-sub">' + (held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + cashNote + "</span></span></div>" +
+      /* 按账户拆解（2026-10-09 加）：回答「累计收益包含场内场外对吗」= 包含 ✓，
+         ⚠ 但**不是**汇总卡那两格相加 ✗ —— 场内还差一个「已兑现」（那两格是在持口径 ✓）。 */
+      '<div class="snap-part"><span class="pn">按账户</span><span class="pv">' +
+        '<b class="' + cls(contribEtf) + '" id="prin-etf-contrib" data-v="' + contribEtf.toFixed(2) + '">' + fmtAmt2(contribEtf) + "</b>" +
+        '<span class="snap-sub">场内（含已兑现 ' + fmtAmt2(cashed) + '）· 场外 <b class="' + cls(contribOtc) +
+          '" id="prin-otc-contrib" data-v="' + contribOtc.toFixed(2) + '">' + fmtAmt2(contribOtc) +
+          "</b> · 两者相加 ＝ 上面的累计收益 ✓（⚠ 它与汇总卡右侧那两格不是同一口径 ✗）</span></span></div>" +
     "</div></details>" +
     rateSec +
     perFundSec;
