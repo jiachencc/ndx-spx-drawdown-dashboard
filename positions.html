@@ -2627,7 +2627,25 @@ function snapGrpSplit(prev, cur) {
   codes.forEach((code) => {
     const a = prev.items[code], b = cur.items[code], x = g[isOnExchange(code) ? "in" : "ot"];
     x.n++;
-    x.d += ((b && b.pl) || 0) - ((a && a.pl) || 0);
+    if (!a) { x.d += (b && b.pl) || 0; }                                         // 建仓：本期盈亏 = 它的浮盈亏 ✓
+    else if (b) { x.d += (b.pl || 0) - (a.pl || 0); }                            // 在持：逐期浮盈亏之差 ✓
+    else {
+      /* ⚠ 2026-10-09 修正（用户报的第二个数：快照对比「场内 5 只 当日 ↑20,362」✗）：
+         原式 `((b && b.pl) || 0) - ((a && a.pl) || 0)` 在**清仓**时（b 不存在）退化成 `0 − a.pl`
+         ＝ 上期浮盈亏的相反数 → 把"浮亏不再挂在账上"当成收益 ✗✗：
+           中韩半导体ETF华泰 上期浮亏 −12,649.70 → 该组小计凭空 +12,649.70（港美同理 +5,206.90）
+           ⇒ 「场内」组小计显示 **+20,362**，而本期实际只有 **+1,870.70**
+             （＝场内 Δ总资产 425,785.50 − 423,914.80 ✓，当日无银证进出 flow=0 ✓）。
+         正确口径＝**这只在本期真正的盈亏** ＝ 卖出回款 − 期初市值：
+           回款 = 该只在本期（prev.d, cur.d] 的卖出行 realized ＋ 该只期初成本 a.cost ✓
+           实测：中韩 69,155.00 − 69,722.40 = **−567.40**；港美 4,031.20 − 4,099.20 = **−68.00** ✓
+         ⚠ 与 snapPairHtml 的**逐行**必须同口径 —— 两处不一致时卡内会自相矛盾 ✗
+           （上轮只修了逐行那条，所以这个分组小计仍然是错的 —— 用户第二次发现 ✓） */
+      const sell = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
+        .filter((e) => isSellAct(e) && e.sym === a.name && e.d > prev.d && e.d <= cur.d)[0];
+      x.d += (sell && Number.isFinite(sell.realized)) ? (sell.realized + (a.cost || 0)) - (a.val || 0) : -(a.pl || 0);
+      x.cl = (x.cl || 0) + 1;                                                    // 该组本期几只被清仓（组名里标出 ✓）
+    }
     x.c += (b && b.pl) || 0;
   });
   return g;
@@ -2946,7 +2964,7 @@ function snapPairHtml(prev, cur) {
          这个场内/场外拆分原来挂在「当日盈亏」那一行的小注上，而那一行已提到卡头（卡头不带拆分）；
          搬到分组头正好 —— 它就是本组各行「当日盈亏」之和，与表内逐只数字同源，回答「场内 / 场外各贡献多少」。
          跨度 >1 天时与卡头同规则叫「本期」；颜色沿用全局 .up/.down（绿/红），数值给等宽。 */
-      '<div class="snap-group" title="' + esc(tip) + '"><span class="snap-group-key">' + label + " " + sub[key].n + " 只</span>" +
+      '<div class="snap-group" title="' + esc(tip) + '"><span class="snap-group-key">' + label + " " + sub[key].n + " 只" + (sub[key].cl ? "（含清仓 " + sub[key].cl + "）" : "") + "</span>" +
       '<span class="snap-group-sum ' + cls(sub[key].d) + '">' + (spanDays === 1 ? "当日" : "本期") +
         ' <span aria-hidden="true">' + (sub[key].d >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(sub[key].d) + "</span>" +
       '<span class="snap-group-hint">' + hint + "</span></div>" +
