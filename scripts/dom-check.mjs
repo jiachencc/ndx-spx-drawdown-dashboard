@@ -556,6 +556,27 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     "场内 " + va + " ＋ 场外 " + vc + " = " + (va + vc).toFixed(2) + " · 期望 " + want.toFixed(2));
 }
 
+/* ④g 快照对比「清仓行」的总盈亏（2026-10-09 加）—— 曾**写死 0** ✗：
+   列头写「总盈亏（相对持仓成本，含已实现）」，清仓后该只成本归零、也退出 items → 显示 0 ✗，
+   读者会读成「不赚不赔」✗✗（用户当场看出：「中韩半导体ETF华泰 的 总盈亏是 0 对吗？」✓）。
+   现改取该只生命周期实际结果 ＝ Σ卖出净额 − Σ买入含费（含双边费用 ✓），与「清仓历史」卡同一个数 ✓。
+   期望值取页面的 closedEtfRows()（与清仓历史卡**同源** ✓；它的绝对正确性由 ④b 的独立复算守住 ✓）；
+   本条盯的是**两张卡不许各说各话** ✗，且不许有人把 plCum 改回 0 ✗。 */
+{
+  const item = win.document.querySelector(".snap-item");        // 新在上 → 第一张＝最新一期
+  const fn = win.closedEtfRows;
+  const rows = (typeof fn === "function") ? fn() : [];
+  const bad = [];
+  rows.forEach((r) => {
+    const row = item ? [...item.querySelectorAll(".snap-line.item")].find((x) => x.textContent.indexOf(r.sym) >= 0) : null;
+    const cv = row ? row.querySelector(".cv") : null;
+    if (!cv || !near(cv.textContent, r.pnl, 1))
+      bad.push(r.sym + "：" + (cv ? cv.textContent.replace(/\s+/g, "") : "(最新一期没有这一行 ✗)") + " ≠ " + r.pnl.toFixed(2));
+  });
+  check("快照对比「清仓行 · 总盈亏」= 清仓历史同只（" + rows.length + " 只：" + rows.map((r) => r.sym).join("/") + "）",
+    rows.length > 0 && bad.length === 0, bad.length ? "对不上：" + bad.join("、") : "逐只核对通过 ✓");
+}
+
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];
 win.document.querySelectorAll("svg *").forEach((el) => {

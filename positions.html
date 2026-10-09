@@ -2966,7 +2966,7 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
   return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) +
       (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
     srcTag + qt + "</span>" +
-    '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（相对持仓成本，含已实现）">' +
+    '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（该只累计实际结果，含已实现与双边费用；清仓行＝从建仓到清仓的结果 ✓）">' +
       '<span class="dv ' + cls(dPlItem) + '">' + num(dPlItem) + '</span>' +
       '<span class="cv ' + cls(plCum) + '">' + num(plCum) + "</span></span></div>";
 }
@@ -3002,7 +3002,16 @@ function snapPairHtml(prev, cur) {
         const dPlClose = (sell && Number.isFinite(sell.realized))
           ? (sell.realized + (a.cost || 0)) - (a.val || 0)
           : -(a.pl || 0);
-        diffs.push({ code: code, name: a.name, dq: null, dPlItem: dPlClose, plCum: 0, tag: "close",
+        /* ⚠ 2026-10-09 补：清仓行的「总盈亏」原为**写死 0** ✗ ——
+           列头写的是「总盈亏（相对持仓成本，含已实现）」，清仓后该只成本归零、也退出了 items，
+           于是给了 0；数学上"相对 0 成本"确实是 0，但读者会读成「不赚不赔」✗✗
+           （用户 10-09 当场看出不对：「中韩半导体ETF华泰 的 总盈亏是 0 对吗？」✓）。
+           改为取**该只从建仓到清仓的实际结果** ✓ ＝ Σ卖出净额 − Σ买入含费（含双边费用 ✓），
+           与「清仓历史」卡**同一个数** ✓（同源：closedEtfRows() 按全流水推导、只含已归零的标的 ✓）。
+           在场行仍是 b.pl（＝市值 − 摊薄成本，已含此前的部分卖出 ✓），两者其实是同一件事 ✓。
+           场外若出现清仓行（本页期内没有）找不到对应项时回落 0 ✓，并由 dom-check ④g 盯着不许改回 0 ✗。 */
+        const closedRow = closedEtfRows().filter((r) => r.sym === a.name)[0];
+        diffs.push({ code: code, name: a.name, dq: null, dPlItem: dPlClose, plCum: closedRow ? closedRow.pnl : 0, tag: "close",
           noFlow: !(sell && Number.isFinite(sell.realized)) });
         return;
       }
