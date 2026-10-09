@@ -4585,6 +4585,21 @@ function renderAcctStats() {
     benchHtml() +
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
 }
+/* 场内核月度图的**缩放重绘**（2026-10-09 修）——
+   这张图与走势图、归因列头图一样是按**真实像素宽**画的 ✓（W = el.clientWidth ✓），
+   但原来**漏了** resize 重绘 ✗：从 1440 拖到 380 后它仍是 718px 宽 ✗ → 页面横向溢出 **367px** ✗
+   取证：越界元素的父节点就是 #acct-card ✓、且**不打开归因视图也复现** ✓ → 与本轮其它改动无关 ✓。
+   与走势图同一套写法（防抖 150ms ✓，避免拖动窗口时狂重绘 ✓）；
+   只在卡里**真有图**时才重画 ✓（KPI 文字是 CSS 排的、不需要重画 ✓；未渲染过就什么都不做 ✓）。
+   ▸ 防回归：scripts/layout-check.mjs（真实浏览器 · 有 playwright 才跑 ✓）会在
+     1440 → 380 拖动缩放后断言"页面无横向溢出 ＋ 每个 SVG 不超出容器" ✓。 */
+let acctRzTimer = null;
+window.addEventListener("resize", () => {
+  const box = $("acct-card");
+  if (!box || !box.querySelector("svg")) return;
+  clearTimeout(acctRzTimer);
+  acctRzTimer = setTimeout(renderAcctStats, 150);
+});
 
 /* ================= 波段配对引擎（跨标的） =================
  * ⚠ 2026-10-09：**独立的「波段复盘」卡片已按用户要求删除** ✓ —— 但本节的配对内核
