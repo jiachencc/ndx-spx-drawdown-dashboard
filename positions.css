@@ -483,6 +483,15 @@
      ⚠ 没动字号 / 字重 ✓：字号已经是全页最小档 --fs-xxs（10px）✗ 再缩就低于可读线；
        700 是 chip 的识别特征 ✓ —— 遮挡的根因是行高，不是这两个 ✓。 */
   .snap-line.acts .snap-tag { display: inline-block; margin: 2px 4px 2px 0; }
+  /* ── 盈亏归因矩阵：清仓角标（2026-10-09 加，配合 periodContrib 的统一口径）─────────────
+     「清 N」＝该期清掉了几只（金额已按「回款 − 期初市值」计入本行 ✓，title 列出是哪几只 ✓）
+     「⚠」＝清仓但查不到流水 → **不可归因**（不是 0 ✗，琥珀色沿用资金方向那一套 warn 语义 ✓） */
+  .sa-mx .mx-close { display: inline-block; margin-left: 3px; padding: 0 3px; border-radius: 3px;
+    font-size: var(--fs-xxs); font-weight: 700; color: var(--cyan); background: var(--info-bg); border: 1px solid var(--info-line); }
+  .sa-mx .mx-close.warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-line); }
+  .sa-detail .sd-k { font-style: normal; margin-left: 4px; padding: 0 3px; border-radius: 3px;
+    font-size: var(--fs-xxs); font-weight: 700; color: var(--cyan); background: var(--info-bg); border: 1px solid var(--info-line); }
+  .sa-detail .sd-k.na { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-line); }
   /* （2026-09-24 删除）.snap-line.total：旧行式分支的「总资产 A → B」行样式；该分支已删（逐期卡全走 KPI），
      页面里再没有生成 .snap-line.total 的地方。 */
   /* 归因拆分小注（银证实锤 / 场外估）：单独占内容列，弱化，避免挤在同一行长句中 */

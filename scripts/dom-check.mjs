@@ -648,6 +648,63 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   }
 }
 
+/* ④j 盈亏归因矩阵：**每行合计必须 ＝ 该期的「本期盈亏」**（2026-10-09 加，起于用户问
+   「快照对比的盈亏归因要怎么优化，考虑到未来有清仓的情况」✓）
+   ▸ 当时实测的 bug：10.09 行合计 **+2,939** ✗，真值 **+2,304** ✓ → 差 **+635.40**
+     ＝ 中韩 −567.40 ＋ 港美 −68.00 ✓✓（被清仓那两只**本期的真实结果** ✓）。
+   ▸ 根因：归因按「后一期 pl − 前一期 pl」取值 ✗ —— 清仓标的后一期不在 items 里 → 整条被跳过记 0 ✗
+     （逐期明细行与分组小计当天已修 ✓，但归因是**另一套实现** ✗ 没跟着修）。
+   ▸ 本断言独立复算：该期真值 ＝ Δ总资产 − 记录的资金进出 ✓（页面 snapFlow 口径：人工记录优先 ✓），
+     逐行比对 ✓，并校验「全期行 ＝ Σ 各行」✓。没有记录 flow 的早期期跳过（计数在明细里 ✓）。 */
+{
+  const btn = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "attr");
+  if (btn) btn.click();
+  const mx = win.document.getElementById("snap-attr");
+  const tbl = mx ? mx.querySelector("table.sa-mx") : null;
+  if (!tbl) {
+    check("盈亏归因矩阵可渲染（点「盈亏归因」后出现 table.sa-mx）", false, "#snap-attr 里没有 table.sa-mx");
+  } else {
+    const snaps2 = (() => {
+      const m = readFileSync(path.join(root, "positions-data.js"), "utf8").match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m);
+      if (!m) return [];
+      const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = SNAPSHOTS;", c, { timeout: 500 }); return c.o || [];
+    })();
+    const tot2 = (s) => Object.values(s.items || {}).reduce((a, x) => a + ((x && x.val) || 0), 0) + (s.cash || 0);
+    const truth = {};
+    for (let i = 1; i < snaps2.length; i++) {
+      const a = snaps2[i - 1], b = snaps2[i];
+      if (!a.items || !b.items || !Number.isFinite(b.flow)) continue;
+      truth[b.d.slice(5)] = tot2(b) - tot2(a) - b.flow;
+    }
+    const rows = [...tbl.querySelectorAll("tbody tr")].filter((tr) => !tr.classList.contains("mx-foot"));
+    const foot = [...tbl.querySelectorAll("tbody tr")].find((tr) => tr.classList.contains("mx-foot"));
+    const numOf = (el) => {
+      const m = ((el && el.textContent) || "").match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || [];
+      return m.length ? +m[m.length - 1].replace(/,/g, "").replace("−", "-") : NaN;
+    };
+    const bad = [];
+    rows.forEach((tr) => {
+      const d = ((tr.querySelector(".mx-d") || {}).textContent || "").trim().slice(0, 5);
+      if (!(d in truth)) return;
+      const v = numOf(tr.querySelector(".mx-sum"));
+      if (!Number.isFinite(v) || Math.abs(v - truth[d]) > 2) bad.push(d + "：行内 " + v + " vs 真值 " + truth[d].toFixed(2));
+    });
+    check("盈亏归因每行合计 ＝ 该期「本期盈亏」（" + Object.keys(truth).length + " 期，独立复算 Δ总资产 − 资金进出）",
+      bad.length === 0, bad.length ? "对不上：" + bad.join("、") : "逐期核对通过 ✓");
+    /* ⚠ 全期行的**主题格也带 .mx-sum 类**，querySelector 会取到第一列（实测取成 227 ✗）→ 必须取**最后一个** ✓
+       （此行由 2026-10-09 自己踩出来：初版断言报「全期 227 vs Σ各行 8914」—— 数字对不上的是检查本身 ✗） */
+    const footCells = foot ? [...foot.querySelectorAll(".mx-sum")] : [];
+    const footSum = numOf(footCells.length ? footCells[footCells.length - 1] : null);
+    const bodySum = rows.reduce((a, tr) => a + (numOf(tr.querySelector(".mx-sum")) || 0), 0);
+    check("盈亏归因「全期」行 ＝ Σ 各行 " + money(bodySum),
+      Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= 2,
+      "全期 " + footSum + " vs Σ各行 " + bodySum.toFixed(2));
+  }
+  /* 把视图切回「逐期明细」✓ —— 别把状态留给后面的断言 ✗（本块可能是最后一块，但契约要写死 ✓） */
+  const back2 = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");
+  if (back2) back2.click();
+}
+
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];
 win.document.querySelectorAll("svg *").forEach((el) => {
