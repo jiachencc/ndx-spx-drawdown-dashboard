@@ -1315,8 +1315,15 @@ function renderSnapAttr() {
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
     if (!a.items || !b.items) { hidden.push(b.d.slice(5)); continue; }
-    const items = {};
-    Object.keys(b.items).forEach((c) => { if (a.items[c]) items[c] = num(b.items[c].pl) - num(a.items[c].pl); });
+    /* ★ 2026-10-09 改：取值改调 periodContrib()（★ 唯一实现 ★）——
+       原实现只遍历 b.items、且要求 a.items[c] 存在 ✗ → **建仓与清仓两种标的都被整条跳过、记 0** ✗；
+       清仓那半边正是 10.09 行合计虚高 **+635.40** 的成因 ✓（中韩 −567.40 ＋ 港美 −68.00 ✓，门禁 ④j 报红 ✓）。
+       现在遍历两期的**并集** ✓，并记下每只的 kind（供「清」角标与「不可归因」标记 ✓）。 */
+    const items = {}, kinds = {};
+    Array.from(new Set(Object.keys(a.items).concat(Object.keys(b.items)))).forEach((c) => {
+      const r = periodContrib(c, a, b);
+      items[c] = r.v; kinds[c] = r.kind;
+    });
     const byT = {};
     Object.entries(items).forEach(([c, v]) => { const t = TKEY(SA_THEME[c] || "global"); byT[t] = (byT[t] || 0) + v; });
     /* 2026-10-09（借 finance 收益矩阵的做法）：原来这里按 500 元把「小」主题并进「其他」✗ ——
@@ -1325,7 +1332,10 @@ function renderSnapAttr() {
        效果：主题列不再出现"因小被吞"的空白 —— 那正是用户 10-08 问「是缺数据还是没显示」的成因 ✗ */
     const seg = Object.entries(byT).map(([t, v]) => ({ k: t, v }));
     seg.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
-    live.push({ d: b.d, items, seg, net: Object.values(items).reduce((s, v) => s + v, 0) });
+    const nClose = Object.keys(kinds).filter((c) => kinds[c] === "close");
+    const nNa = Object.keys(kinds).filter((c) => kinds[c] === "na");
+    live.push({ d: b.d, items: items, kinds: kinds, seg: seg, nClose: nClose, nNa: nNa,
+      net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
@@ -1364,8 +1374,17 @@ function renderSnapAttr() {
   let h = '<div class="sa-head"><b>盈亏归因</b><span>行=期 · 列=主题（13 只 → ' + themes.length + ' 族）· 点任一行看该期逐只 · 悬停任一格看成员</span></div>';
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + themes.map((t) => "<th>" + esc(metaOf(t)[0]) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
-  live.forEach((p, i) => {
-    h += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + "</td>"
+  /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
+     渲染走 live.slice().reverse() ✓，data-i 仍指向**原下标** ✓（点击下钻的映射不变 ✓）。
+     日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只 ✓）；
+     清仓但查不到流水（不可归因 ✓）→ 琥珀「⚠」✓ —— 显式标"缺"，不假装 0 ✗。 */
+  live.slice().reverse().forEach((p) => {
+    const i = live.indexOf(p);
+    const mark = (p.nClose && p.nClose.length
+      ? '<span class="mx-close" title="' + esc("本期清仓：" + p.nClose.map((c) => SA_NAME[c] || c).join("、") + "（金额已按「回款 − 期初市值」计入本行 ✓）") + '">清' + p.nClose.length + "</span>" : "")
+      + (p.nNa && p.nNa.length
+        ? '<span class="mx-close warn" title="' + esc("本期清仓但查不到流水，**无法归因**（未按 0 计 ✗）：" + p.nNa.map((c) => SA_NAME[c] || c).join("、")) + '">⚠</span>' : "");
+    h += '<tr data-i="' + i + '"><td class="mx-d">' + p.d.slice(5) + mark + "</td>"
       + themes.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
@@ -1381,15 +1400,25 @@ function renderSnapAttr() {
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     return '<div class="sa-detail"><div class="sd-head">' + p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）"
       + '<span class="sd-hint">点上方任一行可切换</span></div>'
-      + list.map((x) => '<div class="sd-row"><span class="sd-nm">' + esc(SA_NAME[x.c] || x.c) + "</span>"
-        + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:" + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
-        + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
-        + '<span class="sd-pct">' + (x.v / (p.net || 1) * 100).toFixed(0) + "%</span></div>").join("") + "</div>";
+      + list.map((x) => {
+        /* 逐只标出「这只本期是什么性质」（2026-10-09 加）：清仓 ✓ ／ 清仓但不可归因 ⚠ ✓
+           不可归因那种 v＝0 是"缺"而不是"没赚没赔" ✗ —— 必须显式写出来 ✓ */
+        const k = (p.kinds || {})[x.c];
+        const km = k === "close" ? '<em class="sd-k">清仓</em>'
+          : (k === "na" ? '<em class="sd-k na">⚠ 不可归因</em>' : "");
+        return '<div class="sd-row"><span class="sd-nm">' + esc(SA_NAME[x.c] || x.c) + km + "</span>"
+          + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:" + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+          + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
+          + '<span class="sd-pct">' + (x.v / (p.net || 1) * 100).toFixed(0) + "%</span></div>";
+      }).join("") + "</div>";
   };
   h += '<div class="sa-detail-box">' + detail() + "</div>";
   h += '<div class="sa-legend">' + themes.map((t) => '<span><i style="background:' + metaOf(t)[1] + '"></i>' + esc(metaOf(t)[0]) + "</span>").join("")
     + '<span class="sd-hint">颜色深浅＝量级（<b>对数</b>尺度，不是占比）· 「·」＝该期该主题无标的</span></div>';
-  h += '<div class="otc-note"><b>口径</b>：各标的「累计盈亏 pl」的**两期之差** → 纯市场贡献 ✓（加仓时市值与成本同增、相减抵消）。'
+  h += '<div class="otc-note"><b>口径</b>：每只标的**本期的真实贡献** —— 在持＝Δpl ✓（加仓时市值与成本同增、相减抵消 ✓）；'
+    + "建仓＝当期 pl ✓；<b>清仓</b>＝卖出回款 − 期初市值 ✓（场内取流水 realized ＋ 期初成本 ✓；场外取 OTC_LOG 的赎回笔 ✓）。"
+    + "三分支同源（periodContrib ✓），因此**每行合计 ＝ 卡头那一期的「本期盈亏」** ✓ —— 清仓也不会漏 "
+    + "（2026-10-09 之前只遍历后一期、清仓标被跳过记 0 ✗，10.09 行因此虚高 +635.40 ✗；门禁 ④j 现在盯着 ✓）。"
     + "<br>底色＝<b>对数</b>尺度（2026-10-09 改，与 finance「账户 × 月 收益矩阵」同一套 alpha 公式）："
     + "跨两个数量级的变动都能分辨 ✓ —— 所以**不再**有「小于 N 元并入其他」那一档 ✗"
     + "（那一档画出来与「该主题当期无标的」长得一样，容易误读 ✗）。"
@@ -2700,35 +2729,59 @@ function qPair(txt, label) {
     note: '<div class="strat-note" id="' + id + '">' + txt + "</div>",
   };
 }
+/* ── 每只标的在区间 (prev.d, cur.d] 的**真实贡献**（★ 唯一实现 ★，2026-10-09 抽出）─────────────
+   语义：这一期它给账户带来了多少盈亏 —— 与「本期盈亏 ＝ Δ总资产 − 资金进出」严格自洽 ✓。
+   ⚠ 为什么必须**只有一份**：同一语义原来在**三处各写一遍** ✗（逐期明细行 / 分组小计 / 盈亏归因），
+     于是 2026-10-09 首次全额清仓时，先修了前两处、归因没跟上 ✗ → 归因 10.09 行合计显示 **+2,939** ✗，
+     而真值 **+2,304** ✓，差 **+635.40** ＝ 中韩 −567.40 ＋ 港美 −68.00 ✓✓（被清仓那两只本期的真实结果），
+     门禁 ④j 当场报红 ✓。以后不要再在别处手写这套三分支 ✗ —— 一律调本函数 ✓。
+   口径（等价于「期末累计结果 − 期初累计结果」，故在整段历史上**逐期自然加总** ✓）：
+     · 在持（两期都在）   → Δpl ✓
+     · 建仓（只后一期有） → 后一期 pl ✓（期初累计结果＝0 ✓）
+     · 清仓（只前一期有） → **卖出回款 − 期初市值** ✓（＝该只生命周期实际结果 − 期初 pl ✓，两者等价 ✓）
+         场内：该期卖出行 realized ＋ 期初成本 ✓（realized 口径＝净回款 − 摊薄成本额，故回款＝realized＋成本 ✓）
+         场外：OTC_LOG 该期「赎回」笔金额合计 ✓（场外没有 POSITIONS.log 流水 ✓）
+       两种都查不到 → kind "na"（**不可归因**）：调用方必须**显式标出** ✗，不许当成 0 ✗
+         （0 会被读成"没赚没赔"，比"缺"更误导 —— 与 2026-10-08「是缺数据还是没显示」同一条教训 ✓）
+   返回 { v, kind }，kind ∈ hold | open | close | na ✓ */
+function periodContrib(code, prev, cur) {
+  const a = (prev && prev.items) ? prev.items[code] : null;
+  const b = (cur && cur.items) ? cur.items[code] : null;
+  const nz = (x) => (Number.isFinite(+x) ? +x : 0);
+  if (a && b) return { v: nz(b.pl) - nz(a.pl), kind: "hold" };
+  if (!a && b) return { v: nz(b.pl), kind: "open" };
+  if (a && !b) {
+    const nm = a.name || "";
+    const sell = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
+      .filter((e) => isSellAct(e) && e.sym === nm && e.d > prev.d && e.d <= cur.d)[0];
+    if (sell && Number.isFinite(sell.realized)) return { v: (sell.realized + nz(a.cost)) - nz(a.val), kind: "close" };
+    const red = (((typeof OTC_LOG !== "undefined" && OTC_LOG) || {})[code] || [])
+      .filter((t) => t.status === "成功" && /赎回/.test(String(t.act)) && t.d > prev.d && t.d <= cur.d)
+      .reduce((s, t) => s + nz(t.amt), 0);
+    if (red > 0) return { v: red - nz(a.val), kind: "close" };
+    return { v: 0, kind: "na" };
+  }
+  return { v: 0, kind: "na" };
+}
 /* 场内 / 场外 拆分：本期（d＝两期累计之差）与累计（c＝当期累计）两个口径，
    对照条的拆分小注与明细的分组小计共用同一份计算，避免两处算法漂移。
-   缺 items（简快照）时返回 null，调用方跳过拆分。 */
+   缺 items（简快照）时返回 null，调用方跳过拆分。
+   ⚠ 2026-10-09：本期那一支改调 periodContrib()（★ 唯一实现 ★）—— 清仓修正从此不会只落在某一条路径上 ✓ */
 function snapGrpSplit(prev, cur) {
   if (!prev || !prev.items || !cur || !cur.items) return null;
   const codes = Array.from(new Set(Object.keys(prev.items).concat(Object.keys(cur.items))));
   const g = { in: { n: 0, d: 0, c: 0 }, ot: { n: 0, d: 0, c: 0 } };
   codes.forEach((code) => {
-    const a = prev.items[code], b = cur.items[code], x = g[isOnExchange(code) ? "in" : "ot"];
+    const b = cur.items[code], x = g[isOnExchange(code) ? "in" : "ot"];
     x.n++;
-    if (!a) { x.d += (b && b.pl) || 0; }                                         // 建仓：本期盈亏 = 它的浮盈亏 ✓
-    else if (b) { x.d += (b.pl || 0) - (a.pl || 0); }                            // 在持：逐期浮盈亏之差 ✓
-    else {
-      /* ⚠ 2026-10-09 修正（用户报的第二个数：快照对比「场内 5 只 当日 ↑20,362」✗）：
-         原式 `((b && b.pl) || 0) - ((a && a.pl) || 0)` 在**清仓**时（b 不存在）退化成 `0 − a.pl`
-         ＝ 上期浮盈亏的相反数 → 把"浮亏不再挂在账上"当成收益 ✗✗：
-           中韩半导体ETF华泰 上期浮亏 −12,649.70 → 该组小计凭空 +12,649.70（港美同理 +5,206.90）
-           ⇒ 「场内」组小计显示 **+20,362**，而本期实际只有 **+1,870.70**
-             （＝场内 Δ总资产 425,785.50 − 423,914.80 ✓，当日无银证进出 flow=0 ✓）。
-         正确口径＝**这只在本期真正的盈亏** ＝ 卖出回款 − 期初市值：
-           回款 = 该只在本期（prev.d, cur.d] 的卖出行 realized ＋ 该只期初成本 a.cost ✓
-           实测：中韩 69,155.00 − 69,722.40 = **−567.40**；港美 4,031.20 − 4,099.20 = **−68.00** ✓
-         ⚠ 与 snapPairHtml 的**逐行**必须同口径 —— 两处不一致时卡内会自相矛盾 ✗
-           （上轮只修了逐行那条，所以这个分组小计仍然是错的 —— 用户第二次发现 ✓） */
-      const sell = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
-        .filter((e) => isSellAct(e) && e.sym === a.name && e.d > prev.d && e.d <= cur.d)[0];
-      x.d += (sell && Number.isFinite(sell.realized)) ? (sell.realized + (a.cost || 0)) - (a.val || 0) : -(a.pl || 0);
-      x.cl = (x.cl || 0) + 1;                                                    // 该组本期几只被清仓（组名里标出 ✓）
-    }
+    const pc = periodContrib(code, prev, cur);                                   // ★ 唯一实现 ★（见其函数头）
+    x.d += pc.v;
+    if (pc.kind === "close") x.cl = (x.cl || 0) + 1;                             // 该组本期几只被清仓 ✓
+    if (pc.kind === "na") x.na = (x.na || 0) + 1;                                // 清仓但查不到流水 → 显式计数 ✓
+    /* ⚠ 2026-10-09 二次整理：本处原来的三分支（建仓 / 在持 / 清仓）**整块删掉** ✓ ——
+       清仓那一支（回款 − 期初市值 ✓）与 snapPairHtml 逐行、renderSnapAttr 归因是**三份手写副本** ✗，
+       三次事故都出在"只修了其中一份"（10-09 归因没跟上 → 行合计 +2,939 vs 真值 +2,304 ✗，④j 报红 ✓）。
+       现在统一调 periodContrib()（★ 唯一实现 ★），本函数只负责"按场内 / 场外分组求和"这一件事 ✓。 */
     x.c += (b && b.pl) || 0;
   });
   return g;
@@ -3055,22 +3108,17 @@ function snapPairHtml(prev, cur) {
              实测：69,155.00 − 69,722.40 = **−567.40**（＝当日价跌 (4.587→4.550)×15,200 = −562.40 − 费 5.00 ✓）
            ⚠ 找不到对应流水（或没有 realized）时退回旧口径 —— 数据层门禁强制卖出行带 realized ✓，
              故现状不会有此分支；真出现时说明数据缺流水，而不是这里的算法问题 ✓ */
-        const sell = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
-          .filter((e) => isSellAct(e) && e.sym === a.name && e.d > prev.d && e.d <= cur.d)[0];
-        const dPlClose = (sell && Number.isFinite(sell.realized))
-          ? (sell.realized + (a.cost || 0)) - (a.val || 0)
-          : -(a.pl || 0);
-        /* ⚠ 2026-10-09 补：清仓行的「总盈亏」原为**写死 0** ✗ ——
-           列头写的是「总盈亏（相对持仓成本，含已实现）」，清仓后该只成本归零、也退出了 items，
-           于是给了 0；数学上"相对 0 成本"确实是 0，但读者会读成「不赚不赔」✗✗
-           （用户 10-09 当场看出不对：「中韩半导体ETF华泰 的 总盈亏是 0 对吗？」✓）。
-           改为取**该只从建仓到清仓的实际结果** ✓ ＝ Σ卖出净额 − Σ买入含费（含双边费用 ✓），
-           与「清仓历史」卡**同一个数** ✓（同源：closedEtfRows() 按全流水推导、只含已归零的标的 ✓）。
-           在场行仍是 b.pl（＝市值 − 摊薄成本，已含此前的部分卖出 ✓），两者其实是同一件事 ✓。
-           场外若出现清仓行（本页期内没有）找不到对应项时回落 0 ✓，并由 dom-check ④g 盯着不许改回 0 ✗。 */
+        /* 2026-10-09 抽共用：取值改调 periodContrib()（★ 唯一实现 ★）—— 与分组小计、盈亏归因三方同源 ✓。
+           ⚠ 本处原来是"清仓怎么算"的**手写副本之一** ✗，10-09 归因那份没跟上就出了 +635.40 的错 ✓。
+           ⚠ kind "na"（清仓但查不到流水，场外可能遇到）时 v＝0，同时打 noFlow 标记让行内显示 ⚠ ——
+             不假装"没赚没赔" ✗（0 比"缺"更误导 ✓）。
+           ▸「总盈亏」列（plCum）另说 ✓：清仓后该只成本归零、也退出 items ✗，
+             故取**该只从建仓到清仓的实际结果** ✓（＝ Σ卖出净额 − Σ买入含费，含双边费用 ✓），
+             与「清仓历史」卡**同一个数** ✓ —— 曾写死 0 ✗ 被用户当场看出，④g 盯着不许改回 ✗ */
+        const pc = periodContrib(code, prev, cur);
         const closedRow = closedEtfRows().filter((r) => r.sym === a.name)[0];
-        diffs.push({ code: code, name: a.name, dq: null, dPlItem: dPlClose, plCum: closedRow ? closedRow.pnl : 0, tag: "close",
-          noFlow: !(sell && Number.isFinite(sell.realized)) });
+        diffs.push({ code: code, name: a.name, dq: null, dPlItem: pc.v, plCum: closedRow ? closedRow.pnl : 0, tag: "close",
+          noFlow: pc.kind === "na" });
         return;
       }
       const dq = (b.qty || 0) - (a.qty || 0);
