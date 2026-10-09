@@ -590,6 +590,43 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     !!head && /总盈亏/.test(t) && near(t, want, 3), t.slice(0, 120) || "没有 .snap-item .snap-head");
 }
 
+/* ④i 动作行的「银行转入 / 转出」标签（2026-10-09 加，用户要求「如果有银行转入转出 就加上标签」）
+   ⚠ FLOWS（银证转账手账）在公开仓库里**恒为空数组**（隐私约定：收入侧指纹不入库 ✓，见 data.js 注释）
+     → CI 里这一条天然跳过 ✓（如实报"跳过"，不假装验过 ✗，与 ⑤ 的 intraday 跳过同一套做法 ✓）。
+   本地补录 FLOWS 后：最新一期里每一笔都必须出现一枚「银行转入/转出 xx 元 · MM-DD」标签 ✓
+   —— 判据与页面的 flowsNet() 一致（同一区间 f.d > prev.d && f.d <= cur.d ✓）。 */
+{
+  /* ⚠ 正则**不能**要求收尾的 `];` 独占一行 ✗ —— 2026-10-09 实测：把 FLOWS 临时写成一行
+     （`const FLOWS = [{…}, {…}];`）时，原写法 `^const FLOWS = \[[\s\S]*?^\];` 匹配不上 →
+     本项会**静默跳过** ✗（于是"有补录却没验"）。改成不锚定收尾 ✓，单行 / 多行都能读到 ✓。
+     （其余同类正则沿用仓库格式，不动 —— 它们读的是自动生成的块，格式稳定 ✓。） */
+  const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const FLOWS = \[[\s\S]*?\];/m);
+  let fl = [];
+  if (m) { const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = FLOWS;", c, { timeout: 500 }); fl = c.o || []; }
+  /* 比对范围必须是**快照窗口内** ✗ 不是"最新一期"：某一笔的标签出现在它自己那一期的卡里
+     （09-30 的转出在 09.30 卡 ✓），只盯最新一期会误报"缺标签" ✗。
+     窗口 = (基线快照日, 最新快照日] ✓ —— 首期之前/之后的 FLOWS 不产生标签（没有期卡覆盖它 ✓），故先滤掉 ✓。
+     基线日取**最后一张 .snap-item**（基线卡排在所有逐期卡之后 ✓）；最新日取第一张的 data-d ✓（新在上 ✓）。 */
+  const items = [...win.document.querySelectorAll(".snap-item")];
+  const curD = items.length ? items[0].getAttribute("data-d") : null;
+  const baseTime = items.length ? items[items.length - 1].querySelector("time.snap-date") : null;
+  const baseD = baseTime ? baseTime.getAttribute("datetime") : null;
+  const inWin = fl.filter((f) => (!baseD || f.d > baseD) && (!curD || f.d <= curD));
+  const tags = [...win.document.querySelectorAll(".snap-item .snap-line.acts .snap-tag")]
+    .filter((x) => /银行(转入|转出)/.test(x.textContent));
+  if (!fl.length) {
+    check("动作行「银行转入 / 转出」标签（FLOWS 为空 → 本项跳过）", true,
+      "FLOWS 在公开仓库里恒为空（隐私约定 ✓），页面照约定不产出该标签 ✓；本地补录后本项自动生效 ✓");
+  } else {
+    const bad = inWin.filter((f) => !tags.some((x) => near(x.textContent, Math.abs(f.amt), 0.5) &&
+      x.textContent.indexOf(f.amt >= 0 ? "银行转入" : "银行转出") === 0));
+    check("动作行「银行转入 / 转出」标签 = 窗口内 FLOWS " + inWin.length + " 笔（共 " + fl.length + " 笔）",
+      inWin.length === tags.length && bad.length === 0,
+      bad.length ? "缺标签：" + bad.map((f) => f.d + " " + f.amt).join("、")
+        : "逐笔核对通过 ✓（窗口 " + (baseD || "?") + " → " + (curD || "?") + "）");
+  }
+}
+
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];
 win.document.querySelectorAll("svg *").forEach((el) => {
