@@ -317,67 +317,50 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
 
-/* ④b 清仓历史卡：场外（App 原读数）＋ **场内（由 POSITIONS.log 独立复算）** 两组都要在
-   为什么补这条（2026-10-09）：这张卡在此之前**一条断言都没有** ✗ —— 场内的清仓一直没被并进来，
-   没有任何门禁会红；而场内那部分是**页面推导**（不抄 App 读数），推导写错就会安静地少几只或算错金额 ✗。
-   复算方式与页面同口径但**独立重写**一遍（不读页面中间量）：回放流水份数 → 期末归零者＝已了结，
-   已实现 ＝ Σrealized（data-quality 门禁保证卖出行一定有这个字段 ✓）。 */
+/* ④b 清仓历史卡（2026-10-09 改版：总 → 场内/场外 → **按平台** → 全部明细合一；不再按类别分组）
+   三条断言（这张卡 2026-10-09 之前**一条断言都没有** ✗）：
+     ① 总行 = 场外（CLOSED App 原读数，独立读 data.js）＋ 场内（由 POSITIONS.log 独立复算）
+     ② 卡内出现「按平台汇总」，且每个平台的金额都能在卡里找到（平安证券=场内、支付宝=场外）
+     ③ 场内每只的「清仓日」= 该标的**最后一笔**卖出日（曾因流水"新在上"取成了最早那笔 ✗） */
 {
   const cardEl = win.document.getElementById("closed-card");
-  const etfEl = cardEl ? cardEl.querySelector("#closed-etf") : null;
-  const L = (() => {
-    /* ⚠ 上面的 dataSrc 是 **positions-data.js**（SNAPSHOTS / OTC 在那儿 ✗），
-       POSITIONS 在 **data.js** —— 两个文件必须各读各的（初版写成 dataSrc.match(POSITIONS) →
-       永远匹配不到 → 复算恒为 0 只，被这条断言自己抓出来了 ✓） */
+  const POS = (() => {
     const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
-    if (!m) return [];
-    const c = vm.createContext({});
-    vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 });
-    return (c.o && c.o.log) || [];
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 }); return c.o;
+  })();
+  const CL = (() => {
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED = \{[\s\S]*?^\};/m);
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED;", c, { timeout: 500 }); return c.o;
   })();
   const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
-  const agg = {};
-  L.forEach((e) => {
+  const agg = {}, lastSell = {};
+  ((POS && POS.log) || []).forEach((e) => {
     const k = String(e.sym || ""); if (!k) return;
     const o = agg[k] || (agg[k] = { qty: 0, realized: 0 });
-    if (isSell(e)) { o.qty -= (e.qty || 0); o.realized += (typeof e.realized === "number" ? e.realized : 0); }
-    else o.qty += (e.qty || 0);
+    if (isSell(e)) {
+      o.qty -= (e.qty || 0);
+      o.realized += (typeof e.realized === "number" ? e.realized : 0);
+      lastSell[k] = (!lastSell[k] || e.d > lastSell[k]) ? e.d : lastSell[k];
+    } else o.qty += (e.qty || 0);
   });
-  const closed = Object.keys(agg).map((k) => ({ k, ...agg[k] })).filter((o) => o.qty === 0);
-  const wantSum = closed.reduce((a, o) => a + o.realized, 0);
-  const rowsN = etfEl ? etfEl.querySelectorAll(".closed-row").length : 0;
-  const txt = etfEl ? etfEl.textContent.replace(/\s+/g, "") : "";
-  /* 行数 = 复算只数 + 1：场内那组的**第一行是组头**（"场内 ETF · 已了结"），也是 .closed-row ✓ */
-  check("清仓历史含场内分组（复算 " + closed.length + " 只 · 已实现 " + money(wantSum) + "）",
-    !!etfEl && closed.length > 0 && rowsN === closed.length + 1 && near(txt, wantSum, 0.01),
-    etfEl ? ("场内行 " + rowsN + " 行 · 文本含合计 " + (near(txt, wantSum, 0.01) ? "✓" : "✗ 期望 " + money(wantSum))) : "卡内没有 #closed-etf（场内分组缺失）");
-
-  /* ④c 总分结构（2026-10-09 加）：总清仓盈亏 = 场外（CLOSED 原读数）＋ 场内（由流水独立复算）
-     盯住两件最容易错的事：
-       ① 总行只是把两段抄一遍（抄错没有任何人会红 ✗）
-       ② 场内每只的「清仓日」必须取该标的**最后一笔**卖出日 —— 曾因流水"新在上"取成了最早那笔 ✗
-          （2026-10-09 中韩显示 09-16、港美显示 08-13，而两者清仓日都是 10-09 ✗） */
-  const CL = (() => {
-    const m2 = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED = \{[\s\S]*?^\};/m);
-    if (!m2) return null;
-    const c2 = vm.createContext({});
-    vm.runInContext(m2[0] + "\nthis.o = CLOSED;", c2, { timeout: 500 });
-    return c2.o;
-  })();
-  const otcPnl = CL ? CL.items.reduce((a, r) => a + r.pnl, 0) : 0;
-  const etfPnl = closed.reduce((a, o) => a + o.realized, 0);
+  const etfClosed = Object.keys(agg).map((k) => ({ k, ...agg[k] })).filter((o) => o.qty === 0);
+  const sEtf = etfClosed.reduce((a, o) => a + o.realized, 0);
+  const sOtc = CL ? CL.items.reduce((a, r) => a + r.pnl, 0) : 0;
   const totEl = cardEl ? cardEl.querySelector("#closed-all-total") : null;
-  check("清仓历史总分：总行 = 场外 " + money(otcPnl) + " ＋ 场内 " + money(etfPnl),
-    !!totEl && near(totEl.textContent.replace(/\s+/g, ""), otcPnl + etfPnl, 0.01),
-    totEl ? totEl.textContent.replace(/\s+/g, " ").trim().slice(0, 110) : "卡内没有 #closed-all-total");
-  const lastSell = {};
-  L.forEach((e) => { if (isSell(e)) lastSell[e.sym] = (!lastSell[e.sym] || e.d > lastSell[e.sym]) ? e.d : lastSell[e.sym]; });
-  const badD = closed.filter((o) => {
-    const row = etfEl ? etfEl.querySelector('[data-sym="' + o.k + '"]') : null;
+  check("清仓历史总行 = 场外 " + money(sOtc) + " ＋ 场内 " + money(sEtf),
+    !!totEl && near(totEl.textContent.replace(/\s+/g, ""), sOtc + sEtf, 0.01),
+    totEl ? totEl.textContent.replace(/\s+/g, " ").trim().slice(0, 100) : "卡内没有 #closed-all-total");
+  const cardTxt = cardEl ? cardEl.textContent.replace(/\s+/g, "") : "";
+  check("清仓历史「按平台汇总」含 平安证券 " + money(sEtf) + "（场内）与 支付宝 " + money(sOtc) + "（场外）",
+    /按平台汇总/.test(cardTxt) && near(cardTxt, sEtf, 0.01) && near(cardTxt, sOtc, 0.01), cardTxt.slice(0, 130));
+  const badD = etfClosed.filter((o) => {
+    const row = cardEl ? cardEl.querySelector('[data-sym="' + o.k + '"]') : null;
     return !row || row.textContent.replace(/\s+/g, "").indexOf(lastSell[o.k].slice(5)) < 0;
   }).map((o) => o.k + "（应为 " + lastSell[o.k] + "）");
-  check("清仓历史场内：每只「清仓日」= 该标的最后一笔卖出日（" + closed.length + " 只）",
-    !!etfEl && badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
+  check("清仓历史明细：场内每只「清仓日」= 该标的最后一笔卖出日（" + etfClosed.length + " 只）",
+    badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
 }
 
 /* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
