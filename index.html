@@ -597,6 +597,39 @@
   .recent-stats .st b.up { color: var(--green); }
   .recent-stats .st b.down { color: var(--red); }
   .recent-stats .st .an { font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+  /* ── 数字字体统一（2026-10-09，用户：「其他 html 都用 JetBrains」）━━━━━━━━━━━━━━━━━━━━━━
+     做法与 positions.html 同日那次一致：playwright 遍历全页，挑出「文本以数字为主、字体却是 sans」
+     的叶子元素，按容器归类后逐类处置 ✓ 本页改前 31 个 / 17 种签名。
+     ★ 为什么可以放心套：--mono 栈里**只有拉丁字体**（JetBrains Mono…），中文会自然回退到系统
+       CJK 字体 → 只改数字与拉丁字母的外观，中文一字不变 ✓（本页已有 54 处这么用）
+
+     ✎ 本次改（真·数字字段）：
+       .note b / .note b span   注里的数值（与 positions 的 .otc-note b 同一处置）
+       .stress .s-desc          压力位数值行（"→ 28,225 点（-10.0%）"）
+       td.lx-plain b            阈值（"＞1.1" / "＜0.7"）
+       .source-health-note      来源日期（"NDX 10-08"）
+       .trig-row .t-desc        VIX 读数（"VIX 15.41"）
+       .dca-sum .pos            定投收益百分比（"+181.9%"）
+       .cal-empty b             日历空档计数
+       .footer b                版本号（"v6.9"）
+       td.h-desc b              事件日期（"当前 (2026-09)"）
+       .recent-spans .rtab      周期档（1M/6M/12M/3M —— 纯周期代码，不是名称 ✓）
+
+     ✗ 有意**保留 sans**（不是漏网，别下轮又来"修"）：
+       .recent-tabs .rtab       标的名称（"纳指100" / "标普500"）—— 套 mono 会让名称里的数字
+                                比汉字更"跳出来" ✗ 与语义不符（与 positions 保留 "纳指100" 同一判断）
+       td.h-desc                事件名（"2008 金融危机" / "2020 疫情" / "2022 加息熊市"）
+       .trig-row .t-title       标题句（"T+2 · 兑现浮盈 15–20%"）—— 数字只是句子的一部分 */
+  .note b, .note b span,
+  .stress .s-desc,
+  td.lx-plain b,
+  .source-health-note,
+  .trig-row .t-desc,
+  .dca-sum .pos,
+  .cal-empty b,
+  .footer b,
+  td.h-desc b,
+  .recent-spans .rtab { font-family: var(--mono); font-feature-settings: "tnum"; }
 </style>
 </head>
 <body>
