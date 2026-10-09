@@ -473,6 +473,16 @@
   .snap-tag.cut { color: var(--yellow); border-color: var(--warn-line); background: var(--warn-bg); }
   .snap-tag.open { color: var(--green); border-color: var(--up-line); background: var(--up-bg); }
   .snap-tag.close { color: var(--red); border-color: var(--down-line); background: var(--down-bg); }
+  /* ── 动作行标签的间距（2026-10-09 修，用户反馈：「动作 的标签文字之间有遮挡」）────────────────
+     实测（1440px）：标签 10px/700、padding 1px 6px → 单枚盒子实高 **17px**，
+     但**行内盒的 padding / border 不参与行高计算** ✗ → 行高仍按 10px 字体的 normal（≈14px），
+     于是相邻两行**竖向重叠 3px**（第一行 y=2633 + 17 = 2650 > 第二行 y=2647）✗；
+     相邻标签之间又没有 margin → 边框紧贴，横向还压 1px ✗（实测 6 对重叠）。
+     修法：① 标签改 inline-block，padding 就进行高 ✓ ＋ 上下各留 2px 余量；
+           ② 相邻标签之间留 4px 缝 ✓；两者都**只在动作行生效** ✓（其它用到 .snap-tag 的地方不动 ✗）。
+     ⚠ 没动字号 / 字重 ✓：字号已经是全页最小档 --fs-xxs（10px）✗ 再缩就低于可读线；
+       700 是 chip 的识别特征 ✓ —— 遮挡的根因是行高，不是这两个 ✓。 */
+  .snap-line.acts .snap-tag { display: inline-block; margin: 2px 4px 2px 0; }
   /* （2026-09-24 删除）.snap-line.total：旧行式分支的「总资产 A → B」行样式；该分支已删（逐期卡全走 KPI），
      页面里再没有生成 .snap-line.total 的地方。 */
   /* 归因拆分小注（银证实锤 / 场外估）：单独占内容列，弱化，避免挤在同一行长句中 */
