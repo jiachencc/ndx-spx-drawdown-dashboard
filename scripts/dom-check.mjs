@@ -317,6 +317,42 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
 const allocText = alloc ? (alloc.textContent + " " + alloc.innerHTML).replace(/\s+/g, "") : "";
 check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapCash), allocText.slice(0, 200));
 
+/* ④b 清仓历史卡：场外（App 原读数）＋ **场内（由 POSITIONS.log 独立复算）** 两组都要在
+   为什么补这条（2026-10-09）：这张卡在此之前**一条断言都没有** ✗ —— 场内的清仓一直没被并进来，
+   没有任何门禁会红；而场内那部分是**页面推导**（不抄 App 读数），推导写错就会安静地少几只或算错金额 ✗。
+   复算方式与页面同口径但**独立重写**一遍（不读页面中间量）：回放流水份数 → 期末归零者＝已了结，
+   已实现 ＝ Σrealized（data-quality 门禁保证卖出行一定有这个字段 ✓）。 */
+{
+  const cardEl = win.document.getElementById("closed-card");
+  const etfEl = cardEl ? cardEl.querySelector("#closed-etf") : null;
+  const L = (() => {
+    /* ⚠ 上面的 dataSrc 是 **positions-data.js**（SNAPSHOTS / OTC 在那儿 ✗），
+       POSITIONS 在 **data.js** —— 两个文件必须各读各的（初版写成 dataSrc.match(POSITIONS) →
+       永远匹配不到 → 复算恒为 0 只，被这条断言自己抓出来了 ✓） */
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
+    if (!m) return [];
+    const c = vm.createContext({});
+    vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 });
+    return (c.o && c.o.log) || [];
+  })();
+  const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+  const agg = {};
+  L.forEach((e) => {
+    const k = String(e.sym || ""); if (!k) return;
+    const o = agg[k] || (agg[k] = { qty: 0, realized: 0 });
+    if (isSell(e)) { o.qty -= (e.qty || 0); o.realized += (typeof e.realized === "number" ? e.realized : 0); }
+    else o.qty += (e.qty || 0);
+  });
+  const closed = Object.keys(agg).map((k) => ({ k, ...agg[k] })).filter((o) => o.qty === 0);
+  const wantSum = closed.reduce((a, o) => a + o.realized, 0);
+  const rowsN = etfEl ? etfEl.querySelectorAll(".closed-row").length : 0;
+  const txt = etfEl ? etfEl.textContent.replace(/\s+/g, "") : "";
+  /* 行数 = 复算只数 + 1：场内那组的**第一行是组头**（"场内 ETF · 已了结"），也是 .closed-row ✓ */
+  check("清仓历史含场内分组（复算 " + closed.length + " 只 · 已实现 " + money(wantSum) + "）",
+    !!etfEl && closed.length > 0 && rowsN === closed.length + 1 && near(txt, wantSum, 0.01),
+    etfEl ? ("场内行 " + rowsN + " 行 · 文本含合计 " + (near(txt, wantSum, 0.01) ? "✓" : "✗ 期望 " + money(wantSum))) : "卡内没有 #closed-etf（场内分组缺失）");
+}
+
 /* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
    ⚠ 2026-10-09 修正：原来无条件拿**最新快照**去比读数条 ✗ ——
    可走势序列的最后一个点可以是「今日盘中估」（当 data.js 里的报价/指数比最新快照更新时，页面就会补这一期，
