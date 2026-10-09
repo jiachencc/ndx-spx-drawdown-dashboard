@@ -1450,6 +1450,20 @@
   #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }
   #snap-attr .sa-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 
+  /* ── 归因表「水平值 vs 变化量」一行（2026-10-09 加，B）─────────────────────────────
+     起因：用户看到「全期 +8,278」与「汇总卡累计收益 +1,496」并列，问"到底赚了多少" ✗ ——
+     其实两者是不同口径：全期＝**矩阵窗口内的变化量** ✓、累计收益＝**自最早记录起的水平值** ✓，
+     但标签「全期」没写起点，很容易被读成"账户一共赚赔多少" ✗。
+     这里把两个**水平值**并排摆出来（起点 → 末期 ✓），变化量仍留在下方「全期」行 ✓ ——
+     一行小字、不占格子（矩阵本身已经够宽 ✗），配色沿用 up/down 的绿红语义 ✓（不涂灰 ✗：灰在本页＝未更新/无数据。
+     水平值另一处小心：数字字体与全页统一走 --mono ＋ tnum ✓，与其它数据表一致 ✓）。 */
+  #snap-attr .sa-base { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px;
+    padding: 3px 0 0; font-size: var(--chk-fs); font-family: var(--mono); font-feature-settings: "tnum"; }
+  #snap-attr .sa-base .sa-arrow { color: var(--tx3); }
+  #snap-attr .sa-base .sa-hint { font-family: var(--sans); font-size: var(--chk-fs-mini); color: var(--tx3); font-weight: 400; }
+  /* 「全期」那一格的起点日期：换行显示（写在同行会把「期」列撑宽 ✗ → 挤压后面的列 ✓） */
+  #snap-attr table.sa-mx td.mx-d .mx-since { display: block; font-size: var(--chk-fs-mini); color: var(--tx3); font-weight: 400; }
+
   /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────
      取证结论（截图 ＋ 探针，非推测）：
      ① 文字色变量被污染：`:root` 的 --tx = #e2e9f5（浅色 ✓），但在 #snap-attr 内解析成

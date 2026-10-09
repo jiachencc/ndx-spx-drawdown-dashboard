@@ -1316,9 +1316,17 @@ function renderSnapAttr() {
   /* 只保留**两期都有 items** 的期（缺的整期隐藏，但要如实写明隐藏了哪几期 —— 不静默、更不补 0 ✗）。
      用户要求：缺 items 的期隐藏掉；并去掉柱状形态（只留矩阵）。 */
   const live = [], hidden = [];
+  /* ── 矩阵窗口的两个端点（2026-10-09 加，B）—— 用户问：「全期 +8,278 是真的盈利吗？累计收益不是 +1,496 吗？」
+     两个数不矛盾，是**窗口不同**：全期是"这段窗口内的变化量"、累计收益是"自最早记录起的水平值" ✗✓
+     （全期 +8,278 ＝ 累计收益(末期 +1,496) − 累计收益(基准期 −6,784) ✓，差的就是矩阵起点之前那段 ✓）。
+     起点＝**第一个"前后两期都有 items"的对里的 a** ✓（不是快照第一期的日期 ✗ —— 更早的期缺 items 已被隐藏 ✗）；
+     终点＝最后一个这样的对的 b ✓（不用"最新快照"：最新一期若又缺 items，窗口终点就会越过矩阵末行 ✗）。 */
+  let baseD = null, basePl = 0, lastD = null, lastPl = 0;
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
     if (!a.items || !b.items) { hidden.push(b.d.slice(5)); continue; }
+    if (!baseD) { baseD = a.d; basePl = snapPl(a); }
+    lastD = b.d; lastPl = snapPl(b);
     /* ★ 2026-10-09 改：取值改调 periodContrib()（★ 唯一实现 ★）——
        原实现只遍历 b.items、且要求 a.items[c] 存在 ✗ → **建仓与清仓两种标的都被整条跳过、记 0** ✗；
        清仓那半边正是 10.09 行合计虚高 **+635.40** 的成因 ✓（中韩 −567.40 ＋ 港美 −68.00 ✓，门禁 ④j 报红 ✓）。
@@ -1402,6 +1410,20 @@ function renderSnapAttr() {
         : "行=期 · 列=场内 / 场外")
     + " · 点任一行看该期逐只 · 悬停任一格看成员" + (saDim === "theme" ? "与渠道" : "")
     + " · <b>换个维度不改合计</b> ✓</span></div>";
+  /* ── B：水平值对照（2026-10-09 加，见函数上方 baseD / lastD 的注释 ✓）─────────────────
+     起因：用户把「全期 +8,278」与汇总卡的「累计收益 +1,496」并排看，问"到底赚了多少" ✗ ——
+     两者口径不同：全期＝**本表窗口内的变化量** ✓、累计收益＝**自最早记录起的水平值** ✓，
+     但「全期」这个标签没写起点，很容易被读成"账户一共赚赔多少" ✗。
+     所以把两个水平值并排摆出来（起点 → 末期 ✓），变化量仍留在下方「全期」行 ✓。
+     排版取舍：一行小字、不占格子（矩阵本身已够宽 ✗）；数值走 fmtAmt（整元，与「全期」行同精度 ✓，
+     要分位精度另有 data-* 供门禁 ✓）；颜色沿用 up/down 的绿红（**不涂灰** ✗ —— 灰在本页＝未更新 / 无数据 ✓）。 */
+  h += '<div class="sa-base" title="' + esc("累计收益 ＝ 总资产 − 外部净转入（本金）✓，既含已卖出的兑现盈亏、也含尚未卖出的浮动盈亏 ✓。"
+    + "起点 " + baseD + " ＝ 第一个「前后两期都有逐只明细」的对的前一期（更早的期缺 items，无法逐只归因，见下方口径最后一行 ✓）。"
+    + "下面「全期」行的 " + fmtAmt(allSum) + " 是这段窗口内的变化量（＝ 末期累计收益 − 起点累计收益 ✓），"
+    + "不是账户一共赚赔多少 ✗ —— 后者就是这里的累计收益 ✓；两者的差正是矩阵起点之前那段（缺明细、表里看不见 ✓）。")
+    + '">累计收益 <b class="' + cls(basePl) + '">' + baseD.slice(5) + " " + fmtAmt(basePl) + "</b>"
+    + '<span class="sa-arrow">→</span><b class="' + cls(lastPl) + '">' + lastD.slice(5) + " " + fmtAmt(lastPl) + "</b>"
+    + '<span class="sa-hint">窗口内变化 ＝ 下方「全期」行 ' + fmtAmt(allSum) + ' ✓（不是一共赚赔 ✗）</span></div>';
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + cols.map((t) => "<th>" + esc(colNameOf(t)) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
@@ -1418,7 +1440,12 @@ function renderSnapAttr() {
       + cols.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
-  h += '<tr class="mx-foot"><td class="mx-d">全期</td>'
+  /* 「全期」＝**本表窗口内的变化量** ✓，不是累计收益本身 ✗ → 起点必须写在标签上 ✓
+     （2026-10-09 用户正是据此把 +8,278 读成了"账户一共赚了 8,278" ✗ —— 标签不写起点，页面就有歧义 ✗）。
+     起点换行显示（同行会把「期」列撑宽 ✗，挤压后面几列 ✓）；data-* 给门禁 ④k 留**精确值** ✓
+     （显示按整元取整 ✗，几十元的漂移在显示值上分辨不出 ✓）。 */
+  h += '<tr class="mx-foot" data-all="' + allSum.toFixed(2) + '" data-base="' + baseD + '" data-base-pl="' + basePl.toFixed(2) + '">'
+    + '<td class="mx-d">全期<i class="mx-since">自 ' + baseD.slice(5) + "</i></td>"
     + cols.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
     + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
 
@@ -1459,6 +1486,10 @@ function renderSnapAttr() {
     + "（那一档画出来与「该主题当期无标的」长得一样，容易误读 ✗）。"
     + "<br>格里的「·」＝该期该主题<b>没有可归因的标的</b>（当时尚未持有，不是「变动为 0」）；"
     + "悬停任一<b>格</b>看该主题当期的成员与逐只金额，点任一<b>行</b>看该期全部逐只明细 ✓"
+    + "<br><b>「全期」那一行是窗口内的变化量</b> ✓，不是累计收益本身 ✗ —— 它 ＝ 累计收益(" + lastD.slice(5) + ") − 累计收益(" + baseD.slice(5) + ") ✓"
+    + "（表上方那行小字就是这两个水平值 ✓；两处相差 ≤2 元，是快照逐只手写取整的尾差 ✓，不是算法不一致 ✗）。"
+    + "<b>窗口起点不是账户起点</b>：更早的期缺 items，归因只能从第一个「两期都有明细」的对算起 ✓；"
+    + "累计收益则自最早记录起算 ✓ —— 两个数看着差很多，是<b>窗口不同</b>，并不矛盾 ✓"
     + (hidden.length ? "<br>⚠ 已**隐藏** " + hidden.length + " 期（缺 items，无法归因）：" + hidden.join(" ") + " —— 隐藏而非补 0 ✓" : "")
     + "</div>";
   el.innerHTML = h;

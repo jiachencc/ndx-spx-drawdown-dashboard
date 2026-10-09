@@ -104,8 +104,12 @@ const LOGPOS = (() => {
   if (!m) return null;
   const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 }); return c.o;
 })();
-const closedGap = (() => {
-  const log = ((LOGPOS && LOGPOS.log) || []).slice().sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1));
+/* ⚠ 2026-10-09 改：由常量改为**带 upTo 的函数**（closedGapTo）＋ 常量 closedGap 保留（＝全程 ✓）。
+   起因：归因「全期」行的新断言要按**矩阵基准期**取"当时的修正项" ✓ —— 10-09 之前它恒为 0 ✓，
+   但若将来出现更早的全额清仓，用"全程值"去算基准期的累计收益就会算错 ✗。两个用法共用同一实现，不会漂 ✓ */
+const closedGapTo = (upTo) => {
+  const log = ((LOGPOS && LOGPOS.log) || []).filter((e) => !upTo || e.d <= upTo).slice()
+    .sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1));
   const qty = {}, gap = {};
   log.forEach((e) => {
     const s = /卖出|减仓|清仓/.test(String(e.act || "")), before = qty[e.sym] || 0;
@@ -113,7 +117,8 @@ const closedGap = (() => {
     if (s && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized)) gap[e.sym] = (gap[e.sym] || 0) - e.realized;
   });
   return Object.keys(gap).reduce((a, k) => a + gap[k], 0);
-})();
+};
+const closedGap = closedGapTo(null);
 
 /* ③ 汇总卡：总资产 与 累计收益 = 最新快照的读数 */
 const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
@@ -715,6 +720,35 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     check("盈亏归因「全期」行 ＝ Σ 各行 " + money(bodySum),
       Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= 2,
       "全期 " + footSum + " vs Σ各行 " + bodySum.toFixed(2));
+    /* ④k 归因「全期」行的**语义契约**（2026-10-09 加，起于用户一问：「这个 +8,278 是真的盈利 +8,278 吗？
+       但是累计收益应该是 +1,496？」✓）—— 两数不矛盾，是**窗口不同**：
+         全期 ＝ Σ 逐期逐只贡献 ＝ 累计收益(末期) − 累计收益(矩阵基准期) ✓
+       （基准期 ＝ 矩阵首行的**前一期** ✓ —— 首行是第一个"前后两期都有 items"的对 ✓；更早的期缺 items 被隐藏 ✓）。
+       三条独立断言（全部读 positions-data.js ＋ data.js 复算，不读页面的中间量 ✓）：
+         ① 起点日期 ＝ 快照里第一个「前后两期都有 items」的 a.d ✓（页面若把起点挪了却没人知道 ✗ → 当场拦下 ✓）
+         ② 全期**精确值**（data-all）≈ 累计收益(末期) − 累计收益(起点) ✓ —— 容差放 2 元：
+            逐期累加与端点直接相减会差一个**手写快照的取整尾差**（2026-10-09 实测 1.76 元 ✓，与仓库既有的
+            1.66 元尾差同源 ✓ —— 放 0.01 会日日报红 ✗，放 2 元既拦得住真漂移、又不误报 ✓）
+         ③ 该行的标签里写着起点（「自 MM-DD」✓）—— 用户一眼看到的就含起点，不必去翻口径小字 ✓
+       取 data-all 而不是显示值：显示按整元取整（fmtAmt ✗），几十元的漂移在显示值上分辨不出 ✓ */
+    {
+      const pairs = [];
+      for (let i = 1; i < snaps2.length; i++)
+        if (snaps2[i - 1].items && snaps2[i].items) pairs.push([snaps2[i - 1], snaps2[i]]);
+      const bS = pairs.length ? pairs[0][0] : null, eS = pairs.length ? pairs[pairs.length - 1][1] : null;
+      const foot2 = mx.querySelector("tbody tr.mx-foot");
+      const attrOf = (k) => (foot2 && foot2.getAttribute(k)) || "";
+      const plAt = (s) => ((Number.isFinite(+s.pl) ? +s.pl : 0) - closedGapTo(s.d));
+      const want = (bS && eS) ? plAt(eS) - plAt(bS) : NaN;
+      const got = Number(attrOf("data-all"));
+      const fsLabel = foot2 ? ((foot2.querySelector(".mx-d") || {}).textContent || "").replace(/\s+/g, " ").trim() : "";
+      check("盈亏归因「全期」行 ＝ 累计收益(" + (eS ? eS.d.slice(5) : "?") + ") − 累计收益(" + (bS ? bS.d.slice(5) : "?") + ") ＝ " + money(want),
+        !!bS && !!eS && attrOf("data-base") === bS.d && Number.isFinite(got) && Math.abs(got - want) <= 2
+          && fsLabel.indexOf(bS.d.slice(5)) >= 0,
+        "起点 data-base=" + (attrOf("data-base") || "—") + "（期望 " + (bS ? bS.d : "?") + "）· data-all="
+          + (Number.isFinite(got) ? got : "—") + "（期望 " + (Number.isFinite(want) ? want.toFixed(2) : "—")
+          + "）· 该行文字「" + fsLabel + "」（应含起点 ✓）");
+    }
   }
   /* 把视图切回「逐期明细」✓ —— 别把状态留给后面的断言 ✗（本块可能是最后一块，但契约要写死 ✓） */
   const back2 = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");
