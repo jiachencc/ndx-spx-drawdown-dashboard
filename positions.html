@@ -2805,7 +2805,9 @@ function snapFlowTip(c) {
 function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
   const o = opts || {}, trio = !!o.trio;   // trio：逐期卡（当日盈亏/总盈亏两行）；区间卡为（区间盈亏/银行进出）
   const tp = snapTotal(prev), tc = snapTotal(cur);
-  const pctTot = tp ? dTot / tp * 100 : 0;
+  /* ⚠ 2026-10-09 删除 pctTot（「总变化」那格的百分比副行）—— 该格已按用户要求下线 ✗，
+     留着会被 eslint 判为未用变量；总资产的期初值仍在 tile 的 sub 里 ✓ */
+
   const costHold = snapHoldCost(cur);
   /* 「银行进出」行溯源用的中间量：两期持仓成本、本期成本变动逐只明细、现金变动 */
   const prevHold = snapHoldCost(prev);
@@ -2849,22 +2851,47 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
       '<div class="kpi"><div class="k-label">' + label + (tip ? tip.btn : "") + "</div>" +
       '<div class="k-val ' + colorCls + '">' + val + "</div>" +
       (sub ? '<div class="k-sub">' + sub + "</div>" : "") + "</div>";
-    const arrow = (v) => '<span aria-hidden="true">' + (v >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(v);
-    /* 三格并排一行（2026-09-24 用户要求：银行进出 回到另外两格同一行）——
-       上一版把它做成独占整行的块、里面塞构成项与「明细」；现在构成与逐期·逐只明细**都收进 ? 浮层**
-       （浮层里本来就有逐期构成与场外逐只的全量清单），行内不再留一份（同一个数不出现两次），
-       三格宽度相同、自然排得下。 */
-    return '<div class="kpi-row kpi3">' +
+    /* ⚠ 2026-10-09 按用户要求**只留一格**：「总变化」与「银行进出」两格删除 ✓。
+       理由（用户视角）：卡头已经有「本期 / 总盈亏」两个数，而「总变化 ＝ 盈亏 ＋ 银行进出」
+       是记账视角的分解 —— 每天要看的是"这期总资产变到多少"，不是它由哪两块拼成 ✗。
+       ▸ 保留在代码里的两件（**别当垃圾删** ✗）：
+         · qTot / qFlow 的 ? 浮层文案照常产出、仍挂在 DOM 上（现在暂无按钮触发）——
+           「银行进出」那套溯源口径（银证 ＋ 场外申购 ＋ 逐只明细 ＋ 手账实锤）与考证都留在
+           snapFlowTip() 里，将来要把格子加回来可直接复用 ✓（详见函数头注释 ✓）。
+         · flow / dTot 仍在别处用：flow 参与卡头「本期盈亏 ＝ 总变化 − 资金进出」✓、
+           dTot 用于区间卡与走势 ✓ —— 所以本函数仍收这两个参数 ✓。
+       ▸ 布局：单格用 .kpi-row.kpi1（一列，占满整行 ✓ 见 positions.css）。 */
+    return '<div class="kpi-row kpi1">' +
         tile("总资产", fmtYuan(tc), "", "期初 " + fmtYuan(tp)) +
-        tile("总变化", arrow(dTot), cls(dTot), fmtPct(pctTot / 100, 2), qTot) +
-        tile("银行进出", arrow(flow), flow >= 0 ? "info" : "warn", "", qFlow) +
       "</div>" + qTot.note + qFlow.note;
   }
 }
-/* 区间 (prev.d, cur.d] 内的操作流水聚合（本期动作） */
+/* 区间 (prev.d, cur.d] 内的操作标签：场内买卖（POSITIONS.log）＋ 场外定投申购（OTC_LOG）✓
+   2026-10-09 按用户要求改两处：
+     ① 标题「场内动作」→「动作」✓（现在两边都列，再叫"场内"就不准了 ✗）
+     ② 补上场外那侧的「定投 xx」标签 ✓ —— 原来只列场内（理由曾是"场外定投不产生本页流水"✗，
+        但那恰恰是用户想看的：这一期到底定投了哪些、各多少钱 ✓）。
+   ⚠ 场外只列 OTC_LOG 里 status === "成功" 的笔 ✓（待确认的不列 —— 还没扣款成功，
+     列出来会与卡内 flow 对不上 ✗）；同一只 + 同一动作的合并成一枚（早期一个月 5 笔的那种，
+     拆开会把动作行撑成三行 ✗），并标「（N 笔）」✓。 */
 function snapActions(prev, cur) {
   const acts = (POSITIONS.log || []).filter((e) => e.d > prev.d && e.d <= cur.d);
-  if (!acts.length) return "";
+  const olog = (typeof OTC_LOG !== "undefined" && OTC_LOG) ? OTC_LOG : {};
+  const otcName = (code) => {
+    const f = ((typeof OTC !== "undefined" && OTC.funds) || []).filter((x) => x.code === code)[0];
+    return f ? plDisplayName(f.name) : code;
+  };
+  const otcAgg = {};
+  Object.keys(olog).forEach((code) => {
+    (olog[code] || []).forEach((t) => {
+      if (t.status !== "成功") return;
+      if (!(t.d > prev.d && t.d <= cur.d)) return;
+      const k = String(t.act || "定投") + "|" + code;
+      const o = otcAgg[k] || (otcAgg[k] = { act: String(t.act || "定投"), code: code, amt: 0, n: 0 });
+      o.amt += (Number.isFinite(t.amt) ? t.amt : 0); o.n++;
+    });
+  });
+  if (!acts.length && !Object.keys(otcAgg).length) return "";
   const buy = {}, sell = [];
   acts.forEach((e) => {
     if (/卖出|减仓|清仓/.test(e.act)) sell.push(e);
@@ -2873,7 +2900,12 @@ function snapActions(prev, cur) {
   const parts = [];
   Object.keys(buy).forEach((s) => parts.push('<span class="snap-tag add">买入 ' + esc(s) + " " + fmtQty(buy[s]) + ' 份</span>'));
   sell.forEach((e) => parts.push('<span class="snap-tag close">卖出 ' + esc(e.sym) + " " + fmtQty(e.qty) + ' 份</span>'));
-  return '<div class="snap-line acts snap-sec"><span class="n" title="只含场内（券商）买卖；场外定投申购不产生本页流水，体现在持仓成本变化上">场内动作</span><span class="v">' + parts.join("") + "</span></div>";
+  /* 场外：申购/定投＝钱进（用 add 绿 ✓）、赎回＝钱出（用 cut ✓），与场内那两类同一个视觉语言 ✓ */
+  Object.keys(otcAgg).map((k) => otcAgg[k]).sort((a, b) => b.amt - a.amt)
+    .forEach((o) => parts.push('<span class="snap-tag ' + (/赎回/.test(o.act) ? "cut" : "add") + '" title="' +
+      esc(otcName(o.code) + " · " + o.code + " · " + o.act + " " + o.amt + " 元" + (o.n > 1 ? "（" + o.n + " 笔）" : "")) + '">' +
+      esc(o.act) + " " + esc(otcName(o.code)) + " " + fmtYuan(o.amt) + " 元" + (o.n > 1 ? "（" + o.n + " 笔）" : "") + "</span>"));
+  return '<div class="snap-line acts snap-sec"><span class="n" title="场内＝券商买卖流水（POSITIONS.log）；场外＝定投 / 申购 / 赎回流水（OTC_LOG，只列「成功」的笔）。两边金额口径不同：场内按份数成交、场外按扣款金额 ✓">动作</span><span class="v">' + parts.join("") + "</span></div>";
 }
 /* 事件标签：单一来源（中文 → 配色 class），文案即 key。
    原来 CLS（中文→class）与 TXT（class→中文）是两张互逆的表，只改一张就会标签与配色错位。 */
