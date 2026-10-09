@@ -282,9 +282,15 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
     const mon = monCell ? nums(monCell.textContent)[0] : null;
     /* .ro-attr 里只有拆分那两个数（口径句已精简成纯文字、没有数字），故直接取前两个 */
     const parts = attr ? nums(attr.textContent).filter((v) => Math.abs(v) > 0.5) : [];
+    /* 2026-10-09 修正：原断言要求 `parts.length >= 2` ✗ —— 但上面那行 filter 会把 ≤0.5 的**滤掉**，
+       而**当月**的另一半完全可能天然是 0（例：10 月场内已有 +3,008.60，而场外的 10 月月度读数
+       要等财务页那份账单出来才有 → 页面只渲染一格、另一格是 0 → parts.length = 1 → 断言必红 ✗，
+       可拆分之和对得上（3,008.60 vs 当月 3,008）✓ —— 这是「把某一天/某一个月的状态当成真理」的同一类假警报。
+       改为 `>= 1` 且对**全部** parts 求和：有一格时它退化成「当月那格 = 数据里的当月」，仍有意义 ✓；
+       两格时与原来完全等价 ✓（真正要拦的是"两格相加 ≠ 当月"或"格数与数据不符"，不是"这个月只有一格"）。 */
     check("当月拆分（场内＋场外）= 当月 " + (mon === null ? "?" : mon),
-      mon !== null && parts.length >= 2 && Math.abs((parts[0] + parts[1]) - mon) <= 2,
-      "拆分 " + parts.slice(0, 2).map(Math.round).join(" + ") + " = " + Math.round((parts[0] || 0) + (parts[1] || 0)) + " vs 当月 " + mon);
+      mon !== null && parts.length >= 1 && Math.abs(parts.reduce((a, b) => a + b, 0) - mon) <= 2,
+      "拆分 " + parts.map(Math.round).join(" + ") + " = " + Math.round(parts.reduce((a, b) => a + b, 0)) + " vs 当月 " + mon);
   }
   /* ⚠ 必须切回「金额」视图：本节之后的读数条检查（走势卡读数含最新总资产 / 浮盈亏）看的是金额视图 ✗ */
   const back = [...win.document.querySelectorAll("#trend-views .tchip")].find((b) => b.textContent.trim().indexOf("金额") === 0);
