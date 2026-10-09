@@ -1539,6 +1539,14 @@
   #snap-attr .sa-ch-read { font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono);
     font-feature-settings: "tnum"; min-height: 13px; padding: 1px 0 2px; line-height: 1.45; }
   #snap-attr .sa-ch-read b { color: var(--tx2); }
+
+  /* ── 整表累计对比：图例（2026-10-09 加 ③）───────────────────────────────────────────
+     线多（6 条）时不标线端 ✗（易撞 ✓）→ 图下一行色块 ＋ 名 ＋ **终值** ✓（按 |值| 排序 ✓）。 */
+  #snap-attr .sa-all-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; padding: 2px 0 3px;
+    font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono); font-feature-settings: "tnum"; }
+  #snap-attr .sa-all-k { display: inline-flex; align-items: center; gap: 4px; }
+  #snap-attr .sa-all-k i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+  #snap-attr .sa-all-k b { font-weight: 700; }
   #snap-attr .sa-chart-note { font-size: var(--chk-fs-mini); color: var(--tx3); line-height: 1.5; padding-top: 3px; }
 
   /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────

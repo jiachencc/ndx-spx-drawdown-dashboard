@@ -1316,6 +1316,9 @@ let saSel = null;
    悬停/按键会改它 ✓，而从某一格「← 返回」回来会整块重渲染 ✗ → 重渲染后靠它把选中期恢复出来 ✓。
    col 记的是当前是哪一列 ✓：换列就把 i 复位成 -1 ✓（否则会把上一列的"第 7 期"错当成这一列的 ✓）。 */
 let saChart = { col: null, i: -1 };
+/* 矩阵的 roving 焦点（2026-10-09 加 ①）—— 同样是模块级 ✓：整表只留**一个** Tab 位 ✓，
+   重渲染后靠它把 Tab 位放回"上次那一格" ✓（否则每次下钻回来都会跳回第一格 ✗）。 */
+let saRove = null;
 function renderSnapAttr() {
   const el = $("snap-attr");
   if (!el) return;
@@ -1438,9 +1441,11 @@ function renderSnapAttr() {
     /* 可点（2026-10-09 第三步 ✓）：点该格 → 下方只列这一格的成员 ✓。
        data-v／data-cell-sum 给门禁 ④l 用**精确值** ✓（显示按整元取整 ✗，分辨不出漂移 ✓）；
        tabindex ＋ role=button ＋ aria-label 让键盘与读屏也能到 ✓（与页内其它可点元素同一套 ✓）。 */
+    /* ⚠ tabindex 一律先给 **-1** ✓：整表只留**一个** Tab 位（roving ✓，见 wireRoving ✓）——
+       原来每格都是 0 ✗ → 5 列 × 16 行 ＝ 80 个 Tab 位 ✗，Tab 键直接变迷宫 ✓。 */
     return '<td class="mx-c mx-click' + (selIsCell(p.d, t) ? " mx-sel" : "") + '" data-cell="1"'
       + ' data-d="' + esc(p.d) + '" data-col="' + esc(t) + '" data-v="' + s.v.toFixed(2) + '"'
-      + ' tabindex="0" role="button" aria-label="' + esc("看 " + p.d + " 这一期「" + colNameOf(t) + "」的成员，合计 " + fmtAmt(s.v) + " 元") + '"'
+      + ' tabindex="-1" role="button" aria-label="' + esc("看 " + p.d + " 这一期「" + colNameOf(t) + "」的成员，合计 " + fmtAmt(s.v) + " 元") + '"'
       + ' style="background:' + cellBg(s.v) + '" title="'
       + esc(colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(s.v) + "</td>";
   };
@@ -1478,7 +1483,9 @@ function renderSnapAttr() {
       + (saSel && saSel.k === "col" && saSel.col === t ? ' data-onsel="1"' : "")
       + ' data-colhead="' + esc(t) + '" tabindex="0" role="button" aria-label="'
       + esc("看「" + colNameOf(t) + "」的逐期贡献与累计图") + '">' + esc(colNameOf(t)) + "</th>").join("")
-    + '<th class="mx-sum">合计</th></tr></thead><tbody>';
+    /* 「合计」列头也可点（2026-10-09：② 的第二形态 ✓）→ 整表累计曲线对比（各列 ＋ 总累计 ✓） */
+    + '<th class="mx-sum" data-allhead="1" tabindex="0" role="button" aria-label="'
+    + esc("看整表累计曲线对比（各列 ＋ 总累计）") + '">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
      渲染走 live.slice().reverse() ✓，data-i 仍指向**原下标** ✓（点击下钻的映射不变 ✓）。
      日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只 ✓）；
@@ -1513,7 +1520,7 @@ function renderSnapAttr() {
         + "　" + fmtAmt(x)).join("\n");
     return '<td class="mx-c mx-click' + (selIsCell("__carry", t) ? " mx-sel" : "") + '" data-cell="1"'
       + ' data-d="__carry" data-col="' + esc(t) + '" data-v="' + v.toFixed(2) + '"'
-      + ' tabindex="0" role="button" aria-label="' + esc("看期初结转「" + colNameOf(t) + "」的成员，合计 " + fmtAmt(v) + " 元") + '"'
+      + ' tabindex="-1" role="button" aria-label="' + esc("看期初结转「" + colNameOf(t) + "」的成员，合计 " + fmtAmt(v) + " 元") + '"'
       + ' style="background:' + cellBg(v) + '" title="'
       + esc(colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + baseD + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(v) + "</td>";
   };
@@ -1533,7 +1540,9 @@ function renderSnapAttr() {
      起点写进标签（旧版只写「全期」，用户据此把 +8,278 读成了"账户一共赚了 8,278" ✗）；
      data-* 给门禁 ④k 留**精确值** ✓（显示按整元取整 ✗，几十元的漂移在显示值上分辨不出 ✓）。 */
   h += '<tr class="mx-foot" data-all="' + allSum.toFixed(2) + '" data-base="' + baseD + '" data-base-pl="' + basePl.toFixed(2) + '">'
-    + '<td class="mx-d">全期<i class="mx-since">自账户起点</i></td>'
+    /* 「全期」行头也可点（2026-10-09 ②）→ 各列生涯贡献排序条 ✓（数据＝本行各列 ✓ 同一个数 ✓） */
+    + '<td class="mx-d mx-click" data-coltotal="1" tabindex="0" role="button" aria-label="'
+    + esc("看各列的生涯贡献排序（合计 " + fmtAmt(allSum) + " 元）") + '">全期<i class="mx-since">自账户起点</i></td>'
     + cols.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
     + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
 
@@ -1787,7 +1796,91 @@ function renderSnapAttr() {
       + "缺口（缺 items 的相邻对）**断开折线** ✓ 不插值 ✗ —— 真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）；"
       + "每个<b>拐点</b>都可点（整列命中，含触屏 ✓）→ 落到那一格 ✓。</div></div>";
   };
+  /* 视图⑤ 「全期」行头 → **各列生涯贡献排序条**（2026-10-09 加 ②）——
+     数据＝全期行各列的值 ✓（colSum ✓ ＝ 期初结转 ＋ 各期贡献 ✓，与表里那格**同一个数** ✓）。
+     点一行 → 直接看该列的逐期图 ✓（排序条当"入口"用 ✓，不重复造第二套数字 ✓）。 */
+  const viewColsRank = () => {
+    const list = cols.map((t) => ({ k: t, v: colSum(t) })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    const sum = list.reduce((a, x) => a + x.v, 0);
+    /* 百分比＝该列 |值| 占**各列 |值| 之和**的比例 ✓ ——
+       ⚠ 不是"占合计的比例" ✗：各列正负相反 ✓（如 全球 −20,577 与 纳指 +17,543 ✓），
+         拿它除合计（+1,496 ✓）会算出 −1375% 这种没意义的数 ✗（实测踩过 ✓）。 */
+    const absSum = list.reduce((a, x) => a + Math.abs(x.v), 0) || 1;
+    const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
+    return '<div class="sa-detail" data-cols-sum="' + sum.toFixed(2) + '" data-cols-n="' + list.length + '"><div class="sd-head">'
+      + '<button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
+      + "<b>各列生涯贡献</b>（账户起点 → " + lastD.slice(5) + " ✓ · 合计 " + fmtAmt(sum) + "）"
+      + '<span class="sd-hint">点一行 → 看该列的逐期图 ✓（＝「全期」行各列 ✓，同一个数 ✓）</span></div>'
+      + list.map((x) => '<div class="sd-row sd-click" data-colrow="' + esc(x.k) + '" data-v="' + x.v.toFixed(2) + '"'
+        + ' tabindex="0" role="button" aria-label="' + esc("看「" + colNameOf(x.k) + "」的逐期图，生涯贡献 " + fmtAmt(x.v) + " 元") + '">'
+        + '<span class="sd-nm">' + esc(colNameOf(x.k)) + "</span>"
+        + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:"
+        + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+        + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
+        + '<span class="sd-pct">' + (Math.abs(x.v) / absSum * 100).toFixed(0) + "%</span></div>").join("")
+      + "</div>";
+  };
+  /* 视图⑥ 点「合计」列头 → **整表累计曲线对比**（各列各一条 ＋ 总累计一条 ✓，2026-10-09 加 ③）——
+     与矩阵互补：矩阵看"哪一期谁亏" ✓，这里看"一路怎么走" ✓。
+     配色用固定 8 色 ✓（按列次序取 ✓）—— 刻意不依赖主题色 ✗，这样"按平台 / 场内·场外"两种维度下
+     配色同样稳定 ✓；线端不标名 ✗（6 条易撞 ✗）→ 图下一行色块图例 ＋ **终值** ✓（按 |值| 排序 ✓）。
+     ⚠ 本视图**刻意不做悬停** ✓：每条线的终值都在图例里 ✓，逐期细看请点某一列头（那张图有拐点、读数与键盘 ✓）。 */
+  const viewAllChart = () => {
+    const PAL = ["#4c9aff", "#2dd4a7", "#e0a13a", "#e0576b", "#a78bfa", "#22d3ee", "#f472b6", "#84cc16"];
+    const series = cols.map((t, k2) => {
+      const cum2 = [num(carryByCol[t])];
+      colSeries(t).forEach((x) => cum2.push(cum2[cum2.length - 1] + x.v));
+      return { k: t, cum: cum2, end: cum2[cum2.length - 1], col: PAL[k2 % PAL.length] };
+    });
+    const total2 = series.reduce((a, s2) => a + s2.end, 0);
+    const W = Math.max(300, Math.round((el.querySelector(".sa-detail-box") || el).clientWidth || 690));
+    const H = 200, mL = 62, mR = 14, mT = 12, mB = 22;
+    const t0 = Date.parse(baseD), t1 = Date.parse(lastD), span = t1 - t0 || 1;
+    const X = (d) => mL + (Date.parse(d) - t0) / span * (W - mL - mR);
+    const allV = series.reduce((a, s2) => a.concat(s2.cum), []);
+    const lo = Math.min.apply(null, allV), hi = Math.max.apply(null, allV);
+    const pad = (hi - lo || Math.abs(hi) || 1) * 0.12;
+    const Y = (v) => mT + (H - mT - mB) - ((v - (lo - pad)) / ((hi + pad) - (lo - pad) || 1)) * (H - mT - mB);
+    const xAt = (i) => X(i === 0 ? baseD : live[i - 1].d);
+    let g = "";
+    if (lo - pad < 0 && hi + pad > 0)
+      g += '<line x1="' + mL + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + Y(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
+    g += '<line x1="' + mL + '" y1="' + Y(hi).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + Y(hi).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
+    series.forEach((s2) => {                                        // 各列：细线 ✓
+      g += '<polyline class="sa-line" points="' + s2.cum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ") + '"'
+        + ' fill="none" stroke="' + s2.col + '" stroke-width="1.4"/>';
+    });
+    const tPts = [];
+    for (let i = 0; i <= live.length; i++) {
+      let acc2 = 0;
+      series.forEach((s2) => { acc2 += s2.cum[i]; });
+      tPts.push(xAt(i).toFixed(1) + "," + Y(acc2).toFixed(1));
+    }
+    g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" stroke="#e2e9f5" stroke-width="2.2"/>';   // 总累计：粗 ＋ 中性色 ✓
+    const lab2 = (x, y, s3, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s3) + "</text>";
+    g += lab2(mL - 5, Y(hi) + 6, fmtAmt(Math.round(hi)));
+    g += lab2(mL - 5, Y(lo) + 3, fmtAmt(Math.round(lo)));
+    g += lab2(mL - 5, Y(total2) + 3, "总 " + fmtAmt(Math.round(total2)));
+    const midI = Math.floor((live.length - 1) / 2);
+    [0, midI, live.length - 1].forEach((i, k3) => {
+      if (!live[i]) return;
+      g += lab2(X(live[i].d), H - 6, live[i].d.slice(5), k3 === 0 ? "start" : (k3 === 2 ? "end" : "middle"));
+    });
+    const legend = series.slice().sort((a, b) => Math.abs(b.end) - Math.abs(a.end))
+      .map((s2) => '<span class="sa-all-k"><i style="background:' + s2.col + '"></i>' + esc(colNameOf(s2.k))
+        + ' <b class="' + cls(s2.end) + '">' + fmtAmt(s2.end) + "</b></span>").join("");
+    return '<div class="sa-detail sa-chart" data-all-end="' + total2.toFixed(2) + '" data-all-n="' + series.length + '">'
+      + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
+      + "<b>整表累计曲线</b>（" + series.length + " 列 ＋ 总累计 ✓ · 账户起点 → " + lastD.slice(5) + " · <b>合计 " + fmtAmt(total2) + "</b>）"
+      + '<span class="sd-hint">粗白＝总累计 ✓ 细彩＝各列 ✓（终值见图例 ✓；逐期细看请点某个列头 ✓）</span></div>'
+      + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
+      + esc("整表累计曲线：各列终值合计 " + fmtAmt(total2) + " 元") + '">' + g + "</svg>"
+      + '<div class="sa-all-legend">' + legend + "</div>"
+      + '<div class="sa-chart-note">x 轴同样按<b>实际日期间距</b> ✓；本视图刻意<b>不做悬停</b> ✓ —— 逐期细看请点某个列头（那张图有拐点、读数与键盘 ✓）。</div></div>';
+  };
   const detail = () => {
+    if (saSel && saSel.k === "cols") return viewColsRank();
+    if (saSel && saSel.k === "all") return viewAllChart();
     if (saSel && saSel.k === "col") return viewColChart(saSel.col);
     if (saSel && saSel.k === "hold") return viewHold(saSel.code);
     if (saSel && saSel.k === "cell") return viewCell(saSel.d, saSel.col);
@@ -1899,8 +1992,51 @@ function renderSnapAttr() {
     };
     if (saChart.i >= 0) show(saChart.i);             // 重渲染后恢复选中期 ✓
   };
+  /* ── 矩阵的 roving tabindex（2026-10-09 加 ①）──────────────────────────────────────
+     问题：每格都 tabindex=0 ✗ → 5 列 × 16 行 ＝ **80 个 Tab 位** ✗ —— Tab 键变成迷宫 ✓
+     （同一张页面上，走势图那种图是"单一焦点 ＋ 方向键" ✓，两种交互语言不该打架 ✗）。
+     做法：整表只留**一个** Tab 位 ✓ —— 记住"当前格"（saRove ✓，模块级 ✓），渲染后把它设 0、其余设 -1 ✓；
+     方向键在格间移动时**只改这两个节点的属性 ＋ 调 focus** ✓，**不整块重渲染** ✗
+     （重渲染会闪、还会把焦点冲掉 ✓）。Enter/Space 仍走 actOn ✓（与鼠标点击同一个分派 ✓）。 */
+  const moveRove = (td2, key) => {
+    const tr2 = td2.closest("tr");
+    if (!tr2) return false;
+    const rowCells = Array.prototype.slice.call(tr2.querySelectorAll("td[data-cell]"));
+    const ci = rowCells.indexOf(td2);
+    const trs = Array.prototype.slice.call(el.querySelectorAll("tbody tr")).filter((x) => x.querySelector("td[data-cell]"));
+    let next = null;
+    if (key === "ArrowRight") next = rowCells[ci + 1] || null;
+    else if (key === "ArrowLeft") next = rowCells[ci - 1] || null;
+    else if (key === "Home") next = rowCells[0] || null;
+    else if (key === "End") next = rowCells[rowCells.length - 1] || null;
+    else if (key === "ArrowUp" || key === "ArrowDown") {
+      const tr3 = trs[trs.indexOf(tr2) + (key === "ArrowDown" ? 1 : -1)];
+      if (tr3) {
+        const cs2 = Array.prototype.slice.call(tr3.querySelectorAll("td[data-cell]"));
+        next = cs2[Math.min(ci, cs2.length - 1)] || null;
+      }
+    }
+    if (!next || ci < 0) return false;
+    td2.setAttribute("tabindex", "-1");
+    next.setAttribute("tabindex", "0");
+    saRove = { d: next.getAttribute("data-d"), col: next.getAttribute("data-col") };
+    next.focus();
+    return true;
+  };
+  const wireRoving = () => {
+    const cells = Array.prototype.slice.call(el.querySelectorAll("td[data-cell]"));
+    if (!cells.length) return;
+    let pick = cells[0];                                    // 没有历史 → 第一格（最新那一期 ✓）
+    if (saRove) {
+      const m = cells.find((c2) => c2.getAttribute("data-d") === saRove.d && c2.getAttribute("data-col") === saRove.col);
+      if (m) pick = m;
+    }
+    cells.forEach((c2) => c2.setAttribute("tabindex", c2 === pick ? "0" : "-1"));
+    saRove = { d: pick.getAttribute("data-d"), col: pick.getAttribute("data-col") };
+  };
   el.innerHTML = h;
   wireColChart();
+  wireRoving();
   /* ── 交互分派（2026-10-09 第三步）：**一次点击与一次按键走同一套** ✓（不伪造事件对象 ✗）─────────────
      优先级＝最内层先行 ✓：面包屑返回 → 格子 → 成员行 → 维度切换 → 期行 → 期初行 ✓
      ⚠ 格子长在行里 ✗ → 必须先判格子 ✓，否则点一下格子会顺带把"期"也切了 ✓。
@@ -1910,7 +2046,18 @@ function renderSnapAttr() {
     if (saSel && saSel.k === "cell") t = el.querySelector('[data-cell][data-d="' + saSel.d + '"][data-col="' + saSel.col + '"]');
     else if (saSel && saSel.k === "hold") t = el.querySelector('[data-hold="' + saSel.code + '"]');
     else if (saSel && saSel.k === "col") t = el.querySelector('[data-colhead="' + saSel.col + '"]');
-    if (t && t.focus) t.focus();
+    else if (saSel && saSel.k === "cols") t = el.querySelector("[data-coltotal]");
+    else if (saSel && saSel.k === "all") t = el.querySelector("[data-allhead]");
+    if (t && t.focus) {
+      t.focus();
+      /* 焦点落在**某个格子**上 → 它就当 roving 的"当前格" ✓
+         （把 Tab 位一并挪过去 ✓ —— 否则会出现"焦点在这格、Tab 位在那格"的两处各说各话 ✗） */
+      if (t.hasAttribute && t.hasAttribute("data-cell")) {
+        el.querySelectorAll('td[data-cell][tabindex="0"]').forEach((x) => x.setAttribute("tabindex", "-1"));
+        t.setAttribute("tabindex", "0");
+        saRove = { d: t.getAttribute("data-d"), col: t.getAttribute("data-col") };
+      }
+    }
   };
   const setSel = (s, newCur) => {
     if (newCur !== undefined) cur = newCur;
@@ -1925,6 +2072,21 @@ function renderSnapAttr() {
       /* 两级回退：轨迹 → 进来时那一格 ✓；从**图上**点进的格 → 回到那张图 ✓（2026-10-09 第四步 B） */
       if ((nav.dataset.nav === "back" || nav.dataset.nav === "cell") && saSel && saSel.back) { setSel(saSel.back); return true; }
       setSel(null);                                    // 其余情况：回到整期（cur 不动 ✓ 就是进来时那一期 ✓）
+      return true;
+    }
+    const colTot = target.closest("[data-coltotal]");
+    if (colTot) {                                      // 点「全期」行头 → 各列生涯贡献排序条 ✓（②）
+      setSel({ k: "cols" });
+      return true;
+    }
+    const allH = target.closest("[data-allhead]");
+    if (allH) {                                        // 点「合计」列头 → 整表累计曲线对比 ✓（③）
+      setSel({ k: "all" });
+      return true;
+    }
+    const colRow = target.closest("[data-colrow]");
+    if (colRow) {                                      // 点排序条里的一行 → 该列的逐期图 ✓
+      setSel({ k: "col", col: colRow.getAttribute("data-colrow") });
       return true;
     }
     const colh = target.closest("[data-colhead]");
@@ -1965,6 +2127,14 @@ function renderSnapAttr() {
   el.onclick = (e) => { actOn(e.target); };
   /* 键盘：格子与成员行是 role=button ＋ tabindex=0 ✓ → Enter / Space 与点击同义 ✓ */
   el.onkeydown = (e) => {
+    /* ① 矩阵的**方向键导航**（roving ✓）：←/→ 同行相邻列 ✓、↑/↓ 相邻期的同一列 ✓、Home/End 行首行尾 ✓ */
+    const td0 = (e.target && e.target.closest) ? e.target.closest("td[data-cell]") : null;
+    if (td0 && (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown"
+      || e.key === "Home" || e.key === "End")) {
+      if (moveRove(td0, e.key)) e.preventDefault();
+      return;
+    }
+    /* ② 其余可点元素：Enter / Space 与点击同义 ✓（列头图自己的 ←/→ 由 svg.onkeydown 先接住 ✓，不冲突 ✓） */
     if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
     if (actOn(e.target)) e.preventDefault();
   };
