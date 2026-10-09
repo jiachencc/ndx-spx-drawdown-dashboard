@@ -96,11 +96,35 @@ check("#sum-grid / #alloc-bar / #trend-box / #trend-readout 均存在", !!(sum &
 /* ② 页面在用的现金 = 最新快照的现金（数据层已由 check-data 把关，这里是渲染层的双保险） */
 check("OTC.cash 与最新快照现金一致 " + money(snapCash), Math.abs(otcCash - snapCash) < 0.01, "OTC.cash = " + otcCash);
 
-/* ③ 汇总卡：总资产 与 累计浮盈亏 = 最新快照的读数 */
+/* ── 读 data.js 的 POSITIONS.log（2026-10-09 加）：用于「全额清仓漏出的已实现」的**独立复算**。
+   判据与页面 closedCostGap() 一致：某笔卖出使该标的累计份数归零 → 取这一笔的 realized ✓
+   （摊薄成本额本身已含此前的部分卖出效应，故不能把部分卖出再加一遍 ✗）。 */
+const LOGPOS = (() => {
+  const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
+  if (!m) return null;
+  const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 }); return c.o;
+})();
+const closedGap = (() => {
+  const log = ((LOGPOS && LOGPOS.log) || []).slice().sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1));
+  const qty = {}, gap = {};
+  log.forEach((e) => {
+    const s = /卖出|减仓|清仓/.test(String(e.act || "")), before = qty[e.sym] || 0;
+    qty[e.sym] = before + (s ? -(e.qty || 0) : (e.qty || 0));
+    if (s && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized)) gap[e.sym] = (gap[e.sym] || 0) - e.realized;
+  });
+  return Object.keys(gap).reduce((a, k) => a + gap[k], 0);
+})();
+
+/* ③ 汇总卡：总资产 与 累计收益 = 最新快照的读数 */
 const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
 /* 总资产容差放到 3：页面是「快照逐只市值取整后求和」，与 App 总读数天然差 1 元以内 */
 check("汇总卡总资产 = 最新快照 " + money(snapTotal), near(sumText, snapTotal, 3), sumText.slice(0, 140));
-check("汇总卡浮盈亏 = 最新快照 " + money(latest.pl), near(sumText, latest.pl), sumText.slice(0, 140));
+/* ⚠ 2026-10-09 改口径（用户选 A）：汇总卡那格由「浮盈亏」改为「累计收益（含已实现）」——
+   快照 pl 是**摊薄口径的在持浮盈亏**（＝券商 App 的浮动盈亏），全额清仓后它不含已兑现那部分 ✗；
+   真·累计收益 = pl − closedGap ✓（10-09：19,988.31 − 18,492.00 = +1,496 ✓）。
+   closedGap 由本文件独立复算（读 data.js 的 POSITIONS.log），不读页面中间量 ✓。 */
+check("汇总卡累计收益 = 最新快照 pl − 全额清仓已实现 " + money(latest.pl - closedGap),
+  near(sumText, latest.pl - closedGap), sumText.slice(0, 140));
 
 /* ③b 汇总卡「当日盈亏」= 场内估 + 场外【预估】（2026-10-03：场外那半从"App 快照"换成"指数×仓位补齐"）
    两段的性质不同，必须分开断言：
@@ -487,7 +511,36 @@ const readText = readout ? readout.textContent.replace(/\s+/g, "") : "";
 const intraday = /盘中估|未收盘/.test(readText);
 const skipMsg = "页面处于「今日盘中估」状态（读数条显示的是盘中估那一期，不是最新快照）→ 本项跳过，收盘后自动恢复比对";
 check("走势卡读数含最新总资产 " + money(snapTotal), intraday || near(readText, snapTotal, 3), intraday ? skipMsg : readText.slice(0, 160));
-check("走势卡读数含最新浮盈亏 " + money(latest.pl), intraday || near(readText, latest.pl), intraday ? skipMsg : readText.slice(0, 160));
+/* ⚠ 2026-10-09 同 ③：读数条那一格是「累计收益（含已实现）」= pl − closedGap ✓（口径见 ③ 的注释） */
+check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), intraday || near(readText, latest.pl - closedGap), intraday ? skipMsg : readText.slice(0, 160));
+
+/* ④e 本金口径（2026-10-09 加，用户选 A）——「本金 ≡ 外部净转入」从**首次全额清仓**起会被打破 ✗：
+   摊薄口径下卖出只是「成本 → 现金」的搬运（Σ成本＋现金 不变 ✓），但全额清仓时亏损那部分整块漏出 ✗
+   （10-09 实测：本金被低估 18,490.34 ＝ 18,492.00 − 1.66 尾差 ✓，页面标着「外部净转入」却不对 ✗）。
+   两条断言都从**本文件独立复算**（读 data.js 的快照 items ＋ POSITIONS.log），不读页面的中间量 ✓：
+     ① 汇总卡本金 = Σ快照 items.cost ＋ 现金 ＋ 全额清仓已实现
+     ② 汇总卡累计收益 = Σ快照逐只 pl ＋ 全额清仓已实现   （＝ pl − closedGap，与 ③ 同一口径 ✓）
+   取的是汇总卡上的 data-principal / data-pl（**精确值**）：卡片显示按整元取整（fmtYuan/fmtAmt ✗），
+   用显示值断言分辨不出几十元的漂移 ✗ —— 与 ④c 同一手法 ✓。 */
+{
+  const items = latest.items || {};
+  const rawCost = Object.keys(items).reduce((a, k) => a + ((items[k] && items[k].cost) || 0), 0) + (latest.cash || 0);
+  const plIn = Object.keys(items).reduce((a, k) => a + ((items[k] && items[k].pl) || 0), 0);
+  const wantP = rawCost + closedGap, wantPl = plIn - closedGap;
+  const attr = (k) => {
+    const el = sum ? sum.querySelector("[data-" + k + "]") : null;
+    return el ? Number(el.getAttribute("data-" + k)) : NaN;
+  };
+  const gp = attr("principal"), gpl = attr("pl");
+  check("汇总卡本金 = Σ持仓成本 ＋ 现金 ＋ 全额清仓已实现 " + money(wantP),
+    Number.isFinite(gp) && Math.abs(gp - wantP) < 0.05,
+    "页面 data-principal=" + gp + " · 期望 " + wantP.toFixed(2) + "（差 " + (gp - wantP).toFixed(2) + "）");
+  /* 累计收益容差 3：它的两个组成里「市值」取页面**实时报价** ✗、这里取快照 items.val（当日收盘读数），
+     两者天然差 1 元级（与 ③ 的总资产断言同一来源、同一容差 ✓）。成本那一侧是静态数，故上面用 0.05 ✓。 */
+  check("汇总卡累计收益 = Σ逐只 pl ＋ 全额清仓已实现 " + money(wantPl),
+    Number.isFinite(gpl) && Math.abs(gpl - wantPl) < 3,
+    "页面 data-pl=" + gpl + " · 期望 " + wantPl.toFixed(2) + "（差 " + (gpl - wantPl).toFixed(2) + "）");
+}
 
 /* ⑤ 全页 SVG 不得出现非法坐标（NaN 会被浏览器按 0 渲染 → 横跨全屏的错位填充） */
 const bad = [];

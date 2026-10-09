@@ -1011,22 +1011,32 @@ function renderImpl() {
   const otcCost = otcRows.reduce((a, b) => a + b.costAmt, 0);
   const totalVal = etfVal + otcVal;
   const totalCost = etfCost + otcCost;
-  /* 持仓浮盈亏口径：剔现金——现金计入资产但无成本，混入会虚增盈亏（与快照 pl「不含现金」同口径） */
-  const totalPl = totalVal - totalCost - OTC.cash;
+  /* ⚠ 2026-10-09 删除 totalPl（原＝总资产 − Σ摊薄成本 − 现金，即券商 App「浮动盈亏」的合计）：
+     汇总卡那一格已改口径为「累计收益（含已实现）」= totalAll ✓（两者相差的正是全额清仓的已兑现 ✓，
+     见 closedCostGap()）；它在本文件里已无其它引用，留着会被 eslint 判为未用变量 ✗，
+     且名字与右侧两格「累计浮盈亏」撞车、容易误读 ✓。 */
   /* ⚠ 合计收益率 totalR 已于 2026-09-30 删除：汇总卡改成「场内 / 场外各一格」后，
      合计百分比不再出现（它可由两格相加得到；合计金额在「总资产」副标里）。 */
   /* ===== 本金（净转入）拆成场内 / 场外两格（2026-09-30 加，用户要求「加上场内 场外净转入(本金)的 KPI」）=====
-     本金 ≡ 外部净转入 ≡ Σ持仓成本 + 现金（与「本金与收益」卡片同一口径，见那边的注释）。
+     本金 ≡ 外部净转入 ≡ Σ持仓成本 + 现金 + **全额清仓漏出的已实现**（与「本金与收益」卡片同一口径，见那边注释）。
      场内那一份是**可对账**的，不是估算：券商给的是**摊薄成本**（已把已实现盈亏折进剩余仓位），
-     所以 Σ摊薄成本 + 券商可用 天然等于银证净转入。2026-09-30 实测（用户提供平安 App「银证转账」页）：
+     所以 Σ摊薄成本 + 券商可用 ＋ 已全额清仓那些标的的已实现 天然等于银证净转入。2026-09-30 实测：
        页 422,635.65  vs  对账单近2年净转入 439,198.99（不含当日）− 当日转出 16,565.00 = 422,633.99
        → 差 1.66 元（0.0004%，逐笔取整尾差，与本文件既有的「港美尾差 4.4 元」同源）✓
+     ⚠ **2026-10-09 加第三项**（首次全额清仓，用户选 A）：摊薄口径下部分卖出不改变「Σ成本＋现金」✓，
+       但全额清仓时亏损那部分会整块漏出 ✗（10-09 少了 18,492.00 ✓，详见 closedCostGap() 的注释）。
+       不加这一项，本金会比真·银证净转入低 18,490.34 ✗，「累计收益 ＝ 总资产 − 本金」也不再含已实现 ✗。
      ⚠ 现金（OTC.cash）算**场内**：数据层对它的定义就是「券商可用资金」（场外平台现金恒 0）。
        注：本页别处（otcVal/otcPl）把现金并进场外桶再减掉，那是为算盈亏方便；本金归属按**实际所在地**。
      ⚠ 场外的「在途」（已扣款、尚未并入成本）**不进本金**：它已在市值里、不在成本里，
        计入会让「本金 ＋ 收益 ＝ 总资产」这个等式差一个在途；故只在场外那格作小注显示。 */
-  const principal = totalCost + OTC.cash;
-  const pInEtf = etfCost + OTC.cash, pInOtc = otcCost;
+  const clearedGap = closedCostGap();
+  const principal = totalCost + OTC.cash + clearedGap;
+  const pInEtf = etfCost + OTC.cash + clearedGap, pInOtc = otcCost;
+  /* 真·累计收益（含已实现）＝ 总资产 − 本金（本金已加回清仓漏出的那 18,492 ✓）。
+     ⚠ 它**不等于** totalPl（＝Σ份数×现价 − Σ摊薄成本，那是券商 App 的「浮动盈亏」口径 ✗）；
+       两者的差正是已全额清仓那些标的的已实现 ✓（10-09：19,988.31 − 1,496.31 ＝ 18,492.00 ✓）。 */
+  const totalAll = totalVal - principal;
   /* 在途＝Σ(该只市值 − 份额 × 最新净值)：份额在**快照 items**里（OTC.funds 只有金额/收益/净值，没有份额），
      所以必须去最新一期完整快照取 —— 与 cross-check ⑤ 同一公式（那里是数据层，这里是渲染层）。 */
   const lastSnapItems = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length)
@@ -1136,7 +1146,7 @@ function renderImpl() {
        · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
        · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
        末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。 */
-    '<div class="sum-cell"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金。总资产 ＝ 本金 ＋ 累计浮盈亏 —— 与「本金与收益」卡同一口径。">本金 ' + fmtYuan(principal) + '<br>浮盈亏 <span class="' + cls(totalPl) + '">' + fmtAmt(totalPl) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它 ✓。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径 ✓。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现 ✗），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492 ✓）。"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益 <span class="' + cls(totalAll) + '" id="sum-pl">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
     '<div class="sum-cell" title="场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（南方 400 ＝ 已扣款、尚未并入 App 成本；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；其余六只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（预估）。' + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
@@ -1243,10 +1253,11 @@ function renderImpl() {
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(positionLadderFills);
   observeLadders();   /* 卡内图元高度受行高/字体/展开内容影响，需 RO 监听 */
 
-  /* 走势图 cost 必须与快照 snapCost 同口径（含现金 = 持仓成本 + 现金）——
-     直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，
-     把浮亏显示成浮盈（差值填充因此变绿）。修复后 today.val − cost ≡ totalPl。 */
-  renderTrend(totalVal, totalCost + OTC.cash);
+  /* 走势图 cost 必须与快照 snapCost 同口径（＝持仓成本 ＋ 现金 ＋ 全额清仓漏出的已实现 ✓）——
+     直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，把浮亏显示成浮盈 ✗；
+     漏掉 closedCostGap 时，今日点的成本会比其它期少一截、两线间距凭空多出已兑现的 18,492 ✗
+     （2026-10-09 首次全额清仓后才会出现 —— 见 closedCostGap() 的注释 ✓）。 */
+  renderTrend(totalVal, totalCost + OTC.cash + closedCostGap());
   renderPrincipal();
   renderClosed();
   /* 逐卡兜底：原先整页共用一个 try/catch，renderSnapLog 抛异常会连累后面两张卡，
@@ -1487,7 +1498,7 @@ function renderTrendLegend() {
     html = item("dn", "回撤", "红色实线＋面积＝资金流调整后单位净值相对历史峰值的回撤（0 在顶，越深越亏）；圆点为各期快照");
   } else {
     html = item("", "总资产", "蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）") +
-      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入。两条线之间的竖直间距就是当期浮盈亏：资产线在上＝浮盈（绿色填充）；在下＝浮亏（不铺色，「水下」由两线相对位置表达，铺满红底会被误读成图表背景）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
+      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入＝外部净转入（含全额清仓加回 ✓）。两条线之间的竖直间距就是**累计收益（含已实现）**：资产线在上＝赚（绿色填充）；在下＝亏（不铺色，「水下」由两线相对位置表达，铺满红底会被误读成图表背景）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
       item("base", "同节奏纳指", "灰色密虚线＝同节奏基准：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌。回答「同样的钱、同样的日期，全买纳指今天是多少」。末点＝最近一个有纳指收盘的日期（基准点位缺当日时自动停在前一天，不猜）。");
   }
   el.innerHTML = html;
@@ -1522,7 +1533,7 @@ function trendRangeHtml() {
   /* 每段包成原子单元（.nb）：折行只发生在「·」处，不会把「浮盈亏」和它的数字拆到两行 */
   return '<div class="ro-sel" title="区间回撤与净值均按资金流调整口径（逐期剔除转入/转出），与「最大浮亏」的 App 口径不同">' +
     '<span class="nb"><b>' + mdOf(a.d) + " → " + mdOf(b.d) + "</b>（" + days + " 天）</span> · " +
-    '<span class="nb">浮盈亏 <b class="' + cls(dPl) + '">' + fmtAmt(dPl) + "</b>（" + fmtAmt(plA) + " → " + fmtAmt(plB) + "）</span> · " +
+    '<span class="nb">累计收益 <b class="' + cls(dPl) + '">' + fmtAmt(dPl) + "</b>（" + fmtAmt(plA) + " → " + fmtAmt(plB) + "）</span> · " +
     '<span class="nb">最大回撤 <b class="down">' + fmtPct(seg.dd[seg.deepI], 2) + "</b></span> · " +
     '<span class="nb">净值 <b>' + navEnd.toFixed(4) + "</b>（" + fmtPct(navEnd - 1, 2) + "）</span></div>";
 }
@@ -1813,7 +1824,7 @@ function renderTrendKpis(pts) {
   const xTxt = (xirr === null || !cf || cf.days < 90)
     ? (!cf ? "XIRR 缺现金流" : "XIRR " + Math.round(cf.days) + " 天 · 暂不年化")
     : "XIRR " + fmtPct(xirr, 1) + " 年化";
-  const rateTip = "当前收益率＝浮盈亏 ÷ 累计投入（成本口径，与 App 一致）。" +
+  const rateTip = "当前收益率＝累计收益（含已实现）÷ 累计投入（成本口径，与 App 一致）。" +
     "TWR 为近似时间加权：按快照末端资金流逐期剔除转入/转出后算净值，反映投资能力本身；推导资金流依赖成本口径，非精确评价。" +
     xTxt + "。";
   /* 最大浮亏取全程（2026-10-04 起为**合计**：场内 ACCT_STATS.monthly ＋ 场外财务页 FIN_PL 的 5 个基金渠道），
@@ -1870,7 +1881,7 @@ function trendTipHtml(p) {
   const rate = p.cost ? pl / p.cost : 0;
   let s = (p.isToday ? "今日估算" : +p.d.slice(5, 7) + "." + +p.d.slice(8, 10)) +
     " · 资产 " + fmtYuan(p.val) + " · 投入 " + fmtYuan(p.cost) +
-    '<br>浮盈亏 <b style="color:var(--' + (pl >= 0 ? "up" : "down") + ')">' + fmtAmt(pl) + " 元</b>" +
+    '<br>累计收益 <b style="color:var(--' + (pl >= 0 ? "up" : "down") + ')">' + fmtAmt(pl) + " 元</b>" +
     '（<b style="color:var(--' + (rate >= 0 ? "up" : "down") + ')">' + fmtPct(rate, 2) + "</b>，÷累计投入含现金）";
   if (p.tag) s += "<br>事件：" + esc(p.tag);
   if (p.flow !== null && p.flow !== undefined && Math.abs(p.flow) >= 1) {
@@ -2149,9 +2160,9 @@ function renderTrend(todayVal, todayCost) {
   if (pts.length >= 2) {
     const flowSum = pts.reduce((a, p) => a + (typeof p.flow === "number" ? p.flow : 0), 0);
     const pl0 = pts[0].val - pts[0].cost, pl1 = pts[pts.length - 1].val - pts[pts.length - 1].cost, dPl = pl1 - pl0;
-    setTrendSum("区间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 浮盈亏 " + fmtAmt(pl0) + " → <b>" + fmtAmt(pl1) + "</b>（" + (dPl >= 0 ? "改善 " : "恶化 ") + "<b>" + fmtAbs2(dPl) + "</b> 元）",
+    setTrendSum("区间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 累计收益 " + fmtAmt(pl0) + " → <b>" + fmtAmt(pl1) + "</b>（" + (dPl >= 0 ? "改善 " : "恶化 ") + "<b>" + fmtAbs2(dPl) + "</b> 元）",
       "口径：全账户（场内券商 + 场外基金 + 现金）。总资产为各期快照读数，今日为盘中估值、尚未收盘。" +
-      "累计投入 ＝ 总资产 − 累计浮盈亏（＝持仓成本 + 现金）；浮盈亏 ＝ 总资产 − 累计投入，含现金部分。" +
+      "累计投入 ＝ 外部净转入（＝持仓成本 + 现金 + 全额清仓加回 ✓）；累计收益 ＝ 总资产 − 累计投入，**含已卖出的兑现盈亏** ✓。" +
       "区间投入由逐期 Δ累计投入推导（人工记录的 flow 优先），正为净转入、负为净转出。" +
       "区间随上方「时间范围」变化；完整逐期归因见下方「快照对比」。");
   }
@@ -2517,16 +2528,57 @@ function snapTotal(s) {
   if (typeof s.total === "number") return s.total;   // 简快照：App 读数
   return Object.values(s.items || {}).reduce((a, b) => a + (b.val || 0), 0) + (s.cash || 0);
 }
-/* 累计投入 = 总资产 − 累计浮盈亏（现金项自然抵消；= 持仓成本 + 现金） */
-function snapCost(s) {
-  if (typeof s.pl === "number") return snapTotal(s) - s.pl;
-  let c = s.cash || 0;
-  Object.values(s.items || {}).forEach((it) => { c += (it && it.cost) || 0; });
+/* ── 全额清仓「漏出的已实现」（2026-10-09 加，用户选 A）─────────────────────────────
+   摊薄口径下，卖出只是「成本 → 现金」的搬运 → **Σ持仓成本 ＋ 现金 不变** ✓，
+   所以部分减仓不会破坏「本金 ≡ 外部净转入」（2026-09-30 与银证对账单核过，差 1.66 元 ✓）。
+   ⚠ 但**全额清仓**时，该标的整条从 items 消失：成本额离开了 Σ成本、净回款进了现金，
+     两者之差（＝ −该笔 realized）从此**没人接手** ✗。2026-10-09 首次全额清仓（中韩/港美）实测：
+     场内「Σ摊薄成本 ＋ 可用」从 10-08 的 422,635.65 掉到 404,143.65 ✗，
+     正好少了 18,492.00（＝ 13,217.10 ＋ 5,274.90 ✓），而真·银证净转入 422,633.99 一分未变 ✗
+     → 「本金」被低估 18,490.34（＝ 18,492.00 − 1.66 ✓），「累计收益 ＝ 总资产 − 本金」也不再含已实现 ✗。
+   ▸ 修正：把这一项**加回本金** ✓ → 本金重新等于「外部净转入」✓、累计收益重新含已实现 ✓
+     （10-09：404,143.65 ＋ 18,492.00 ＝ 422,635.65 ✓；累计收益 ＝ 534,018.37 − 532,522.46 ＝ **+1,496** ✓，
+      与「场内 425,785.50 − 422,633.99 ＝ +3,151.51」＋「场外 −1,653.94」互证 ✓）。
+   ★ 与 cross-check ② 的 flow 补丁是**同一个修正项**（那边：flow ＝ ΔΣ成本 ＋ Δ现金 − Σ清仓realized）✓。
+   ▸ 判据：某笔卖出使该标的**累计份数归零** → 取这一笔的 realized ✓
+     （它已含该标的此前的部分卖出效应：摊薄成本额本身就是「Σ买入含费 − Σ卖出净额」，
+      故此前的部分卖出**不可再加** ✗ —— 会重复计 ✓）。
+   ▸ upTo 供走势图逐期取历史 ✓；10-08 及以前恒为 0 ✓（仓库史上首次全额清仓发生在 10-09）。 */
+function closedCostGap(upTo) {
+  const log = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
+    .filter((e) => !upTo || e.d <= upTo).slice()
+    .sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1));
+  const qty = {}, gap = {};
+  log.forEach((e) => {
+    const sell = isSellAct(e), before = qty[e.sym] || 0;
+    qty[e.sym] = before + (sell ? -(e.qty || 0) : (e.qty || 0));
+    if (sell && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized))
+      gap[e.sym] = (gap[e.sym] || 0) - e.realized;
+  });
+  return Object.keys(gap).reduce((a, k) => a + gap[k], 0);
+}
+/* 裸成本（不给清仓修正）＝ Σ持仓成本 + 现金 */
+function snapRawCost(s) {
+  let c = (s && s.cash) || 0;
+  Object.values((s && s.items) || {}).forEach((it) => { c += (it && it.cost) || 0; });
   return c;
 }
-/* 持仓成本合计（剔现金）：snapCost 含现金项，比对成本时要减掉，否则现金变动会被误读成申购。
-   简快照（无 cash 字段）返回 null —— 缺现金就无法剔除，硬减 0 会把现金混进「持仓成本」。 */
-const snapHoldCost = (s) => (typeof s.cash === "number" ? snapCost(s) - s.cash : null);
+/* 真·累计收益（含已实现）＝ 快照 pl（摊薄口径的"在持浮盈亏"）− 全额清仓漏出的那一块 ✓
+   它就是「总资产 − 外部净转入」这个数，也是走势图上两条线之间的竖直间距 ✓
+   （10-09 起与 pl 不再相等 ✓ —— pl 只是券商 App 那个「浮动盈亏」口径）。 */
+function snapPl(s) {
+  const pl = (typeof s.pl === "number") ? s.pl : (snapTotal(s) - snapRawCost(s));
+  return pl - closedCostGap(s && s.d);
+}
+/* 累计投入（＝外部净转入）＝ 总资产 − 真·累计收益 ＝ 持仓成本 ＋ 现金 ＋ 全额清仓漏出的已实现 ✓ */
+function snapCost(s) {
+  return (typeof s.pl === "number") ? snapTotal(s) - snapPl(s) : snapRawCost(s) + closedCostGap(s && s.d);
+}
+/* 持仓成本合计（剔现金）：比对成本时要减掉现金，否则现金变动会被误读成申购。
+   ⚠ 这里**不能**走 snapCost ✗ —— snapCost 含「全额清仓漏出的已实现」那一项，
+     减现金也剔不掉它，会被算成持仓成本 ✗（2026-10-09 加）。
+   简快照（无 items / cash 字段）返回 null —— 缺现金就无法剔除，硬减 0 会把现金混进「持仓成本」。 */
+const snapHoldCost = (s) => (s && s.items && typeof s.cash === "number") ? snapRawCost(s) - s.cash : null;
 /* ===== 场内 / 场外归属（快照历史分类的唯一依据）=====
  * 不能用 POSITIONS.hold 反查：那是「当前」持仓，某只场内 ETF 清仓并从 hold 移除后，
  * 历史快照会把它改判成场外，连带改掉所有过往卡片的场内/场外小计——已对过账的数字会变。
@@ -3204,44 +3256,56 @@ function renderPrincipal() {
   }
   const cur = snaps[snaps.length - 1];
   const total = snapTotal(cur);
-  const principal = snapCost(cur);                                  // 累计投入（含现金）
-  const pnl = typeof cur.pl === "number" ? cur.pl : total - principal;
+  const principal = snapCost(cur);                 // 累计投入（＝持仓成本 ＋ 现金 ＋ 全额清仓加回 ✓）
+  /* 2026-10-09 改（用户选 A）：累计收益**不再直接取快照 pl** ✗ ——
+     pl 是摊薄口径的「在持浮盈亏」（＝券商 App 的「浮动盈亏」），全额清仓后它不含已兑现那部分 ✗；
+     正确口径恒为「总资产 − 本金」✓（本金里已加回清仓漏出的已实现 ✓）：
+     10-09 实测 pl 19,988.31 ✗ → 累计收益 **+1,496.31** ✓（＝ 19,988.31 − 18,492.00 ✓）。 */
+  const pnl = total - principal;
   const sells = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || []).filter(isSellAct);
-  const realized = sells.reduce((a, e) => a + (typeof e.realized === "number" ? e.realized : 0), 0);
-  const feeOf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
-  const cashed = realized - sells.reduce((a, e) => a + feeOf(e), 0); // 已卖出兑现（含卖出费）
-  const held = pnl - cashed;                                        // 未卖出（账面浮动）
+  const gap = closedCostGap(cur.d);
+  /* 已实现（已离场）＝ 只有「使某标的累计份数归零」的那笔才算 ✓。
+     ⚠ 2026-10-09 改（原来取「Σ全部卖出的 realized − 卖出费」✗）：摊薄成本额本身就是
+       「Σ买入含费 − Σ卖出净额」，一只标的被整体清仓时，那笔平仓的 realized 已把**此前部分卖出**
+       的效应含在里面 ✓ —— 再把那些部分卖出单列一次就是重复计 ✗（10-09 会把已实现从 −18,492
+       虚增到 −2.6 万量级 ✗）。费用已含在平仓笔的净回款里 ✓ 故不再另减。 */
+  const cashed = -gap;                             // 已实现（10-09：−18,492.00 ✓）
+  const held = pnl - cashed;                       // 未实现（还拿在手里的账面浮动）＝ Σ快照逐只 pl ✓
   const rate = principal ? pnl / principal * 100 : 0;
   const cnt = $("prin-cnt");
   if (cnt) cnt.textContent = "（截至 " + mdOf(cur.d) + " · 本金＝外部净转入）";
   const qBtn = '<button type="button" class="strat-hint" data-note="prin-q" aria-label="本金与收益口径" aria-expanded="false">?</button>';
-  /* 本金 ＝ 持仓成本 ＋ 现金：现金是真转进来、但还没买成持仓的那部分（减仓回款也停在这里）。
+  /* 本金 ＝ 持仓成本 ＋ 现金 ＋ 全额清仓加回：现金是真转进来、但还没买成持仓的那部分（减仓回款也停在这里）；
+     第三项见 closedCostGap() 的注释（摊薄口径下全额清仓会把它整块漏掉 ✗，2026-10-09 首次遇到 ✓）。
      这条等式把「本金」与「盈亏总览」里逐只本金之和（＝持仓成本）接起来——两处都叫本金，差的就是它。 */
   const cash = (typeof cur.cash === "number") ? cur.cash : ((typeof OTC !== "undefined" && OTC.cash) || 0);
-  const holdCost = principal - cash;
-  /* 收益的两种成色：已实现＝卖掉兑现（实亏 / 实盈）；未实现＝还拿在手里的账面浮动（浮亏 / 浮盈）。
-     未实现再按市场拆开：场外从无卖出记录，快照 pl 即纯浮动；场内券商用摊薄成本，
-     单只总盈亏里已含已实现，故场内未实现要从「未实现」里倒扣，不能直接取快照场内合计。 */
+  const holdCost = (snapHoldCost(cur) !== null) ? snapHoldCost(cur) : principal - cash - gap;
+  /* 收益的两种成色（2026-10-09 改口径后反而更简单）：
+       已实现 ＝ **全额清仓**落袋的那些（钱已离开持仓 ✓，＝ −gap ✓）
+       未实现 ＝ 累计收益 − 已实现 ≡ **Σ快照逐只 pl** ✓ ——
+     场内券商用摊薄成本，部分卖出的效应已折进剩余仓位成本 ✓，所以它能直接取逐只之和，
+     不再需要旧版那种"从「未实现」里倒扣"的手法（旧注释与 ±10 元微差一并作废 ✓）。 */
   const items = cur.items || {};
   const hasItems = Object.keys(items).length > 0;
   const unrealOtc = Object.keys(items).filter((c) => !isOnExchange(c)).reduce((a, c) => a + (items[c].pl || 0), 0);
-  const unrealEtf = held - unrealOtc;
+  const unrealEtf = held - unrealOtc;              // 10-09：＝ Σ场内逐只 pl = +21,641.85 ✓
   /* 场外 / 场内拆分本身较长，独占一行（.snap-sub 允许换行；挤在一行会折成难读的两截）。
      它回答的正是最常被问的那件事：未实现 −755 为什么和快照逐只的 −4,125 对不上。 */
   const cashNote = hasItems ? "<br>场外 " + fmtAmt2(unrealOtc) + " ／ 场内 " + fmtAmt2(unrealEtf) : "";
   const qNote = '<div class="strat-note" id="prin-q">'
-    + "<b>本金</b> ＝ 外部净转入（银行 / 支付宝 → 账户），由快照推导：总资产 − 累计浮盈亏。"
+    + "<b>本金</b> ＝ 外部净转入（银行 / 支付宝 → 账户），由快照推导：总资产 − 累计收益。"
     + "买卖、申赎、手续费、税费都只是账户内的「现金 ↔ 持仓」转换，<b>不改变本金</b>；只有真从外面转进 / 转出才会让它变。"
     + "股数、买卖、税费都不会污染这一行，所以「本金有没有变」＝ 有没有真金白银转进来。<br>"
-    + "<b>本金 ＝ 持仓成本 " + fmtYuan(holdCost) + " ＋ 现金 " + fmtYuan(cash) + "</b>。"
+    + "<b>本金 ＝ 持仓成本 " + fmtYuan(holdCost) + " ＋ 现金 " + fmtYuan(cash) + "</b> ＋ 全额清仓加回 <b>" + fmtAmt2(gap) + "</b>。"
+    + "第三项（摊薄口径下被漏出、故显式加回 ✓）＝ 那些**整体卖掉**的标的之兑现盈亏的相反数："
+    + "亏损的钱离开了持仓、成本额也跟着消失 ✗，不加回本金就会比真·银证净转入低（2026-10-09 首次清仓实测差 18,490 ✗）。"
     + "现金是转进来但还没买成持仓的那部分（减仓回款也停在这里），所以「盈亏总览」里逐只本金相加（＝持仓成本）会比这一行少一个现金数。<br>"
-    + "<b>累计收益</b> ＝ 总资产 − 本金，即<b>本金 ＋ 累计收益 ＝ 总资产</b>——"
-    + "与走势图上「总资产 / 累计投入」两条线之间的竖直间距是同一个数。<br>"
-    + "<b>收益构成</b>按「卖没卖」分两种：<b>已实现</b>取券商流水的「实现盈亏」减去卖出费（卖掉了才算）；"
-    + "<b>未实现</b> ＝ 累计收益 − 已实现，就是还拿在手里的账面浮动，再按市场拆成场外 / 场内。"
-    + "⚠ 未实现 <b>不等于</b>「快照卡逐只总盈亏」之和：券商摊薄成本把已实现的盈亏并进了剩余仓位成本，"
-    + "单只的总盈亏里已含已实现（如港美 −5,369 中含 −5,072 已实现），两者相差的正是已实现那部分。"
-    + "余下 ±10 元为买入费与摊薄口径微差。</div>";
+    + "<b>累计收益</b> ＝ 总资产 − 本金，即<b>本金 ＋ 累计收益 ＝ 总资产</b>——<b>含已卖出的兑现盈亏</b> ✓，"
+    + "与走势图上「总资产 / 累计投入」两条线之间的竖直间距是同一个数 ✓。"
+    + "⚠ 它<b>不等于</b>汇总卡右侧那两格「累计浮盈亏 · 场内 / 场外」之和 ✗ —— 那两格是**在持**口径（券商 / 基金 App 的「浮动盈亏」）。<br>"
+    + "<b>收益构成</b>按「离没离场」分两种：<b>已实现</b>＝**全额清仓**那些标的的兑现盈亏（费用含在净回款里 ✓；"
+    + "部分卖出不加单 ✗ —— 摊薄成本额已把它的效应折进剩余仓位成本 ✓）；"
+    + "<b>未实现</b> ＝ 累计收益 − 已实现，就是还拿在手里的账面浮动，再按市场拆成场外 / 场内 ✓。</div>";
   /* ===== 两种收益率口径（借鉴 Portfolio Performance 的账目学）=====================
      TWR（时间加权）＝按快照末端资金流逐期剔除转入/转出 → 衡量"标的与持有本身"
      XIRR（资金加权）＝计入每一笔出入金的日期与金额      → 衡量"你的钱实际赚了多少"
@@ -3795,7 +3859,7 @@ function renderPrincipal() {
     '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(cashed) + " · 未实现 " + fmtAmt2(held) + "</span></summary>" +
     '<div class="snap-tbl">' +
       '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(cashed) + '">' + fmtAmt2(cashed) +
-        '</b><span class="snap-sub">' + (sells.length ? (cashed < 0 ? "实亏" : "实盈") + " · " + sells.length + " 笔卖出兑现（含卖出费）" : "还没有卖出记录") + "</span></span></div>" +
+        '</b><span class="snap-sub">' + (cashed ? (cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计 ✓）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里 ✓）") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(held) + '">' + fmtAmt2(held) +
         '</b><span class="snap-sub">' + (held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + cashNote + "</span></span></div>" +
     "</div></details>" +
@@ -4425,8 +4489,9 @@ function holdCardHtml(row, i, ctx) {
   const dipDelta = (spanFrom !== null && spanTo !== null) ? spanTo - spanFrom : null;
   let kpiThird = "";
   if (sellsOf.length) {
-    kpiThird = '<div class="kpi"><div class="k-label" title="券商流水逐笔「实现盈亏」之和 − 卖出费，口径与「本金与收益」卡的「已实现」相同。' +
-      '⚠ 这不是额外一笔：券商用摊薄成本，卖出的净回款已冲减剩余仓位成本，所以它已经包含在左边的「浮盈（估）」里，两者不能相加。">' +
+    kpiThird =       '<div class="kpi"><div class="k-label" title="这只券商流水逐笔「实现盈亏」之和 − 卖出费（费用已含在净回款里的那几笔不再另减）。' +
+      '⚠ 这不是额外一笔：券商用摊薄成本，卖出的净回款已冲减剩余仓位成本，所以它已经包含在左边的「浮盈（估）」里，两者不能相加。' +
+      '（「本金与收益」卡的「已实现」只认**全额清仓**那几笔 ✓ —— 在持标的的部分卖出已折进剩余仓位成本，故两边不该相加 ✗。）">' +
       '其中已落袋</div><div class="k-val ' + cls(cashed) + '">' + fmtAmt(cashed) + ' 元</div>' +
       '<div class="k-sub" style="color:var(--tx3)">卖出 ' + sellsOf.length + ' 笔 · 已在浮盈里</div></div>';
   }
