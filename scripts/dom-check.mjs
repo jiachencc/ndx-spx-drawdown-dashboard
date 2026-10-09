@@ -370,6 +370,16 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   }).map((o) => o.k + "（应为 " + lastSell[o.k] + "）");
   check("清仓历史明细：场内每只「清仓日」= 该标的最后一笔卖出日（" + etfClosed.length + " 只）",
     badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
+  /* ④c 盈亏总览的「清仓累计已兑现」行（2026-10-09 加）——
+     它与本块 ① 的「清仓历史总行」是**同一批数字的两处显示**，分列两张卡就有漂移风险 → 必须断言一致 ✓。
+     取的是行上的 data-pl（**精确值**）：卡片显示值按整元取整（fmtAmt ✗），0.01 容差的断言在显示值上
+     分辨不出漂移 ✗；右边的 sOtc / sEtf 仍是本文件**独立复算**（读 data.js 的 CLOSED ＋ POSITIONS.log，
+     不读页面中间量）✓ */
+  const clrEl = win.document.getElementById("pl-cleared-total");
+  const clrVal = clrEl && clrEl.dataset ? Number(clrEl.dataset.pl) : NaN;
+  check("盈亏总览「清仓累计已兑现」= 场外 " + money(sOtc) + " ＋ 场内 " + money(sEtf),
+    Number.isFinite(clrVal) && Math.abs(clrVal - (sOtc + sEtf)) < 0.01,
+    clrEl ? "总览行 data-pl=" + clrVal + " · 显示 " + clrEl.textContent.replace(/\s+/g, " ").trim() : "「盈亏总览」里没有 #pl-cleared-total");
 }
 
 /* ④d 快照对比：「清仓行」的本期盈亏必须是**这只本期真正的盈亏**，不能是「上期浮盈亏的相反数」✗

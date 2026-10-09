@@ -307,6 +307,18 @@
   .pl-base { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum"; }
   .pl-rate { font-style: normal; font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum"; }
   .card.pl-flash { border-color: var(--blue); box-shadow: 0 0 0 3px var(--accent-line); transition: box-shadow .3s, border-color .3s; }
+  /* ── 盈亏总览：已清仓分节（2026-10-09 用户：「盈亏总览是不是要加上已清仓实现的盈亏？」→ A 方案）──
+     组头照 .snap-group 的既有做法（虚线分隔 ＋ 小字），色用 --tx3 ✓ —— 上面 11 行是"持仓浮盈亏"、
+     这一节是"已卖出兑现"，两种口径必须一眼分得开。 */
+  .pl-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    margin-top: 9px; padding: 6px 0 3px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xxs); color: var(--tx3); }
+  .pl-sec > span:first-child { font-weight: 700; letter-spacing: .02em; }
+  /* 金额**不涂灰** ✗ —— up/down 的绿红必须留住（一眼看出赚亏）；"次级感"改由降透明度承担 ✓
+     另一处小心：.pl-base 默认 nowrap 且不可收缩，窄屏两段并排时会顶破卡片 →
+     只在这一行允许它省略号收尾 ✓（不动上面 11 行的既有排布 ✓） */
+  .pl-row-cleared { opacity: .85; }
+  .pl-row-cleared .pl-base { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   /* ===== 快照对比日志 =====
      每期一张「子卡」，与区间累计卡同一手法：**期次靠盒子（描边 + 留白）区分，不再画期次分隔线**。
