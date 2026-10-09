@@ -1468,7 +1468,11 @@
   #snap-attr .sa-head span { font-size: 9px; }
   #snap-attr table.sa-mx { font-size: 10px; }
   #snap-attr table.sa-mx th { font-size: 9px; padding: 2px 5px; }
-  #snap-attr table.sa-mx td { font-size: 10px; padding: 1.5px 5px; }
+  /* 2026-10-09 用户反馈「数字可以再小一些」：10px → **9px**
+     —— 9px 是本页最小的字号档（--chk-fs-mini，表头也用 9px），所以这是"落到既有最小档"，
+        不是随手缩 ✗；再小（8px）会破掉页面统一的字号体系，故到此为止。
+     ⚠ 只动**数据格**（td，含合计列）：表头 th 早已是 9px ✓ 期列 .mx-d 也是 9px ✓ 都不受影响 ✓ */
+  #snap-attr table.sa-mx td { font-size: 9px; padding: 1.5px 5px; }
   #snap-attr .sd-head { font-size: 10px; }
   #snap-attr .sd-row { font-size: 10px; padding: 1px 0; }
   #snap-attr .sd-hint { font-size: 9px; }
