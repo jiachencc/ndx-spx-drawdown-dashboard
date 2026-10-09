@@ -404,6 +404,58 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
       : (snapEl ? "逐只核对通过 ✓" : "页面里没有 #snap-list"));
 }
 
+/* ④e 「场内 / 场外」**分组小计**也必须同一口径（2026-10-09 用户报的第二个数：场内组显示 +20,362 ✗）
+   —— 组小计来自 snapGrpSplit，与逐行（snapPairHtml）是**两条路径**；上轮只修了逐行那条，
+      所以这个数依旧错、而且与卡头「本期」自相矛盾 ✗。本断言独立复算两组，要求与渲染值一致 ✓ */
+{
+  const snapRows2 = (() => {
+    const m = readFileSync(path.join(root, "positions-data.js"), "utf8").match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m);
+    if (!m) return [];
+    const c = vm.createContext({});
+    vm.runInContext(m[0] + "\nthis.o = SNAPSHOTS;", c, { timeout: 500 });
+    return c.o;
+  })();
+  const P3 = (() => {
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
+    if (!m) return null;
+    const c = vm.createContext({});
+    vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 });
+    return c.o;
+  })();
+  const full2 = snapRows2.filter((s) => s.items);
+  const pv = full2[full2.length - 2], cu = full2[full2.length - 1];
+  /* ⚠ 不用页面的 win.isOnExchange 分类：它是顶层 **const**（非 function 声明）✗ → 不挂 window；
+     初版这么写时两条都算成「全属场外」（复算 0 / 2,304）—— 被断言自己抓出来了 ✓。
+     改为按数据自行分类：场内 = POSITIONS.hold 的代码 ∪ 本期清仓且名字像 ETF/LOF 的代码 ✓ */
+  const etfSet = new Set(((P3 && P3.hold) || []).map((h) => h.code));
+  Object.keys(pv.items).forEach((code) => { if (!cu.items[code] && /ETF|LOF/.test(pv.items[code].name)) etfSet.add(code); });
+  const sums = { in: 0, ot: 0 };
+  Object.keys(Object.assign({}, pv.items, cu.items)).forEach((code) => {
+    const a = pv.items[code], b = cu.items[code];
+    let d;
+    if (!a) d = (b && b.pl) || 0;
+    else if (b) d = (b.pl || 0) - (a.pl || 0);
+    else {
+      const sell = ((P3 && P3.log) || []).filter((e) => /卖出|减仓|清仓/.test(String(e.act || "")) &&
+        e.sym === a.name && e.d > pv.d && e.d <= cu.d)[0];
+      d = (sell && Number.isFinite(sell.realized)) ? (sell.realized + (a.cost || 0)) - (a.val || 0) : -(a.pl || 0);
+    }
+    sums[etfSet.has(code) ? "in" : "ot"] += d;
+  });
+  const arts = [...win.document.querySelectorAll("#snap-list article.snap-item")];
+  const gs = arts.length ? [...arts[0].querySelectorAll(".snap-group-sum")] : [];
+  const gn = (el) => {
+    const m = (el.textContent.match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || []).map((s) => +s.replace(/,/g, "").replace("−", "-"));
+    return m.length ? m[m.length - 1] : null;
+  };
+  const gotIn = gs.length > 0 ? gn(gs[0]) : null;
+  const gotOt = gs.length > 1 ? gn(gs[1]) : null;
+  check("快照对比「场内」分组小计 = 复算 " + money(sums.in) + "（不再把清仓浮亏消失当收益 ✗）",
+    gotIn !== null && Math.abs(gotIn - sums.in) <= 1, "组小计 " + gotIn + " vs 复算 " + sums.in.toFixed(2));
+  check("快照对比「场外」分组小计 = 复算 " + money(sums.ot),
+    gotOt !== null && Math.abs(gotOt - sums.ot) <= 1, "组小计 " + gotOt + " vs 复算 " + sums.ot.toFixed(2));
+}
+
 /* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
    ⚠ 2026-10-09 修正：原来无条件拿**最新快照**去比读数条 ✗ ——
    可走势序列的最后一个点可以是「今日盘中估」（当 data.js 里的报价/指数比最新快照更新时，页面就会补这一期，
