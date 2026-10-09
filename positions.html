@@ -1316,11 +1316,17 @@ function renderSnapAttr() {
   /* 只保留**两期都有 items** 的期（缺的整期隐藏，但要如实写明隐藏了哪几期 —— 不静默、更不补 0 ✗）。
      用户要求：缺 items 的期隐藏掉；并去掉柱状形态（只留矩阵）。 */
   const live = [], hidden = [];
-  /* ── 矩阵窗口的两个端点（2026-10-09 加，B）—— 用户问：「全期 +8,278 是真的盈利吗？累计收益不是 +1,496 吗？」
-     两个数不矛盾，是**窗口不同**：全期是"这段窗口内的变化量"、累计收益是"自最早记录起的水平值" ✗✓
-     （全期 +8,278 ＝ 累计收益(末期 +1,496) − 累计收益(基准期 −6,784) ✓，差的就是矩阵起点之前那段 ✓）。
-     起点＝**第一个"前后两期都有 items"的对里的 a** ✓（不是快照第一期的日期 ✗ —— 更早的期缺 items 已被隐藏 ✗）；
-     终点＝最后一个这样的对的 b ✓（不用"最新快照"：最新一期若又缺 items，窗口终点就会越过矩阵末行 ✗）。 */
+  /* ── 矩阵的三段口径（2026-10-09 两轮：先 B 后 A —— 用户先问「全期 +8,278 是真的盈利吗？累计收益不是 +1,496 吗？」，
+        随后确认「场内 6 月起、场外 2~3 月起、场外有的已清仓」并选了 A）────────────────────────────
+     ① 逐期行：只保留**前后两期都有 items** 的对 ✓
+        → baseD = 第一个这样的对的 a（2026-09-07 ✓）· lastD = 最后一个这样的对的 b ✓
+     ② 「期初结转」行（A）：**账户起点 → baseD** 的累计结果 ＝ 该期 Σ逐只 pl ✓
+        → 有了它，矩阵覆盖"账户起点 → 末期" ✓，**全期 ≡ 累计收益**（同一个 +1,496.31 ✓）
+          —— 用户看到的那对矛盾数（全期 8,278 vs 累计收益 1,496 ✗）就此消失 ✓
+     ③ 全期行：① ＋ ②（见下方 colSum / allSum ✓）
+     ⚠ 口径边界（同步写在口径注里 ✓）：② 用的是"在持标的自买入以来的结果"，**不含**场外那 17 笔已清仓 ✗
+       （它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金 ✓，故只在「清仓历史」卡 ✓）。
+       场内 06-01 起流水完整 ✓ 所以场内那半是精确的 ✓；场外那半精确到"在持 8 只自 03-03 起" ✓。 */
   let baseD = null, basePl = 0, lastD = null, lastPl = 0;
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
@@ -1345,13 +1351,26 @@ function renderSnapAttr() {
     live.push({ d: b.d, items: items, kinds: kinds, nClose: nClose, nNa: nNa,
       net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
+  /* ── 「期初结转」行的取值（A，2026-10-09）────────────────────────────────────────────
+     它 ＝ **基准期的 Σ逐只 pl** ✓（−6,781.83）—— 而不是快照表头的 pl ✗（−6,783.59）：
+     实测两者差 **1.76 元** ✓，用表头值会让"全期 ≡ 累计收益"差这 1.76 ✗
+     —— 这正是上一轮那个"1.76 元残差"的真正来源 ✓（与算法无关 ✗，是快照表头合计与逐只明细不一致 ✓）。
+     含义：账户起点 → baseD 这段，各只在持标的累计结果之和 ✓
+     （场内那半＝6 月建仓以来 ✓ 流水完整 ✓；场外那半＝在持 8 只自 2026-03-03 起 ✓）。 */
+  const baseSnap = baseD ? S.find((x) => x.d === baseD) : null;
+  const carryItems = {};
+  Object.entries((baseSnap && baseSnap.items) || {}).forEach(([c, it]) => { carryItems[c] = num(it.pl); });
+  const carryTotal = Object.keys(carryItems).reduce((a, c) => a + carryItems[c], 0);
+  /* 场外已清仓那 17 笔（App 原读数 ✓）—— 只在悬停里报数，**不进任何金额** ✓（口径边界见上方注释 ✓） */
+  const closedOtcSum = (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items))
+    ? CLOSED.items.reduce((a, x) => a + (x.pnl || 0), 0) : null;
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
   function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：本函数内任意位置可用 ✓
   /* ── 归因维度（2026-10-09 加，用户要求 A ＋ B）───────────────────────────────────────
      默认**主题** ✓；另两种是"要查时切一下"的补充 ✓（顶部小切换器 ✓，选择记 localStorage ✓）。
      为什么不默认平台（实测两者都 6 列，但平台维度在这套账户上会**塌缩** ✗）：
-       · 场内只有一家券商 → 「平安证券」一格把纳指 / 标普 / 日经三只不同市场合并（全期 +6,814，占大半 ✗）；
+       · 场内只有一家券商 → 「平安证券」一格把纳指 / 标普 / 日经三只不同市场合并（全期合计里占去大半 ✗）；
        · 且与主题部分重合：广发基金 = 广发纳指F（纳指）＋ 广发精选（全球）✗ 又一格并了两种市场 ✗。
      平台维度的真正用途是**对账** ✓（这数是哪个 App 给的、去哪一页核对 ✓）—— 按需切一下就能看 ✓。 */
   const DIMS = { theme: "按主题", plat: "按平台", acct: "场内·场外" };
@@ -1377,8 +1396,12 @@ function renderSnapAttr() {
     const lv = 0.10 + 0.50 * Math.min(1, Math.log10(Math.abs(v) + 10) / Math.log10(mx + 10));
     return v >= 0 ? "rgba(45,212,167," + lv.toFixed(3) + ")" : "rgba(224,87,107," + lv.toFixed(3) + ")";
   };
-  const colSum = (t) => live.reduce((a, p) => a + ((p.seg.find((x) => x.k === t) || { v: 0 }).v), 0);
-  const allSum = live.reduce((a, p) => a + p.net, 0);
+  /* 「期初结转」行按**当前维度**聚合 ✓（切维度时它跟着走，与逐期行一致 ✓）；
+     下面的 colSum / allSum 都把它算进去 ✓ —— 于是"各列之和 ＝ 合计"在换维度后依然成立 ✓ */
+  const carryByCol = {};
+  Object.entries(carryItems).forEach(([c, v]) => { const k = colKeyOf(c); carryByCol[k] = (carryByCol[k] || 0) + v; });
+  const colSum = (t) => live.reduce((a, p) => a + ((p.seg.find((x) => x.k === t) || { v: 0 }).v), 0) + (carryByCol[t] || 0);
+  const allSum = live.reduce((a, p) => a + p.net, 0) + carryTotal;
 
   /* 单元格：三态**分开表达**（借 finance 收益矩阵的同一套思路 ✓）
      ① 该期该主题「没有可归因的标的」（当时尚未持有 → 没有 Δpl）→ 淡色「·」＋ tooltip 明说是「缺」不是 0 ✓
@@ -1410,20 +1433,23 @@ function renderSnapAttr() {
         : "行=期 · 列=场内 / 场外")
     + " · 点任一行看该期逐只 · 悬停任一格看成员" + (saDim === "theme" ? "与渠道" : "")
     + " · <b>换个维度不改合计</b> ✓</span></div>";
-  /* ── B：水平值对照（2026-10-09 加，见函数上方 baseD / lastD 的注释 ✓）─────────────────
-     起因：用户把「全期 +8,278」与汇总卡的「累计收益 +1,496」并排看，问"到底赚了多少" ✗ ——
-     两者口径不同：全期＝**本表窗口内的变化量** ✓、累计收益＝**自最早记录起的水平值** ✓，
-     但「全期」这个标签没写起点，很容易被读成"账户一共赚赔多少" ✗。
-     所以把两个水平值并排摆出来（起点 → 末期 ✓），变化量仍留在下方「全期」行 ✓。
-     排版取舍：一行小字、不占格子（矩阵本身已够宽 ✗）；数值走 fmtAmt（整元，与「全期」行同精度 ✓，
-     要分位精度另有 data-* 供门禁 ✓）；颜色沿用 up/down 的绿红（**不涂灰** ✗ —— 灰在本页＝未更新 / 无数据 ✓）。 */
+  /* ── 口径对照行（2026-10-09 两轮：先 B 补"水平值 vs 变化量"，再按 A 加「期初结转」行）────────────
+     用户最初的疑问是把「全期 +8,278」与汇总卡的「累计收益 +1,496」并排看，问"到底赚了多少" ✗ ——
+     根因是矩阵当时**只覆盖** baseD（09-07）之后那段（更早的期缺 items 被隐藏 ✗），于是"全期"成了变化量 ✗。
+     A 加了「期初结转」行之后，矩阵覆盖"账户起点 → 末期" ✓ → **全期就是累计收益** ✓（同一个数 ✓）。
+     所以这行现在只讲一件事：这两个数现在是同一个数 ✓ ——"窗口不同"那套解释不再需要了 ✗。
+     两个数**分别取数**显示（左＝累计收益 ✓、右＝全期行合计 ✓），不写死成同一个字符串 ✗
+     —— 万一将来谁把两者算岔了，这一行会当场看出来 ✓（门禁 ④k 也盯着 ✓）。
+     排版取舍照旧：一行小字、不占格子 ✓；颜色走 up/down 绿红，不涂灰 ✗（灰在本页＝未更新 / 无数据 ✓）。 */
   h += '<div class="sa-base" title="' + esc("累计收益 ＝ 总资产 − 外部净转入（本金）✓，既含已卖出的兑现盈亏、也含尚未卖出的浮动盈亏 ✓。"
-    + "起点 " + baseD + " ＝ 第一个「前后两期都有逐只明细」的对的前一期（更早的期缺 items，无法逐只归因，见下方口径最后一行 ✓）。"
-    + "下面「全期」行的 " + fmtAmt(allSum) + " 是这段窗口内的变化量（＝ 末期累计收益 − 起点累计收益 ✓），"
-    + "不是账户一共赚赔多少 ✗ —— 后者就是这里的累计收益 ✓；两者的差正是矩阵起点之前那段（缺明细、表里看不见 ✓）。")
-    + '">累计收益 <b class="' + cls(basePl) + '">' + baseD.slice(5) + " " + fmtAmt(basePl) + "</b>"
-    + '<span class="sa-arrow">→</span><b class="' + cls(lastPl) + '">' + lastD.slice(5) + " " + fmtAmt(lastPl) + "</b>"
-    + '<span class="sa-hint">窗口内变化 ＝ 下方「全期」行 ' + fmtAmt(allSum) + ' ✓（不是一共赚赔 ✗）</span></div>';
+    + "自**账户起点**算起 ✓：场内自 2026-06-01 起（流水完整 ✓）、场外自 2026-03-03 起（在持 8 只 ✓）。"
+    + "下面「期初结转」行 ＝ 账户起点 → " + baseD + " 的累计结果（" + fmtAmt(carryTotal) + " ✓），"
+    + "逐期行 ＝ " + baseD + " → " + lastD + " ✓ —— 两者相加就是「全期」✓，与这里的累计收益是同一个数 ✓。"
+    + "⚠ 不含场外那 17 笔已清仓" + (closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(closedOtcSum) + " ✓）")
+    + "：它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 ✗ → 无法归入本金 ✓，请去「清仓历史」卡看 ✓。")
+    + '">累计收益（自账户起点）<b class="' + cls(lastPl) + '">' + fmtAmt(lastPl) + "</b>"
+    + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(allSum) + ' ✓（同一口径、同一个数 ✓；'
+    + baseD.slice(5) + " 之前的账在「期初结转」行里 ✓）</span></div>";
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + cols.map((t) => "<th>" + esc(colNameOf(t)) + "</th>").join("") + '<th class="mx-sum">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
@@ -1440,22 +1466,58 @@ function renderSnapAttr() {
       + cols.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
-  /* 「全期」＝**本表窗口内的变化量** ✓，不是累计收益本身 ✗ → 起点必须写在标签上 ✓
-     （2026-10-09 用户正是据此把 +8,278 读成了"账户一共赚了 8,278" ✗ —— 标签不写起点，页面就有歧义 ✗）。
-     起点换行显示（同行会把「期」列撑宽 ✗，挤压后面几列 ✓）；data-* 给门禁 ④k 留**精确值** ✓
-     （显示按整元取整 ✗，几十元的漂移在显示值上分辨不出 ✓）。 */
+  /* ── 「期初结转」行（A，2026-10-09）──────────────────────────────────────────────
+     位置：**最下一行**（逐期行是新在上 ✓，它比最早那一期还早 ✓）。
+     样式：与期行区分（虚线分隔 ＋ 「期初」标签 ＋ .mx-carry，见 CSS ✓）—— 它是一段**区间**、不是一个期 ✓。
+     取值：carryItems 逐只 ✓ → 按当前维度聚合到各列（carryByCol ✓）＋ 合计 carryTotal ✓。
+     点击：与期行一样下钻 ✓（detail() 里对 cur === "carry" 特判 ✓）。
+     ⚠ 它**不参与** mx（底色量级 ✓）—— 否则它那几笔大数会把逐期行的色差压暗 ✗（mx 只由逐期行定 ✓）。 */
+  const carryCell = (t) => {
+    const v = carryByCol[t];
+    if (v === undefined) {
+      return '<td class="mx-c mx-na" title="' + esc(baseD + "：" + colNameOf(t) + " 在基准期没有在持标的（该主题在 09-07 之前就未持有）") + '">·</td>';
+    }
+    const mem = Object.entries(carryItems)
+      .filter(([c]) => colKeyOf(c) === t)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .map(([c, x]) => (SA_NAME[c] || c)
+        + (saDim === "plat" ? "" : " · " + (isOnExchange(c) ? "平安证券" : (srcLabel(c).s || "场外")))
+        + "　" + fmtAmt(x)).join("\n");
+    return '<td class="mx-c" style="background:' + cellBg(v) + '" title="'
+      + esc(colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + baseD + " 的累计结果）\n" + (mem || "（无成员明细）")) + '">' + fmtAmt(v) + "</td>";
+  };
+  const carryIn = Object.entries(carryItems).filter(([c]) => isOnExchange(c)).reduce((a, x) => a + x[1], 0);
+  h += '<tr class="mx-carry" data-carry="' + carryTotal.toFixed(2) + '" data-carry-d="' + baseD + '" title="' + esc(
+      "期初结转 ＝ 账户起点 → " + baseD + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(carryTotal) + " 元\n"
+      + "场内 " + fmtAmt(carryIn) + " ＋ 场外 " + fmtAmt(carryTotal - carryIn)
+      + "（场内自 2026-06-01 起、流水完整 ✓；场外＝在持 8 只自 2026-03-03 起 ✓）\n"
+      + "⚠ 不含场外那 17 笔已清仓" + (closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(closedOtcSum) + " ✓）")
+      + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金 ✓，只在「清仓历史」卡 ✓。\n"
+      + "点这一行 → 看它是哪些标的、各多少 ✓") + '">'
+    + '<td class="mx-d">期初<i class="mx-since">账户起点 → ' + baseD.slice(5) + "</i></td>"
+    + cols.map(carryCell).join("")
+    + '<td class="mx-c mx-sum ' + cls(carryTotal) + '">' + fmtAmt(carryTotal) + "</td></tr>";
+  /* 「全期」＝ ①逐期行 ＋ ②期初结转 ✓ —— 也就是**累计收益本身** ✓（不再是"窗口内的变化量" ✗）。
+     起点写进标签（旧版只写「全期」，用户据此把 +8,278 读成了"账户一共赚了 8,278" ✗）；
+     data-* 给门禁 ④k 留**精确值** ✓（显示按整元取整 ✗，几十元的漂移在显示值上分辨不出 ✓）。 */
   h += '<tr class="mx-foot" data-all="' + allSum.toFixed(2) + '" data-base="' + baseD + '" data-base-pl="' + basePl.toFixed(2) + '">'
-    + '<td class="mx-d">全期<i class="mx-since">自 ' + baseD.slice(5) + "</i></td>"
+    + '<td class="mx-d">全期<i class="mx-since">自账户起点</i></td>'
     + cols.map((t) => '<td class="mx-c mx-sum ' + cls(colSum(t)) + '">' + fmtAmt(colSum(t)) + "</td>").join("")
     + '<td class="mx-c mx-sum ' + cls(allSum) + '">' + fmtAmt(allSum) + "</td></tr></tbody></table></div>";
 
-  /* 下钻：点某行 → 该期逐只明细。默认选净变动最大的那期。 */
+  /* 下钻：点某行 → 该期逐只明细。默认选净变动最大的那期。
+     ⚠ 2026-10-09（A）：多了「期初结转」行 → cur 用 **"carry"** 表示它 ✓（不能用 live 的下标 ✗，那会指向错误的一期 ✗）。
+       它的明细是"各标的到基准期的**累计结果**"，不是"本期变动" ✓ —— 标题里写明，避免读者按逐期口径读 ✗。 */
   let cur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
   const detail = () => {
-    const p = live[cur];
+    const isCarry = cur === "carry";
+    const p = isCarry ? { d: baseD, items: carryItems, kinds: {}, net: carryTotal, carry: true } : live[cur];
     const list = Object.entries(p.items).map(([c, v]) => ({ c, v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
-    return '<div class="sa-detail"><div class="sd-head">' + p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）"
+    return '<div class="sa-detail"><div class="sd-head">'
+      + (isCarry
+        ? "期初结转 · 账户起点 → " + baseD + " 的逐只累计结果（合计 " + fmtAmt(carryTotal) + " 元）"
+        : p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）")
       + '<span class="sd-hint">点上方任一行可切换</span></div>'
       + list.map((x) => {
         /* 逐只标出「这只本期是什么性质」（2026-10-09 加）：清仓 ✓ ／ 清仓但不可归因 ⚠ ✓
@@ -1486,17 +1548,26 @@ function renderSnapAttr() {
     + "（那一档画出来与「该主题当期无标的」长得一样，容易误读 ✗）。"
     + "<br>格里的「·」＝该期该主题<b>没有可归因的标的</b>（当时尚未持有，不是「变动为 0」）；"
     + "悬停任一<b>格</b>看该主题当期的成员与逐只金额，点任一<b>行</b>看该期全部逐只明细 ✓"
-    + "<br><b>「全期」那一行是窗口内的变化量</b> ✓，不是累计收益本身 ✗ —— 它 ＝ 累计收益(" + lastD.slice(5) + ") − 累计收益(" + baseD.slice(5) + ") ✓"
-    + "（表上方那行小字就是这两个水平值 ✓；两处相差 ≤2 元，是快照逐只手写取整的尾差 ✓，不是算法不一致 ✗）。"
-    + "<b>窗口起点不是账户起点</b>：更早的期缺 items，归因只能从第一个「两期都有明细」的对算起 ✓；"
-    + "累计收益则自最早记录起算 ✓ —— 两个数看着差很多，是<b>窗口不同</b>，并不矛盾 ✓"
-    + (hidden.length ? "<br>⚠ 已**隐藏** " + hidden.length + " 期（缺 items，无法归因）：" + hidden.join(" ") + " —— 隐藏而非补 0 ✓" : "")
+    + "<br><b>「全期」＝ 账户起点 → " + lastD.slice(5) + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(lastPl) + " ✓），"
+    + "不是「某段窗口内的变化量」✗（旧版只覆盖 " + baseD.slice(5) + " 之后，于是「全期」成了变化量 ✗、与累计收益差 8,278 ✗；"
+    + "2026-10-09 加了「期初结转」行之后两者合流 ✓，表上方那行小字就是这两个数 ✓）。"
+    + "<br><b>「期初结转」行 ＝ 账户起点 → " + baseD.slice(5) + " 的累计结果</b>（该期 Σ逐只 pl ＝ " + fmtAmt(carryTotal) + " ✓；"
+    + "场内自 06-01 起、场外自 03-03 起 ✓）；它下面是逐期行，只保留前后两期都有 items 的对 ✓ —— "
+    + "缺 items 的那几对已<b>并入这一行</b> ✓，不是丢掉 ✗。"
+    + "⚠ 这一行含「在持标的自买入以来的结果」✓，但<b>不含场外那 17 笔已清仓</b>"
+    + (closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(closedOtcSum) + " ✓）")
+    + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 ✗ → 无法归入本金 ✓，只在「清仓历史」卡 ✓"
+    + "（场内那 2 只已清仓<b>不同</b> ✓ —— 它们已通过本金修正进了总账 ✓）。"
+    + (hidden.length ? "<br>⚠ 已<b>并入</b>「期初结转」的相邻对共 " + hidden.length + " 个（相邻对里有一期缺 items，无法逐期归因）：" + hidden.join(" ") + " ✓" : "")
     + "</div>";
   el.innerHTML = h;
   const box = el.querySelector(".sa-detail-box");
   el.querySelectorAll(".sa-mx tbody tr[data-i]").forEach((tr) => {
     tr.onclick = () => { cur = +tr.dataset.i; box.innerHTML = detail(); };
   });
+  /* 「期初结转」行的下钻（A）：与期行同一套 ✓，只是 cur 用 "carry" ✓ */
+  const carryTr = el.querySelector(".sa-mx tbody tr.mx-carry");
+  if (carryTr) carryTr.onclick = () => { cur = "carry"; box.innerHTML = detail(); };
   /* 维度切换（2026-10-09，B）：整块重渲染 ✓（简单、无状态漂移 ✓）。
      用**容器委托**而不是逐个绑按钮 ✓ —— 与渲染次数无关，也不会随重渲染丢监听 ✓。
      ⚠ 它不干扰行点击：行上的 onclick 先触发、这里再收到冒泡，但 closest("[data-dim]") 为空 → 直接 return ✓ */

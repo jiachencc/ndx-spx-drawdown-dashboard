@@ -1464,6 +1464,13 @@
   /* 「全期」那一格的起点日期：换行显示（写在同行会把「期」列撑宽 ✗ → 挤压后面的列 ✓） */
   #snap-attr table.sa-mx td.mx-d .mx-since { display: block; font-size: var(--chk-fs-mini); color: var(--tx3); font-weight: 400; }
 
+  /* ── 归因矩阵「期初结转」行（2026-10-09 加，A）─────────────────────────────────────
+     它不是"一期"，而是一段**区间**（账户起点 → 基准期 ✓）→ 视觉上必须与期行分开 ✓：
+     虚线分隔 ＋ 标签更醒目（把 .mx-since 那行压回常规字重 ✓，避免与期行的日期混淆 ✗）。
+     数值照旧走 up/down 的绿红 ✓、底色照旧对数尺度 ✓ —— 不涂灰 ✗（灰在本页＝未更新 / 无数据 ✓）。 */
+  #snap-attr table.sa-mx tbody tr.mx-carry > td { border-top: 1px dashed var(--line-soft); }
+  #snap-attr table.sa-mx tbody tr.mx-carry .mx-d { font-weight: 700; letter-spacing: .02em; }
+
   /* ── 盈亏归因矩阵 · 修复（2026-10-07，用户报「样式错了」＋「明细柱状图没了」）──────────────
      取证结论（截图 ＋ 探针，非推测）：
      ① 文字色变量被污染：`:root` 的 --tx = #e2e9f5（浅色 ✓），但在 #snap-attr 内解析成
