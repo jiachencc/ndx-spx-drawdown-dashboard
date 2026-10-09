@@ -792,13 +792,16 @@ function renderOtcLog() {
       + (live && r.cur ? " · 该额连续 " + r.cur.run + " 笔"
         : r.cur ? " · 末次定投 " + r.cur.amt + "元（" + d5(r.cur.d) + "）"
           : " · 无定投（仅申购 / 转换）") + "</span></td>"
-      + '<td class="n f-inv">' + fmtYuan(r.inv) + "</td>"
-      + '<td class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</td></tr>";
+      /* 2026-10-09：给数字列预埋**手机列名**（.c-lb，与 .chk-tbl 同一约定 ✓）——
+         桌面 display:none 不占位、不改观感；≤767px 表格改卡片、表头隐去，靠它认出哪个数字是什么 ✓
+         （不预埋就只是"把表头隐掉"，数字会变成一串没有名字的金额 ✗） */
+      + '<td class="n f-inv"><i class="c-lb">已成交投入</i>' + fmtYuan(r.inv) + "</td>"
+      + '<td class="n f-gain ' + cls(r.f.pnl) + '"><i class="c-lb">App 持仓收益</i>' + fmtAmt(r.f.pnl) + "</td></tr>";
   });
   const totInv = rows.reduce((a, r) => a + r.inv, 0), totPnl = rows.reduce((a, r) => a + r.f.pnl, 0);
   const totN = rows.reduce((a, r) => a + r.log.length, 0);
-  h += '<tr class="sum"><td>合计（' + rows.length + " 只 · " + totN + ' 笔）</td><td class="n f-inv">' + fmtYuan(totInv)
-    + '</td><td class="n f-gain ' + cls(totPnl) + '">' + fmtAmt(totPnl) + "</td></tr></tbody></table>";
+  h += '<tr class="sum"><td>合计（' + rows.length + " 只 · " + totN + ' 笔）</td><td class="n f-inv"><i class="c-lb">已成交投入</i>' + fmtYuan(totInv)
+    + '</td><td class="n f-gain ' + cls(totPnl) + '"><i class="c-lb">App 持仓收益</i>' + fmtAmt(totPnl) + "</td></tr></tbody></table>";
   /* 异常笔单列：定投扣款失败/撤单往往没人注意，但它是「计划有没有按计划跑」的直接证据 */
   const bads = [];
   rows.forEach((r) => r.bad.forEach((t) => bads.push({ t, f: r.f })));
@@ -823,12 +826,12 @@ function renderOtcLog() {
       h += '<tr><td><span class="f-nm">' + esc(nmOf(r.f)) + "</span>"
         + '<span class="f-meta">' + r.ins.length + " 笔 · 首笔 " + d5(r.ins[0].d) + " · 首笔净值 " + r.navFirst
         + (r.navMiss ? " · " + r.navMiss + " 笔无净值" : "") + "</span></td>"
-        + '<td class="n f-inv">' + fmtYuan(r.pack) + '</td><td class="n f-inv">' + fmtYuan(r.lump) + "</td>"
-        + '<td class="n ' + cls(d) + '">' + fmtAmt(d) + "</td></tr>";
+        + '<td class="n f-inv"><i class="c-lb">实际（分批）</i>' + fmtYuan(r.pack) + '</td><td class="n f-inv"><i class="c-lb">假设（一次性）</i>' + fmtYuan(r.lump) + "</td>"
+        + '<td class="n ' + cls(d) + '"><i class="c-lb">差</i>' + fmtAmt(d) + "</td></tr>";
     });
     h += '<tr class="sum"><td>合计（' + pairRows.length + " 只）</td>"
-      + '<td class="n f-inv">' + fmtYuan(sPack) + '</td><td class="n f-inv">' + fmtYuan(sLump) + "</td>"
-      + '<td class="n ' + cls(sPack - sLump) + '">' + fmtAmt(sPack - sLump) + "</td></tr></tbody></table>";
+      + '<td class="n f-inv"><i class="c-lb">实际（分批）</i>' + fmtYuan(sPack) + '</td><td class="n f-inv"><i class="c-lb">假设（一次性）</i>' + fmtYuan(sLump) + "</td>"
+      + '<td class="n ' + cls(sPack - sLump) + '"><i class="c-lb">差</i>' + fmtAmt(sPack - sLump) + "</td></tr></tbody></table>";
   }
   h += '<details class="closed-all dca-wrap"><summary>逐笔明细 · ' + totN + ' 笔（按基金展开）</summary><div class="dca-funds">'
     + '<div class="dca-legend">每行：日期 · 类型 · 金额 · <b>当日净值</b> · <b>该笔至今盈亏</b>'
