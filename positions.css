@@ -852,7 +852,6 @@
   .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .kpi-row.kpi3 { grid-template-columns: repeat(3, 1fr); }   /* 场内卡 3 格版：浮盈并入市值格，与竖梯 chips 去重 */
   .kpi-row.kpi2 { grid-template-columns: repeat(2, 1fr); }   /* 场内卡 2 格版（2026-09-30）：没卖出的标的没有第三格，别留空位 */
-  .kpi-row.kpi1 { grid-template-columns: 1fr; }              /* 快照卡 1 格版（2026-10-09 用户要求删掉「总变化 / 银行进出」后只剩「总资产」）*/
   /* KPI 卡片统一为一套：原 8px 4 / 10px 8 / 8px 6 三种 padding 同位不同高，列内行高不齐 */
   .kpi, .sum-cell, .sw-kpi { padding: 10px 8px; border-radius: var(--radius-md); }
   .kpi { background: var(--card2); border: 1px solid var(--line-soft); text-align: center; min-width: 0; }
