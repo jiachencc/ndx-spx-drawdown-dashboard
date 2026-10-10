@@ -1319,6 +1319,9 @@ let saSel = null;
      （真正的判据只能是"标题里出现的那一期的日期" ✓ —— 已补进 dom-check ④l-3 ✓）。
    null ＝ 还没选过 → 首次渲染取「净变动最大」那期 ✓（与旧行为一致 ✓）；"carry" ＝ 期初结转那一段 ✓。 */
 let saCur = null;
+/* 日期 → 该期在 `live` 里的下标（每次渲染归因时重建 ✓）——
+   「逐期明细」那边要点进来定位到同一期 ✓，而 `live` 是渲染函数内的局部量 ✗ → 用这张表搭桥 ✓。 */
+let saD2I = {};
 /* 列头图的选中期（2026-10-09 第四步 B：A1~A4）—— 也是**模块级** ✓：
    悬停/按键会改它 ✓，而从某一格「← 返回」回来会整块重渲染 ✗ → 重渲染后靠它把选中期恢复出来 ✓。
    col 记的是当前是哪一列 ✓：换列就把 i 复位成 -1 ✓（否则会把上一列的"第 7 期"错当成这一列的 ✓）。 */
@@ -1492,6 +1495,8 @@ function renderSnapAttr() {
     saCur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
   }
   const cur = saCur;                     // 只读别名（本函数内所有 `cur` 都不再改 ✓ —— 改的是 saCur ✓）
+  saD2I = {};                            // 日期 → 下标（供「逐期明细」点行跨进来定位 ✓，见 saD2I 声明处 ✓）
+  live.forEach((p, i) => { saD2I[p.d] = i; });
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + cols.map((t) => "<th" + (saSel && saSel.k === "cell" && saSel.col === t ? ' class="mx-selc"' : "")
       + (saSel && saSel.k === "col" && saSel.col === t ? ' data-onsel="1"' : "")
@@ -1741,7 +1746,12 @@ function renderSnapAttr() {
     const zB = yBarTop + hBar / 2, kB = (hBar / 2 - 2) / mxB;
     const cum = [c0];
     ser.forEach((x) => cum.push(cum[cum.length - 1] + x.v));
-    const lo = Math.min(c0, cEnd), hi = Math.max(c0, cEnd);
+    /* ⚠ 2026-10-10 修（用户：「点击标普的时候 折线图不完整」✓）——
+       值域原来只取**两个端点** ✗（min/max(c0, cEnd)）→ 中点若越出这个区间，折线就画到面板外 ✗。
+       标普实测：端点 3,977 → 4,204 ✓，而中途跌到 ~2,052、冲到 ~5,152 ✗
+       → 折线在累计面板上下各越界 230~370px ✗（截图上就是几条上下乱窜的尖峰 ✓ = 用户看到的"不完整"✓）。
+       → 改成取**整条路径**的上下界（cum ＝ 起点 ＋ 每一期的累计 ✓），折线必然落在面板内 ✓。 */
+    const lo = Math.min.apply(null, cum), hi = Math.max.apply(null, cum);
     const padC = (hi - lo || Math.abs(c0) || 1) * 0.15;
     const yC = (v) => yCumTop + hCum - ((v - (lo - padC)) / ((hi + padC) - (lo - padC) || 1)) * hCum;
     const tcol = cEnd >= 0 ? "#2dd4a7" : "#e0576b";
@@ -1760,7 +1770,11 @@ function renderSnapAttr() {
     });
     /* ── 下：累计（起点基线 ＋ 折线，**按缺口分段** ✓）── */
     g += '<line x1="' + mL + '" y1="' + yCumTop.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yCumTop.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
-    g += '<line x1="' + mL + '" y1="' + yC(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yC(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
+    /* 0 轴虚线**只在 0 落进面板时**才画 ✓（2026-10-10 与上一条同源 ✗）：0 不在值域里时，
+       yC(0) 会把它画到面板外 / 画布外 ✗ —— 要么看不见、要么是一根"漂在面板下方"的孤立虚线 ✗。
+       实测本页 6 列里只有极少数列的累计会穿过 0 ✓，多数列画它本来就没有意义 ✓。 */
+    if (lo <= 0 && 0 <= hi)
+      g += '<line x1="' + mL + '" y1="' + yC(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yC(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
     /* ⚠ 起点那条虚线**删掉** ✓：X(baseD) ≡ mL ✓ → 它长度恒为 0 ✗（画了也看不见 ✓）；
        "起点 X" 标签原来右对齐挂在 mL−5 ✓ → 文字宽约 52px，窄屏会**越界出画布左缘 5px** ✗
        （2026-10-10 用户报「折线图有遮挡」✓ —— 探针实测越界元素就这一个 ✓）
@@ -1805,8 +1819,14 @@ function renderSnapAttr() {
         + '" height="' + H + '" data-cell="1" data-d="' + esc(x.d) + '" data-col="' + esc(col) + '" data-v="' + x.v.toFixed(2) + '">'
         + "<title>" + esc(x.d + " 这一期 · " + colNameOf(col) + "　" + fmtAmt(x.v) + " 元（点一下看这一格的逐只 ✓）") + "</title></rect>";
     });
+    /* data-cumlo / data-cumhi / data-panel 是给**门禁**用的（2026-10-10 加）：
+       门禁把图里每根柱子的 data-v 独立累加成一条累计曲线 ✓，再断言它**整条**都落在声明的值域内 ✓
+       —— 这正好是"折线图不完整"那个 bug 的判据 ✓（值域只取端点时，中点的峰谷会立刻越界 ✗）。
+       data-panel ＝ 累计面板的上下边（SVG 坐标 ✓），用来断言折线**画在面板内** ✓。 */
     return '<div class="sa-detail sa-chart" data-col="' + esc(col) + '" data-c0="' + c0.toFixed(2) + '" data-bars="' + barsSum.toFixed(2)
-      + '" data-end="' + cEnd.toFixed(2) + '" data-n="' + ser.length + '">'
+      + '" data-end="' + cEnd.toFixed(2) + '" data-n="' + ser.length + '"'
+      + ' data-cumlo="' + lo.toFixed(2) + '" data-cumhi="' + hi.toFixed(2) + '"'
+      + ' data-panel="' + yCumTop.toFixed(1) + "," + (yCumTop + hCum).toFixed(1) + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
       + "<b>" + esc(colNameOf(col)) + "</b> · 逐期贡献与累计（" + ser.length + " 期 ✓ · 按实际日期间距 ✓）· <b>合计 " + fmtAmt(cEnd) + "</b>"
       + '<span class="sd-hint">上＝本期贡献、下＝累计（各用自己的尺 ✗ 不做双 y 轴 ✓）</span></div>'
@@ -2212,6 +2232,41 @@ window.addEventListener("resize", () => {
 });
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
    用 onclick 赋值而非 addEventListener —— render() 会重跑，避免重复绑监听。 */
+/* ── 「逐期明细」的持仓变化行 → 直接跳到该只的**逐期轨迹**（2026-10-10，用户选的 ①）──────────
+   为什么跨视图：轨迹（各期贡献 ＋ 事件 ＋ 本期快照对比 ＋ 生涯累计 ✓）只在「盈亏归因」里有 ✓，
+   而用户第一眼看到的是「逐期明细」里那一行"这只这期亏了多少" ✓ → 从那里进去最顺手 ✓。
+   做法：**复用**既有的视图切换 ✓（点一下那个 tab ✓，不另写一套显隐逻辑 ✗），只是先把归因状态摆好 ✓：
+     · saSel = {k:"hold", code, back:null} → 「← 返回」直接回整期 ✓（不是回某一格 ✗）
+     · saCur ＝ 承载行的 `<article data-d="…">` 那一期 ✓（用 saD2I 反查 ✓；查不到就保持当前期 ✓）
+   ⚠ 顺序要紧：先设状态、再点 tab ✓ —— 切换时会 renderSnapAttr() ✓，读的就是这份状态 ✓。 */
+function gotoHoldInAttr(code, d) {
+  if (!code) return;
+  const i = saD2I[d];
+  if (i !== undefined) saCur = i;
+  saSel = { k: "hold", code: code, back: null };
+  const btn = [...document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "attr");
+  if (btn) btn.click();
+  else { const attr = $("snap-attr"), log = $("snap-list"); if (attr && log) { log.hidden = true; attr.hidden = false; renderSnapAttr(); } }
+}
+/* 委托绑一次即可 ✓（`#snap-list` 这个容器是常驻的 ✓，行是每次重渲染换掉的 ✓ —— 与页内其它列表同一手法 ✓）。
+   ⚠ 键盘与鼠标走同一套 ✓（Enter / Space ✓）；行是 role=button ＋ tabindex=0 ✓
+     （与「归因下钻」里的 .sd-click 行同一套 a11y 语言 ✓）。 */
+function bindSnapListJump() {
+  const box = $("snap-list");
+  if (!box) return;
+  const pick = (t) => {
+    const row = t.closest ? t.closest("[data-attr]") : null;
+    if (!row) return false;
+    const art = row.closest(".snap-item");
+    gotoHoldInAttr(row.getAttribute("data-attr"), art ? art.getAttribute("data-d") : null);
+    return true;
+  };
+  box.addEventListener("click", (e) => { pick(e.target); });
+  box.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    if (pick(e.target)) e.preventDefault();
+  });
+}
 function bindSnapSwitch() {
   const box = $("snap-switch"), log = $("snap-list"), attr = $("snap-attr");
   if (!box || !log || !attr) return;
@@ -2228,6 +2283,7 @@ function bindSnapSwitch() {
 
 safeCard("snap-list", "快照对比", renderSnapLog);
   bindSnapSwitch();                        // 视图切换：归因图按需渲染（零首屏成本）
+  bindSnapListJump();                      // 「逐期明细」持仓行 → 归因轨迹（2026-10-10 ✓）
   safeCard("acct-card", "场内账户统计", renderAcctStats);
   safeCard("fee-card", "费率体检", renderFees);
   safeCard("alt-card", "标的替换回测", renderAlt);
@@ -3852,7 +3908,12 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
   /* 两列合一列（2026-09-23）：左＝当日盈亏（本期波动，大而粗、带色），右＝总盈亏（持仓水平，小一号、常规字重）。
      原来两者同字号同字重、各占一列（64+72px），手机上既挤名称，又分不出主次。 */
   const num = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);
-  return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '"><span class="n" title="' + esc(name) + " · " + esc(src.f) +
+  /* 整行可点（2026-10-10）：点它 → 切到「盈亏归因」看这只的逐期轨迹 ✓（见 gotoHoldInAttr ✓）。
+     ⚠ 只在**这个视图**加 ✓（同一个 snapItemRow 也用于别处吗？——不 ✓，它只服务「逐期明细」✓）。 */
+  return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '" data-attr="' + esc(code) + '"'
+    + ' role="button" tabindex="0" aria-label="' + esc("看 " + name + " 的逐期轨迹（跳到「盈亏归因」）") + '"'
+    + ' title="' + esc("点一下（或回车）→ 到「盈亏归因」看 " + name + " 的逐期轨迹：各期贡献 ＋ 本期快照对比 ＋ 生涯累计") + '">'
+    + '<span class="n" title="' + esc(name) + " · " + esc(src.f) +
       (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
     srcTag + qt + "</span>" +
     '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（该只累计实际结果，含已实现与双边费用；清仓行＝从建仓到清仓的结果 ✓）">' +

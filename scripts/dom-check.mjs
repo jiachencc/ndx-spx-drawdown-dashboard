@@ -1160,6 +1160,79 @@ check("SVG 无非法坐标", bad.length === 0, bad.slice(0, 5).join(" "));
 
 check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | "));
 
+/* ⑤b 「逐期明细」持仓变化行 → 归因轨迹（2026-10-10，用户：「1+2」里的 ①）──────────────
+   这条补的是**跨视图**入口 ✓：轨迹只在「盈亏归因」里有 ✓，而用户第一眼看到的是「逐期明细」那行
+   "这只这期亏了多少" ✓ → 点它应直达轨迹 ✓，且**期也要跟过去**（用承载行的 data-d 定位 ✓）。
+   判据：切换后归因视图可见 ✓ ＋ 出现 data-hold-total 明细块 ✓ ＋ 块内出现**点的那一期**的日期 ✓。 */
+{
+  const tagBtn = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");
+  if (tagBtn) tagBtn.click();
+  const rowJ = win.document.querySelector("#snap-list [data-attr]");
+  const jCode = rowJ ? rowJ.getAttribute("data-attr") : "";
+  const jName = rowJ ? (((rowJ.querySelector(".nn") || {}).textContent) || jCode) : "";   // ⚠ nameAt() 是 ④ 块内的局部函数 ✗ → 取行上显示的名称 ✓
+  const jArt = rowJ ? rowJ.closest(".snap-item") : null;
+  const jD = jArt ? (jArt.getAttribute("data-d") || "") : "";
+  const attrEl = win.document.getElementById("snap-attr");
+  if (rowJ) rowJ.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  const jBox = attrEl ? attrEl.querySelector(".sa-detail[data-hold-total]") : null;
+  const jTot = jBox ? Number(jBox.getAttribute("data-hold-total")) : NaN;
+  const jHead = jBox ? jBox.textContent.replace(/\s+/g, " ") : "";
+  check("逐期明细：点持仓变化行（" + jName + "）→ 直达该只的归因轨迹",
+    !!rowJ && !!attrEl && !attrEl.hidden && !!jBox && Number.isFinite(jTot)
+      && (jHead.indexOf(jName) >= 0 || jHead.indexOf(jCode) >= 0) && jHead.indexOf(jD.slice(5)) >= 0,
+    rowJ ? "归因视图 hidden=" + (attrEl && attrEl.hidden) + " · data-hold-total=" + (Number.isFinite(jTot) ? jTot : "—")
+      + " · 含该期 " + jD.slice(5) + "：" + (jHead.indexOf(jD.slice(5)) >= 0) + " · 含该只名：" + (jHead.indexOf(jName) >= 0)
+      : "#snap-list 里没有 [data-attr] 行 ✗（逐期明细行没做成可点）");
+  if (tagBtn) tagBtn.click();      // 复位到逐期明细 ✓（别把状态留给后面的断言 ✗）
+}
+
+/* ⑤c 列折线**不得画到面板外**（2026-10-10，起于用户：「点击标普的时候 折线图不完整」）─────────
+   根因：累计面板的值域原来只取**两个端点** ✗（min/max(c0, cEnd)）→ 中途的峰谷越出区间就画到面板外 ✗
+     （标普实测：端点 3,977 → 4,204，中途跌到 ~2,052 / 冲到 ~5,152 → 折线上下各越界 230~370px ✗✓）。
+   两条独立断言（都用页面**自己渲染出来的** data-v 复算 ✓，不读页面中间量 ✗）：
+     ① 值域必须**包住整条累计曲线**：把 figure 里每根柱子的 data-v 依次累加（＋ data-c0 ✓），
+        其最小值/最大值都要落在 [data-cumlo, data-cumhi] 内 ✓（只取端点时这条必红 ✗）
+     ② 折线的每个点与每个顶点圆点都要落在声明的**累计面板** [data-panel] 内 ✓（画出去＝图不完整 ✗） */
+{
+  /* ⚠ 先切回「主题」维度 ✓：④ 段跑完时维度常停在别的档（如「场内/场外」只有 2 列 ✗）——
+     那样本段只验到 2 列 ✓（标普只落在「场内」那一列 ✓），覆盖率就悄悄缩水了 ✗。 */
+  const dimBtn = win.document.querySelector('#snap-attr [data-dim="theme"]');
+  if (dimBtn) dimBtn.click();
+  const colKeys = [...win.document.querySelectorAll("#snap-attr th[data-colhead]")].map((th) => th.getAttribute("data-colhead"));
+  const bad1 = [], bad2 = [], nCols = [];
+  colKeys.forEach((key) => {
+    /* 每轮**重新取元素** ✓：点一次列头就整块重渲染 ✓，先前抓到的是 detached 节点 ✗（点它不会再冒泡 ✓） */
+    const th = win.document.querySelector('#snap-attr th[data-colhead="' + key + '"]');
+    if (th) th.click();
+    const box = win.document.querySelector("#snap-attr .sa-chart");
+    if (!box) { bad1.push(key + " 没出图 ✗"); return; }
+    const col = box.getAttribute("data-col");
+    const c0 = Number(box.getAttribute("data-c0"));
+    const vals = [...box.querySelectorAll("rect.sa-bar")].map((r) => Number(r.getAttribute("data-v")));
+    /* ① 独立累加：cum = c0, c0+v1, c0+v1+v2, … */
+    let run = c0; const cum = [c0];
+    vals.forEach((v) => { run += v; cum.push(run); });
+    const lo = Number(box.getAttribute("data-cumlo")), hi = Number(box.getAttribute("data-cumhi"));
+    const cLo = Math.min.apply(null, cum), cHi = Math.max.apply(null, cum);
+    if (!(lo <= cLo + 0.005 && cHi <= hi + 0.005))
+      bad1.push(col + " 值域[" + lo + ", " + hi + "] 没包住曲线[" + cLo.toFixed(2) + ", " + cHi.toFixed(2) + "]");
+    /* ② 面板内的点（polyline 的 y ＋ 每个顶点的 cy） */
+    const pn = box.getAttribute("data-panel").split(",").map(Number);
+    const ys = [];
+    box.querySelectorAll("polyline.sa-line").forEach((pl) => {
+      pl.getAttribute("points").trim().split(/\s+/).forEach((q) => ys.push(Number(q.split(",")[1])));
+    });
+    box.querySelectorAll("circle.sa-vertex").forEach((c) => ys.push(Number(c.getAttribute("cy"))));
+    const out = ys.filter((y) => !(y >= pn[0] - 0.6 && y <= pn[1] + 0.6));
+    if (out.length) bad2.push(col + " " + out.length + " 个点越界（y " + out.slice(0, 3).map((x) => x.toFixed(1)).join("/") + " vs 面板 " + pn.join("-") + "）");
+    nCols.push(col + ":" + vals.length);
+  });
+  check("归因列图：累计折线**整条**落在声明的值域内（值域不再只取端点 ✗）" + (colKeys.length ? "（" + colKeys.length + " 列逐列验）" : ""),
+    colKeys.length > 0 && bad1.length === 0, bad1.join("；") || nCols.join(" "));
+  check("归因列图：折线与顶点圆点都画在累计面板内（点标普不再「不完整」✓）",
+    colKeys.length > 0 && bad2.length === 0, bad2.join("；") || (colKeys.length + " 列 · 全部点都在面板内 ✓"));
+}
+
 /* ⑥ 个人财务看板（2026-10-10 加 —— 本次动了它两处 UI：加「本月 · 进行中」列、两个图去掉中轴）──────
    为什么现在补：这两处都是"改版时最容易被后来人悄悄改回去"的契约 ✗，而 finance 页此前
    **一条 DOM 断言都没有** ✗（只有 check-finance 管数据恒等式 ✓）。五条断言全读**渲染出来的 DOM**：
