@@ -1353,6 +1353,25 @@
   .bench-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border: 1px solid; border-radius: var(--radius-xs); padding: 1px 6px; white-space: nowrap; font-feature-settings: "tnum"; }
   .bench-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
   .bench-chip.down { color: var(--down); border-color: var(--down-line); background: var(--down-bg); }
+
+  /* ── 场外账户统计（2026-10-10 加）────────────────────────────────────────────────
+     逐渠道行＝「名称 ｜ 条形 ｜ 全年」＋ 脚注（脚注跨列、窄屏自然折行 ✓）。
+     条形**自左向右** ∝ |全年| ✓（同一把尺 ✓）；颜色走本页的 --up / --down ✓（绿＝盈、红＝亏 ✓）。 */
+  .otc-rows { margin-top: 10px; border-top: 1px dashed var(--line-soft); padding-top: 8px; }
+  .otc-row { display: grid; grid-template-columns: minmax(84px, max-content) 1fr auto; align-items: center;
+    gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
+  .otc-row:last-child { border-bottom: 0; }
+  .otc-nm { display: flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }
+  .otc-track { position: relative; height: 10px; background: var(--card2); border-radius: 5px; overflow: hidden; }
+  .otc-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; min-width: 2px; }
+  .otc-fill.up { background: var(--up); }
+  .otc-fill.down { background: var(--down); }
+  .otc-v { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; }
+  .otc-sub { grid-column: 2 / -1; font-size: var(--fs-xxs); color: var(--tx3); }
+  /* 「10 月 · 进行中」：虚线框 ＋ 弱化 ✓ —— 与财务页那条同一条纪律（不入合计 ✓） */
+  .otc-mtd { margin-top: 8px; padding: 6px 8px; border: 1px dashed var(--line); border-radius: var(--radius-xs);
+    font-size: var(--fs-xxs); color: var(--tx2); line-height: 1.6; }
+  .otc-mtd b { font-family: var(--mono); color: var(--tx); }
   /* 清仓历史：名称（带代码）左、兑现盈亏右；末行合计与上方虚线分隔 */
   .closed-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
   .closed-row:last-of-type { border-bottom: 0; }

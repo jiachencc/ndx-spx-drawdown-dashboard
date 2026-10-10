@@ -1233,6 +1233,131 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     colKeys.length > 0 && bad2.length === 0, bad2.join("；") || (colKeys.length + " 列 · 全部点都在面板内 ✓"));
 }
 
+/* ④o 场外账户统计卡（2026-10-10 加，用户：「场内账户统计 模块是不是可以加上场外账户统计？
+   因为有数据在 finance/index.html 里了」）────────────────────────────────────────────────
+   卡里的数全部来自 finance/finance-data.js（FIN_PL）✓ —— 本块**独立复算**一份再对：
+     ① 每行 data-v ≡ 该渠道全年（FIN_PL 逐月求和；缺键/ null 一并不计 ✓）
+     ② 卡总 data-otc-total ≡ 5 个渠道之和 ✓
+     ③ 每根月度柱 data-v ≡ 该月各渠道之和 ✓（月份集合 ≡ 有读数的月份 ✓）
+     ④ 10 月进行中 data-mtd-sum ≡ FIN_MTD 里 fund 类渠道之和 ✓，且**不计入**全年 ✗（两条互相独立 ✓）
+     ⑤ 图例 / 读数条那句"场外全年 … vs …"里的两个数 ≡ 独立复算的现值 ✓
+        —— 防"写死的旧数"回来 ✗：旧版 4 处各写死 −1,964 / −2,149 ✗，9 月账单订正后全部过期 ✓
+          （实测现值 −1,946.07 / −1,653.54 ✓，差的不是同一个量 ✓ —— 正是这条要拦的 ✗） */
+{
+  const fd2 = (() => {
+    try {
+      const s = readFileSync(path.join(root, "finance", "finance-data.js"), "utf8");
+      const c = vm.createContext({});
+      vm.runInContext(s + "\nthis.o = { FIN_PL, FIN_ACCOUNTS, FIN_MONTHS, FIN_MTD, FIN_ASOF };", c, { timeout: 500 });
+      return c.o;
+    } catch (e) { return null; }
+  })();
+  const card = win.document.getElementById("otc-acct-card");
+  if (!fd2 || !card) {
+    check("场外账户统计卡存在（数据层 finance-data.js ＋ 容器 #otc-acct-card）", false,
+      !fd2 ? "读不到 finance/finance-data.js" : "页面里没有 #otc-acct-card");
+  } else {
+    const fds = fd2.FIN_ACCOUNTS.filter((a) => a.kind === "fund");
+    const wk = (id) => Object.entries(fd2.FIN_PL[id] || {}).reduce((a, [, v]) => a + (typeof v === "number" ? v : 0), 0);
+    const wantRows = {}, wantTotal = fds.reduce((a, x) => a + (wantRows[x.id] = wk(x.id)), 0);
+    const badRow2 = [];
+    fds.forEach((a) => {
+      const tr = card.querySelector('[data-ch="' + a.id + '"]');
+      const v = tr ? Number(tr.getAttribute("data-v")) : NaN;
+      if (!tr || !Number.isFinite(v) || Math.abs(v - wantRows[a.id]) > 0.005)
+        badRow2.push(a.name + " 页面 " + (Number.isFinite(v) ? v : "—") + " ≠ 复算 " + wantRows[a.id].toFixed(2));
+    });
+    check("场外卡：逐渠道全年 ≡ FIN_PL 复算（" + fds.length + " 个渠道：" + fds.map((a) => a.name).join("/") + "）",
+      fds.length > 0 && badRow2.length === 0, badRow2.join("；") || "合计 " + (wantTotal >= 0 ? "+" : "−") + Math.abs(wantTotal).toFixed(2));
+    const gotTot = Number(card.getAttribute("data-otc-total"));
+    check("场外卡：卡总 ≡ 5 渠道之和（" + (wantTotal >= 0 ? "+" : "−") + Math.abs(wantTotal).toFixed(2) + "）",
+      Number.isFinite(gotTot) && Math.abs(gotTot - wantTotal) < 0.005, "data-otc-total=" + gotTot + " · 复算 " + wantTotal.toFixed(2));
+    /* ③ 月度柱 */
+    const wantM = {};
+    fd2.FIN_MONTHS.forEach((m) => {
+      let s2 = 0, has = false;
+      fds.forEach((a) => { const v = (fd2.FIN_PL[a.id] || {})[m]; if (typeof v === "number") { s2 += v; has = true; } });
+      if (has) wantM[m] = s2;
+    });
+    const bars = [...card.querySelectorAll("rect.otc-bar")];
+    const badBar = [];
+    bars.forEach((b) => {
+      const m = b.getAttribute("data-m"), v = Number(b.getAttribute("data-v"));
+      if (!(m in wantM) || Math.abs(v - wantM[m]) > 0.005) badBar.push(m + " 页面 " + v + " ≠ 复算 " + (wantM[m] === undefined ? "（该月无读数 ✗）" : wantM[m].toFixed(2)));
+    });
+    check("场外卡：月度柱逐月 ≡ 复算，且月份集合 ≡ 有读数的月份（" + Object.keys(wantM).length + " 个月）",
+      bars.length === Object.keys(wantM).length && badBar.length === 0,
+      badBar.join("；") || bars.map((b) => b.getAttribute("data-m")).join(" "));
+    /* ④ 10 月进行中：只认 fund 渠道，且不进全年 */
+    const mtdBox = card.querySelector("[data-mtd-sum]");
+    const mtdWant = fd2.FIN_MTD
+      ? fds.filter((a) => typeof (fd2.FIN_MTD.pl || {})[a.id] === "number").reduce((a, x) => a + fd2.FIN_MTD.pl[x.id], 0) : null;
+    const mtdGot = mtdBox ? Number(mtdBox.getAttribute("data-mtd-sum")) : NaN;
+    check("场外卡：10 月「进行中」≡ FIN_MTD 的 fund 渠道之和，且**不计入**全年（" + (mtdWant === null ? "无 FIN_MTD" : (mtdWant >= 0 ? "+" : "−") + Math.abs(mtdWant).toFixed(2)) + "）",
+      mtdWant !== null && Number.isFinite(mtdGot) && Math.abs(mtdGot - mtdWant) < 0.005 && Math.abs(gotTot - wantTotal) < 0.005,
+      mtdBox ? "data-mtd-sum=" + mtdGot + " · 复算 " + mtdWant.toFixed(2) : "卡里没有 [data-mtd-sum] ✗");
+    /* ④b 「场内 ＋ 场外」那格 ＝ 场内**月度行**之和 ＋ 本卡全年 ✓，且场内那半边 ≡ ACCT_STATS.pnl ✓
+       （两者本页**一致** ✓ —— 2026-10-10 核对过 ✓；这条同时钉住"合计线 ＝ 场内 ＋ 场外" ✓
+        与"页面别再自造第二个场内数"✗ 两个契约 ✓）。 */
+    const AS2 = (() => {
+      const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const ACCT_STATS = \{[\s\S]*?^\};/m);
+      if (!m) return null;
+      const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = ACCT_STATS;", c, { timeout: 500 }); return c.o;
+    })();
+    const rnd2 = (v) => (v >= 0 ? "+" : "−") + Math.trunc(Math.abs(v)).toLocaleString("en-US");
+    {
+      const etfM = (AS2 && Array.isArray(AS2.monthly))
+        ? AS2.monthly.reduce((a, r) => a + (typeof r.pnl === "number" ? r.pnl : 0), 0) : null;
+      const etfGot = card.getAttribute("data-etf-monthly");
+      const sumGot = card.getAttribute("data-sum-etf-otc");
+      const etfNum = etfGot === "" ? NaN : Number(etfGot), sumNum = sumGot === "" ? NaN : Number(sumGot);
+      const okM = etfM !== null && Number.isFinite(etfNum) && Math.abs(etfNum - etfM) < 0.005;
+      const okS = okM && Number.isFinite(sumNum) && Math.abs(sumNum - (etfM + wantTotal)) < 0.005;
+      /* 场内 App 的累计盈亏（AS2.pnl）必须**等于**Σ 月度行 ✓ —— 不等说明 data.js 那边自相矛盾 ✓ */
+      const appPnl = (AS2 && typeof AS2.pnl === "number") ? AS2.pnl : null;
+      const okPnl = (appPnl === null || Math.abs(appPnl - etfM) < 0.005);
+      check("场外卡：「场内 ＋ 场外」＝ 场内月度账单之和 " + (etfM === null ? "—" : rnd2(etfM)) + " ＋ 场外 " + rnd2(wantTotal)
+        + " ＝ " + rnd2((etfM || 0) + wantTotal) + "（场内那半边 ≡ App 累计 pnl " + (appPnl === null ? "—" : rnd2(appPnl)) + " ✓）",
+        okM && okS && okPnl,
+        "页面 data-etf-monthly=" + etfGot + " · data-sum-etf-otc=" + sumGot + " · 复算 "
+          + (etfM === null ? "—" : (etfM + wantTotal).toFixed(2)) + " · ACCT_STATS.pnl=" + (appPnl === null ? "—" : appPnl.toFixed(2)));
+    }
+
+    /* ⑤ 那句"两条口径不同名"的话必须**现算**（旧版 4 处各写死 −1,964 / −2,149 ✗，9 月订正后过期 ✓）
+       ⚠ 要先把趋势图切到「盈亏全程」✓ —— 那句话只在该视图的**图例 title** 里生成 ✗
+         （首版没切 → 误报"没找到"✗）。
+       ⚠ 比的是**整元**形式（页面统一走 fmtAmt2 ＝ 整元 ✓："−1,946" ✓ 不是 "−1,946.07" ✗）。 */
+    const pnlChip = [...win.document.querySelectorAll("#trend-views .tchip")].find((b) => b.textContent.indexOf("盈亏全程") === 0);
+    if (pnlChip) pnlChip.click();
+    const visTxt = (() => {
+      const c = win.document.body.cloneNode(true);          // 摘掉 script / style：否则内联脚本源码里的注释会被算成"页面上还有"✗
+      c.querySelectorAll("script, style").forEach((n) => n.remove());
+      return c.innerHTML;                                    // 取 innerHTML：口径说明大多挂在 title / 属性上 ✓
+    })();
+    /* ⚠ 整元规则必须与页面一致：页面用的 fmtAmt2 是**截断**（实测 −1,653.54 → "−1,653" ✓，
+       四舍五入会得 −1,654 ✗ 而页面不是这个数 ✓ —— 拿 round 去比会误报"没找到"✗）。 */
+    const rnd = (v) => (v >= 0 ? "+" : "−") + Math.trunc(Math.abs(v)).toLocaleString("en-US");
+    const OTCo = (() => {
+      const m = dataSrc.match(/^const OTC = \{[\s\S]*?\n\};/m); if (!m) return null;
+      const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = OTC;", c, { timeout: 500 }); return c.o;
+    })();
+    const lastSnap = (() => {
+      const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m)[0] + "\nthis.o = SNAPSHOTS;", c, { timeout: 500 });
+      return c.o.filter((s) => s.items).slice(-1)[0];
+    })();
+    const otcCodes = ((OTCo && OTCo.funds) || []).map((f) => f.code);
+    const snapSum = otcCodes.reduce((a, c2) => a + Number((lastSnap.items[c2] || {}).pl || 0), 0);
+    const mTxt = rnd(wantTotal), sTxt = rnd(snapSum);
+    const miss2 = [];
+    if (visTxt.indexOf("1,964") >= 0) miss2.push("还提到旧数 1,964 ✗");
+    if (visTxt.indexOf("2,149") >= 0) miss2.push("还提到旧数 2,149 ✗");
+    if (visTxt.indexOf(mTxt) < 0) miss2.push("没找到现算的月度账单 " + mTxt + " ✗（话在图例 title 里 ✓）");
+    if (visTxt.indexOf(sTxt) < 0) miss2.push("没找到现算的快照持仓 " + sTxt + " ✗");
+    check("场外口径文案：两个数都**现算**（月度账单 " + mTxt + " ／ 快照持仓 " + sTxt + "；写死的 −1,964 / −2,149 已清掉 ✓）",
+      miss2.length === 0, miss2.join("；") || "页面文本已含这两个现值 ✓");
+  }
+}
+
 /* ⑥ 个人财务看板（2026-10-10 加 —— 本次动了它两处 UI：加「本月 · 进行中」列、两个图去掉中轴）──────
    为什么现在补：这两处都是"改版时最容易被后来人悄悄改回去"的契约 ✗，而 finance 页此前
    **一条 DOM 断言都没有** ✗（只有 check-finance 管数据恒等式 ✓）。五条断言全读**渲染出来的 DOM**：
