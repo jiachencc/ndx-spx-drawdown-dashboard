@@ -1133,6 +1133,77 @@ check("SVG 无非法坐标", bad.length === 0, bad.slice(0, 5).join(" "));
 
 check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | "));
 
+/* ⑥ 个人财务看板（2026-10-10 加 —— 本次动了它两处 UI：加「本月 · 进行中」列、两个图去掉中轴）──────
+   为什么现在补：这两处都是"改版时最容易被后来人悄悄改回去"的契约 ✗，而 finance 页此前
+   **一条 DOM 断言都没有** ✗（只有 check-finance 管数据恒等式 ✓）。五条断言全读**渲染出来的 DOM**：
+     ① 「进行中」列在，且只有它带 .mtd（不与已收官的 9 个月份混 ✓）
+     ② **每行**的全年格 ＝ 该行 9 个月份格之和 ✓ → 证明进行中那格**没被并进合计** ✗
+        （合计行也照样验：它同时证明 10 月的部分合计 −100.62 没被加进 +2,217.56 ✓）
+     ③ 进行中列：有读数的写数字、未提供的写「·」—— 未提供那几格**不许出现数字**（≠ 0 ✗）
+     ④ 两个横向图**无中轴**：inline style 只许有 width ✓（出现 left:50% / right:50% ＝ 中轴又回来了 ✗）
+        且最长那根 = **全幅 100%**（同一把尺 ✓）
+     ⑤ 涨跌色 = 红涨绿跌 ✓ —— 断言的是 finance.css 里**语义令牌的定义**（唯一出处 ✓），不是某个像素 */
+{
+  const ferr = [];
+  const fdom = await JSDOM.fromFile(path.join(root, "finance", "index.html"), {
+    runScripts: "dangerously",
+    resources: "usable",
+    pretendToBeVisual: true,
+    beforeParse(w) {
+      w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+      if (!w.matchMedia) w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+      w.addEventListener("error", (e) => ferr.push("error: " + (e.message || e.error)));
+    },
+  });
+  const fw = fdom.window;
+  await new Promise((r) => fw.setTimeout(r, 200));
+  const fd = fw.document;
+  const MX = fd.querySelector("table.mx");
+  const hd = MX ? [...MX.querySelectorAll("thead th")].map((x) => x.textContent.replace(/\s+/g, " ").trim()) : [];
+  const nMon = hd.filter((x) => /^\d+月$/.test(x)).length;
+  const mtdTh = hd.filter((x) => /进行中/.test(x));
+  const cellNum = (td) => {
+    const m = (td ? td.textContent : "").replace(/−/g, "-").match(/-?\d[\d,]*(?:\.\d+)?/);
+    return m ? +m[0].replace(/,/g, "") : NaN;
+  };
+  check("财务页：矩阵有「本月 · 进行中」列（" + nMon + " 个已收官月份 ＋ 1 列进行中）",
+    !!MX && nMon === 9 && mtdTh.length === 1,
+    MX ? "月份列 " + nMon + " · 进行中表头 " + JSON.stringify(mtdTh) + " · 全部表头 " + hd.join("｜") : "页面没有 table.mx");
+  const rows2 = MX ? [...MX.querySelectorAll("tbody tr")] : [];
+  const badRow2 = [];
+  rows2.forEach((tr) => {
+    const tds = [...tr.children];
+    const msum = tds.slice(1, 1 + nMon).reduce((a, td) => a + (Number.isFinite(cellNum(td)) ? cellNum(td) : 0), 0);
+    const totV = cellNum(tds[tds.length - 1]);
+    if (!Number.isFinite(totV) || Math.abs(totV - msum) > 0.51) {
+      badRow2.push(tds[0].textContent.replace(/\s+/g, "").slice(0, 6) + " 全年 " + totV + " vs 1–9 月和 " + msum.toFixed(2));
+    }
+  });
+  check("财务页：每行「全年」= 该行 1–9 月之和（＝ 进行中那格**没有**被并进合计）",
+    rows2.length > 0 && badRow2.length === 0, badRow2.join("；") || (rows2.length + " 行逐行验过 ✓（含合计行）"));
+  const mtdTds = MX ? [...MX.querySelectorAll("tbody td.mtd")] : [];
+  const mtdKnown = mtdTds.filter((td) => !td.classList.contains("na") && !td.classList.contains("part"));
+  const mtdNa = mtdTds.filter((td) => td.classList.contains("na"));
+  check("财务页：进行中列 = 有读数（数字）＋ 未提供（「·」，不许写成 0 ✗）",
+    mtdTds.length === rows2.length && mtdKnown.length >= 1 && mtdNa.length >= 1 && mtdNa.every((td) => !/\d/.test(td.textContent)),
+    "格数 " + mtdTds.length + "（应 = 行数 " + rows2.length + "）· 有读数 " + mtdKnown.length + " · 未提供 " + mtdNa.length);
+  const bars = [...fd.querySelectorAll("#bars .mbar, #rank .rank-bar")];
+  const axis = bars.filter((b) => /left\s*:\s*50%|right\s*:\s*50%/.test(b.getAttribute("style") || ""));
+  const wid = bars.map((b) => parseFloat((((b.getAttribute("style") || "").match(/width\s*:\s*([\d.]+)%/) || [])[1])));
+  const finW = wid.filter((x) => Number.isFinite(x));
+  const maxW = finW.length ? Math.max.apply(null, finW) : NaN;
+  check("财务页：两个横向图**无中轴**（条一律自左向右）＋ 最长那根 = 全幅 100%",
+    bars.length > 0 && axis.length === 0 && Math.abs(maxW - 100) < 0.01,
+    bars.length + " 根条 · 带中轴定位 " + axis.length + " 根（应 0 ✗）· 最长 " + (Number.isFinite(maxW) ? maxW.toFixed(2) : "—") + "%");
+  const cssSrc = readFileSync(path.join(root, "finance", "finance.css"), "utf8");
+  const defUp = ((cssSrc.match(/--up:\s*([^;]+);/) || [])[1] || "").trim();
+  const defDown = ((cssSrc.match(/--down:\s*([^;]+);/) || [])[1] || "").trim();
+  check("财务页：涨跌色 = 红涨绿跌（--up → 红、--down → 绿，与境内 App 截图一致 ✓）",
+    /var\(--red\)/.test(defUp) && /var\(--green\)/.test(defDown), "--up: " + defUp + " · --down: " + defDown);
+  check("财务页无 JS 报错", ferr.length === 0, ferr.slice(0, 3).join(" | "));
+  fdom.window.close();
+}
+
 let failed = 0;
 for (const c of checks) {
   if (!c.ok) failed++;
