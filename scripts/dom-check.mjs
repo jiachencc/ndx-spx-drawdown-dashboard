@@ -875,6 +875,33 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         }
       }
     }
+    /* ④l-3 点「日期格」必须真的切期（2026-10-10 补，起于用户：「快照对比 好像不能点击一行，
+       我建议点击日期的时候可以体现这一行的数据」✓）——
+       根因：选中期 `cur` 当时是**渲染函数内局部变量** ✗，而选择态一变就整块重渲染 ✓ →
+       点完行刚设的期立刻被重置回默认期 ✗ → 点日期格 / 点期行 / 点期初行**全都看着没反应** ✗。
+       ⚠ 这条为什么以前没被抓到：上面 ④l-2 用的是 `tr.click()`，接着去读那只的成员行 —— 而
+         **默认期里恰好也有那只** → 断言照样通过 ✓✓（典型的"用错了判据、还过了"✗）。
+       所以这里的判据只认**日期本身**：点第 3 条的日期格 → 详情标题里必须出现那一期的日期 ✓
+         （且回到整期视图 ✓、该行拿到 .mx-hlr 高亮 ✓ —— 用户点完要看得出点中了哪一行 ✓）。 */
+    {
+      const rowsD = [...mx.querySelectorAll("tbody tr[data-i]")];
+      const pickTr = rowsD.length >= 3 ? rowsD[2] : rowsD[rowsD.length - 1];
+      const dCell = pickTr ? pickTr.querySelector(".mx-d") : null;
+      const dTxt = dCell ? dCell.textContent.replace(/\s+/g, " ").trim().slice(0, 5) : "";
+      if (dCell && win.MouseEvent) dCell.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+      const head3 = mx.querySelector(".sa-detail-box .sd-head");
+      const h3 = head3 ? head3.textContent.replace(/\s+/g, " ").trim() : "";
+      check("归因：点「日期格」（" + dTxt + "）→ 下方切到那一期（不再被重渲染重置 ✗）",
+        !!dCell && !!dTxt && h3.indexOf(dTxt) >= 0 && !mx.querySelector(".sa-detail-box [data-cell-sum]")
+          && !mx.querySelector(".sa-detail-box [data-hold-total]"),
+        dCell ? "点 " + dTxt + " 后详情标题「" + h3.slice(0, 56) + "」（应含该期日期、且是整期视图 ✓）" : "找不到 tr[data-i] 的 .mx-d ✗");
+      const hl2 = [...mx.querySelectorAll("tbody tr.mx-hlr")];
+      check("归因：选中期的行高亮（" + dTxt + "）—— 点完一眼看得出点中哪一行 ✓",
+        hl2.length === 1 && ((hl2[0].querySelector(".mx-d") || {}).textContent || "").indexOf(dTxt) >= 0,
+        hl2.length ? "高亮行 " + hl2.map((t) => ((t.querySelector(".mx-d") || {}).textContent || "").replace(/\s+/g, " ").trim()).join(" / ")
+          : "没有任何行带 .mx-hlr ✗（点了没反馈）");
+    }
+
     /* ④m 列头图（2026-10-09 第四步 A，起于用户问：「点击表头 是不是也可以按日来做图？」）——
        真·日频数据仓库里没有 ✗（持仓只有快照时点 ✓），所以做的是**把 x 轴铺成真实日期间距** ✓。
        四条断言（关键那条与页面**独立复算** ✓）：
