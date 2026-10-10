@@ -5169,8 +5169,8 @@ function renderOtcAcctStats() {
          "−186%" ✗ —— 因为该渠道全年净额是 −1,297，正负相消 ✓；归因页的「各列生涯贡献」踩过同一个坑 ✓）。 */
       const absSum2 = list.reduce((a, x) => a + Math.abs(x.hit ? x.hit.v : 0), 0) || 1;
       return '<div class="otc-panel" data-panel-m="' + esc(m) + '" data-panel-sum="' + sum2.toFixed(2) + '" data-panel-n="' + nOpen + '">'
-        + '<div class="otc-ph"><b>' + monthNum(m) + "</b> · 逐渠道明细（" + nOpen + "/" + rows.length
-        + ' 个渠道有读数 · 合计 <b>' + otcFmt(sum2) + "</b>）" + closeBtn + "</div>"
+        + '<div class="otc-ph">' + closeBtn + "<b>" + monthNum(m) + "</b> · 逐渠道明细（" + nOpen + "/" + rows.length
+        + ' 个渠道有读数 · 合计 <b>' + otcFmt(sum2) + "</b>）</div>"
         + list.map((x) => pRow(esc(x.r.name), x.hit ? x.hit.v : 0, !!x.hit, wMax2, x.hit ? (Math.abs(x.hit.v) / absSum2 * 100).toFixed(0) + "%" : "—")).join("")
         + '<div class="otc-pnote">⚠「未开户」＝该渠道当月<b>还没有账户</b>（数据层缺键 ✓）—— <b>不是 0</b> ✗：'
         + "把它当 0 会把「没过钱」和「过钱但持平」混成一件事 ✓。"
@@ -5182,7 +5182,7 @@ function renderOtcAcctStats() {
     const wMax2 = Math.max.apply(null, r.mon.map((x) => Math.abs(x.v)).concat([1]));
     const absSumR = r.mon.reduce((a, x) => a + Math.abs(x.v), 0) || 1;   // 占比分母：绝对值之和 ✓（见 pnote ✓）
     return '<div class="otc-panel" data-panel-ch="' + esc(r.id) + '" data-panel-total="' + r.sum.toFixed(2) + '">'
-      + '<div class="otc-ph"><b>' + esc(r.name) + "</b> · 逐月明细（" + r.mon.length + " 个月 · 合计 <b>" + otcFmt(r.sum) + "</b>）" + closeBtn + "</div>"
+      + '<div class="otc-ph">' + closeBtn + "<b>" + esc(r.name) + "</b> · 逐月明细（" + r.mon.length + " 个月 · 合计 <b>" + otcFmt(r.sum) + "</b>）</div>"
       + r.mon.map((x) => pRow(monthNum(x.k), x.v, true, wMax2, (Math.abs(x.v) / absSumR * 100).toFixed(0) + "%")).join("")
       + '<div class="otc-pnote">合计 ' + otcFmt(r.sum) + " ＝ 上面那一行的全年 ✓（同一个数 ✓，不是另算一套 ✗）。"
       + "占比＝该月 ÷ <b>本渠道各月 |值| 之和</b> " + otcFmt(absSumR) + " ✓（不用净额 ✗ —— 该渠道净额是 "

@@ -1436,6 +1436,25 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   }
 }
 
+/* ④p `.sa-back` 必须是**页面级**规则（2026-10-10，用户报：「逐渠道明细 后面那个 收起 UI 有 bug」）──
+   根因：它原来写成 `#snap-attr .sa-back { … }` ✗ —— 只有归因面板里命中 ✓，而「场外账户统计」卡里
+     用了**同一个 class** ✓ → 命不中 ✗ → 那个「← 收起」掉回浏览器**默认按钮外观** ✗
+     （灰底、系统字体、比旁边文字大一截 ✓）。
+   ⚠ 这类 bug **jsdom 抓不到** ✗（没有 CSS 引擎 ✓），所以判据直接读 CSS 文本 ✓：
+     必须存在一条**不带任何前缀**的 `.sa-back` 规则 ✓，且不得再有 `#某卡 .sa-back` 这种作用域内定义 ✗。 */
+{
+  const css2 = readFileSync(path.join(root, "positions.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const unscoped = /(^|[\s};])\.sa-back\s*[,{]/.test(css2);
+  const scoped = /#[\w-]+\s+\.sa-back\s*[,{]/.test(css2);
+  const nBtn = (() => {
+    try { return win.document.querySelectorAll("button.sa-back").length; } catch (e) { return -1; }
+  })();
+  check("`.sa-back` 是**页面级**规则（不带 #snap-attr 之类前缀）—— 页面里 " + nBtn + " 个「← 返回 / ← 收起」共用一套外观 ✓",
+    unscoped && !scoped,
+    scoped ? "仍有作用域内的 .sa-back 定义 ✗（换个容器就会失效 ✓ —— 这正是那次的 bug ✓）"
+      : (unscoped ? "页面级规则在 ✓" : "找不到页面级 .sa-back ✗"));
+}
+
 /* ⑥ 个人财务看板（2026-10-10 加 —— 本次动了它两处 UI：加「本月 · 进行中」列、两个图去掉中轴）──────
    为什么现在补：这两处都是"改版时最容易被后来人悄悄改回去"的契约 ✗，而 finance 页此前
    **一条 DOM 断言都没有** ✗（只有 check-finance 管数据恒等式 ✓）。五条断言全读**渲染出来的 DOM**：
