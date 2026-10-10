@@ -1390,7 +1390,9 @@
   .otc-ph { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
     font-size: var(--fs-xs); color: var(--tx2); }
   .otc-ph b { font-family: var(--mono); color: var(--tx); font-feature-settings: "tnum"; }
-  .otc-ph .sa-back { margin-left: auto; }
+  /* ⚠ 「← 收起」按钮**放在标题前面** ✓（2026-10-10 改）—— 与页内其它面板同一套语言：
+     归因面板的「← 返回」都在标题左侧 ✓，原来我这里用 margin-left:auto 推到最右 ✗ →
+     与全页不一致 ✓，窄屏折行时还容易读成"两个东西"✓。删掉 auto 边距 ✓（按钮自身带 margin-right ✓）。 */
   .otc-prow { display: grid; grid-template-columns: minmax(72px, max-content) 1fr auto 34px; align-items: center;
     gap: 6px; padding: 3px 0; font-size: var(--fs-xxs); }
   .otc-pnm { color: var(--tx2); white-space: nowrap; }
@@ -1545,10 +1547,25 @@
   #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-d { background-image: linear-gradient(rgba(147, 163, 187, .14), rgba(147, 163, 187, .14)); }
   #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-sum { background: rgba(147, 163, 187, .14); }
 
+  /* ── 「← 返回 / ← 收起」小按钮（**页面级** ✓，2026-10-10 从 `#snap-attr .sa-back` 改过来）──────
+     ⚠ 起因就是用户报的那个 bug：「逐渠道明细 后面那个 收起 UI 有 bug」✓
+       原来写成 `#snap-attr .sa-back { … }` ✗ —— 只有归因面板里命中 ✓；
+       而「场外账户统计」卡里用了**同一个 class** ✓ → 选择器命不中 ✗ → 那个「← 收起」掉回
+       浏览器**默认按钮外观** ✗（灰底、系统字体、比旁边文字大一截 ✓）。
+     → 去掉作用域前缀 ✓：类名不变 ✓、两处外观自动一致 ✓，以后第 3 处再用也不会重犯 ✓。
+     ⚠ 页面级原子件只依赖 **:root 令牌** ✓（--chk-fs-mini / --line-soft / --blue 都在 :root ✓），
+       不许写"某个卡片里的局部变量"✗ —— 否则又是"换个地方就失效"✓。
+     ▸ 防回归：scripts/dom-check.mjs ④p 断言这条规则**不带作用域前缀** ✓（就是拦这类 bug ✓）。 */
+  .sa-back {
+    font-size: var(--chk-fs-mini); font-family: var(--sans); color: var(--tx2);
+    background: none; border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 5px;
+    margin-right: 2px; cursor: pointer; white-space: nowrap;
+  }
+  .sa-back:hover { color: var(--tx); border-color: var(--blue); }
+  .sa-back:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
   /* ── 下钻面板（三级视图共用）───────────────────────────────────────────────────── */
-  #snap-attr .sa-back { font-size: var(--chk-fs-mini); font-family: var(--sans); color: var(--tx2);
-    background: none; border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 5px; margin-right: 2px; cursor: pointer; }
-  #snap-attr .sa-back:hover { color: var(--tx); border-color: var(--blue); }
+  #snap-attr .sd-click { cursor: pointer; border-radius: 4px; }
   #snap-attr .sd-click { cursor: pointer; border-radius: 4px; }
   #snap-attr .sd-click:hover { background: rgba(147, 163, 187, .12); }
   #snap-attr .sd-click:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
