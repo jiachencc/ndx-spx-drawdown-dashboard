@@ -1312,6 +1312,13 @@ try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /*
    ⚠ 必须是**模块级**：切一次维度就整块重渲染 ✗，函数内的局部变量留不下 ✓（与 saDim 同一理由 ✓）。
    ⚠ 不进 localStorage ✓ —— 它是一次性交互状态 ✓，刷新后回到"净变动最大那期"更合理 ✓。 */
 let saSel = null;
+/* 当前选中的**期**（2026-10-10 改为**模块级** ✓）—— 与 saSel 完全同一理由（见上 ✗，我当时漏了它 ✗）：
+   选择态一变就整块重渲染 ✓，而 `let cur` 原先写在渲染函数**内部** ✗ → 点完行刚设的期立刻被重置回默认期 ✗
+   →「点日期格 / 点期行 / 点期初行」全都看着没反应 ✗（2026-10-10 用户报的正是这个 ✓）。
+   ⚠ 这条**不能靠断言兜住**：老门禁用的 `tr.click()` 后来读的成员行，默认期里恰好也有那只 → 误过 ✗
+     （真正的判据只能是"标题里出现的那一期的日期" ✓ —— 已补进 dom-check ④l-3 ✓）。
+   null ＝ 还没选过 → 首次渲染取「净变动最大」那期 ✓（与旧行为一致 ✓）；"carry" ＝ 期初结转那一段 ✓。 */
+let saCur = null;
 /* 列头图的选中期（2026-10-09 第四步 B：A1~A4）—— 也是**模块级** ✓：
    悬停/按键会改它 ✓，而从某一格「← 返回」回来会整块重渲染 ✗ → 重渲染后靠它把选中期恢复出来 ✓。
    col 记的是当前是哪一列 ✓：换列就把 i 复位成 -1 ✓（否则会把上一列的"第 7 期"错当成这一列的 ✓）。 */
@@ -1478,6 +1485,13 @@ function renderSnapAttr() {
   /* 列头**可点**（2026-10-09 第四步 ✓）：点它 → 该列的「逐期贡献 ＋ 累计」图（在矩阵下方 ✓）。
      这是用户那句「点击表头 是不是也可以按日来做图？」的落点 ✓ —— x 轴铺成**真实日期间距** ✓
      （真·日频数据仓库里没有 ✗，见 viewColChart 的注释 ✓）。 */
+  /* ── 选中期（saCur）：默认只算一次，之后由「点日期格 / 点期行 / 点期初行」记住 ✓ ─────────────
+     ⚠ 必须在这里（**表格渲染之前**）定下来：逐期行要用它画"选中行"高亮 ✓。
+     ⚠ 越界/失效保护：维度切换或数据变了之后 saCur 可能指向不存在的期 ✗（或 carry ✓）→ 兜回默认 ✓ */
+  if (saCur === null || (saCur !== "carry" && !live[saCur])) {
+    saCur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
+  }
+  const cur = saCur;                     // 只读别名（本函数内所有 `cur` 都不再改 ✓ —— 改的是 saCur ✓）
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + cols.map((t) => "<th" + (saSel && saSel.k === "cell" && saSel.col === t ? ' class="mx-selc"' : "")
       + (saSel && saSel.k === "col" && saSel.col === t ? ' data-onsel="1"' : "")
@@ -1496,8 +1510,12 @@ function renderSnapAttr() {
       ? '<span class="mx-close" title="' + esc("本期清仓：" + p.nClose.map((c) => SA_NAME[c] || c).join("、") + "（金额已按「回款 − 期初市值」计入本行 ✓）") + '">清' + p.nClose.length + "</span>" : "")
       + (p.nNa && p.nNa.length
         ? '<span class="mx-close warn" title="' + esc("本期清仓但查不到流水，**无法归因**（未按 0 计 ✗）：" + p.nNa.map((c) => SA_NAME[c] || c).join("、")) + '">⚠</span>' : "");
-    h += '<tr data-i="' + i + '"' + (saSel && saSel.k === "cell" && saSel.d === p.d ? ' class="mx-hlr"' : "") + '>'
-      + '<td class="mx-d">' + p.d.slice(5) + mark + "</td>"
+    /* 选中行高亮（2026-10-10 扩）：**当前期**那一行始终高亮 ✓ —— 点完日期格一眼就知道点中了哪一行 ✓
+       （原来只在"选了某个格子"时高亮 ✗ → 点日期格即使生效也看不出反馈 ✗）。 */
+    const isCurRow = (cur !== "carry" && live[cur] === p);
+    h += '<tr data-i="' + i + '"' + (isCurRow || (saSel && saSel.k === "cell" && saSel.d === p.d) ? ' class="mx-hlr"' : "") + '>'
+      /* 日期格可点（2026-10-10）：点它 → 下方切到这一期 ✓（整行也可点 ✓，但数据格优先走"点格子"✓） */
+      + '<td class="mx-d mx-dpick" title="' + esc(p.d + "：点一下 → 下方看这一期的逐只明细（" + fmtAmt(p.net) + " 元）") + '">' + p.d.slice(5) + mark + "</td>"
       + cols.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
@@ -1525,7 +1543,7 @@ function renderSnapAttr() {
       + esc(colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + baseD + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(v) + "</td>";
   };
   const carryIn = Object.entries(carryItems).filter(([c]) => isOnExchange(c)).reduce((a, x) => a + x[1], 0);
-  h += '<tr class="mx-carry' + (saSel && saSel.k === "cell" && saSel.d === "__carry" ? " mx-hlr" : "") + '"'
+  h += '<tr class="mx-carry' + ((cur === "carry" || (saSel && saSel.k === "cell" && saSel.d === "__carry")) ? " mx-hlr" : "") + '"'
     + ' data-carry="' + carryTotal.toFixed(2) + '" data-carry-d="' + baseD + '" title="' + esc(
       "期初结转 ＝ 账户起点 → " + baseD + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(carryTotal) + " 元\n"
       + "场内 " + fmtAmt(carryIn) + " ＋ 场外 " + fmtAmt(carryTotal - carryIn)
@@ -1533,7 +1551,10 @@ function renderSnapAttr() {
       + "⚠ 不含场外那 17 笔已清仓" + (closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(closedOtcSum) + " ✓）")
       + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金 ✓，只在「清仓历史」卡 ✓。\n"
       + "点这一行 → 看它是哪些标的、各多少 ✓") + '">'
-    + '<td class="mx-d">期初<i class="mx-since">账户起点 → ' + baseD.slice(5) + "</i></td>"
+    /* 副标签从「账户起点 → 09-07」缩成「起点 → 09-07」（2026-10-10 用户：「期 这列太宽了」✓）——
+       它是**期列最宽的一格** ✗，宽度由它决定 ✓（实测 156.5px → 缩后见提交里的实测 ✓）。
+       语义没丢：表上方对照行写「累计收益（自账户起点）」✓、这一行的 title 也写全 ✓。 */
+    + '<td class="mx-d mx-dpick" title="' + esc("期初结转：账户起点 → " + baseD + " 的累计结果（" + fmtAmt(carryTotal) + " 元）—— 点一下看它是哪些标的 ✓") + '">期初<i class="mx-since">起点 → ' + baseD.slice(5) + "</i></td>"
     + cols.map(carryCell).join("")
     + '<td class="mx-c mx-sum ' + cls(carryTotal) + '">' + fmtAmt(carryTotal) + "</td></tr>";
   /* 「全期」＝ ①逐期行 ＋ ②期初结转 ✓ —— 也就是**累计收益本身** ✓（不再是"窗口内的变化量" ✗）。
@@ -1557,7 +1578,9 @@ function renderSnapAttr() {
          刻意**不做**"价格贡献 vs 份数贡献"的拆分 ✗：摊薄成本口径下必须假设成本摊销顺序 ✗，
          拆出来的两个数无法与券商 App 对账 ✗ → 那就成了用户最不想要的"歧义数据" ✓
      键盘：格子与成员行都 tabindex=0 ＋ role=button ＋ aria-label ✓，Enter/Space 与点击走同一套分派 ✓。 */
-  let cur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
+  /* ⚠ 选中期**不在这里声明** ✗ —— 它已在表格渲染前由模块级 saCur 定下（见上方注释 ✓）：
+     原先这行 `let cur = …默认值…` 写在函数内 ✗ → 每次重渲染都把点选的那一期冲掉 ✗
+     （＝「点日期格没反应」的根因 ✓）。本函数内 `cur` 只是 `const cur = saCur` 的只读别名 ✓。 */
   const nameOf = (code) => (SA_NAME[code] || (baseSnap && baseSnap.items[code] && baseSnap.items[code].name) || code);
   const fmtPx = (v) => (v >= 0 ? "" : "−") + Math.abs(v).toFixed(4);   // 单价 / 净值：4 位（场内 1.6 元档要看得见档位 ✓）
   const periodOf = (d) => live.find((p) => p.d === d) || null;
@@ -2096,7 +2119,8 @@ function renderSnapAttr() {
     }
   };
   const setSel = (s, newCur) => {
-    if (newCur !== undefined) cur = newCur;
+    /* ⚠ 改的是**模块级 saCur** ✓（不是函数内局部变量 ✗ —— 那样会被下面的 renderSnapAttr 重置掉 ✗） */
+    if (newCur !== undefined) saCur = newCur;
     saSel = s;
     renderSnapAttr();
     refocus();

@@ -1475,6 +1475,13 @@
      选中态要**一眼可辨**（否则点完不知道点中了哪 ✓）：格子环形描边 ＋ 表头列高亮 ＋ 该行日期/合计格染色 ✓。
      ⚠ 行染色只挑 mx-d / mx-sum 两格：数据格有**内联 background**（对数色阶 ✓），
        样式表里的 background-image 盖不过内联的 background 简写 ✗ → 硬染会白费力气 ✓ */
+  /* ── 期列可点（2026-10-10）───────────────────────────────────────────────────────
+     用户：「快照对比 好像不能点击一行，我建议点击日期的时候可以体现这一行的数据」✓
+     行为修在 JS（saCur 提升为模块级 ✓），这里只给**可点的样子**：
+     ⚠ 不给 tabindex ✗ —— 矩阵的 Tab 位是"整表只有一个"（roving ✓，门禁盯着 ✓），
+       给每行日期格加 Tab 位会把那条契约打破 ✗（键盘改期走 ↑/↓ 方向键 ✓）。 */
+  #snap-attr table.sa-mx td.mx-dpick { cursor: pointer; }
+  #snap-attr table.sa-mx td.mx-dpick:hover { background: rgba(147, 163, 187, .10); }
   #snap-attr table.sa-mx td.mx-click { cursor: pointer; }
   #snap-attr table.sa-mx td.mx-click:hover { box-shadow: inset 0 0 0 1px rgba(147, 163, 187, .55); }
   #snap-attr table.sa-mx td.mx-click:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
@@ -1567,6 +1574,14 @@
   #snap-attr table.sa-mx { width: max-content; min-width: 100%; }
   #snap-attr table.sa-mx th, #snap-attr table.sa-mx td { white-space: nowrap; }
   #snap-attr table.sa-mx .mx-d { color: var(--tx3); font-size: var(--chk-fs-mini); }   /* 期列：与其它数据表的小字同档 ✓ */
+  /* 期列**不参与撑宽**（2026-10-10，用户：「表格 期 的这列太宽了，优化一下」✓）—————————
+     它是"标签列"：内容多宽就多宽（日期 5 字 ＋ 清N/⚠ 标记 ✓），多余宽度留给数据列 ✓。
+     做法是 `width:1px` ＋ 已有的 nowrap ✓ —— 列宽退化到 min-content（＝最宽的那一格 ✓）。
+     ⚠ 不加这条的话，`table.sa-mx { min-width:100% }` 的余量会被**灌进这一列** ✗：
+       实测 1440px 下本该 ~70px 的列被撑到 130px ✗（380px 下才是 70px 的真宽度 ✓）。
+     ⚠ 反向依赖：这一列的最宽一格决定下限 ✓ —— 所以别在期列的副标签里写长句子 ✗
+       （期初行原来是「账户起点 → 09-07」✗ → 已缩成「起点 → 09-07」✓，语义挪进 title ✓）。 */
+  #snap-attr table.sa-mx th.mx-d, #snap-attr table.sa-mx td.mx-d { width: 1px; }
   #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
   #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
   #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
