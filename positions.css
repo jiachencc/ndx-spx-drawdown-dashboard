@@ -486,6 +486,12 @@
   /* ── 盈亏归因矩阵：清仓角标（2026-10-09 加，配合 periodContrib 的统一口径）─────────────
      「清 N」＝该期清掉了几只（金额已按「回款 − 期初市值」计入本行 ✓，title 列出是哪几只 ✓）
      「⚠」＝清仓但查不到流水 → **不可归因**（不是 0 ✗，琥珀色沿用资金方向那一套 warn 语义 ✓） */
+  /* ── 「逐期明细」持仓变化行**可点**（2026-10-10 用户选的 ①）────────────────────────
+     点它 → 切到「盈亏归因」看这只的逐期轨迹 ✓（行为在 gotoHoldInAttr ✓）。
+     ⚠ 只给"可点的样子" ✓：光标 ＋ 悬停底色 ＋ focus 环 ✓ —— 与矩阵格子 / 归因成员行同一套语言 ✓。 */
+  #snap-list .snap-line.item[data-attr] { cursor: pointer; border-radius: 6px; }
+  #snap-list .snap-line.item[data-attr]:hover { background: rgba(147, 163, 187, .08); }
+  #snap-list .snap-line.item[data-attr]:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   .sa-mx .mx-close { display: inline-block; margin-left: 3px; padding: 0 3px; border-radius: 3px;
     font-size: var(--fs-xxs); font-weight: 700; color: var(--cyan); background: var(--info-bg); border: 1px solid var(--info-line); }
   .sa-mx .mx-close.warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-line); }
@@ -1481,13 +1487,16 @@
      ⚠ 不给 tabindex ✗ —— 矩阵的 Tab 位是"整表只有一个"（roving ✓，门禁盯着 ✓），
        给每行日期格加 Tab 位会把那条契约打破 ✗（键盘改期走 ↑/↓ 方向键 ✓）。 */
   #snap-attr table.sa-mx td.mx-dpick { cursor: pointer; }
-  #snap-attr table.sa-mx td.mx-dpick:hover { background: rgba(147, 163, 187, .10); }
+  /* ⚠ 悬停底色用 background-image（叠加在 sticky 列的不透明打底之上 ✓）——
+     写成 background 简写会把打底一并清掉 ✗ → 期列在悬停瞬间变半透明、滑过去的数字透出来 ✗ */
+  #snap-attr table.sa-mx td.mx-dpick:hover { background-image: linear-gradient(rgba(147, 163, 187, .10), rgba(147, 163, 187, .10)); }
   #snap-attr table.sa-mx td.mx-click { cursor: pointer; }
   #snap-attr table.sa-mx td.mx-click:hover { box-shadow: inset 0 0 0 1px rgba(147, 163, 187, .55); }
   #snap-attr table.sa-mx td.mx-click:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   #snap-attr table.sa-mx td.mx-sel { box-shadow: inset 0 0 0 2px var(--blue); }
   #snap-attr table.sa-mx th.mx-selc { color: var(--tx); text-decoration: underline; }
-  #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-d,
+  /* 选中行底色：期列（sticky ✓ 有不透明打底 ✓）用**叠加层** ✗ 不能覆盖底色 ✓；其余格照旧 ✓ */
+  #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-d { background-image: linear-gradient(rgba(147, 163, 187, .14), rgba(147, 163, 187, .14)); }
   #snap-attr table.sa-mx tbody tr.mx-hlr > td.mx-sum { background: rgba(147, 163, 187, .14); }
 
   /* ── 下钻面板（三级视图共用）───────────────────────────────────────────────────── */
@@ -1582,6 +1591,16 @@
      ⚠ 反向依赖：这一列的最宽一格决定下限 ✓ —— 所以别在期列的副标签里写长句子 ✗
        （期初行原来是「账户起点 → 09-07」✗ → 已缩成「起点 → 09-07」✓，语义挪进 title ✓）。 */
   #snap-attr table.sa-mx th.mx-d, #snap-attr table.sa-mx td.mx-d { width: 1px; }
+  /* ── 期列**横滑时固定**（2026-10-10 用户选的 ②）────────────────────────────────
+     窄屏横滑到第 10 期时仍看得见"这是哪一期" ✓ —— 做法与财务页的账户列同一套 ✓。
+     ⚠ 底色必须**不透明** ✗：sticky 列会盖住从它下面滑过去的格子 ✓，半透明会让两列数字叠在一起 ✗
+       → 用 var(--card) 打底 ✓，选中行的底色改成**叠加层**（background-image ✓）而不是覆盖 ✗。
+     ⚠ 表头那格 z-index 更高 ✓，免得被下面的数据格压住 ✓。
+     （1440px 下表格本来就不横向滚动 ✓ → 这条在那里不产生任何视觉变化 ✓，只在窄屏生效 ✓。） */
+  #snap-attr table.sa-mx th.mx-d, #snap-attr table.sa-mx td.mx-d {
+    position: sticky; left: 0; z-index: 2; background-color: var(--card);
+  }
+  #snap-attr table.sa-mx thead th.mx-d { z-index: 3; }
   #snap-attr .sa-detail { margin: 6px 0 0; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
   #snap-attr .sd-head { font-size: var(--fs-xs); color: var(--tx2); padding: 2px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
   #snap-attr .sd-hint { color: var(--tx3); font-size: var(--fs-xxs); font-weight: 400; }
