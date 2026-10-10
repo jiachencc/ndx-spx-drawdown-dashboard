@@ -1085,6 +1085,40 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
       }
     }
   }
+  /* ④q 场内已清仓：**券商原读数 ↔ 流水推导**（2026-10-10 加，起于用户提供平安「已清仓股票」截图 ✓）——
+     同一批数字来自两个完全不同的来源 ✓：App 的「实现盈亏」（LIVE 读数 ✓）vs 本页用 POSITIONS.log 推导 ✓。
+     判据与页面 closedCostGap() 一致 ✓：某笔卖出使累计份数归零 → 取**这一笔**的 realized ✓
+     （摊薄成本额本身已含此前部分卖出的效应，逐笔相加会重复计 ✗ —— 实测：中韩 −13,681.06 vs −13,217.10 ✓）。
+     两条断言：① 逐只逐分一致 ✓（0.01 ✓）＋ 合计 ≡ App 声明值 ✓；② 清仓历史卡那行显示的 ≡ data.js ✓。 */
+  {
+    const CEF = (() => {
+      const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED_ETF = \{[\s\S]*?^\};/m);
+      if (!m) return null;
+      const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED_ETF;", c, { timeout: 500 }); return c.o;
+    })();
+    if (!CEF) {
+      check("场内已清仓原读数可读（data.js 的 CLOSED_ETF）", false, "找不到 CLOSED_ETF");
+    } else {
+      const derived = {}, q6 = {};
+      ((LOGPOS && LOGPOS.log) || []).slice().sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1)).forEach((e) => {
+        const s = /卖出|减仓|清仓/.test(String(e.act || "")), before = q6[e.sym] || 0;
+        q6[e.sym] = before + (s ? -(e.qty || 0) : (e.qty || 0));
+        if (s && before > 0 && q6[e.sym] === 0 && Number.isFinite(e.realized)) derived[e.sym] = e.realized;
+      });
+      const bad = CEF.items.filter((x) => !Number.isFinite(derived[x.name]) || Math.abs(derived[x.name] - x.pnl) >= 0.01)
+        .map((x) => x.name + "：原读数 " + x.pnl + " vs 推导 " + (Number.isFinite(derived[x.name]) ? derived[x.name] : "—"));
+      const dSum = CEF.items.reduce((a, x) => a + (Number.isFinite(derived[x.name]) ? derived[x.name] : 0), 0);
+      check("场内已清仓：券商原读数 ≡ 流水推导（摊薄口径 · " + CEF.items.length + " 只 · 合计 " + money(CEF.total) + "）",
+        bad.length === 0 && Math.abs(dSum - CEF.total) < 0.01,
+        bad.length ? "对不上：" + bad.join("、")
+          : "逐只逐分一致 ✓（" + CEF.items.map((x) => x.name + " " + money(x.pnl)).join(" · ") + "）");
+      const oEl = win.document.getElementById("closed-etf-orig");
+      const oVal = oEl ? Number(oEl.getAttribute("data-orig")) : NaN;
+      check("清仓历史卡：券商原读数行 ≡ data.js CLOSED_ETF.total " + money(CEF.total),
+        Number.isFinite(oVal) && Math.abs(oVal - CEF.total) < 0.01,
+        oEl ? "页面 data-orig=" + oVal + " · 显示 " + oEl.textContent.replace(/\s+/g, " ").trim().slice(0, 66) : "卡里没有 #closed-etf-orig");
+    }
+  }
   /* 把视图切回「逐期明细」✓ —— 别把状态留给后面的断言 ✗（本块可能是最后一块，但契约要写死 ✓） */
   const back2 = [...win.document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "log");
   if (back2) back2.click();

@@ -3999,6 +3999,13 @@ function closedEtfRows() {
   });
   /* 主题名（纳指/标普/中韩/日本/港美）：清仓后 POSITIONS.hold 里已经没有它 ✗ → 按名称包含关系反查 ✓ */
   const themeOf = (nm) => { for (const k in MARKET_NAMES) if (nm.indexOf(MARKET_NAMES[k]) >= 0) return MARKET_NAMES[k]; return ""; };
+  /* ── 券商原读数（2026-10-10 加 ✓）：平安「已清仓股票」页的**实现盈亏** ＝ 摊薄口径 ✓
+     它有两个用处 ✓：① 在卡里与上面的"生命周期实际结果"**并列显示**（两个都列，谁都不用猜 ✓）；
+     ② 给门禁当**独立校验锚** ✓（cross-check ⑥ 读它 vs 读流水推导 ✓，任何一边动了都会红 ✓）。
+     匹配按**标的名**（两只名与流水 sym 完全一致 ✓）；找不到就留 null ✓（不硬凑 ✗）。 */
+  const orig = (typeof CLOSED_ETF !== "undefined" && CLOSED_ETF && Array.isArray(CLOSED_ETF.items)) ? CLOSED_ETF.items : [];
+  const origOf = (nm) => orig.filter((x) => x.name === nm)[0]
+    || orig.filter((x) => x.name && (String(nm).indexOf(x.name) >= 0 || x.name.indexOf(String(nm)) >= 0))[0] || null;
   return Object.keys(by).map((k) => by[k])
     .filter((o) => o.qty === 0)                       // 期末归零 = 已了结 ✓（在持的不会被列进来 ✓）
     .map((o) => ({
@@ -4015,6 +4022,7 @@ function closedEtfRows() {
            （回款 = realized ＋ 期初成本 ✓），与本卡是两个用途 ✓ */
       pnl: o.cash - o.buyAmt, cost: o.buyAmt, cash: o.cash,
       rate: o.buyAmt ? (o.cash - o.buyAmt) / o.buyAmt * 100 : 0,
+      orig: origOf(o.sym),                            // 券商原读数（可能 null ✓，见上方 origOf 注释 ✓）
     }))
     .sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));   // 新的在前
 }
@@ -4066,6 +4074,9 @@ function renderClosed() {
   const cnt = $("closed-cnt");
   if (cnt) cnt.textContent = "（总 " + fmt2(sAll) + " 元 ＝ 场内 " + fmt2(sIn) + " ＋ 场外 " + fmt2(sOt) +
     " · 共 " + rows.length + " 笔 · 按平台看卡内）";
+  /* 券商原读数那一行的数据（2026-10-10 加 ✓，见 data.js CLOSED_ETF 注释 ✓）；
+     没这块数据时整行不渲染 ✓（不硬凑 ✗） */
+  const bt = (typeof CLOSED_ETF !== "undefined" && CLOSED_ETF) ? CLOSED_ETF : null;
   const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
   const qNote = '<div class="strat-note" id="closed-q">' +
     "来源与口径：<b>场外</b>＝支付宝 App「清仓分析」页的<b>原读数</b>（2026-09-30 三张完整版：每行含持有区间 / 清仓收益 / 清仓收益率）；" +
@@ -4079,7 +4090,12 @@ function renderClosed() {
     "⚠ <b>回款 ≠ 盈亏</b>：回款是卖出收回的现金（场内每只都给出精确值 ✓；场外 App 不给这个读数 ✗）。<br>" +
     "⚠ 这些已实现盈亏<b>不进</b>「累计浮盈亏 / 本金」—— 那边是持仓（快照）口径 ✗；" +
     "场外那 " + otR.length + " 笔绝大多数发生在首份快照（2026-08-28）之前（最晚一笔 2026-09-01）。<br>" +
-    "⚠ 「清仓后涨跌幅」本页不展示（2026-09-30 用户要求整列停用；数据留在 data.js 的 after 字段作留档 ✓）。" +
+    "⚠ 「清仓后涨跌幅」本页不展示（2026-09-30 用户要求整列停用；数据留在 data.js 的 after 字段作留档 ✓）。<br>" +
+    "<b>券商原读数</b>（2026-10-10 加 ✓）：平安「已清仓股票 · 近三月」页另给一份<b>实现盈亏</b>（摊薄口径 ✓）——" +
+    "场内合计 <b>" + (bt ? fmt2(bt.total) : "—") + "</b> ✓" +
+    "（逐只 " + (bt ? bt.items.map((x) => x.name + " " + fmt2(x.pnl) + " / 同期大盘 " + pct(x.bench)).join(" · ") : "—") + "）；" +
+    "与上面「生命周期」口径合计差 <b>" + (bt ? fmt2(bt.total - sIn) : "—") + "</b>（港美卖出成交价取整尾差 ✓）。" +
+    "两个都列出来 ✓ —— 谁都不用猜哪个是对的 ✓（「本金修正」用的是<b>摊薄</b>那份 ✓，所以它是更关键的那个 ✓）。" +
     "</div>";
   const rowHtml = (r) => {
     const meta = [];
@@ -4099,6 +4115,13 @@ function renderClosed() {
     '<div class="closed-brief">' +
       '<span class="b-k">总清场外盈亏</span><span class="b-v ' + cls(sOt) + '">' + fmt2(sOt) + "（" + otR.length + " 笔 · " + OTC_PLATFORM + " App 原读数）</span>" +
       '<span class="b-k">总清场内盈亏</span><span class="b-v ' + cls(sIn) + '">' + fmt2(sIn) + "（" + inR.length + " 只 · 本页由流水推导、含费用）</span>" +
+      /* 券商原读数（2026-10-10 加 ✓，数据在 data.js CLOSED_ETF ✓）：与上面那行**并列**显示 ✓ ——
+         它＝摊薄口径的实现盈亏 ✓（「本金修正」用的就是它 ✓），两者差 4.40 元（港美卖出成交价取整 ✓）。
+         `id` 给门禁取精确值 ✓（cross-check ④q 断言：原读数 ≡ 流水推导 ✓、页面 ≡ data.js ✓）。 */
+      (bt ? '<span class="b-k">券商原读数</span><span class="b-v" id="closed-etf-orig" data-orig="' + bt.total.toFixed(2) + '">'
+        + fmt2(bt.total) + "（" + bt.count + " 笔 · 逐只 " + bt.items.map((x) => x.name + " " + fmt2(x.pnl)).join(" · ") + "）"
+        + '<span class="snap-sub">＝<b>摊薄口径</b>实现盈亏 ✓（「本金修正」用的就是它 ✓）；与上面「生命周期」口径差 '
+        + fmt2(bt.total - sIn) + "（港美卖出成交价取整尾差 ✓）</span></span>" : "") +
       '<span class="b-k">投入 ≈ / 加权</span><span class="b-v">' + fmtYuan(cAll) + " 元 → <b class=\"" + cls(sAll) + '">' + pct(cAll ? sAll / cAll * 100 : 0) + "</b>（场外投入由「盈亏 ÷ 收益率」反推 ≈）</span>" +
       '<span class="b-k">笔数</span><span class="b-v">场外 ' + otR.length + " 笔 ＋ 场内 " + inR.length + " 只 ＝ " + rows.length + " 笔（明细见下，按清仓日倒序）</span>" +
     "</div>" +
