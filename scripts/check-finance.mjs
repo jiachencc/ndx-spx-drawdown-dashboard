@@ -18,10 +18,10 @@ const src = readFileSync(path.join(ROOT, "finance", "finance-data.js"), "utf8");
 const ctx = vm.createContext({});
 /* ⚠ 数据文件里是 `const` 声明 —— vm 里 const 不会挂到 context 上（只有 var 会），
    故显式把要用的名字抛到 this 上一次取回（与 scripts/check-data.mjs 同一手法）。 */
-vm.runInContext(src + "\nthis.__fin = { FIN_ASOF, FIN_MONTHS, FIN_ACCOUNTS, FIN_PL, FIN_EMPTY, FIN_DERIVED, FIN_CLAIMS, FIN_NOTES, FIN_BALANCE, FIN_CASH, FIN_FLOW };", ctx);
+vm.runInContext(src + "\nthis.__fin = { FIN_ASOF, FIN_MONTHS, FIN_ACCOUNTS, FIN_PL, FIN_EMPTY, FIN_DERIVED, FIN_CLAIMS, FIN_NOTES, FIN_BALANCE, FIN_CASH, FIN_FLOW, FIN_MTD };", ctx);
 const {
   FIN_ASOF, FIN_MONTHS, FIN_ACCOUNTS, FIN_PL, FIN_EMPTY, FIN_DERIVED, FIN_CLAIMS, FIN_NOTES,
-  FIN_BALANCE, FIN_CASH, FIN_FLOW,
+  FIN_BALANCE, FIN_CASH, FIN_FLOW, FIN_MTD,
 } = ctx.__fin;
 
 const fails = [];
@@ -129,6 +129,32 @@ check("预留字段结构合法 —— 余额 " + balIds.length + "/" + nAcc + "
   [].concat(fieldBad.余额, fieldBad.现金, fieldBad.流水).join("；")
     || [missBal.length ? "待补余额：" + missBal.join(" / ") : "",
         missCash.length ? "现金未确认（缺键 ≠ 0）：" + missCash.join(" / ") : ""].filter(Boolean).join("；"));
+
+/* ── ⑧ FIN_MTD（本月 · 进行中）—— 2026-10-10 加 ──────────────────────
+ * 这一列最危险的失败方式是**悄悄混进恒等式** ✗：一旦有人把它并进 FIN_MONTHS 或 FIN_PL，
+ * 上面 ②③④ 四条会当场报红 ✓（值是新的、四条恒等式必然对不上）；本块再加两道独立闸：
+ *   ① FIN_MTD.month **不在** FIN_MONTHS 里 ✓（在里面 = 有人把"进行中"当收官月份了 ✗）
+ *   ② 逐账户合法：id 认识 ✓ · 值是有限数 ✓ · 有 asof（该户这次读数的截止日 ✓）
+ *      ⚠「未提供」的正确写法是**缺键** ✓；写 null（借用"空仓"语义 ✗）或 0（借用"持平"语义 ✗）
+ *        都会与 FIN_PL 的三态打架 → 本闸直接拦下 ✓
+ *   ③ month / cutoff 是合法日期串 ✓（防止手抖写成 2026-1 之类，页面 monthLabel 会切错 ✗） */
+if (!FIN_MTD) {
+  check("FIN_MTD（本月 · 进行中）存在", false, "数据层里没有 FIN_MTD —— 页面会少一列（不报错，但用户看不到进行中读数 ✗）");
+} else {
+  check("FIN_MTD 的月份不在已收官月份里（" + FIN_MTD.month + "）—— 不会混进行/列/阶段/全年四条恒等式",
+    FIN_MONTHS.indexOf(FIN_MTD.month) < 0, "FIN_MONTHS = " + FIN_MONTHS.join("/"));
+  const mtdBad = [];
+  Object.entries(FIN_MTD.pl || {}).forEach(([id, v]) => {
+    if (!KNOWN.has(id)) mtdBad.push("未知账户 " + id);
+    else if (!num(v)) mtdBad.push(id + " = " + v + "（应为有限数；「未提供」请用缺键，别用 null / 0 ✗）");
+    if (!(FIN_MTD.asof || {})[id]) mtdBad.push(id + " 缺 asof（该户这次读数的截止日）");
+  });
+  const nRead = Object.keys(FIN_MTD.pl || {}).length;
+  const dRe = /^\d{4}-\d{2}(-\d{2})?$/;
+  check("FIN_MTD 逐账户合法（" + nRead + "/" + nAcc + " 账户有读数，其余＝未提供 ✗ 不是 0）",
+    mtdBad.length === 0 && dRe.test(FIN_MTD.month) && dRe.test(FIN_MTD.cutoff),
+    mtdBad.concat(dRe.test(FIN_MTD.month) ? [] : ["month 格式 " + FIN_MTD.month], dRe.test(FIN_MTD.cutoff) ? [] : ["cutoff 格式 " + FIN_MTD.cutoff]).join("；"));
+}
 
 /* ── 输出 ─────────────────────────────────────────────────────────── */
 console.log("个人财务看板 · 数据门禁（基准日 " + FIN_ASOF + "）");

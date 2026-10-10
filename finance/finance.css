@@ -1,8 +1,12 @@
 /* ===== 个人财务看板 · 样式（2026-10-01 建）=====
- * ⚠ 色板与语义令牌**逐值照搬**自 ../positions.css（两个看板同色系，一眼看出是一家）。
- *   改一边记得改另一边。涨跌一律写 var(--up) / var(--down)，不直接写绿红 ——
- *   哪天想换成 A 股习惯的「红涨绿跌」，只改这两行即可。
- * ⚠ 移动端优先：矩阵 10 列放不下 → 外层横向滚动 + 首列 sticky（见 .mxwrap）。 */
+ * ⚠ 色板与语义令牌源自 ../positions.css（同色系，一眼看出是一家）。
+ * ⚠ **涨跌色两页刻意不同**（2026-10-10 起，用户：「红绿代表涨跌就行」✓）：
+ *     本页 = **红涨绿跌**（A 股 / 境内 App 习惯 —— 截图里蚂蚁 / 招行 / 华安都是这个方向 ✓，
+ *            页面上与截图对读时不会再错 ✓）
+ *     持仓页 = 绿涨红跌（ETF / 英文社区习惯 ✓）
+ *   → 跨页读时留意这一处口径差 ✗；改色板时**别把两边"对齐"错了** ✗。
+ *   本页内部一律写 var(--up) / var(--down)，不直接写绿红 ✓ —— 语义只有一处定义 ✓。
+ * ⚠ 移动端优先：矩阵 11 列放不下 → 外层横向滚动 + 首列 sticky（见 .mxwrap）。 */
 :root {
   --bg: #0a0d13;
   --card: #121826;
@@ -17,13 +21,13 @@
   --yellow: #f7c14e;
   --blue: #5ba3ff;
   --cyan: #46c9f0;
-  --up: var(--green);      /* 涨 / 正收益 */
-  --down: var(--red);      /* 跌 / 负收益 */
+  --up: var(--red);        /* 涨 / 正收益 —— 2026-10-10 起本页用 A 股习惯「红涨绿跌」（与截图一致 ✓） */
+  --down: var(--green);    /* 跌 / 负收益 */
   --warn: var(--yellow);
   --info: var(--cyan);
   --accent: var(--blue);
-  --up-bg: rgba(45,212,167,.12);   --up-line: rgba(45,212,167,.30);
-  --down-bg: rgba(242,109,125,.12); --down-line: rgba(242,109,125,.30);
+  --up-bg: rgba(242,109,125,.12);   --up-line: rgba(242,109,125,.30);   /* 跟随 --up = 红 ✓ */
+  --down-bg: rgba(45,212,167,.12); --down-line: rgba(45,212,167,.30);   /* 跟随 --down = 绿 ✓ */
   --warn-bg: rgba(247,193,78,.10);
   /* 2026-10-09 与 index.html / positions.css / fed-cycle.css **对齐**（用户：其他 html 都用 JetBrains）
      原先写的是 ui-monospace, SFMono-Regular, "SF Mono", Menlo, … ✗ —— 在 macOS 上解析到 SF Mono，
@@ -80,21 +84,35 @@ table.mx td.zero { color: var(--tx3); }
 table.mx td.empty { color: var(--tx3); text-align: center; background: none !important; }
 table.mx td.miss { background: none !important; }
 table.mx th.tot, table.mx td.tot { border-left: 1px dashed var(--line-soft); padding-left: 10px; font-weight: 700; color: var(--tx); }
+
+/* ── 收益矩阵「本月 · 进行中」列（2026-10-10 加）─────────────────────────────────────
+ * 它不是「第 10 个月份」✗ —— 是"这个月现在怎么样"的一次读数 ✓（数据在 FIN_MTD、不入任何合计 ✓）。
+ * 视觉上必须与已收官的月份分开 ✓：
+ *   · 虚线分隔（同 .tot 的手法）＋ 表头小字「进行中」
+ *   · 未提供的账户写「·」并压暗 —— 与矩阵里"尚未开户"的空白同族，但更弱（那格是整列空 ✗）
+ *   · 合计行那一格是**部分合计**：虚线框 ＋ 不加粗 ＋ 常色（不许被当"10 月合计" ✗） */
+table.mx th.mtd, table.mx td.mtd { border-left: 1px dashed var(--line-soft); padding-left: 10px; }
+table.mx td.mtd { color: var(--tx); font-weight: 700; }
+table.mx td.mtd.na { color: var(--tx3); font-weight: 400; text-align: center; }
+table.mx td.mtd.part { color: var(--tx2); font-weight: 400; border: 1px dashed var(--line); border-radius: 5px; }
+table.mx th.mtd i.thsub, table.mx th.tot i.thsub { display: block; font-style: normal; font-size: 9px; font-weight: 400; color: var(--tx3); }
 table.mx tr.sumrow td { border-top: 1px dashed var(--line-soft); font-weight: 700; color: var(--tx); }
 sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px; cursor: help; }
 .chip { font-size: 10px; color: var(--tx3); border: 1px solid var(--line); border-radius: 999px; padding: 0 5px; margin-left: 5px; }
 
-/* ---- 逐月合计（横向中轴发散条 · 2026-10-01 第三版，见 index.html 的三次迭代注释）----
- * 9 行等距，每行三段：月份 ｜ 中轴条 ｜ 金额（完整千分位）。
- * 数字独占 76px 一列 → 任何机型都放得下，不必缩写、不必错行。 */
+/* ---- 逐月合计（横向条 · **自左向右、无中轴** · 2026-10-10 第四版，见 index.html 的迭代注释）----
+ * 9 行等距，每行三段：月份 ｜ 条 ｜ 金额（完整千分位）。数字独占一列 → 任何机型都放得下 ✓
+ * ⚠ 中轴线（.mtrack::after 那条 50% 竖线）**已删** ✗ —— 条不再从中轴发散，一律自左向右 ✓
+ *   （用户 2026-10-10：「不用中轴了，就从左往右，红绿代表涨跌就行」） */
 .mbars { display: flex; flex-direction: column; gap: 4px; }
 .mrow { display: grid; grid-template-columns: 32px 1fr 78px; align-items: center; gap: 8px; font-size: var(--fs-xs); }
 .mk { font-family: var(--mono); color: var(--tx3); }
 .mtrack { position: relative; height: 14px; background: var(--card2); border-radius: 7px; overflow: hidden; }
-.mtrack::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
-.mbar { position: absolute; top: 0; bottom: 0; border-radius: 7px; min-width: 2px; }
-.mbar.up { background: linear-gradient(90deg, var(--up-bg), var(--up)); }
-.mbar.down { background: linear-gradient(90deg, var(--down), var(--down-bg)); }
+/* 条一律 left:0 起 —— ⚠ 别再写 left:50% / right:50%（那就是把中轴又加回来了 ✗，门禁会拦 ✓） */
+.mbar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px; min-width: 2px; }
+/* 渐变"左实右虚"：短条也能一眼认出颜色 ✓（半透明端只在长条的尾部出现 ✓） */
+.mbar.pos { background: linear-gradient(90deg, var(--up), var(--up-bg)); }
+.mbar.neg { background: linear-gradient(90deg, var(--down), var(--down-bg)); }
 .mv { font-family: var(--mono); font-weight: 700; text-align: right; font-feature-settings: "tnum"; white-space: nowrap; }
 
 /* ---- 账户年度排行 ---- */
@@ -102,9 +120,8 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
 .rank-row { display: grid; grid-template-columns: 118px 1fr 96px; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
 .rank-row:last-child { border-bottom: 0; }
 .rank-track { position: relative; height: 14px; background: var(--card2); border-radius: 7px; overflow: hidden; }
-.rank-track::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
-.rank-bar { position: absolute; top: 0; bottom: 0; border-radius: 7px; min-width: 2px; }   /* 下限 2px：不为「量级极小」造出「没有」的错觉 */
-.rank-bar.pos { background: linear-gradient(90deg, var(--up-bg), var(--up)); }
+.rank-bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px; min-width: 2px; }   /* 下限 2px：不为「量级极小」造出「没有」的错觉；left:0 ＝ 自左向右（同逐月合计 ✓） */
+.rank-bar.pos { background: linear-gradient(90deg, var(--up), var(--up-bg)); }    /* 红＝正收益（A 股习惯 ✓） */
 .rank-bar.neg { background: linear-gradient(90deg, var(--down), var(--down-bg)); }
 .rank-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; }   /* 金额不许折行（折了就等于「两个数」） */
 .rank-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
