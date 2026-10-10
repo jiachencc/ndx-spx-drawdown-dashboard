@@ -2258,6 +2258,54 @@ function gotoHoldInAttr(code, d) {
 /* 委托绑一次即可 ✓（`#snap-list` 这个容器是常驻的 ✓，行是每次重渲染换掉的 ✓ —— 与页内其它列表同一手法 ✓）。
    ⚠ 键盘与鼠标走同一套 ✓（Enter / Space ✓）；行是 role=button ＋ tabindex=0 ✓
      （与「归因下钻」里的 .sd-click 行同一套 a11y 语言 ✓）。 */
+/* ── 场外账户统计卡的交互（2026-10-10，用户：「点击柱状图可以联动到下方的基金明细」✓）──────────
+   三件事，都在**卡内**完成 ✓（不新增口径、不跳视图 ✓）：
+     · 点柱（整列命中带 ✓ 柱本身才 3px 宽 ✗）→ 该月逐渠道明细 ✓；再点同一根 → 收起 ✓
+     · 点渠道行 → 该渠道逐月明细 ✓；再点同一行 → 收起 ✓
+     · 「← 收起」→ 清空选择 ✓
+   键盘：图是**单一焦点** ✓（tabindex=0 ✓），←/→ 逐月移动 ✓、Enter/Space 与点击同义 ✓ ——
+     刻意不给每根柱各一个 Tab 位 ✗（页内同一套纪律：Tab 键不该变成迷宫 ✓）。
+   ⚠ 用**容器委托**绑一次 ✓：卡内内容每次选择都整块重渲染 ✓，逐元素绑法会随重渲染丢监听 ✗。
+   ⚠ 重渲染后把焦点放回图 ✓（键盘用户不会"掉出去"✗ —— 与归因那边 refocus 同一课 ✓）。 */
+function focusOtcSvg() {
+  const s = $("otc-acct-card") ? $("otc-acct-card").querySelector("svg.sa-otc") : null;
+  if (s && s.focus) s.focus();
+}
+function bindOtcCard() {
+  const box = $("otc-acct-card");
+  if (!box) return;
+  const act = (t) => {
+    if (!t || !t.closest) return false;
+    if (t.closest("[data-otc-close]")) { otcSel = null; renderOtcAcctStats(); return true; }
+    const band = t.closest("[data-otc-m]");
+    if (band) {
+      const m = band.getAttribute("data-otc-m");
+      otcSel = (otcSel && otcSel.k === "m" && otcSel.m === m) ? null : { k: "m", m: m };
+      renderOtcAcctStats(); focusOtcSvg(); return true;
+    }
+    const ch = t.closest(".otc-row[data-ch]");
+    if (ch) {
+      const id = ch.getAttribute("data-ch");
+      otcSel = (otcSel && otcSel.k === "ch" && otcSel.id === id) ? null : { k: "ch", id: id };
+      renderOtcAcctStats(); return true;
+    }
+    return false;
+  };
+  box.addEventListener("click", (e) => { act(e.target); });
+  box.addEventListener("keydown", (e) => {
+    const svg = (e.target && e.target.closest) ? e.target.closest("svg.sa-otc") : null;
+    if (svg && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      const ms = [...box.querySelectorAll("[data-otc-m]")].map((x) => x.getAttribute("data-otc-m"));
+      if (!ms.length) return;
+      const at = otcSel && otcSel.k === "m" ? ms.indexOf(otcSel.m) : -1;
+      const nx = at < 0 ? 0 : Math.max(0, Math.min(ms.length - 1, at + (e.key === "ArrowRight" ? 1 : -1)));
+      otcSel = { k: "m", m: ms[nx] };
+      renderOtcAcctStats(); focusOtcSvg(); e.preventDefault(); return;
+    }
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    if (act(e.target)) e.preventDefault();
+  });
+}
 function bindSnapListJump() {
   const box = $("snap-list");
   if (!box) return;
@@ -2291,6 +2339,7 @@ function bindSnapSwitch() {
 safeCard("snap-list", "快照对比", renderSnapLog);
   bindSnapSwitch();                        // 视图切换：归因图按需渲染（零首屏成本）
   bindSnapListJump();                      // 「逐期明细」持仓行 → 归因轨迹（2026-10-10 ✓）
+  bindOtcCard();                           // 场外账户统计：点柱 / 点渠道行 → 卡内下钻（2026-10-10 ✓）
   safeCard("acct-card", "场内账户统计", renderAcctStats);
   safeCard("otc-acct-card", "场外账户统计", renderOtcAcctStats);   // 2026-10-10 加 ✓
   safeCard("fee-card", "费率体检", renderFees);
@@ -4993,6 +5042,25 @@ function otcSnapPl() {
    ⚠ 颜色沿用**本页**的「绿＝盈、红＝亏」✓（var(--up)/var(--down) ✓）—— 财务页是红涨绿跌 ✓，
      同一批账户在两页看着相反，是两页的习惯不同 ✓，不是数据反了 ✗（别照抄那边的色感 ✓）。
    ⚠ 月频·账户级 vs 本页其它卡的日频·持仓级：可互证、**不可直接相减** ✓（见卡底口径注 ✓）。 */
+/* 本卡专用的金额格式（2026-10-10 用户报：「1、2 月显示是 0，实际是 0.31」✓）────────────────
+   为什么不能直接用 fmtAmt ✗：页面通用口径是「**截断到元**」（fmtAbs2 = Math.trunc ✓）✓ ——
+   对 +582 / +3,570 是对的 ✓，但对小额会印成「+0」「+8」✗（0.31 → +0 ✗、8.91 → +8 ✗）：
+   不是四舍五入错，而是"只到元"这条约定在"小额真实存在"的数据上会撒谎 ✗（本卡恰好有：蚂蚁 1–2 月 ✓）。
+   故本卡按**量级自适应**（只在本卡用 ✓，不动全局 fmtAmt ✗ —— 其它卡的数字口径要一致 ✓）：
+     |v| ≥ 100 → 到元（+582 / +3,570 ✓，与其它卡同精度 ✓）
+     |v| < 100 → 到分（+8.91 / +0.31 / −13.23 ✓ —— 小额看得出真假 ✓）
+     0        → 「0」✓（不写 +0.00 ✗）
+   ▸ 结论（用户问"去掉还是显示"）：**显示** ✓ —— 0.31 是真数据 ✓，去掉才是丢信息 ✗；
+     但也**不能印成 0** ✗（那是把 0.31 说成没有 ✓）→ 自适应精度是唯一不撒谎的选项 ✓。 */
+function otcFmt(v) {
+  if (v === 0) return "0";
+  if (Math.abs(v) >= 100) return fmtAmt(v);
+  return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
+}
+/* 本卡的下钻选择（2026-10-10 加，用户：「点击柱状图可以联动到下方的基金明细」✓）——
+   模块级 ✓（选择态一变就整块重渲染 ✓，函数内局部变量留不下 ✗ —— 与 saSel / saCur 同一课 ✓）。
+   null ＝ 没选 ｜ {k:"m", m:"2026-01"} ＝ 某个月的逐渠道明细 ｜ {k:"ch", id:"alipay"} ＝ 某渠道的逐月明细 */
+let otcSel = null;
 function renderOtcAcctStats() {
   const el = $("otc-acct-card");
   if (!el) return;
@@ -5038,29 +5106,88 @@ function renderOtcAcctStats() {
   const maxAbs = Math.max.apply(null, vals.map((x) => Math.abs(x.v)).concat([1]));
   const half = (H - mT - mB - 22) / 2, y0 = mT + half, k2 = half / maxAbs;
   const bw = Math.min(44, (W - mL - mR) / Math.max(1, vals.length) * 0.5);
-  let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="场外 5 个渠道月度盈亏（App 月度账单）">';
+  /* 标签宽度不够时**换行到柱外**（0.31 这种小额标签比柱子宽 ✗）—— 用 otcFmt ✓ 自适应精度 ✓ */
+  let svg = '<svg class="sa-otc" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" tabindex="0" role="group" aria-label="'
+    + esc("场外 5 个渠道月度盈亏（App 月度账单）：点某个月 → 下方看该月逐渠道明细；点某个渠道 → 看它的逐月明细。"
+      + "共 " + vals.length + " 个月，合计 " + fmtAmt(total) + " 元。") + '">';
   svg += '<line x1="' + mL + '" y1="' + y0 + '" x2="' + (W - mR) + '" y2="' + y0 + '" style="stroke:var(--line)"/>';
   vals.forEach((x, i) => {
-    const cxx = mL + (W - mL - mR) / vals.length * (i + 0.5);
+    const stepW = (W - mL - mR) / vals.length;
+    const cxx = mL + stepW * (i + 0.5);
     const h = Math.max(2, Math.abs(x.v) * k2), col = x.v >= 0 ? "up" : "down";
-    svg += '<rect class="otc-bar" data-m="' + x.k + '" data-v="' + x.v.toFixed(2) + '" x="' + (cxx - bw / 2).toFixed(1)
+    const on = !!(otcSel && otcSel.k === "m" && otcSel.m === x.k);
+    svg += '<rect class="otc-bar' + (on ? " on" : "") + '" data-m="' + x.k + '" data-v="' + x.v.toFixed(2) + '" x="' + (cxx - bw / 2).toFixed(1)
       + '" y="' + (x.v >= 0 ? y0 - h : y0).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1)
       + '" style="fill:var(--' + col + ')" opacity=".8"/>';
     svg += '<text x="' + cxx.toFixed(1) + '" y="' + (x.v >= 0 ? y0 - h - 4 : y0 + h + 10).toFixed(1)
-      + '" text-anchor="middle" style="fill:var(--' + col + ');font:700 var(--fs-xxs) var(--mono)">' + fmtAmt(x.v) + "</text>";
+      + '" text-anchor="middle" style="fill:var(--' + col + ');font:700 var(--fs-xxs) var(--mono)"'
+      + (on ? ' font-weight="800"' : "") + ">" + otcFmt(x.v) + "</text>";
     svg += '<text x="' + cxx.toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + monthNum(x.k) + "</text>";
+    /* 命中带：整列可点 ✓（柱子才 3px 宽 ✗ —— 手指/鼠标都点不中 ✓，与归因列头图同一手法 ✓）。
+       ⚠ 只对"有读数的月"生成 ✓：缺键＝该月该渠道都还没开户 ✓ → 不给假入口 ✗。 */
+    svg += '<rect class="otc-band' + (on ? " on" : "") + '" data-otc-m="' + x.k + '" data-v="' + x.v.toFixed(2) + '" x="' + (cxx - stepW / 2).toFixed(1)
+      + '" y="0" width="' + stepW.toFixed(1) + '" height="' + H + '">'
+      + "<title>" + esc(monthNum(x.k) + "　场外合计 " + otcFmt(x.v) + " 元 —— 点一下看该月逐渠道明细 ✓") + "</title></rect>";
   });
   svg += "</svg>";
   /* ── ② 逐渠道行（左对齐条形 ∝ |全年| ✓；右侧两列＝全年 ＋ 最好 / 最差月 ✓）── */
   const wMax = Math.max.apply(null, rows.map((r) => Math.abs(r.sum)).concat([1]));
-  const rowHtml = (r) => '<div class="otc-row" data-ch="' + esc(r.id) + '" data-v="' + r.sum.toFixed(2) + '" data-n="' + r.mon.length + '">'
+  const rowHtml = (r) => '<div class="otc-row' + (otcSel && otcSel.k === "ch" && otcSel.id === r.id ? " sel" : "")
+    + '" data-ch="' + esc(r.id) + '" data-v="' + r.sum.toFixed(2) + '" data-n="' + r.mon.length + '"'
+    + ' role="button" tabindex="0" aria-label="' + esc("看 " + r.name + " 的逐月明细") + '"'
+    + ' title="' + esc(r.name + "：全年 " + otcFmt(r.sum) + "（条形长度 ∝ |全年|，与其它渠道同一把尺 ✓）· 点一下 → 下方看它的逐月明细 ✓") + '">'
     + '<span class="otc-nm">' + esc(r.name) + '<i class="chip">基金</i></span>'
-    + '<span class="otc-track" title="' + esc(r.name + "：全年 " + fmtAmt2(r.sum) + "（条形长度 ∝ |全年|，与其它渠道同一把尺 ✓）") + '">'
-      + '<i class="otc-fill ' + (r.sum >= 0 ? "up" : "down") + '" style="width:' + (Math.abs(r.sum) / wMax * 100).toFixed(2) + '%"></i></span>'
-    + '<span class="otc-v ' + cls(r.sum) + '">' + fmtAmt2(r.sum) + "</span>"
+    + '<span class="otc-track"><i class="otc-fill ' + (r.sum >= 0 ? "up" : "down") + '" style="width:' + (Math.abs(r.sum) / wMax * 100).toFixed(2) + '%"></i></span>'
+    + '<span class="otc-v ' + cls(r.sum) + '">' + otcFmt(r.sum) + "</span>"
     + '<span class="otc-sub">' + (r.mon.length
-        ? r.mon.length + " 个月（自 " + monthNum(r.since) + " ✓）· 最好 " + monthNum(r.best.k) + " " + fmtAmt(r.best.v) + " · 最差 " + monthNum(r.worst.k) + " " + fmtAmt(r.worst.v)
+        ? r.mon.length + " 个月（自 " + monthNum(r.since) + " ✓）· 最好 " + monthNum(r.best.k) + " " + otcFmt(r.best.v) + " · 最差 " + monthNum(r.worst.k) + " " + otcFmt(r.worst.v)
+          + ' · <span class="otc-hint">点它 → 逐月明细 ✓</span>'
         : "该渠道暂无月度读数") + "</span></div>";
+  /* ── 下钻面板（2026-10-10 加，用户：「点击柱状图可以联动到下方的基金明细」✓）──────────────
+     两种视图，都在**卡内**、都只用 FIN_PL ✓（不新增口径 ✓）：
+       {k:"m", m}   点柱 → 该月逐渠道明细 ✓（未开户的渠道写「未开户」✗ 不是 0 ✓ + 占比 ✓）
+       {k:"ch", id} 点渠道行 → 该渠道逐月明细 ✓（合计 ≡ 上面那行的全年 ✓，同一个数 ✓）
+     ⚠ 「未开户」那几行必须**显式**写出来 ✗ 不能藏 ✗ —— 否则"5 个渠道合计"看起来就是全量 ✓，
+       而 1–2 月其实只有蚂蚁一家有账户 ✓（这正是本卡最容易读错的地方 ✓）。 */
+  const panelHtml = () => {
+    if (!otcSel) return "";
+    const closeBtn = '<button type="button" class="sa-back" data-otc-close="1">← 收起</button>';
+    const pRow = (nm, v, hit, wMax2, pct) => '<div class="otc-prow"><span class="otc-pnm">' + nm + "</span>"
+      + (hit ? '<span class="otc-track"><i class="otc-fill ' + (v >= 0 ? "up" : "down") + '" style="width:'
+          + (Math.abs(v) / wMax2 * 100).toFixed(1) + '%"></i></span>'
+          + '<span class="otc-pv ' + cls(v) + '">' + otcFmt(v) + "</span>"
+          + '<span class="otc-pp">' + pct + "</span>"
+        : '<span class="otc-track otc-na"></span><span class="otc-pv muted">未开户</span><span class="otc-pp">—</span>') + "</div>";
+    if (otcSel.k === "m") {
+      const m = otcSel.m;
+      const list = rows.map((r) => ({ r: r, hit: r.mon.filter((x) => x.k === m)[0] || null }))
+        .sort((a, b) => (b.hit ? b.hit.v : -Infinity) - (a.hit ? a.hit.v : -Infinity));
+      const sum2 = list.reduce((a, x) => a + (x.hit ? x.hit.v : 0), 0);
+      const nOpen = list.filter((x) => x.hit).length;
+      const wMax2 = Math.max.apply(null, list.map((x) => Math.abs(x.hit ? x.hit.v : 0)).concat([1]));
+      /* ⚠ 占比的**分母取绝对值之和** ✗ 不是净额 ✓（2026-10-10 实测踩到：用净额时 5月 +2,407 会显示
+         "−186%" ✗ —— 因为该渠道全年净额是 −1,297，正负相消 ✓；归因页的「各列生涯贡献」踩过同一个坑 ✓）。 */
+      const absSum2 = list.reduce((a, x) => a + Math.abs(x.hit ? x.hit.v : 0), 0) || 1;
+      return '<div class="otc-panel" data-panel-m="' + esc(m) + '" data-panel-sum="' + sum2.toFixed(2) + '" data-panel-n="' + nOpen + '">'
+        + '<div class="otc-ph"><b>' + monthNum(m) + "</b> · 逐渠道明细（" + nOpen + "/" + rows.length
+        + ' 个渠道有读数 · 合计 <b>' + otcFmt(sum2) + "</b>）" + closeBtn + "</div>"
+        + list.map((x) => pRow(esc(x.r.name), x.hit ? x.hit.v : 0, !!x.hit, wMax2, x.hit ? (Math.abs(x.hit.v) / absSum2 * 100).toFixed(0) + "%" : "—")).join("")
+        + '<div class="otc-pnote">⚠「未开户」＝该渠道当月<b>还没有账户</b>（数据层缺键 ✓）—— <b>不是 0</b> ✗：'
+        + "把它当 0 会把「没过钱」和「过钱但持平」混成一件事 ✓。"
+        + "占比＝该值 ÷ <b>本组 |值| 之和</b> ✓（分母用绝对值之和 ✗ 不用净额 —— 净额会被正负相消，"
+        + "曾算出「−186%」这种没意义的数 ✓）。</div></div>";
+    }
+    const r = rows.filter((x) => x.id === otcSel.id)[0];
+    if (!r) return "";
+    const wMax2 = Math.max.apply(null, r.mon.map((x) => Math.abs(x.v)).concat([1]));
+    const absSumR = r.mon.reduce((a, x) => a + Math.abs(x.v), 0) || 1;   // 占比分母：绝对值之和 ✓（见 pnote ✓）
+    return '<div class="otc-panel" data-panel-ch="' + esc(r.id) + '" data-panel-total="' + r.sum.toFixed(2) + '">'
+      + '<div class="otc-ph"><b>' + esc(r.name) + "</b> · 逐月明细（" + r.mon.length + " 个月 · 合计 <b>" + otcFmt(r.sum) + "</b>）" + closeBtn + "</div>"
+      + r.mon.map((x) => pRow(monthNum(x.k), x.v, true, wMax2, (Math.abs(x.v) / absSumR * 100).toFixed(0) + "%")).join("")
+      + '<div class="otc-pnote">合计 ' + otcFmt(r.sum) + " ＝ 上面那一行的全年 ✓（同一个数 ✓，不是另算一套 ✗）。"
+      + "占比＝该月 ÷ <b>本渠道各月 |值| 之和</b> " + otcFmt(absSumR) + " ✓（不用净额 ✗ —— 该渠道净额是 "
+      + otcFmt(r.sum) + "，正负相消后会算出 −186% 这种没意义的数 ✓）。</div></div>";
+  };
   /* ── ③ 三个 KPI（与场内那张同一套 .kpi 语言 ✓）── */
   const best = rows[0], worst = rows[rows.length - 1];
   el.innerHTML = '<div class="acct-stats acct3">'
@@ -5077,12 +5204,13 @@ function renderOtcAcctStats() {
     + '<div class="k-sub">' + esc(best.name) + ' <span class="' + cls(worst.sum) + '">· 最差 ' + esc(worst.name) + " " + fmtAmt2(worst.sum) + "</span></div></div>"
     + "</div>"
     + svg
+    + panelHtml()
     + '<div class="otc-rows">' + rows.map(rowHtml).join("") + "</div>"
     /* 10 月进行中（只有部分渠道有读数 ✓）—— 与财务页同一条纪律：**不入任何合计** ✓ */
     + (mtdOn.length
       ? '<div class="otc-mtd" data-mtd-sum="' + mtdSum.toFixed(2) + '" data-mtd-n="' + mtdOn.length + '">10 月<b>进行中</b>（'
-        + mtdOn.length + "/" + funds.length + " 个渠道有读数：" + mtdOn.map((x) => esc(x.name) + " " + fmtAmt(x.v) + "（截至 " + x.asof.slice(5) + " ✓）").join(" · ")
-        + "）→ 部分合计 <b>" + fmtAmt(mtdSum) + "</b> ✗ <b>不计入</b>上面的全年（月频口径要整月 ✓；其余渠道这次没读数 = 未提供，不是 0 ✗）</div>"
+        + mtdOn.length + "/" + funds.length + " 个渠道有读数：" + mtdOn.map((x) => esc(x.name) + " " + otcFmt(x.v) + "（截至 " + x.asof.slice(5) + " ✓）").join(" · ")
+        + "）→ 部分合计 <b>" + otcFmt(mtdSum) + "</b> ✗ <b>不计入</b>上面的全年（月频口径要整月 ✓；其余渠道这次没读数 = 未提供，不是 0 ✗）</div>"
       : "")
     + '<div class="otc-note"><b>口径</b>：月频 · <b>账户级</b>（各平台 App 的「月度账单」，含已实现 ✓；招行理财 / 平安证券<b>不计入</b> ✓'
     + "—— 前者是银行理财、按你的口径不入场外 ✓，后者是场内本身、计入会重复 ✓）。"

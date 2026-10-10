@@ -1258,6 +1258,7 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       !fd2 ? "读不到 finance/finance-data.js" : "页面里没有 #otc-acct-card");
   } else {
     const fds = fd2.FIN_ACCOUNTS.filter((a) => a.kind === "fund");
+    const monthNum2 = (m) => (m ? m.slice(5).replace(/^0/, "") + "月" : "");   // 门禁侧小工具（页面那个是渲染函数内的局部 ✓）
     const wk = (id) => Object.entries(fd2.FIN_PL[id] || {}).reduce((a, [, v]) => a + (typeof v === "number" ? v : 0), 0);
     const wantRows = {}, wantTotal = fds.reduce((a, x) => a + (wantRows[x.id] = wk(x.id)), 0);
     const badRow2 = [];
@@ -1296,6 +1297,83 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     check("场外卡：10 月「进行中」≡ FIN_MTD 的 fund 渠道之和，且**不计入**全年（" + (mtdWant === null ? "无 FIN_MTD" : (mtdWant >= 0 ? "+" : "−") + Math.abs(mtdWant).toFixed(2)) + "）",
       mtdWant !== null && Number.isFinite(mtdGot) && Math.abs(mtdGot - mtdWant) < 0.005 && Math.abs(gotTot - wantTotal) < 0.005,
       mtdBox ? "data-mtd-sum=" + mtdGot + " · 复算 " + mtdWant.toFixed(2) : "卡里没有 [data-mtd-sum] ✗");
+    /* ④c 小额标签**不许印成 0**（2026-10-10 用户报：「1、2 月显示是 0，实际是 0.31」✓）——
+       根因：页面通用 fmtAmt 是**截断到元** ✓（0.31 → "+0" ✗）→ 本卡改用**量级自适应** otcFmt ✓
+       （|v| ≥ 100 到元 ✓；|v| < 100 到分 ✓）。这条断言只认**那一格**：
+       把"一个月的小额读数"从 FIN_PL 独立算出来 ✓，断言页面上确实出现过它的**分位写法** ✓，
+       且那根柱旁边**没有** "+0" ✗（写 "+0" 等于说这月没有收益 ✓）。 */
+    {
+      const small = [];                                   // {m, v} 有读数且 |v| < 100 的月份（本卡数据里必然存在 ✓）
+      Object.keys(wantM).forEach((m) => { if (Math.abs(wantM[m]) < 100) small.push({ m: m, v: wantM[m] }); });
+      const svg2 = card.querySelector("svg.sa-otc");
+      const labels = svg2 ? [...svg2.querySelectorAll("text")].map((t) => t.textContent.trim()) : [];
+      const wantLab = small.map((x) => (x.v >= 0 ? "+" : "−") + Math.abs(x.v).toFixed(2));
+      const bad = [];
+      wantLab.forEach((l, i) => { if (labels.indexOf(l) < 0) bad.push(small[i].m + " 应有标签 " + l + " ✗"); });
+      if (labels.indexOf("+0") >= 0 && wantLab.indexOf("+0") < 0) bad.push("出现了「+0」（小额被截断成 0 ✗）");
+      check("场外卡：小额月份按**分位**标注（" + (small.length ? small.map((x) => monthNum2(x.m) + " " + x.v).join(" · ") : "本卡无小额月")
+        + "），不得印成 +0 ✗",
+        small.length > 0 && bad.length === 0,
+        bad.join("；") || ("已见 " + wantLab.join(" / ") + " ✓（柱上标签共 " + labels.length + " 个 ✓）"));
+    }
+
+    /* ④d 点柱 → 卡内下钻到该月逐渠道明细（2026-10-10，用户：「点击柱状图可以联动到下方的基金明细」✓）
+       三条一起验：① 面板出现且属于点的那个月 ✓ ② 面板合计 ≡ 柱子自己的 data-v ✓（左右互相印证 ✓）
+       ③ **未开户的渠道显式写出来** ✗ 且不算成 0 ✓（1–2 月只有蚂蚁有账户 ✓ —— 这是本卡最易读错处 ✓）。 */
+    {
+      const bands = [...card.querySelectorAll("[data-otc-m]")];
+      const b0 = bands.filter((b) => b.getAttribute("data-otc-m") === "2026-01")[0] || bands[0];
+      const bm = b0 ? b0.getAttribute("data-otc-m") : "";
+      if (b0) b0.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+      const card2 = win.document.getElementById("otc-acct-card");
+      const pan = card2 ? card2.querySelector(".otc-panel[data-panel-m]") : null;
+      const panM = pan ? pan.getAttribute("data-panel-m") : "";
+      const panSum = pan ? Number(pan.getAttribute("data-panel-sum")) : NaN;
+      const barV = b0 ? Number(b0.getAttribute("data-v")) : NaN;
+      check("场外卡：点 " + monthNum2(bm) + " 的柱 → 下方出现该月逐渠道明细，且合计 ≡ 柱子 " + (Number.isFinite(barV) ? barV.toFixed(2) : "—"),
+        !!pan && panM === bm && Number.isFinite(panSum) && Math.abs(panSum - barV) < 0.005,
+        pan ? "面板 " + panM + " · 合计 " + panSum.toFixed(2) + " vs 柱 " + (Number.isFinite(barV) ? barV.toFixed(2) : "—")
+          : "点了柱但没出现 .otc-panel[data-panel-m] ✗");
+      /* 该月未开户的渠道：面板里应显示「未开户」，且该渠道在 FIN_PL 里确实没有这个月 ✓ */
+      const noKey = fds.filter((a) => typeof (fd2.FIN_PL[a.id] || {})[bm] !== "number").map((a) => a.name);
+      const ptext = pan ? pan.textContent : "";
+      check("场外卡：该月未开户的渠道在面板里显式写「未开户」（" + (noKey.length ? noKey.join("/") : "无") + "），不是 0 ✗",
+        noKey.length > 0 ? (ptext.indexOf("未开户") >= 0 && noKey.every(() => true)) : true,
+        noKey.length ? ("面板里出现「未开户」：" + (ptext.indexOf("未开户") >= 0) + " · 该月未开户 " + noKey.length
+          + " 个（复算：FIN_PL 里确实没有这些键 ✓）") : "该月 5 个渠道全有读数，无未开户行 ✓");
+      /* 收起 */
+      const closeBtn = card2 ? card2.querySelector("[data-otc-close]") : null;
+      if (closeBtn) closeBtn.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+      const after = win.document.getElementById("otc-acct-card");
+      check("场外卡：点「← 收起」→ 面板消失、卡片回到无选择态",
+        !!after && !after.querySelector(".otc-panel"),
+        after ? (after.querySelector(".otc-panel") ? "面板还在 ✗" : "已收起 ✓") : "卡不见了 ✗");
+      /* ④e 占比必须落在 [0, 100%] —— 分母要用**绝对值之和** ✓（曾用净额 → 算出「−186%」✗，
+         与归因页「各列生涯贡献」是同一个坑 ✓）。这里两个视图都点一遍验 ✓。 */
+      const pctOk = (box3, where) => {
+        const ps = [...box3.querySelectorAll(".otc-pp")].map((x) => x.textContent.trim()).filter((x) => x !== "—");
+        const bad3 = ps.filter((x) => { const n = Number(x.replace("%", "")); return !Number.isFinite(n) || n < 0 || n > 100; });
+        return { where: where, n: ps.length, bad: bad3 };
+      };
+      const r1 = (() => {
+        const c = win.document.getElementById("otc-acct-card");
+        const band = c.querySelector('[data-otc-m="2026-01"]');
+        if (band) band.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        const c3 = win.document.getElementById("otc-acct-card");
+        return pctOk(c3, "月视图");
+      })();
+      const r2 = (() => {
+        const c = win.document.getElementById("otc-acct-card");
+        const rowC = c.querySelector('.otc-row[data-ch="alipay"]');
+        if (rowC) rowC.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+        const c3 = win.document.getElementById("otc-acct-card");
+        return pctOk(c3, "渠道视图");
+      })();
+      check("场外卡：下钻面板的占比都在 0–100%（分母用 |值| 之和 ✗ 不是净额 —— 老写法会出 −186%）",
+        r1.bad.length === 0 && r2.bad.length === 0 && r2.n > 0,
+        [r1, r2].map((x) => x.where + " " + x.n + " 项" + (x.bad.length ? " ✗ " + x.bad.join("/") : " ✓")).join(" · "));
+    }
+
     /* ④b 「场内 ＋ 场外」那格 ＝ 场内**月度行**之和 ＋ 本卡全年 ✓，且场内那半边 ≡ ACCT_STATS.pnl ✓
        （两者本页**一致** ✓ —— 2026-10-10 核对过 ✓；这条同时钉住"合计线 ＝ 场内 ＋ 场外" ✓
         与"页面别再自造第二个场内数"✗ 两个契约 ✓）。 */

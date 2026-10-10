@@ -1372,6 +1372,33 @@
   .otc-mtd { margin-top: 8px; padding: 6px 8px; border: 1px dashed var(--line); border-radius: var(--radius-xs);
     font-size: var(--fs-xxs); color: var(--tx2); line-height: 1.6; }
   .otc-mtd b { font-family: var(--mono); color: var(--tx); }
+
+  /* ── 场外卡的下钻（2026-10-10：点柱 → 该月逐渠道；点渠道行 → 该渠道逐月）─────────────────
+     命中带（.otc-band）铺满整列 ✓ —— 柱子才 3px 宽，点不中 ✗（与归因列头图同一手法 ✓）；
+     选中态：柱加描边 ✓、行加浅底 ✓（一眼看出点中了哪一格 ✓）。
+     面板沿用页内细字语言（--fs-xxs / --mono ✓），「未开户」压暗但**不隐藏** ✓（那是信息，不是空 ✗）。 */
+  #otc-acct-card svg.sa-otc { display: block; max-width: 100%; }
+  #otc-acct-card svg.sa-otc:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: var(--radius-xs); }
+  .otc-band { fill: transparent; cursor: pointer; }
+  .otc-band:hover { fill: rgba(147, 163, 187, .10); }
+  .otc-band.on { fill: rgba(91, 163, 255, .12); }
+  .otc-bar.on { stroke: var(--blue); stroke-width: 1.4; }
+  .otc-row.sel { background: rgba(91, 163, 255, .10); border-radius: var(--radius-xs); }
+  .otc-hint { color: var(--tx3); }
+  .otc-panel { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-xs);
+    background: var(--card2); }
+  .otc-ph { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
+    font-size: var(--fs-xs); color: var(--tx2); }
+  .otc-ph b { font-family: var(--mono); color: var(--tx); font-feature-settings: "tnum"; }
+  .otc-ph .sa-back { margin-left: auto; }
+  .otc-prow { display: grid; grid-template-columns: minmax(72px, max-content) 1fr auto 34px; align-items: center;
+    gap: 6px; padding: 3px 0; font-size: var(--fs-xxs); }
+  .otc-pnm { color: var(--tx2); white-space: nowrap; }
+  .otc-pv { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; text-align: right; }
+  .otc-pp { font-family: var(--mono); color: var(--tx3); text-align: right; }
+  .otc-track.otc-na { background: none; border-top: 1px dashed var(--line); height: 1px; border-radius: 0; }
+  .otc-pnote { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.6; }
   /* 清仓历史：名称（带代码）左、兑现盈亏右；末行合计与上方虚线分隔 */
   .closed-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
   .closed-row:last-of-type { border-bottom: 0; }
