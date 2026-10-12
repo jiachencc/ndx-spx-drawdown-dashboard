@@ -1292,8 +1292,37 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
           badA.push(dm + "：" + (i === linesA.length - 1 ? "总累计（合计）" : "第 " + (i + 1) + " 列") + " 出界 y∈[" + mn.toFixed(1) + "," + mx.toFixed(1) + "]（可用到 " + (HA - 22) + "）");
         }
       });
+      /* ④l-5 关键点位 ＋ 悬停层（2026-10-12 加：用户「折线图能否加点关键点位、鼠标放上去按 x 轴看对应数据」）
+         判据全走**图自带的数据载荷**（data-allcums ✓ 与图同一次渲染产出 ✓）：
+           ① 三个关键点必须分别落在合计线的 argmax / argmin / 最新 上 ✓（重合成一个时允许少于 3 ✓）
+           ② 每个点的坐标必须 ≡ 载荷里那一期的 x / y ✓（防"圈画歪了" ✗）
+           ③ 跟随点（悬停用）= 列数 ＋ 1（每列一枚 ＋ 总累计一枚 ✓）
+           ④ 读数行存在且带 data-allread ✓、svg 可聚焦（tabindex ✓ —— 键盘 ←/→ 与鼠标同构 ✓） */
+      const kpA = [...boxA.querySelectorAll("circle.sa-kp")];
+      let pkA = null;
+      try { pkA = JSON.parse(boxA.getAttribute("data-allcums")); } catch (e) { pkA = null; }
+      const tvA = pkA ? pkA.tvs : null;
+      if (!pkA || !tvA) { badA.push(dm + "：没有 data-allcums 载荷"); return; }
+      if (pkA.xs.length !== pkA.dates.length || tvA.length !== pkA.xs.length) badA.push(dm + "：载荷长度不一致 ✗");
+      if (kpA.length < 1 || kpA.length > 3) badA.push(dm + "：关键点 " + kpA.length + " 个（应 1~3）");
+      let iMaxA = 0, iMinA = 0;
+      tvA.forEach((v, i) => { if (v > tvA[iMaxA]) iMaxA = i; if (v < tvA[iMinA]) iMinA = i; });
+      const wantA = { "最高": iMaxA, "最低": iMinA, "最新": tvA.length - 1 };
+      kpA.forEach((c) => {
+        const t = c.getAttribute("data-kp"), i = +c.getAttribute("data-i");
+        if (wantA[t] !== i) badA.push(dm + "：" + t + " 点在第 " + i + " 期，应为第 " + wantA[t] + " 期");
+        if (+c.getAttribute("cx") !== pkA.xs[i] || +c.getAttribute("cy") !== pkA.tys[i]) {
+          badA.push(dm + "：" + t + " 点坐标 (" + c.getAttribute("cx") + "," + c.getAttribute("cy") + ") ≠ 载荷 (" + pkA.xs[i] + "," + pkA.tys[i] + ")");
+        }
+      });
+      const dotsA = boxA.querySelectorAll("circle.sa-xhd").length;
+      if (dotsA !== nColA + 1) badA.push(dm + "：悬停跟随点 " + dotsA + " 枚 ≠ 列数＋1（" + (nColA + 1) + "）");
+      const readA = boxA.querySelector(".sa-ch-read[data-allread]");
+      const svgTab = svgA.getAttribute("tabindex");
+      if (!readA) badA.push(dm + "：没有悬停读数行");
+      if (svgTab !== "0") badA.push(dm + "：svg 不可聚焦（tabindex=" + svgTab + "）");
     });
-    check("归因「合计」列头（整表累计曲线）：三种维度下所有折线都在画布内", badA.length === 0,
+    check("归因「合计」列头（整表累计曲线）：三种维度下折线都在画布内 ＋ 关键点位/悬停层齐备", badA.length === 0,
       badA.slice(0, 4).join("；") || "theme / plat / acct 逐维度验过：无出界 ✓");
     const backA = [...win.document.querySelectorAll("#snap-attr [data-dim]")].find((b) => b.dataset.dim === "theme");
     if (backA) backA.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));   // 复位，别把状态留给后面的断言 ✗

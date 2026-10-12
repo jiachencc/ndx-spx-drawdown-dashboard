@@ -1638,6 +1638,17 @@
   #snap-attr .sa-all-k.on i { box-shadow: 0 0 0 2px rgba(147, 163, 187, .4); }
   #snap-attr .sa-all-k:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   #snap-attr .sa-all-k i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+  /* ── 整表累计曲线：关键点位 ＋ 悬停层（2026-10-12 加）────────────────────────────────
+     装饰元素继续**不吃指针** ✓（见上方那条 `polyline / circle { pointer-events: none }`）——
+     悬停由 svg 自己接 ✓，于是"指针压在线上"也不会挡住读数 ✓。 */
+  #snap-attr .sa-chart-svg circle.sa-kp { fill: var(--bg); stroke: var(--tx2); stroke-width: 1.2; }
+  #snap-attr .sa-chart-svg circle.sa-kp[data-kp="最高"] { stroke: var(--up); }
+  #snap-attr .sa-chart-svg circle.sa-kp[data-kp="最低"] { stroke: var(--down); }
+  #snap-attr .sa-chart-svg circle.sa-kp[data-kp="最新"] { stroke: var(--tx); stroke-width: 1.6; }
+  #snap-attr .sa-chart-svg line.sa-xh { stroke: var(--tx3); stroke-width: 1; stroke-dasharray: 3 3; }
+  #snap-attr .sa-chart-svg { cursor: crosshair; }
+  /* 读数行固定一行高 ✓（内容长短变化不让下方图上下跳 —— 与列头图的 .sa-ch-read 同一规矩 ✓） */
+  #snap-attr .sa-ch-read[data-allread] { min-height: 26px; }
   #snap-attr .sa-all-k b { font-weight: 700; }
   #snap-attr .sa-chart-note { font-size: var(--chk-fs-mini); color: var(--tx3); line-height: 1.5; padding-top: 3px; }
 

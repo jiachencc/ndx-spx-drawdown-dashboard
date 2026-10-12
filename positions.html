@@ -2088,6 +2088,40 @@ function saDetailView(C) {
     });
     const tPts = tCum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1));   // 复用上面算好的总累计 ✓
     g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:2.2"/>';   // 总累计：粗 ＋ 中性色 ✓（var(--tx) 跟主题走；⚠ #snap-attr 内 --tx 被锁定（见 css），故浅色下仍解析为深色主题值——与改前一致，语义先正确化）
+    /* ── 关键点位（2026-10-12 加；用户：「折线图能否加上一些关键的点位」）────────────────────
+       只标**合计线**上的三个点 —— 它是这张图的结论线 ✓：
+         · 最高 / 最低：整段行情的两端（悬停看是哪一期、多少钱 ✓）
+         · 最新：右下角那个终值（与标题里的「合计」是同一个数 ✓）
+       各列自己的极值不标 ✗（6 条线的极值散落各处、互相压，反而看不出重点 ✗）。 */
+    let iHi = 0, iLo = 0;
+    tCum.forEach((v, i) => { if (v > tCum[iHi]) iHi = i; if (v < tCum[iLo]) iLo = i; });
+    const kps = [];
+    [["最高", iHi], ["最低", iLo], ["最新", tCum.length - 1]].forEach(([t, i]) => {
+      if (kps.some((x) => x.i === i)) return;                        // 三个点重合时只画一次 ✓
+      kps.push({ t: t, i: i });
+    });
+    kps.forEach((kp) => {
+      const dLab = kp.i === 0 ? "账户起点" : C.live[kp.i - 1].d;
+      g += '<circle class="sa-kp" data-kp="' + kp.t + '" data-i="' + kp.i + '"'
+        + ' cx="' + xAt(kp.i).toFixed(1) + '" cy="' + Y(tCum[kp.i]).toFixed(1) + '" r="3">'
+        + "<title>" + esc(kp.t + "：" + dLab + " · 合计 " + fmtAmt(Math.round(tCum[kp.i])) + " 元") + "</title></circle>";
+    });
+    /* ── 悬停层（十字竖线 ＋ 每列一枚跟随点）＋ 读数行 ✓ ────────────────────────────────
+       几何（每期的 x / 各列 y / 合计 y / 日期）随 HTML 一起塞进 data-allcums ✓ ——
+       saWire 里只做「取最近一期 → 挪元素 ＋ 改一行文字」✓，与图**同一次渲染产出**，
+       不会各算一套而漂移 ✓（同「图与读数同一份数据」的既有纪律 ✓）。 */
+    const allData = JSON.stringify({
+      dates: ["账户起点"].concat(C.live.map((p) => p.d)),
+      xs: tCum.map((v, i) => +xAt(i).toFixed(1)),
+      tys: tCum.map((v) => +Y(v).toFixed(1)),
+      tvs: tCum.map((v) => +v.toFixed(2)),                                    // 合计的**值**（读数用 ✓，坐标只用来画点 ✗）
+      cols: series.map((s2) => ({ k: s2.k, col: s2.col,
+        ys: s2.cum.map((v) => +Y(v).toFixed(1)),
+        vs: s2.cum.map((v) => +v.toFixed(2)) })),
+    });
+    g += '<line class="sa-xh" x1="0" y1="' + mT + '" x2="0" y2="' + (H - mB) + '" style="display:none"/>';
+    series.forEach((s2) => { g += '<circle class="sa-xhd" data-k="' + esc(s2.k) + '" cx="0" cy="0" r="2.6" fill="' + s2.col + '" style="display:none"/>'; });
+    g += '<circle class="sa-xhd" data-k="__total" cx="0" cy="0" r="3.2" style="display:none;fill:var(--tx)"/>';
     const lab2 = (x, y, s3, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s3) + "</text>";
     g += lab2(mL - 5, Y(hi) + 6, fmtAmt(Math.round(hi)));
     g += lab2(mL - 5, Y(lo) + 3, fmtAmt(Math.round(lo)));
@@ -2102,14 +2136,17 @@ function saDetailView(C) {
         + ' aria-label="' + esc("点亮「" + C.colNameOf(s2.k) + "」这条线（终值 " + fmtAmt(s2.end) + " 元）") + '">'
         + '<i style="background:' + s2.col + '"></i>' + esc(C.colNameOf(s2.k))
         + ' <b class="' + cls(s2.end) + '">' + fmtAmt(s2.end) + "</b></span>").join("");
-    return '<div class="sa-detail sa-chart" data-all-end="' + total2.toFixed(2) + '" data-all-n="' + series.length + '">'
+    return '<div class="sa-detail sa-chart" data-all-end="' + total2.toFixed(2) + '" data-all-n="' + series.length + '"'
+      + ' data-allcums="' + esc(allData) + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
       + "<b>整表累计曲线</b>（" + series.length + " 列 ＋ 总累计 · 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " · <b>合计 " + fmtAmt(total2) + "</b>）"
-      + '<span class="sd-hint">粗白＝总累计 细彩＝各列 ✓（终值见图例；逐期细看请点某个列头）</span></div>'
-      + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
-      + esc("整表累计曲线：各列终值合计 " + fmtAmt(total2) + " 元") + '">' + g + "</svg>"
+      + '<span class="sd-hint">粗白＝总累计 细彩＝各列 · 圈＝合计线的最高 / 最低 / 最新</span></div>'
+      + '<svg class="sa-chart-svg" tabindex="0" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
+      + esc("整表累计曲线：各列终值合计 " + fmtAmt(total2) + " 元。鼠标移到图上或按左右方向键，可逐期查看合计与各列的值。") + '">' + g + "</svg>"
+      + '<div class="sa-ch-read" data-allread="1">鼠标移到图上（或用 <b>← →</b> 键）：按 x 轴看那一期的合计与各列</div>'
       + '<div class="sa-all-legend">' + legend + "</div>"
-      + '<div class="sa-chart-note">x 轴同样按<b>实际日期间距</b>；本视图刻意<b>不做悬停</b> —— 逐期细看请点某个列头（那张图有拐点、读数与键盘）。</div></div>';
+      + '<div class="sa-chart-note">x 轴按<b>实际日期间距</b>；悬停/键盘取的是**最近的一期**（不是插值 ✓）—— ' 
+      + "要逐期看某一只的贡献与成员，仍可点对应列头（那张图有柱、成员与键盘）。</div></div>";
   };
   const detail = () => {
     if (saSel && saSel.k === "cols") return viewColsRank();
@@ -2411,6 +2448,77 @@ function saWire(C) {
     if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
     if (actOn(e.target)) e.preventDefault();
   };
+
+  /* ── 整表累计曲线（「合计」列头）的悬停 / 键盘读数（2026-10-12 加）──────────────────
+     用户：「折线图能否加点关键点位、鼠标放上去按 x 轴看到对应数据」✓
+     · 几何与数值全部读图上的 data-allcums ✓（与图**同一次渲染产出**，不会各算一套而漂移 ✗）
+     · 与走势图同一套纪律：pointermove 里**只挪元素 ＋ 改一行文字**，绝不整块重渲染 ✗
+       （重渲染会闪、还会把焦点与滚动位置一起冲掉 ✗）；rAF 节流 = 每帧最多更新一次 ✓
+     · 取的是**最近的一期**（不做插值 ✓）—— 图是逐期点连成的，插值会造出"没有的读数" ✗ */
+  const allBox = C.el.querySelector(".sa-chart[data-allcums]");
+  if (allBox) {
+    const svg2 = allBox.querySelector("svg.sa-chart-svg");
+    const read2 = allBox.querySelector(".sa-ch-read");
+    const xh2 = allBox.querySelector("line.sa-xh");
+    const dots2 = Array.prototype.slice.call(allBox.querySelectorAll("circle.sa-xhd"));
+    let pk = null;
+    try { pk = JSON.parse(allBox.getAttribute("data-allcums")); } catch (e) { pk = null; }
+    if (pk && svg2 && read2 && xh2) {
+      const idle2 = read2.innerHTML;                                  // 未悬停时的提示语（隐藏时还原 ✓）
+      const show2 = (i) => {
+        if (i < 0 || i >= pk.xs.length) return;
+        read2.dataset.i = String(i);
+        xh2.setAttribute("x1", pk.xs[i]); xh2.setAttribute("x2", pk.xs[i]);
+        xh2.style.display = "";
+        dots2.forEach((d2) => {
+          const k = d2.getAttribute("data-k");
+          let y;
+          if (k === "__total") y = pk.tys[i];
+          else { const c2 = pk.cols.filter((x) => x.k === k)[0]; y = c2 ? c2.ys[i] : undefined; }
+          if (y === undefined) { d2.style.display = "none"; return; }
+          d2.setAttribute("cx", pk.xs[i]); d2.setAttribute("cy", y); d2.style.display = "";
+        });
+        const raw = pk.dates[i], dLab2 = raw === "账户起点" ? "账户起点" : mdFull(raw).slice(5);
+        const items = pk.cols.map((c2) => ({ n: C.colNameOf(c2.k), v: c2.vs[i] }))
+          .sort((a, b) => Math.abs(b.v) - Math.abs(a.v));             // 按金额绝对值排：大的在前，一眼看出这期是谁在动
+        read2.innerHTML = "<b>" + esc(dLab2) + "</b> · 合计 <b class=\"" + cls(pk.tvs[i]) + "\">" + fmtAmt(pk.tvs[i]) + "</b> 元"
+          + (items.length ? " · " + items.map((x) => esc(x.n) + " <b class=\"" + cls(x.v) + "\">" + fmtAmt(x.v) + "</b>").join(" · ") : "");
+      };
+      const hide2 = () => {
+        delete read2.dataset.i;
+        xh2.style.display = "none";
+        dots2.forEach((d2) => { d2.style.display = "none"; });
+        read2.innerHTML = idle2;
+      };
+      let raf2 = null;                                                // rAF 节流 ✓
+      const soon2 = (i) => { if (raf2 !== null) cancelAnimationFrame(raf2); raf2 = requestAnimationFrame(() => { raf2 = null; show2(i); }); };
+      /* 屏幕 x → viewBox x：svg 是 width:100% ＋ viewBox ✓，故按 rect 宽等比换算 ✓（与列头图同一算法 ✓） */
+      const pick2 = (e) => {
+        const r2 = svg2.getBoundingClientRect();
+        if (!r2.width) return -1;
+        const vx = (e.clientX - r2.left) / r2.width * (+svg2.getAttribute("width") || r2.width);
+        let best = 0, bd = Infinity;
+        pk.xs.forEach((x, i) => { const dd2 = Math.abs(x - vx); if (dd2 < bd) { bd = dd2; best = i; } });
+        return best;
+      };
+      svg2.onpointermove = (e) => { const i = pick2(e); if (i >= 0) soon2(i); };
+      svg2.onpointerleave = hide2;
+      svg2.onfocus = () => { if (read2.dataset.i === undefined) show2(pk.xs.length - 1); };   // 聚焦即落在最新一期 ✓
+      svg2.onblur = hide2;
+      svg2.onkeydown = (e) => {                                       // 键盘与鼠标同构 ✓（←/→ 逐期，Home/End 两端）
+        const cur2 = read2.dataset.i === undefined ? -1 : +read2.dataset.i;
+        let nx2 = null;
+        if (e.key === "ArrowRight") nx2 = Math.min(pk.xs.length - 1, (cur2 < 0 ? -1 : cur2) + 1);
+        else if (e.key === "ArrowLeft") nx2 = Math.max(0, (cur2 < 0 ? pk.xs.length : cur2) - 1);
+        else if (e.key === "Home") nx2 = 0;
+        else if (e.key === "End") nx2 = pk.xs.length - 1;
+        else if (e.key === "Escape") { hide2(); return; }
+        if (nx2 === null) return;
+        show2(nx2);                                                   // 键盘路径**立即**显示 ✓（不节流，逐次按键都要有反馈 ✓）
+        e.preventDefault();
+      };
+    }
+  }
 }
 
 /* ── ⑥ 薄装配 ✓（拆分后的总入口：状态 → 拼 HTML → 注入 → 绑事件，顺序与拆前完全一致 ✓）──
