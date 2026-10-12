@@ -1510,8 +1510,53 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       if (Math.abs(g("data-cmp-diff") - diff) > 1e-4) badE.push(code + " 差 " + g("data-cmp-diff") + " vs " + diff.toFixed(4));
       if (Math.abs(g("data-cmp-amt") - amt) > 0.51) badE.push(code + " 金额差 " + g("data-cmp-amt") + " vs " + amt.toFixed(2));
     });
-    check("预估对账：逐行 est / act / 差 / 金额差 ≡ 独立复算（" + rowsE.length + " 只），且目标日 ＝ App 净值日 ✓",
+    check("预估对账：逐行 est / act / 差 / 金额差 ≡ 独立复算（" + rowsE.length + " 只），且目标日 ＝ 该条的 d ✓",
       badE.length === 0, badE.join("；") || "全部对上 ✓");
+  }
+  /* ④q-2 两个「净值日」不一致的，页面必须**显式标出**（2026-10-12 加）——
+     起因：用户「因为场外前后有1-2天的延迟，所以呈现要符合逻辑一点，也就是日期要对齐，应该没问题对吧？」
+     实况：本表用**东财净值序列**的净值日 ✓（拟合/对账同源 ✓），而 App 快照另有一个净疋日 ✓（QDII 慢 1 天 ✓）
+       —— 实测 8 只里 1 只不同（南方 021000：序列 10-08 / App 10-09 ✓）。
+     ⚠ 不标出来就是陷阱 ✗：表里写「净值日 10-08 → 指数日 10-09」✓，而 App 写着 10-09 ✗ →
+       读者会以为表算错 ✓（上次那个 −125 元假差异就是这个错位的产物 ✓）。
+     判据：从 OTC ＋ NOWCAST 独立算出"哪些只两源不同"✓，断言这些行**有** App 日期的 chip ✓，
+       且两源**一致**的行**没有**那种 chip ✗（不制造噪音 ✓）。 */
+  {
+    const boxE2 = win.document.getElementById("otc-est");
+    const tbl = boxE2 ? boxE2.querySelector("#est-now") : null;
+    const rowsE2 = tbl ? [...tbl.querySelectorAll("tbody tr")] : [];
+    const gapWant = [];
+    /* 本表的序列净值日 ≡ NOWCAST.fits[code].navDate ✓（台账的 navDate0 与它同值 ✓，见 fetch-nowcast 注释 ✓） */
+    const ncFits2 = (() => {
+      try {
+        const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const NOWCAST = (\{[\s\S]*?^\});/m);
+        return m ? JSON.parse(m[1]).fits : null;
+      } catch (e) { return null; }
+    })();
+    (OTC2.funds || []).forEach((f) => {
+      const serD = (ncFits2 && ncFits2[f.code]) ? ncFits2[f.code].navDate : null;
+      const appD = (f.nav && f.nav.closeDate) || "";
+      if (serD && appD && serD !== appD) gapWant.push({ code: f.code, name: f.name, ser: serD, app: appD });
+    });
+    /* 行里没有 code 属性 → 用"该行是否带 App 日期 chip"来判 ✓（chip 文本形如 "App 10-09" ✓） */
+    const chips = rowsE2.map((tr) => ((tr.querySelector(".chip") || {}).textContent || "").trim());
+    const badG = [];
+    gapWant.forEach((g) => {
+      const md = g.app.slice(5);
+      if (chips.filter((c) => c.indexOf(md) >= 0).length !== 1) badG.push(g.name + " 两源不同（序列 " + g.ser + " / App " + g.app + "），但行里没标出 App " + md + " ✗");
+    });
+    /* 反向：两源一致的行不该带 App chip ✓（不许制造噪音 ✗） */
+    const okCodes = (OTC2.funds || []).filter((f) => {
+      const code = f.code;
+      const g = gapWant.filter((x) => x.code === code)[0];
+      return !g;
+    });
+    const anyExtra = chips.filter((c) => c).length - gapWant.length;
+    check("预估表：两源「净值日」不一致的必须显式标出（本次 " + gapWant.length + " 只" +
+      (gapWant.length ? "：" + gapWant.map((g) => g.name.slice(0, 8) + " 序列 " + g.ser.slice(5) + "/App " + g.app.slice(5)).join(" · ") : "") + "）",
+      badG.length === 0 && anyExtra === 0 && (rowsE2.length > 0),
+      (badG.join("；") || "") + (anyExtra !== 0 ? (badG.length ? "；" : "") + "有 " + anyExtra + " 个多余的 App chip ✗（两源一致的不该标 ✓）" : "")
+        || ("标出 " + chips.filter((c) => c).length + " 处 ✓ · 一致的行无 chip ✓"));
   }
 }
 
