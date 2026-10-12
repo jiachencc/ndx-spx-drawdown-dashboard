@@ -1460,6 +1460,10 @@ try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /*
    ⚠ 必须是**模块级**：切一次维度就整块重渲染，函数内的局部变量留不下 ✓（与 saDim 同一理由）。
    ⚠ 不进 localStorage —— 它是一次性交互状态，刷新后回到"净变动最大那期"更合理。 */
 let saSel = null;
+/* 轨迹的「折叠无操作期」开关（2026-10-12 加）：**默认不折** ✓ ——
+   折了会藏掉那几期的明细 ✗，只在期数变多时给个选择 ✓（与 trendView / snapAttrDim 同一套持久化做法 ✓） */
+let sdFoldTrace = false;
+try { sdFoldTrace = localStorage.getItem("traceFold") === "1"; } catch (err) { /* 隐私模式下忽略 */ }
 /* 当前选中的**期**（2026-10-10 改为**模块级** ✓）—— 与 saSel 完全同一理由（见上 ✗，我当时漏了它 ✗）：
    选择态一变就整块重渲染，而 `let cur` 原先写在渲染函数**内部** → 点完行刚设的期立刻被重置回默认期
    →「点日期格 / 点期行 / 点期初行」全都看着没反应 ✗（2026-10-10 用户报的正是这个）。
@@ -1771,7 +1775,8 @@ function saMatrixHtml(C) {
    ▸ pts ＝ [{d, p, c}]（旧 → 新 ✓ —— 列表是新→旧 ✓，图反过来才读得顺 ✓）；
      evs ＝ [{d, cost, buy, title}]（**只有场内**能画点 ✓：OTC_LOG 不带成交净值 ✗，场外只画两条线 ✓）。
    ▸ w 由调用方量好传进来（页面里量的是 .sa-detail-box ✓，与列头图同一套做法 ✓）。 */
-function traceSparkSvg(w, pts, evs) {
+function traceSparkSvg(w, pts, evs, opt) {
+  opt = opt || {};
   const h = 116, mL = 46, mR = 12, mT = 10, mB = 18;
   const vals = [];
   pts.forEach((x) => { if (Number.isFinite(x.p)) vals.push(x.p); if (Number.isFinite(x.c)) vals.push(x.c); });
@@ -1802,7 +1807,22 @@ function traceSparkSvg(w, pts, evs) {
     + '" r="2" style="fill:var(--tx2)"/>'; });
   svg += '<text x="' + mL + '" y="' + (h - 4) + '" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + mdOf(pts[0].d) + "</text>"
     + '<text x="' + (w - mR) + '" y="' + (h - 4) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">'
-    + mdOf(pts[pts.length - 1].d) + "</text></svg>";
+    + mdOf(pts[pts.length - 1].d) + "</text>";
+  /* 命中带（2026-10-12 加，用户要「点某一期 → 去那一期」✓）：每期一条**整列**透明带 ✓ ——
+     与列头图同一条规矩：可点的是整列，不是 2px 的圆点 ✗（手指点不中 ✓）。
+     第一条是「期初结转」那一点 → data-goperiod="__carry" ✓（与矩阵的期初行同一套约定 ✓）。
+     ⚠ 必须画在**最后**（在最上层）✓，否则会被折线 / 圆点盖住 ✗。 */
+  const xs2 = pts.map((x) => X(x.d));
+  pts.forEach((x, i) => {
+    const l = i === 0 ? mL : (xs2[i - 1] + xs2[i]) / 2;
+    const r2 = i === pts.length - 1 ? (w - mR) : (xs2[i] + xs2[i + 1]) / 2;
+    /* 只有**真的画了期初那点**时，最左一条才代表期初 ✓；否则它就是 09-08 那一期 ✓ */
+    const gk = (i === 0 && opt.carryD && x.d === opt.carryD) ? "__carry" : x.d;
+    svg += '<rect class="sd-band" data-goperiod="' + gk + '" x="' + l.toFixed(1)
+      + '" y="' + mT + '" width="' + Math.max(3, r2 - l).toFixed(1) + '" height="' + (h - mT - mB)
+      + '" style="fill:transparent"><title>' + esc("点这里 → 看 " + mdOf(x.d) + " 那一期") + "</title></rect>";
+  });
+  svg += "</svg>";
   return svg;
 }
 /* ── ③ 下钻视图：整期 / 格子 / 逐期轨迹 / 列图 / 排序条 / 整表曲线 ＋ 分派 ✓ ──
@@ -1918,8 +1938,13 @@ function saDetailView(C) {
     const cps = (x) => (x && x.qty ? x.cost / x.qty : null);     // 每股**摊薄成本** ✓（不是成本合计 ✗）
     const fpx = (v) => (Number.isFinite(v) ? v.toFixed(4) : "—");
     const pair = (a, b, f, chg) => (chg && Number.isFinite(a) && Number.isFinite(b) ? f(a) + " → " + f(b) : f(b));
-    /* 头部小图的数据：期初结转那一点 ＋ 各期（旧 → 新 ✓） */
-    const pts = [{ d: C.baseD, p: pxs(carryIt), c: cps(carryIt) }]
+    /* 头部小图的数据：期初结转那一点（**能画才画** ✓）＋ 各期（旧 → 新 ✓）。
+       ⚠ carryItems[code] 只有 pl、**没有 qty/val** ✗（它是「账户起点 → 该期 Σ逐只 pl」那一项 ✓）
+         → 期初那点算不出每股价/成本 → 只能不进图 ✓（首版把它硬塞进去，结果被 filter 丢掉 ✗，
+         而命中带又把最左那点默认标成 __carry ✗ → 点 09.08 的点会跳到"期初"✓ 已修 ✓）。 */
+    const anchorPt = { d: C.baseD, p: pxs(carryIt), c: cps(carryIt) };
+    const hasAnchor = Number.isFinite(anchorPt.p) || Number.isFinite(anchorPt.c);
+    const pts = (hasAnchor ? [anchorPt] : [])
       .concat(chrono.map((x) => ({ d: x.d, p: pxs(x.rawB), c: cps(x.rawB) })))
       .filter((x) => Number.isFinite(x.p) || Number.isFinite(x.c));
     const evRaw = exch ? (((typeof POSITIONS !== "undefined" && POSITIONS.log) || []))
@@ -1934,49 +1959,82 @@ function saDetailView(C) {
     const boxW = Math.max(280, (boxEl && boxEl.clientWidth) || 620);
     const lastIt = hist.length ? hist[0].rawB : carryIt;
     const nowPx = pxs(lastIt), nowCost = cps(lastIt);
+    /* ── 表体：期初结转 ＋ 各期（旧 → 新 ✓），可选「折叠无操作期」────────────────────────────
+       折叠规则：把**连续的无事件期**并成一行，贡献取**该段之和** ✓（所以合计不变、不丢数 ✓）；
+       份数 / 单价 / 成本 / 市值 取该段**末值** ✓，被折掉的日期列在悬停里 ✓。
+       默认**不折** ✓ —— 折了会藏掉那几期的明细 ✗，只在期数变多时给个选择 ✓。 */
     const rows = [];
-    if (C.carryItems[code] !== undefined) {
-      rows.push('<tr class="carry"><td>期初结转</td><td>账户起点 → ' + mdOf(C.baseD) + "</td>"
-        + '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>'
-        + '<td class="r num ' + cls(carryV) + '">' + fmtAmt(carryV) + "</td>"
-        + '<td class="r num mut">' + pctTxt(carryV, total) + "</td></tr>");
-    }
-    chrono.forEach((h2) => {
+    const enriched = chrono.map((h2) => {
       const i = C.live.findIndex((p) => p.d === h2.d);
       const prevD = i > 0 ? C.live[i - 1].d : C.baseD;
-      const ev = eventsOf(code, prevD, h2.d);
-      const A = h2.rawA, B = h2.rawB;
-      /* ⚠ 判断要**按列**做 ✗：首版用行级一个 chg，结果「成本因四舍五入差 1 元」也会让**份数**列挂上
-         「44,000 → 44,000」这种完全没意义的箭头 ✗（实测 09.08 行 ✓）。所以：
-           份数箭头只看份数、成本箭头只看成本 ✓。
-         高亮则只看**有没有真实交易记录**（ev.length ✓）—— 那天没动手就不高亮 ✓（09.08 就是这样 ✓）。 */
+      return { h2, ev: eventsOf(code, prevD, h2.d) };
+    });
+    const pushRow = (item) => {
+      const h2 = item.h2, ev = item.ev, A = item.h2.rawA, B = item.h2.rawB;
+      /* 按**列**判断箭头 ✗→✓：首版用行级一个标志，结果「成本因四舍五入差 1 元」会让**份数**列也挂上
+         「44,000 → 44,000」这种没意义的箭头 ✗（实测 09.08 行 ✓）。
+         成本阈值 2 元 ✓：手填快照的 1 元左右抖动要忽略 ✗，真交易是 5 / 200 / 上千 ✓ 不会漏 ✓。 */
       const chgQ = !!(A && B) && Math.abs((A.qty || 0) - (B.qty || 0)) > 0.005;
-      /* 成本的阈值为 2 元 ✓ —— 手填快照的**四舍五入抖动**常常是 1 元左右 ✗（实测 09.08：
-         85,483 → 85,482 却没有任何交易 ✓），而真实交易的量级是 5 元（日定投）/ 200 / 上千 ✓ → 不会漏 ✓ */
       const chgC = !!(A && B) && Math.abs((A.cost || 0) - (B.cost || 0)) > 2;
       /* 行内 chip：只留「日期 ＋ 动作 ＋ 份数」✓（对账单全文进悬停 ✓）；
-         本期所有事件同一天时去掉重复日期前缀 ✓（否则读成「09.28 买入…／09.28 买入…」像出错 ✓）。 */
+         本期事件全在同一天时去掉重复日期前缀 ✓（否则读成「09.28 买入…／09.28 买入…」像出错 ✓）。 */
       const evHeads = ev.map((t) => t.split(" · ")[0]);
       const evSameDay = evHeads.length > 1 && evHeads.every((t) => t.slice(0, 5) === evHeads[0].slice(0, 5));
       const evShort = evHeads.map((t) => (evSameDay ? t.slice(6) : t)).join(" ／ ");
       rows.push('<tr' + (ev.length ? ' class="sd-traded"' : "") + "><td>" + mdOf(h2.d) + kindMark(h2.kind) + "</td>"
-        + "<td>" + (ev.length ? '<span class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(evShort) + "</span>" : '<span class="mut">—</span>') + "</td>"
+        + "<td>" + (ev.length ? '<span class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(evShort) + "</span>"
+          : '<span class="mut">—</span>') + "</td>"
         + '<td class="r num">' + (B ? pair(A && A.qty, B.qty, fmtQty, chgQ) : "—") + "</td>"
         + '<td class="r num">' + (B ? fpx(pxs(B)) : "—") + "</td>"
         + '<td class="r num">' + (B ? pair(A && A.cost, B.cost, fmtYuan, chgC) : "—") + "</td>"
         + '<td class="r num">' + (B ? fmtYuan(B.val) : "—") + "</td>"
         + '<td class="r num ' + cls(h2.v) + '">' + fmtAmt(h2.v) + "</td>"
         + '<td class="r num mut">' + pctTxt(h2.v, total) + "</td></tr>");
-    });
+    };
+    if (C.carryItems[code] !== undefined) {
+      rows.push('<tr class="carry"><td>期初结转</td><td>账户起点 → ' + mdOf(C.baseD) + "</td>"
+        + '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>'
+        + '<td class="r num ' + cls(carryV) + '">' + fmtAmt(carryV) + "</td>"
+        + '<td class="r num mut">' + pctTxt(carryV, total) + "</td></tr>");
+    }
+    if (!sdFoldTrace) {
+      enriched.forEach(pushRow);
+    } else {
+      let run = null;
+      const flushRun = () => {
+        if (!run) return;
+        const last = run.list[run.list.length - 1];
+        const B = last.h2.rawB;
+        rows.push('<tr class="fold" title="' + esc("被折掉的期：" + run.list.map((x) => mdOf(x.h2.d)).join(" · ")) + '">'
+          + "<td>" + mdOf(run.list[0].h2.d) + " → " + mdOf(last.h2.d) + "</td>"
+          + '<td><span class="mut">无操作 ' + run.list.length + " 期</span></td>"
+          + (B ? '<td class="r num">' + fmtQty(B.qty) + '</td><td class="r num">' + fpx(pxs(B)) + "</td>"
+            + '<td class="r num">' + fmtYuan(B.cost) + '</td><td class="r num">' + fmtYuan(B.val) + "</td>"
+            : '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>')
+          + '<td class="r num ' + cls(run.sum) + '">' + fmtAmt(run.sum) + "</td>"
+          + '<td class="r num mut">' + pctTxt(run.sum, total) + "</td></tr>");
+        run = null;
+      };
+      enriched.forEach((item) => {
+        if (item.ev.length) { flushRun(); pushRow(item); return; }        // 有交易 → 自己一行 ✓
+        if (!run) run = { list: [], sum: 0 };
+        run.list.push(item); run.sum += item.h2.v;
+      });
+      flushRun();
+    }
     rows.push('<tr class="sum"><td>合计</td><td>＋ 期初结转</td><td class="r" colspan="4"></td>'
-      + '<td class="r num ' + cls(total) + '">' + fmtAmt(total) + '</td>'
+      + '<td class="r num ' + cls(total) + '">' + fmtAmt(total) + "</td>"
       + '<td class="r num mut">100%</td></tr>');
-    const chart = traceSparkSvg(boxW, pts, evs);
+    const chart = traceSparkSvg(boxW, pts, evs, { carryD: hasAnchor ? C.baseD : null });
     return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
       + "<b>" + esc(nm) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转）· <b>生涯累计 " + fmtAmt(total) + "</b>"
       + '<span class="sd-hint">表按 <b>旧 → 新</b> 排 ✓（与上面的图同向）；份数 / 成本只在有交易的那期写「A → B」✓；'
-      + "有交易的行淡染 ✓；单价 = 市值 ÷ 份数、每股摊薄成本 = 持仓成本 ÷ 份数 ✓</span></div>"
+      + "有交易的行淡染 ✓；单价 = 市值 ÷ 份数、每股摊薄成本 = 持仓成本 ÷ 份数 ✓</span>"
+      + '<button type="button" class="sd-fold' + (sdFoldTrace ? " on" : "") + '" data-fold="1"'
+      + ' aria-pressed="' + (sdFoldTrace ? "true" : "false") + '"'
+      + ' title="把连续没有交易的期并成一行（贡献取该段之和，合计不变 ✓）；默认不折 ✓">'
+      + (sdFoldTrace ? "已折叠无操作期" : "折叠无操作期") + "</button></div>"
       + (chart ? '<div class="sd-spark">' + chart + "</div>"
         + '<div class="sd-lg"><span><i></i>市价</span><span><i class="dash"></i>每股摊薄成本</span>'
         + '<span><i class="buy"></i>' + (exch ? "买入" : "（场外无成交价，仅两条线）") + "</span></div>" : "")
@@ -2482,6 +2540,26 @@ function saWire(C) {
       /* 两级回退：轨迹 → 进来时那一格 ✓；从**图上**点进的格 → 回到那张图 ✓（2026-10-09 第四步 B） */
       if ((nav.dataset.nav === "back" || nav.dataset.nav === "cell") && saSel && saSel.back) { setSel(saSel.back); return true; }
       setSel(null);                                    // 其余情况：回到整期（cur 不动 就是进来时那一期）
+      return true;
+    }
+    /* 轨迹的「折叠无操作期」开关（2026-10-12 加）：只切一个持久化 flag ＋ 重渲染 ✓，
+       且**不动 saSel** ✓（还在同一只的轨迹里 ✓）→ 重渲染后把焦点放回按钮 ✓（键盘用户不掉出去 ✓）。 */
+    const foldBtn = target.closest("[data-fold]");
+    if (foldBtn) {
+      sdFoldTrace = !sdFoldTrace;
+      try { localStorage.setItem("traceFold", sdFoldTrace ? "1" : "0"); } catch (err) { /* 隐私模式下忽略 */ }
+      renderSnapAttr();
+      const nb = C.el.querySelector("[data-fold]");
+      if (nb && nb.focus) nb.focus();
+      return true;
+    }
+    /* 图上点某一期 → 去那一期（2026-10-12 加，用户选定）：与「点期行」同一套语义 ✓
+       （setSel(null, i) ＝ 回整期视图 ＋ 把当前期换成它 ✓）；图最左那点是期初 → "carry" ✓。 */
+    const band = target.closest("[data-goperiod]");
+    if (band) {
+      const gd = band.getAttribute("data-goperiod");
+      const gi = C.live.findIndex((p) => p.d === gd);
+      setSel(null, gd === "__carry" ? "carry" : (gi >= 0 ? gi : C.cur));
       return true;
     }
     const colTot = target.closest("[data-coltotal]");

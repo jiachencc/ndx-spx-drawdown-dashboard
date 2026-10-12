@@ -1620,6 +1620,18 @@
   #snap-attr table.sd-tbl tr.carry td { color: var(--tx2); }
   #snap-attr table.sd-tbl tr.sum td { border-top: 1px solid var(--line); border-bottom: 0; color: var(--tx2); }
   #snap-attr table.sd-tbl td .sd-ev { font-family: var(--sans); }
+  #snap-attr table.sd-tbl tr.fold td { color: var(--tx3); }
+  /* 图上命中带（2026-10-12：点某一期 → 去那一期 ✓）—— 与列头图同一条规矩：
+     可点是**整列**（.sd-band ✓），2px 的点子不参与命中 ✗。
+     hover 必须 !important ✓：rect 的 fill 写在 svg 内联 style 上 ✗，普通类规则压不过它 ✓。 */
+  #snap-attr .sd-spark rect.sd-band { cursor: pointer; }
+  #snap-attr .sd-spark rect.sd-band:hover { fill: rgba(147, 163, 187, .13) !important; }
+  /* 折叠开关（默认不折 ✓；只在期数变多时用 ✓） */
+  #snap-attr .sd-fold { font: inherit; font-size: var(--chk-fs-mini); padding: 1px 9px; border-radius: 999px;
+    cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--tx3); margin-left: 6px; }
+  #snap-attr .sd-fold:hover { color: var(--tx); }
+  #snap-attr .sd-fold:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  #snap-attr .sd-fold.on { border-color: var(--blue); color: var(--blue); background: transparent; }
 
   /* ── 归因矩阵：列头可点 ＋ 该列图表（2026-10-09 第四步 A）─────────────────────────────
      列头沿用"可点元素"那套反馈（hover 下划线 / focus 环 ✓），与格子(.mx-click)一致 ✓ */
