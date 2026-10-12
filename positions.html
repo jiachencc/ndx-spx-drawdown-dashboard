@@ -7,7 +7,7 @@
 <meta name="description" content="个人全量持仓可视化：场内 ETF 与场外基金的净值水位、成本位置、组合占比与操作日志。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="font.css">
-<!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式表 -->
+<!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份）—— 必须先于本页样式表 -->
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="positions.css">
 </head>
@@ -68,10 +68,10 @@ try {
     <!-- 场外当日预估 · 逐只拆解（2026-10-03）：挂在汇总卡里 —— 它就是「当日盈亏（估）」场外那格的展开，
          所以不另开板块、也不动导航（导航是"主要区块"的清单，这里是一格的明细）。
          ⚠ 2026-10-09 起**默认折叠**（用户要求）：它默认展开时会把汇总卡撑高一屏，而总资产与三格 KPI
-           是每天第一眼要看的东西 —— 逐只明细按需点开即可 ✓（点一下 summary ✓）。
+           是每天第一眼要看的东西 —— 逐只明细按需点开即可 ✓（点一下 summary）。
          ⚠ 本块**没有任何 JS 会改 open** ✓（renderOtcEst 只填 #otc-est 的内容）；
-           故折叠状态就是 HTML 属性说了算 ✓，不要在这里加 open、也不要在渲染里补 open ✗。
-         版式沿用全页折叠块的 .closed-all ✓；dom-check ③c 读的是 DOM（与是否展开无关 ✓）故不受影响 ✓。 -->
+           故折叠状态就是 HTML 属性说了算，不要在这里加 open、也不要在渲染里补 open。
+         版式沿用全页折叠块的 .closed-all；dom-check ③c 读的是 DOM（与是否展开无关）故不受影响。 -->
     <details class="closed-all" id="otc-est-wrap">
       <summary>📉 场外当日预估 · 逐只拆解 <span id="otc-est-cnt"></span></summary>
       <div id="otc-est"></div>
@@ -118,8 +118,8 @@ try {
   <div class="card tight" id="acct-card"></div>
 
   <!-- 场外账户统计（2026-10-10 加，用户：「场内账户统计 模块是不是可以加上场外账户统计？
-       因为有数据在 finance/index.html 里了」✓）—— 数据取自本页**已加载**的 finance/finance-data.js ✓
-       （与「盈亏全程」那条场外线同源 ✓），放在场内账户统计之后、持仓之前 ✓（账户级的两块挨着 ✓）。 -->
+       因为有数据在 finance/index.html 里了」）—— 数据取自本页**已加载**的 finance/finance-data.js
+       （与「盈亏全程」那条场外线同源），放在场内账户统计之后、持仓之前 ✓（账户级的两块挨着）。 -->
   <h2 class="sec-title" id="sec-otc-acct"><span aria-hidden="true">🏦</span> 场外账户统计 <span class="cnt" id="otc-acct-cnt">（场外 5 个渠道 · 月频 App 账单）</span></h2>
   <div class="card tight" id="otc-acct-card"></div>
 
@@ -147,7 +147,7 @@ try {
        ③ 52 周位置 —— **查完发现 ①② 页面上其实已经都有了**：① 就是顶部「组合占比」配置图（renderAlloc
        按主题聚合、场内场外合并、tooltip 列出成员：纳指 39.7% / 标普 31.2% / 中韩 13.5%…）；
        ② 就是「工具 → 费率体检」（每只 vs 同口径 peer 算「可省 X 元/年」，且已覆盖场外 8 只）。
-       真正缺的是 ③：场内有「三点水位梯」（成本 / 现价 / 52 周最高），**场外 8 只没有** ✗。
+       真正缺的是 ③：场内有「三点水位梯」（成本 / 现价 / 52 周最高），**场外 8 只没有**。
        本块把同一套视角补给场外，并多给一样场内没有的：轨道两端用上了 nav.lo（52 周最低）——
        于是「成本买在区间什么位置、现在到什么位置」两个点一眼可见（正是本页副标题的「成本位置视角」）。
        数据全在 positions-data.js（nav.lo/hi/close ＋ 最新快照的 cost/qty），零新增抓取。
@@ -174,11 +174,11 @@ try {
 </main>
 
 <footer class="footer">
-  <b>信息三态（全页用词定死，别再混 ✗）</b>：<b>估算</b>＝尚未公布的行情推算（未收盘 / 净值日未追上，<b>不是读数</b>）｜<b>快照</b>＝收盘或 App 截图的读数｜<b>读数</b>＝App 原始数（本站不换算、不改写）。三者互不叠加 ✓<br>
+  <b>信息三态</b>：<b>估算</b>＝尚未公布的行情推算（未收盘 / 净值日未追上，<b>不是读数</b>）｜<b>快照</b>＝收盘或 App 截图的读数｜<b>读数</b>＝App 原始数（本站不换算、不改写）。三者互不叠加<br>
   场内市值（估算）= ETF 场内报价 × 当前份数；来源未核验时仅为沿用读数｜场外市值与盈亏为 App 快照口径<br>
   各模块标题与卡片头部标注<b>口径日期</b>：<b>场内</b>＝该份报价的成交日（五只若不同则显示区间）｜<b>场外</b>＝App 截图快照日（净值日通常再早一天，逐只见「盈亏总览」行）<br>
   场外成本净值 = 最新净值 ÷（1 + 持有收益率）；场外按净值申赎、无溢价；场外明细卡已并入「盈亏总览」，仅保留逐只盈亏与同步徽章<br>
-  <b>跨页提醒</b>：本页涨跌色是<b>绿涨红跌</b>（ETF / 英文社区习惯 ✓），而<a href="finance/index.html">💰 个人财务看板</a>是<b>红涨绿跌</b>（境内 App 习惯 ✓）—— 两页刻意相反 ✗，对着看时留意；口径统一只需改各页 :root 里 --up / --down 两行（语义只有那一处定义 ✓）。<br>
+  <b>跨页提醒</b>：本页涨跌色是<b>绿涨红跌</b>（ETF / 英文社区习惯），而<a href="finance/index.html">💰 个人财务看板</a>是<b>红涨绿跌</b>（境内 App 习惯）—— 两页刻意相反，对着看时留意。<br>
   本页为个人记录工具，不构成投资建议<br>
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
@@ -186,7 +186,7 @@ try {
 <script src="data.js"></script>
 <script src="positions-data.js"></script>
 <!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
-     的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移 ✗，
+     的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移，
      并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
 <script src="finance/finance-data.js"></script>
 <script>
@@ -270,8 +270,8 @@ const fmtPct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(dp 
 /* 日内涨跌专用：幅度小（常年在 ±3% 内），默认 1 位会把 0.05% 抹成“+0.1%”——固定 2 位与同卡“较成本 / 距高点”区分开 */
 const fmtPctChg = (v) => fmtPct(v, 2);
 /* 带符号百分点（pp）：相对基准差值 / 归因贡献 / 口径差 —— 2026-10-12 收拢（此前 6+ 处各自散写 ✗，与上轮合并 pctS 同一动机）。
-   ⚠ 入参恒为「小数比例」（×100 在函数内做，与 fmtPct 同一约定，好记：fmtPct / fmtPp 都收比例 ✓）；
-   拿到的值本身已是 pp 单位的（如「两个百分数相减」），除以 100 再传 ✓。 */
+   ⚠ 入参恒为「小数比例」（×100 在函数内做，与 fmtPct 同一约定，好记：fmtPct / fmtPp 都收比例）；
+   拿到的值本身已是 pp 单位的（如「两个百分数相减」），除以 100 再传。 */
 const fmtPp = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(dp === undefined ? 2 : dp) + "pp";
 const fmtIdx = (v) => v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : (Number.isFinite(v) ? v.toFixed(2) : "--");
 const cls = (v) => v >= 0 ? "up" : "down";
@@ -369,7 +369,7 @@ function logFee(e) {
 }
 /* 单边费用：流水 note 里记了「费 X」就用记录值，否则用配置默认值 ——
    2026-10-12 收拢（此前这份「?? 默认值」在 3 处各写一遍：closedEtfRows 的卖出行、
-   操作体检里的局部 feeOfEtf、持仓卡的 fee 行 ✗ —— 三处一起漂才会被发现 ✗）。 */
+   操作体检里的局部 feeOfEtf、持仓卡的 fee 行 —— 三处一起漂才会被发现）。 */
 const feeOf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
 /* 卖出净回款 ＝ 份数 × 成交价 − 单边费 —— 这个**原子量**只留这一处 ✓（此前散在 3 处 ✗）。
    ⚠ 另有两个「不含费的毛额」用法是**另一种口径**、刻意不并入 ✗：
@@ -379,7 +379,7 @@ const netProceedsOf = (e) => (e.qty || 0) * (e.cost || 0) - feeOf(e);
 /* 卖出判定：收「流水对象」或「动作字符串」均可（2026-10-12 收拢 —— ?debug 自检块此前又定义了一份只收字符串的 ✗） */
 const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e && typeof e === "object" ? e.act : e || ""));
 /* resize 防抖统一收口（2026-10-12）：窗口拖动高频触发 resize，按真实像素宽重绘 SVG 必须防抖 ✓。
-   此前手写了 3 份「clearTimeout + setTimeout(…, 150)」、养了 4 个 timer 变量 —— 同一模式不该有 4 份 ✗ */
+   此前手写了 3 份「clearTimeout + setTimeout(…, 150)」、养了 4 个 timer 变量 —— 同一模式不该有 4 份 */
 function debounce(fn, ms) {
   let t = null;
   return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
@@ -621,7 +621,7 @@ function renderAlloc(rows, otcRows) {
   }).sort((a, b) => b.w - a.w);   // 大块在前：色带与图例同序，读起来从大到小
   /* 条内标签**不在渲染时写死**：写什么由像素宽决定，交给 layoutAllocLabels()（窗口变化时重算）。
      段上带 data-w（原始占比）与 data-short（短名）供它使用；data-tip 是唯一的内容来源 ——
-     原来这里只写了 title/aria-label，而点击处理读的是 dataset.tip，于是弹出一个空框 ✗。 */
+     原来这里只写了 title/aria-label，而点击处理读的是 dataset.tip，于是弹出一个空框。 */
   $("alloc-bar").innerHTML = allocList.map((x) =>
     '<button type="button" class="alloc-seg ' + x.k + '" style="width:' + x.w.toFixed(1) + '%"' +
     ' data-w="' + x.w.toFixed(1) + '" data-short="' + x.name + '" data-tip="' + esc(x.tip) + '"' +
@@ -678,12 +678,12 @@ function renderOtcEst(nc) {
   const app = nc.rows.filter((r) => r.src === "app");
   /* ── 两个「净值日」不是同一个源（2026-10-12 加；用户：「因为场外前后有1-2天的延迟，所以呈现要符合逻辑
         一点，也就是日期要对齐，应该没问题对吧？」）────────────────────────────────────
-     本表用的净值日 ＝ **东财净值序列**（拟合与对账都用它 ✓，日期成对 ✓）；
-     App 快照另有一个「净值日」（QDII 确认慢 ✓）—— **两者可能差 1 天** ✓。
-     实测 8 只里 1 只不同（南方 021000：序列 10-08 / App 10-09 ✓）。
-     ⚠ 不标出来就是个陷阱 ✗：表里说"净值日 10-08 → 指数日 10-09"✓，而 App 明明写着 10-09 ✗ →
-       读者会以为"表算错了 / 怎么还在补 10-09"✓ —— 上次那个 −125 元**假差异**就是同一个坑 ✓。
-     → 行内用 chip 显式标出 App 那个日期 ✓（谁不同标谁 ✓，一致的 7 只不加噪音 ✗）。 */
+     本表用的净值日 ＝ **东财净值序列**（拟合与对账都用它，日期成对）；
+     App 快照另有一个「净值日」（QDII 确认慢）—— **两者可能差 1 天**。
+     实测 8 只里 1 只不同（南方 021000：序列 10-08 / App 10-09）。
+     ⚠ 不标出来就是个陷阱 ✗：表里说"净值日 10-08 → 指数日 10-09"，而 App 明明写着 10-09 →
+       读者会以为"表算错了 / 怎么还在补 10-09" —— 上次那个 −125 元**假差异**就是同一个坑。
+     → 行内用 chip 显式标出 App 那个日期 ✓（谁不同标谁，一致的 7 只不加噪音）。 */
   const appNavD = {};
   OTC.funds.forEach((f) => { appNavD[f.code] = (f.nav && f.nav.closeDate) || ""; });
   const navGapOf = (code) => {
@@ -705,8 +705,8 @@ function renderOtcEst(nc) {
       + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
   };
   /* ⚠ 这张表要有个锚点 `id="est-now"` ✓（2026-10-12 加）—— 本块里现在**有两张表**了 ✓
-     （下面还挂了一张「预估 vs 实际」✓），门禁按 #otc-est 取 tbody tr 会把两张一起数 ✓ →
-     给它一个 id ✓，断言按 id 取 ✓（不是把断言放宽 ✗ —— 那会掩盖"渲染漏行"这类错 ✓）。 */
+     （下面还挂了一张「预估 vs 实际」），门禁按 #otc-est 取 tbody tr 会把两张一起数 →
+     给它一个 id，断言按 id 取 ✓（不是把断言放宽 —— 那会掩盖"渲染漏行"这类错）。 */
   let h = '<table class="est-tbl" id="est-now"><thead><tr><th class="e-nm">基金 <span class="e-th2">· 净值日 → 指数日</span></th>'
     + '<th class="e-mid">预估幅度</th><th class="e-amt">预估金额</th></tr></thead><tbody>';
   est.forEach((r) => {
@@ -719,8 +719,8 @@ function renderOtcEst(nc) {
     /* chip ＝ App 那个净值日（仅当它与本表的序列净值日不同 ✓，见上方 navGapOf 注释 ✓） */
     const g2 = navGapOf(r.f.code);
     h += tr(r.f, g2 ? "App " + d2(g2.app) : "", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt,
-      { sub, title: title + (g2 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g2.ser + " ✓，拟合同源）；App 快照的净值日是 "
-        + g2.app + " ✓ —— 差 " + Math.round((Date.parse(g2.app) - Date.parse(g2.ser)) / 86400000) + " 天（QDII 确认慢 ✓）。本表按**序列**算 ✓。" : "") });
+      { sub, title: title + (g2 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g2.ser + "，拟合同源）；App 快照的净值日是 "
+        + g2.app + " —— 差 " + Math.round((Date.parse(g2.app) - Date.parse(g2.ser)) / 86400000) + " 天（QDII 确认慢）。本表按**序列**算。" : "") });
   });
   app.forEach((r) => h += tr(r.f, "", "—", Number.isFinite(r.f.day) ? r.f.day : 0, {
     sub: d2(r.ft && r.ft.navDate) + "（已追上）",
@@ -741,32 +741,32 @@ function renderOtcEst(nc) {
     + "<b>不计入</b>＝跟踪太弱（港股那只 r 0.38）→ 只给方向、不进合计，免得以精确到元的样式假精确。"
     + "<br>估算不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。"
     /* 两个「净值日」的两源说明（见 navGapOf 注释 ✓）——只在真有差异时追加 ✓，一致的就不吵 ✓ */
-    + "<br><b>⚠ 两个「净值日」来自两个源</b>：本表的净值日取自<b>东财净值序列</b>（拟合与对账都用它 ✓，"
-    + "所以 est 与 act 的日期成对 ✓）；App 快照另有一个「净值日」（QDII 确认慢约 1 天 ✓）。"
+    + "<br><b>⚠ 两个「净值日」来自两个源</b>：本表的净值日取自<b>东财净值序列</b>（拟合与对账都用它，"
+    + "所以 est 与 act 的日期成对）；App 快照另有一个「净值日」（QDII 确认慢约 1 天）。"
     + (gapList.length
       ? "本次 <b>" + gapList.length + "</b> 只两者不同：" + gapList.map((x) => esc(plDisplayName(x.f.name)) + " 序列 " + d2(x.g.ser)
-        + " / App " + d2(x.g.app)).join(" · ") + " ✓ —— 这些行里用 <b>chip</b> 标出 App 那个日期 ✓，"
-        + "本表一律按<b>序列</b>算 ✓（两者不可混用 ✗ —— 混着相除会造出「假差异」✓）。"
-      : "本次 8 只两者一致 ✓（无需区分 ✓）。")
+        + " / App " + d2(x.g.app)).join(" · ") + " —— 这些行里用 <b>chip</b> 标出 App 那个日期，"
+        + "本表一律按<b>序列</b>算 ✓（两者不可混用 —— 混着相除会造出「假差异」）。"
+      : "本次 8 只两者一致 ✓（无需区分）。")
     + "</div>";
   /* ── 预估 vs 实际（2026-10-12 加；用户：「我每天更新截图后 你能有个结论 让我看到实际和预估的差异吗？
-        就在场外当日预估这里」✓）────────────────────────────────────────────────
-     数据：台账 NOWCAST_LOG（**日更时自动写** ✓，见 scripts/fetch-nowcast.mjs ✓）＋ App 最新已公布净值 ✓。
-     判据：**只认日期对得上的那一条** ✓ —— 台账里 d ＝ 该只当前净值日 的那条 ✓：
-       预估 est ＝ 当时按 α+β×指数日涨跌逐日累乘出来的（% ✓）
-       实际 act ＝ nav / 那条的 nav0 − 1（% ✓）← 两边锚在同一对日期（navDate0 → d）上 ✓ → 可比 ✓
-       差 ＝ act − est（pp ✓）· 金额差 ＝ 差 × 当前市值 ✓（"这个估算值多少钱的偏差" ✓）
-     ⚠ 对不上（净值日还没推进 / 台账没记过那天）→ **不出数** ✗，只说明"等下次截图" ✓ ——
-       拿上一条预估硬凑＝把两个不同的日期窗口对比（看着有数、其实没意思 ✓）。
-     ▸ 门禁 dom-check ④q 会独立复算每一行（est/act/差/金额 ✓）并断言"对不上的日子不出数"✓。 */
+        就在场外当日预估这里」）────────────────────────────────────────────────
+     数据：台账 NOWCAST_LOG（**日更时自动写**，见 scripts/fetch-nowcast.mjs）＋ App 最新已公布净值。
+     判据：**只认日期对得上的那一条** —— 台账里 d ＝ 该只当前净值日 的那条 ✓：
+       预估 est ＝ 当时按 α+β×指数日涨跌逐日累乘出来的（%）
+       实际 act ＝ nav / 那条的 nav0 − 1（%）← 两边锚在同一对日期（navDate0 → d）上 → 可比
+       差 ＝ act − est（pp）· 金额差 ＝ 差 × 当前市值 ✓（"这个估算值多少钱的偏差"）
+     ⚠ 对不上（净值日还没推进 / 台账没记过那天）→ **不出数**，只说明"等下次截图" ——
+       拿上一条预估硬凑＝把两个不同的日期窗口对比（看着有数、其实没意思）。
+     ▸ 门禁 dom-check ④q 会独立复算每一行（est/act/差/金额）并断言"对不上的日子不出数"。 */
   const LOG = (typeof NOWCAST_LOG !== "undefined" && NOWCAST_LOG && NOWCAST_LOG.entries) ? NOWCAST_LOG.entries : null;
   const otcVal = OTC.funds.reduce((a, f) => a + (f.value || 0), 0);
   const cmp = [];
   let pend = 0;
   /* ⚠ 这里**只读台账** ✓ —— 不在页面里拿 App 读数去算"实际" ✗：
-     2026-10-12 首版就这么干过 ✓ → App 净值日与东财净值序列差一天 ✓ →
-     出现 est +0.499% vs act 0.000%（−125 元）这种**假差异** ✗✗（拿 App 的 10-09 除东财的 10-08 ✓）。
-     "实际"必须与 est **同源**（东财净值序列 ✓）→ 由脚本回填 act ✓（见 fetch-nowcast.mjs 的台账注释 ✓）。 */
+     2026-10-12 首版就这么干过 → App 净值日与东财净值序列差一天 →
+     出现 est +0.499% vs act 0.000%（−125 元）这种**假差异** ✗✗（拿 App 的 10-09 除东财的 10-08）。
+     "实际"必须与 est **同源**（东财净值序列）→ 由脚本回填 act ✓（见 fetch-nowcast.mjs 的台账注释）。 */
   if (LOG) OTC.funds.forEach((f) => {
     (LOG[f.code] || []).forEach((e) => {
       if (typeof e.act !== "number" || !Number.isFinite(e.act)) { pend++; return; }
@@ -777,14 +777,14 @@ function renderOtcEst(nc) {
   const logN = LOG ? Object.keys(LOG).reduce((a, k) => a + (LOG[k] || []).length, 0) : 0;
   const logFunds = LOG ? Object.keys(LOG).filter((k) => (LOG[k] || []).length).length : 0;
   /* 对账表原另有一个 pctS，与上方 pc 逐字符同实现（同一种「百分比数字 → +x.xx%」格式抄了两份）→
-     2026-10-12 合并到 pc：同一格式只留一处 ✓，改格式不会再漏掉一张表 ✓。
-     ⚠ ppS 是「百分点」差值口径（3 位 + pp），与百分比不是同一个东西 ✗ —— 实现已并入全局 fmtPp ✓（2026-10-12）。 */
+     2026-10-12 合并到 pc：同一格式只留一处，改格式不会再漏掉一张表。
+     ⚠ ppS 是「百分点」差值口径（3 位 + pp），与百分比不是同一个东西 —— 实现已并入全局 fmtPp ✓（2026-10-12）。 */
   const ppS = (v) => fmtPp(v / 100, 3);
   if (!cmp.length) {
     h += '<div class="est-cmp wait" data-cmp-n="0" data-log-n="' + logN + '">'
-      + "<b>预估 vs 实际</b>：暂无已对账的那一天 ✓ —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只 ✓）。"
-      + "你下次发场外截图、某只的净值日推进到台账记过的那天 ✓，这一栏会<b>自动</b>出现「预估 / 实际 / 差多少」✓"
-      + "（两边锁在同一对日期上 ✓，差 ＝ 实际 − 预估 ✓；出结果前不写任何数字 ✗）。</div>";
+      + "<b>预估 vs 实际</b>：暂无已对账的那一天 —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只）。"
+      + "你下次发场外截图、某只的净值日推进到台账记过的那天，这一栏会<b>自动</b>出现「预估 / 实际 / 差多少」"
+      + "（两边锁在同一对日期上，差 ＝ 实际 − 预估；出结果前不写任何数字）。</div>";
   } else {
     const sumDiff = cmp.reduce((a, x) => a + x.amt, 0);
     const avgE = cmp.reduce((a, x) => a + x.est, 0) / cmp.length;
@@ -792,8 +792,8 @@ function renderOtcEst(nc) {
     const hitDir = cmp.filter((x) => Math.sign(x.est) === Math.sign(x.act)).length;
     const dList = [...new Set(cmp.map((x) => x.d))].map((x) => d2(x)).join(" / ");
     h += '<div class="est-cmp" data-cmp-n="' + cmp.length + '" data-cmp-sum="' + sumDiff.toFixed(2) + '" data-log-n="' + logN + '">'
-      + '<div class="ec-head"><b>预估 vs 实际</b> · 已对账 <b>' + cmp.length + "</b> 只（目标日 " + dList + " ✓）"
-      + '<span class="ec-hint">预估＝台账里当时记下的 ✓ ｜ 实际＝App 刚公布的净值 ✓ ｜ 差 ＝ 实际 − 预估 ✓</span></div>'
+      + '<div class="ec-head"><b>预估 vs 实际</b> · 已对账 <b>' + cmp.length + "</b> 只（目标日 " + dList + "）"
+      + '<span class="ec-hint">预估＝台账里当时记下的 ｜ 实际＝App 刚公布的净值 ｜ 差 ＝ 实际 − 预估</span></div>'
       + '<table class="est-tbl ec-tbl"><thead><tr><th class="e-nm">基金</th><th class="e-mid">预估</th><th class="e-mid">实际</th>'
       + '<th class="e-mid">差</th><th class="e-amt">金额差</th></tr></thead><tbody>'
       + cmp.map((x) => '<tr data-cmp-code="' + esc(x.f.code) + '" data-cmp-d="' + x.d + '" data-cmp-from="' + x.from + '"'
@@ -809,14 +809,14 @@ function renderOtcEst(nc) {
       + '<td class="e-amt ' + cls(sumDiff) + '">' + fmtAmt2(sumDiff) + "</td></tr></tbody></table>"
       + '<div class="otc-note"><b>结论</b>：这一批预估<b>' + (avgE >= avgA ? "偏乐观" : "偏保守") + "</b> " + Math.abs(avgE - avgA).toFixed(3)
       + "pp（预估均值 " + pc(avgE) + " vs 实际均值 " + pc(avgA) + "）；折成钱 ≈ <b>" + fmtAmt2(sumDiff) + " 元</b>"
-      + (otcVal ? "（占场外市值 " + (Math.abs(sumDiff) / otcVal * 100).toFixed(2) + "%）" : "") + " · 方向命中 " + hitDir + "/" + cmp.length + " ✓。"
-      + "<br>⚠ 单次差异里既有模型误差、也有「App 净值日 ↔ 代理指数日」的错位 ✓ —— 攒几天（台账会一直记 ✓）"
-      + "才看得出是<b>系统性</b>偏高还是偏低 ✓，别拿一次就下结论 ✓。</div></div>";
+      + (otcVal ? "（占场外市值 " + (Math.abs(sumDiff) / otcVal * 100).toFixed(2) + "%）" : "") + " · 方向命中 " + hitDir + "/" + cmp.length + "。"
+      + "<br>⚠ 单次差异里既有模型误差、也有「App 净值日 ↔ 代理指数日」的错位 —— 攒几天（台账会一直记）"
+      + "才看得出是<b>系统性</b>偏高还是偏低，别拿一次就下结论。</div></div>";
   }
   box.innerHTML = h;
   if (cnt) cnt.textContent = "（计入 " + (est.length + app.length) + " 只 · 合计 " + fmtAmt2(sum) + " 元 · 指数数据到 " + (upd ? d2(upd) : "—")
     + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "")
-    + (cmp.length ? " · 已对账 " + cmp.length + " 只 ✓" : (logN ? " · 台账待对账 " + logN + " 条" : "")) + "）";
+    + (cmp.length ? " · 已对账 " + cmp.length + " 只" : (logN ? " · 台账待对账 " + logN + " 条" : "")) + "）";
 }
 
 /* ---- 场外定投 · 操作记录（2026-10-04 加）--------------------------------------------
@@ -885,7 +885,7 @@ function renderOtcLog() {
     const bnav = BN[f.code] || {};
     const qtyApp = (snapItems[f.code] && snapItems[f.code].qty) ? snapItems[f.code].qty : null;
     /* 现价用**公布净值**（不是 App「市值 ÷ 份额」）—— 后者把「已扣款、未确认份额」的在途也摊进了每份，
-       会让南方那类有在途的基金每一笔都虚高（实测 +3.3%）✗。用净值才是"一份值多少" ✓。
+       会让南方那类有在途的基金每一笔都虚高（实测 +3.3%）。用净值才是"一份值多少"。
        ⚠ 于是「实际（分批）」与 App 市值之差 = 在途 ＋ 份额差（南方那两只正是有在途的），不再虚高。 */
     const px = (f.nav && Number.isFinite(f.nav.close)) ? f.nav.close : null;
     let amtIn = 0, shEst = 0, pnlEst = 0, navMiss = 0, navFirst = null;
@@ -922,8 +922,8 @@ function renderOtcLog() {
         : r.cur ? " · 末次定投 " + r.cur.amt + "元（" + d5(r.cur.d) + "）"
           : " · 无定投（仅申购 / 转换）") + "</span></td>"
       /* 2026-10-09：给数字列预埋**手机列名**（.c-lb，与 .chk-tbl 同一约定 ✓）——
-         桌面 display:none 不占位、不改观感；≤767px 表格改卡片、表头隐去，靠它认出哪个数字是什么 ✓
-         （不预埋就只是"把表头隐掉"，数字会变成一串没有名字的金额 ✗） */
+         桌面 display:none 不占位、不改观感；≤767px 表格改卡片、表头隐去，靠它认出哪个数字是什么
+         （不预埋就只是"把表头隐掉"，数字会变成一串没有名字的金额） */
       + '<td class="n f-inv"><i class="c-lb">已成交投入</i>' + fmtYuan(r.inv) + "</td>"
       + '<td class="n f-gain ' + cls(r.f.pnl) + '"><i class="c-lb">App 持仓收益</i>' + fmtAmt(r.f.pnl) + "</td></tr>";
   });
@@ -983,10 +983,10 @@ function renderOtcLog() {
           + fmtAmt2(t.amt / r.bnav[t.d] * r.px - t.amt) + "</span>" : "")
         + (t.status === "成功" ? "" : '<span class="d-s">' + esc(t.status) + "</span>")
         /* 对账单的「备注」与「限购退回」（2026-10-12 补）：数据一直都在（OTC_LOG 的 note / req / refund ✓），
-           只是此前只输出日期/类型/金额/净值/盈亏/状态 ✗ —— 于是两件最常被追问的事看不见：
+           只是此前只输出日期/类型/金额/净值/盈亏/状态 —— 于是两件最常被追问的事看不见：
              · 这笔**几点成交、走哪家银行、为什么失败**（note，如「14:13 银行卡限额失败」「截图：14:51:48 招商银行」）
              · 限购下**计划投多少、实际成交多少、退回多少**（req / refund，如 计划 1,000 → 成交 100 → 退回 900）
-           备注挂在 title 上给全文，行内按 380px 排版另起一行（见 .dca-list li .d-note ✓） */
+           备注挂在 title 上给全文，行内按 380px 排版另起一行（见 .dca-list li .d-note） */
         + (Number.isFinite(t.req) ? '<span class="d-req" title="限购：计划投入 ' + fmtAbs2(t.req) + " 元 · 实际成交 " + fmtAbs2(t.amt)
           + " 元" + (Number.isFinite(t.refund) ? " · 退回 " + fmtAbs2(t.refund) + " 元" : "") + '">计划 ' + fmtAbs2(t.req)
           + (Number.isFinite(t.refund) ? " · 退回 " + fmtAbs2(t.refund) : "") + "</span>" : "")
@@ -1006,7 +1006,7 @@ function renderOtcLog() {
     + "<br><b>App 持仓收益</b>是原读数；「本金与收益」卡那个是「市值 ＋ 赎回 − 投入」算出来的 —— 同源不同算，"
     + "差几分是已知的（如博时 −4.46）。"
     + "<br><b>逐笔盈亏</b>（明细每行末两栏，2026-10-04 加）：净值＝该笔申购日<b>或之前最近一个交易日</b>的"
-    + "东财单位净值（refresh-otc.mjs 抓的近 52 周，落成 <b>OTC_BUYNAV</b> 生成块 —— 此前这笔数据一直白抓 ✗）；"
+    + "东财单位净值（refresh-otc.mjs 抓的近 52 周，落成 <b>OTC_BUYNAV</b> 生成块 —— 此前这笔数据一直白抓）；"
     + "现价取 App 口径「市值 ÷ 份额」，所以逐笔盈亏之和能与 App 持仓收益对照："
     + "差额 = 申购费 ＋ 在途 ＋ 精度，两者并排给出、不互相覆盖。"
     + "<br><b>「定投 vs 一次性」</b>：假设同一笔钱在<b>首笔日一次性</b>按当日净值买入并持有到今天 —— "
@@ -1017,10 +1017,10 @@ function renderOtcLog() {
        广发纳指F 2,722.67 与博时标普E 2,535.87 **逐分一致（0.00%）** → 证明取 T 日（非 T+1）是对的；
        南方那只差 +3.29%（≈340 份 / 800 元），与它已知的「400 元已扣款、尚未并入成本」同源，
        疑似还有一笔在途 —— 待核，但**不是方法问题**（另两只对到分）。 */
-    + "<br><b>方法验证</b>：按「T 日净值」逐笔重建的份额，广发纳指F 与博时标普E 与 App <b>逐分一致 0.00%</b> ✓"
+    + "<br><b>方法验证</b>：按「T 日净值」逐笔重建的份额，广发纳指F 与博时标普E 与 App <b>逐分一致 0.00%</b>"
     + "（故确认取 T 日、非 T+1）；南方那只差 +3.29%（约 800 元），与其已知的「已扣款未并入成本」同源，待核。"
-    + "<br>⚠ 「定投 vs 一次性」是<b>相对</b>对比（两侧同一套净值）→ 上述系统性偏差相互抵消 ✓；"
-    + "现价取<b>最近公布净值</b>而非「App 市值 ÷ 份额」——后者把在途摊进每份，会让有在途的那几只每笔都虚高 ✗。</div>";
+    + "<br>⚠ 「定投 vs 一次性」是<b>相对</b>对比（两侧同一套净值）→ 上述系统性偏差相互抵消；"
+    + "现价取<b>最近公布净值</b>而非「App 市值 ÷ 份额」——后者把在途摊进每份，会让有在途的那几只每笔都虚高。</div>";
   box.innerHTML = h;
   if (cnt) cnt.textContent = "（" + rows.length + " 只 · " + totN + " 笔 · 截至 " + d5(asOf) + "）";
 }
@@ -1103,7 +1103,7 @@ function renderImpl() {
   };
   /* 场外行来源胶囊：一枚装齐「渠道 + 截图日 ＋ 净值日」（紫色＝场外），两个日期用「·」分开。
      只显示到日期：截图时刻（upd 里的 HH:MM）不显示，只留在 title 里供对账查证。
-     不加 ✓ 勾：紫色本身就表示"这是最近一次截图"，只有沿用旧值才转琥珀并加 ⚠。 */
+     不加 勾：紫色本身就表示"这是最近一次截图"，只有沿用旧值才转琥珀并加 ⚠。 */
   const syncBadge = (f) => {
     const ch = (typeof srcLabel === "function") ? srcLabel(f.code).s : "";
     const nav = otcNavInline(f.code);
@@ -1139,7 +1139,7 @@ function renderImpl() {
     ? (residuals.length > 3
         ? '<details class="down src-status"><summary>⚠ 历史对账未通过（' + residuals.length + ' 条，点开看明细）</summary><ul style="margin:4px 0 0 18px;padding:0;line-height:1.7">' + residuals.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul></details>'
         : '<span class="down">⚠ 历史对账未通过：' + esc(residuals.join("；")) + "（未自动修正原始记录）</span>")
-    : '<span class="up" title="仅校验明细平账（市值 ＝ 成本 ＋ 盈亏），不等于外部资金流已核实">✓ 历史明细平账通过</span>';
+    : '<span class="up" title="仅校验明细平账（市值 ＝ 成本 ＋ 盈亏），不等于外部资金流已核实"> 历史明细平账通过</span>';
   $("etf-cnt").innerHTML = "(" + (POSITIONS.hold || []).length + " 只 · " + etfTag() + ")";
   posInfos = []; costInfos = [];
   (POSITIONS.hold || []).forEach((h) => { symIdx[h.sym] = h.idx; });
@@ -1158,9 +1158,9 @@ function renderImpl() {
   const totalVal = etfVal + otcVal;
   const totalCost = etfCost + otcCost;
   /* ⚠ 2026-10-09 删除 totalPl（原＝总资产 − Σ摊薄成本 − 现金，即券商 App「浮动盈亏」的合计）：
-     汇总卡那一格已改口径为「累计收益（含已实现）」= totalAll ✓（两者相差的正是全额清仓的已兑现 ✓，
-     见 closedCostGap()）；它在本文件里已无其它引用，留着会被 eslint 判为未用变量 ✗，
-     且名字与右侧两格「累计浮盈亏」撞车、容易误读 ✓。 */
+     汇总卡那一格已改口径为「累计收益（含已实现）」= totalAll ✓（两者相差的正是全额清仓的已兑现，
+     见 closedCostGap()）；它在本文件里已无其它引用，留着会被 eslint 判为未用变量，
+     且名字与右侧两格「累计浮盈亏」撞车、容易误读。 */
   /* ⚠ 合计收益率 totalR 已于 2026-09-30 删除：汇总卡改成「场内 / 场外各一格」后，
      合计百分比不再出现（它可由两格相加得到；合计金额在「总资产」副标里）。 */
   /* ===== 本金（净转入）拆成场内 / 场外两格（2026-09-30 加，用户要求「加上场内 场外净转入(本金)的 KPI」）=====
@@ -1168,10 +1168,10 @@ function renderImpl() {
      场内那一份是**可对账**的，不是估算：券商给的是**摊薄成本**（已把已实现盈亏折进剩余仓位），
      所以 Σ摊薄成本 + 券商可用 ＋ 已全额清仓那些标的的已实现 天然等于银证净转入。2026-09-30 实测：
        页 422,635.65  vs  对账单近2年净转入 439,198.99（不含当日）− 当日转出 16,565.00 = 422,633.99
-       → 差 1.66 元（0.0004%，逐笔取整尾差，与本文件既有的「港美尾差 4.4 元」同源）✓
-     ⚠ **2026-10-09 加第三项**（首次全额清仓，用户选 A）：摊薄口径下部分卖出不改变「Σ成本＋现金」✓，
-       但全额清仓时亏损那部分会整块漏出 ✗（10-09 少了 18,492.00 ✓，详见 closedCostGap() 的注释）。
-       不加这一项，本金会比真·银证净转入低 18,490.34 ✗，「累计收益 ＝ 总资产 − 本金」也不再含已实现 ✗。
+       → 差 1.66 元（0.0004%，逐笔取整尾差，与本文件既有的「港美尾差 4.4 元」同源）
+     ⚠ **2026-10-09 加第三项**（首次全额清仓，用户选 A）：摊薄口径下部分卖出不改变「Σ成本＋现金」，
+       但全额清仓时亏损那部分会整块漏出 ✗（10-09 少了 18,492.00，详见 closedCostGap() 的注释）。
+       不加这一项，本金会比真·银证净转入低 18,490.34，「累计收益 ＝ 总资产 − 本金」也不再含已实现。
      ⚠ 现金（OTC.cash）算**场内**：数据层对它的定义就是「券商可用资金」（场外平台现金恒 0）。
        注：本页别处（otcVal/otcPl）把现金并进场外桶再减掉，那是为算盈亏方便；本金归属按**实际所在地**。
      ⚠ 场外的「在途」（已扣款、尚未并入成本）**不进本金**：它已在市值里、不在成本里，
@@ -1180,8 +1180,8 @@ function renderImpl() {
   const principal = totalCost + OTC.cash + clearedGap;
   const pInEtf = etfCost + OTC.cash + clearedGap, pInOtc = otcCost;
   /* 真·累计收益（含已实现）＝ 总资产 − 本金（本金已加回清仓漏出的那 18,492 ✓）。
-     ⚠ 它**不等于** totalPl（＝Σ份数×现价 − Σ摊薄成本，那是券商 App 的「浮动盈亏」口径 ✗）；
-       两者的差正是已全额清仓那些标的的已实现 ✓（10-09：19,988.31 − 1,496.31 ＝ 18,492.00 ✓）。 */
+     ⚠ 它**不等于** totalPl（＝Σ份数×现价 − Σ摊薄成本，那是券商 App 的「浮动盈亏」口径）；
+       两者的差正是已全额清仓那些标的的已实现 ✓（10-09：19,988.31 − 1,496.31 ＝ 18,492.00）。 */
   const totalAll = totalVal - principal;
   /* 在途＝Σ(该只市值 − 份额 × 最新净值)：份额在**快照 items**里（OTC.funds 只有金额/收益/净值，没有份额），
      所以必须去最新一期完整快照取 —— 与 cross-check ⑤ 同一公式（那里是数据层，这里是渲染层）。 */
@@ -1218,7 +1218,7 @@ function renderImpl() {
      本期两只支付宝基金（中欧 / 摩根）的净值到 09-25 10:16 才出，upd 记的是真实抓取时刻（09-25），
      于是合计漏掉 +61.82 / −99.67（场外快显示 −760 而非 −798），页面还会一边写「场外 8 只」一边标「2 只未更新」。
      这条判定的原意是「截图日**早于**快照日的，其 day 是旧日期的值，不能混进来」→ 正确边界是「upd 日期 ≥ 快照日」，
-     补录（晚于快照日）必须接受 ✓。 */
+     补录（晚于快照日）必须接受。 */
   const dayVals = OTC.funds.map((f) => (Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) >= OTC.updated) ? f.day : null));
   const dayOtc = dayVals.filter((v) => v !== null).reduce((a, b) => a + b, 0);    // 当日：场外快照口径（场内为上一美股交易日，不混合）
   const dayMiss = dayVals.filter((v) => v === null).length;
@@ -1276,19 +1276,19 @@ function renderImpl() {
      与场外 day（QDII 净值滞后一天的口径）相加即为「当日盈亏」，与 09-10 起快照 day 字段一致 */
   const etfDayPl = rows.reduce((a, r) => { const c = r.m.chg || 0; return a + r.valAmt * c / (100 + c); }, 0);
   /* 合计＝场内估 ＋ 场外**预估**（2026-10-03）：两半都是"眼下这一刻"的口径；
-     dayOtc（App 快照，【已公布】的那部分）不进合计，只放副标当对照 —— 两者不相减 ✗ */
+     dayOtc（App 快照，【已公布】的那部分）不进合计，只放副标当对照 —— 两者不相减 */
   const dayAll = etfDayPl + dayOtcEst;
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
   /* 口径散文收拢（2026-10-12 第二批 ⑤）：四格 title 的长文从字符串拼接里搬进常量表 ——
-     改口径不用再在拼接串里找作文 ✓。含动态数字的两格保留拼接（静态段进表 ✓）；
+     改口径不用再在拼接串里找作文。含动态数字的两格保留拼接（静态段进表）；
      纯文本搬家，DOM 输出逐字节不变 ✓（有 sha256 基线背书）。 */
   const SUM_TIPS = {
-    total: "本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它 ✓。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径 ✓。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现 ✗），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492 ✓）。⚠ **范围**（2026-10-12 补）：本格 ＝ 场内 5 只 ETF ＋ 场外 8 只基金 ＋ 券商可用现金，**不含招行理财 / 黄金**；财务看板的「总资产」（≈88 万）含 7 个账户、**不是同一范围** ✗ —— 两页的粒度也不同（这里日频持仓级、那边月频账户级 ✓），口径详见页脚。",
-    etf: "场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
+    total: "本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492）。⚠ **范围**（2026-10-12 补）：本格 ＝ 场内 5 只 ETF ＋ 场外 8 只基金 ＋ 券商可用现金，**不含招行理财 / 黄金**；财务看板的「总资产」（≈88 万）含 7 个账户、**不是同一范围** —— 两页的粒度也不同（这里日频持仓级、那边月频账户级），口径详见页脚。",
+    etf: "场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
     otcA: "场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ",
-    otcB: "（2026-10-09 补录 10 月定投后的构成：南方 600 ＝ 09-30 ＋ 10-08 ＋ 10-09 三笔 ✓（10-08 / 10-09 App 仍显示「支付成功 / 确认中」✓，公司 QDII 确认慢于扣款 ✓）；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平 ✓；华安 A/C 与其余五只逐分为 0 ✓）。⚠ 市值里另有在途 ",
+    otcB: "（2026-10-09 补录 10 月定投后的构成：南方 600 ＝ 09-30 ＋ 10-08 ＋ 10-09 三笔 ✓（10-08 / 10-09 App 仍显示「支付成功 / 确认中」，公司 QDII 确认慢于扣款）；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平；华安 A/C 与其余五只逐分为 0）。⚠ 市值里另有在途 ",
     otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
     day: "口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估算，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（估算）。",
   };
@@ -1303,7 +1303,7 @@ function renderImpl() {
        · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
        · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
        末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。 */
-    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（快照口径）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 ✗ —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（快照口径）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
     '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
@@ -1338,17 +1338,17 @@ function renderImpl() {
   plRows.sort((a, b) => b.pl - a.pl);
   /* ── 已清仓 · 已兑现（2026-10-09 用户：「盈亏总览是不是要加上已清仓实现的盈亏？灰色区分？」→ A 方案）──────
      该加 ✓：本卡叫「盈亏**总览**」，却静默地只算持仓浮盈亏（当前 11 项），读者容易以为"总 ＝ 这些行之和"，
-       而实际漏掉了已兑现的 −18,378.13 ✗。但**只加「组头 ＋ 一行汇总 ＋ 跳转」，不搬 19 行明细** ✗：
+       而实际漏掉了已兑现的 −18,378.13。但**只加「组头 ＋ 一行汇总 ＋ 跳转」，不搬 19 行明细** ✗：
          · 明细只在「清仓历史」卡里存一份 —— 同一批数字存两处必然漂移（本仓库 cross-check 门禁就是防这个）；
-           这一行沿用本卡既有的 data-sel → pl-flash 交互，点一下跳到那张卡 ✓。
-         · 卡头计数同时写清「已清仓 N 笔另列」✓，不会与上面的「N 盈 / M 亏」计数混淆 ✓。
-     口径两半来源不同、必须标清（与清仓历史卡同一句话 ✓）：
-       场外＝支付宝「清仓分析」App **原读数**（CLOSED.items）· 场内＝本页由 POSITIONS.log 推导（含双边费用 ✓）。
-     ⚠ **不要**把它与上面的浮盈亏相加成一个"总共赚赔多少" ✗ —— 场外那 17 笔发生在首份快照之前，
+           这一行沿用本卡既有的 data-sel → pl-flash 交互，点一下跳到那张卡。
+         · 卡头计数同时写清「已清仓 N 笔另列」，不会与上面的「N 盈 / M 亏」计数混淆。
+     口径两半来源不同、必须标清（与清仓历史卡同一句话）：
+       场外＝支付宝「清仓分析」App **原读数**（CLOSED.items）· 场内＝本页由 POSITIONS.log 推导（含双边费用）。
+     ⚠ **不要**把它与上面的浮盈亏相加成一个"总共赚赔多少" —— 场外那 17 笔发生在首份快照之前，
        本金 / 走势口径看不见它们，相加出来的数**不等于**「总资产 − 本金」✗（那样会误导）。
-     ⚠ 视觉（用户问"用灰色区分？"）：**组头用灰 ✓、金额保留 up/down 的绿红 ✗ 不涂灰** ——
+     ⚠ 视觉（用户问"用灰色区分？"）：**组头用灰、金额保留 up/down 的绿红 不涂灰** ——
        本页 --tx3 的"灰"有固定含义（未更新 / 次要 / 无数据），涂在金额上会让 −18,378.13 看起来像
-       "这数不可用 / 待更" ✗，与事实相反；次级感改由 .pl-row-cleared 的降透明度承担 ✓ */
+       "这数不可用 / 待更"，与事实相反；次级感改由 .pl-row-cleared 的降透明度承担 */
   const clearedOt = (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)) ? CLOSED.items : [];
   const clearedEtf = closedEtfRows();
   const clearedN = clearedOt.length + clearedEtf.length;
@@ -1361,7 +1361,7 @@ function renderImpl() {
         '<span class="pl-top">' +
           '<span class="pl-nm">清仓累计已实现</span>' +
           /* data-pl 给门禁用的**精确值**：显示值按整元取整（fmtAmt ✗），0.01 容差的断言在显示值上
-             分辨不出漂移 ✗；dom-check ④c 拿它比对**独立复算**的结果（场外 CLOSED ＋ 场内流水推导）✓ */
+             分辨不出漂移；dom-check ④c 拿它比对**独立复算**的结果（场外 CLOSED ＋ 场内流水推导） */
           '<b class="pl-amt ' + cls(clearedPl) + '" id="pl-cleared-total" data-pl="' + clearedPl.toFixed(2) + '">' + fmtAmt(clearedPl) + '</b>' +
         '</span>' +
         '<span class="pl-sub">' +
@@ -1374,7 +1374,7 @@ function renderImpl() {
       '</button>'
     : '';
   /* 盈 / 亏持仓计数（2026-09-30 从汇总卡挪来）：数的是**本卡上面那批持仓行**（2026-10-09 清仓中韩/港美后＝11 行；
-     原注释写"这 13 行"已过期 ✗ —— 显示的数字是现算的 ✓ 所以页面没错，只是注释没跟上）。
+     原注释写"这 13 行"已过期 —— 显示的数字是现算的 所以页面没错，只是注释没跟上）。
      口径同前：±0.5 元内算持平。 */
   const plWin = plRows.filter((x) => x.pl > 0.5).length, plLoss = plRows.filter((x) => x.pl < -0.5).length;
   $("pl-cnt").innerHTML = "(" + plRows.length + " 项持仓 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span> · " + etfTag() + " · " + otcTag() + (clearedN ? " · 已清仓 " + clearedN + " 笔另列" : "") + ")";
@@ -1411,9 +1411,9 @@ function renderImpl() {
   observeLadders();   /* 卡内图元高度受行高/字体/展开内容影响，需 RO 监听 */
 
   /* 走势图 cost 必须与快照 snapCost 同口径（＝持仓成本 ＋ 现金 ＋ 全额清仓漏出的已实现 ✓）——
-     直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，把浮亏显示成浮盈 ✗；
-     漏掉 closedCostGap 时，今日点的成本会比其它期少一截、两线间距凭空多出已兑现的 18,492 ✗
-     （2026-10-09 首次全额清仓后才会出现 —— 见 closedCostGap() 的注释 ✓）。 */
+     直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，把浮亏显示成浮盈；
+     漏掉 closedCostGap 时，今日点的成本会比其它期少一截、两线间距凭空多出已兑现的 18,492
+     （2026-10-09 首次全额清仓后才会出现 —— 见 closedCostGap() 的注释）。 */
   renderTrend(totalVal, totalCost + OTC.cash + closedCostGap());
   renderPrincipal();
   renderClosed();
@@ -1457,42 +1457,42 @@ const SA_NAME = (() => {                       // 标的名（从任一期的 it
   return m;
 })();
 /* 归因列维度（2026-10-09 加）：theme＝主题（默认 ✓）/ plat＝平台 / acct＝场内·场外 ✓
-   选择记在 localStorage（与 trendView / trendRange 同一套做法 ✓；隐私模式下忽略 ✓） */
+   选择记在 localStorage（与 trendView / trendRange 同一套做法；隐私模式下忽略） */
 let saDim = "theme";
 try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /* 隐私模式下忽略 */ }
 /* 下钻选择（2026-10-09 第三步 ✓）：null＝整期视图；{k:"cell",d,col}＝某格；{k:"hold",code,back}＝某只的轨迹。
-   ⚠ 必须是**模块级**：切一次维度就整块重渲染 ✗，函数内的局部变量留不下 ✓（与 saDim 同一理由 ✓）。
-   ⚠ 不进 localStorage ✓ —— 它是一次性交互状态 ✓，刷新后回到"净变动最大那期"更合理 ✓。 */
+   ⚠ 必须是**模块级**：切一次维度就整块重渲染，函数内的局部变量留不下 ✓（与 saDim 同一理由）。
+   ⚠ 不进 localStorage —— 它是一次性交互状态，刷新后回到"净变动最大那期"更合理。 */
 let saSel = null;
 /* 当前选中的**期**（2026-10-10 改为**模块级** ✓）—— 与 saSel 完全同一理由（见上 ✗，我当时漏了它 ✗）：
-   选择态一变就整块重渲染 ✓，而 `let cur` 原先写在渲染函数**内部** ✗ → 点完行刚设的期立刻被重置回默认期 ✗
-   →「点日期格 / 点期行 / 点期初行」全都看着没反应 ✗（2026-10-10 用户报的正是这个 ✓）。
-   ⚠ 这条**不能靠断言兜住**：老门禁用的 `tr.click()` 后来读的成员行，默认期里恰好也有那只 → 误过 ✗
-     （真正的判据只能是"标题里出现的那一期的日期" ✓ —— 已补进 dom-check ④l-3 ✓）。
-   null ＝ 还没选过 → 首次渲染取「净变动最大」那期 ✓（与旧行为一致 ✓）；"carry" ＝ 期初结转那一段 ✓。 */
+   选择态一变就整块重渲染，而 `let cur` 原先写在渲染函数**内部** → 点完行刚设的期立刻被重置回默认期
+   →「点日期格 / 点期行 / 点期初行」全都看着没反应 ✗（2026-10-10 用户报的正是这个）。
+   ⚠ 这条**不能靠断言兜住**：老门禁用的 `tr.click()` 后来读的成员行，默认期里恰好也有那只 → 误过
+     （真正的判据只能是"标题里出现的那一期的日期" —— 已补进 dom-check ④l-3）。
+   null ＝ 还没选过 → 首次渲染取「净变动最大」那期 ✓（与旧行为一致）；"carry" ＝ 期初结转那一段。 */
 let saCur = null;
 /* 日期 → 该期在 `live` 里的下标（每次渲染归因时重建 ✓）——
-   「逐期明细」那边要点进来定位到同一期 ✓，而 `live` 是渲染函数内的局部量 ✗ → 用这张表搭桥 ✓。 */
+   「逐期明细」那边要点进来定位到同一期，而 `live` 是渲染函数内的局部量 → 用这张表搭桥。 */
 let saD2I = {};
 /* 列头图的选中期（2026-10-09 第四步 B：A1~A4）—— 也是**模块级** ✓：
-   悬停/按键会改它 ✓，而从某一格「← 返回」回来会整块重渲染 ✗ → 重渲染后靠它把选中期恢复出来 ✓。
-   col 记的是当前是哪一列 ✓：换列就把 i 复位成 -1 ✓（否则会把上一列的"第 7 期"错当成这一列的 ✓）。 */
+   悬停/按键会改它，而从某一格「← 返回」回来会整块重渲染 → 重渲染后靠它把选中期恢复出来。
+   col 记的是当前是哪一列 ✓：换列就把 i 复位成 -1 ✓（否则会把上一列的"第 7 期"错当成这一列的）。 */
 let saChart = { col: null, i: -1 };
 /* 矩阵的 roving 焦点（2026-10-09 加 ①）—— 同样是模块级 ✓：整表只留**一个** Tab 位 ✓，
-   重渲染后靠它把 Tab 位放回"上次那一格" ✓（否则每次下钻回来都会跳回第一格 ✗）。 */
+   重渲染后靠它把 Tab 位放回"上次那一格" ✓（否则每次下钻回来都会跳回第一格）。 */
 let saRove = null;
 /* ── 盈亏归因 · 拆分说明（2026-10-12，P1-a）────────────────────────────────────────────
-   原来是一个 ~890 行的单体函数 ✗ —— 数据准备、矩阵表、三张图、六个下钻视图、四套交互全挤在一起，
-   行号一翻就是几百行 ✗。现按「准备 → 装配」拆成六段，**纯代码搬移** ✓（不改任何一行输出逻辑 ✓）：
-     · saCtx()          —— ① 数据准备 ＋ 维度/选择器小函数（一次准备、四处消费 ✓，返回上下文对象 C）
+   原来是一个 ~890 行的单体函数 —— 数据准备、矩阵表、三张图、六个下钻视图、四套交互全挤在一起，
+   行号一翻就是几百行。现按「准备 → 装配」拆成六段，**纯代码搬移** ✓（不改任何一行输出逻辑）：
+     · saCtx()          —— ① 数据准备 ＋ 维度/选择器小函数（一次准备、四处消费，返回上下文对象 C）
      · saMatrixHtml(C)  —— ② 矩阵表（维度切换器 ＋ 单元格/期初结转格 ＋ 口径对照行 ＋ 表）
      · saDetailView(C)  —— ③ 下钻视图（整期/格子/逐期轨迹/列图/排序条/整表曲线 ＋ 分派）
      · saNotesHtml(C)   —— ④ 图例 ＋ 口径折叠块
      · saWire(C)        —— ⑤ 交互（列图悬停键盘 / roving / 图例点亮 / 点击分派）
-     · renderSnapAttr() —— ⑥ 只剩装配（空表早退判断不变 ✓）
-   段间状态一律走上下文对象 C（原来靠闭包共享 ✗，拆开后必须显式传递 ✓）；
-   模块级状态（saCur / saSel / saChart / saRove / saD2I）原地不动 ✓。
-   铁律：DOM 输出逐字节不变 ✓ —— 9 个交互状态（默认/矩阵/列图/整表/格子/轨迹/两维度/期初结转）
+     · renderSnapAttr() —— ⑥ 只剩装配（空表早退判断不变）
+   段间状态一律走上下文对象 C（原来靠闭包共享，拆开后必须显式传递）；
+   模块级状态（saCur / saSel / saChart / saRove / saD2I）原地不动。
+   铁律：DOM 输出逐字节不变 —— 9 个交互状态（默认/矩阵/列图/整表/格子/轨迹/两维度/期初结转）
    的「剔 script 后整棵 DOM」sha256 改前改后逐字节一致 ✓（脚本 /tmp/p1a-domsha.js）。 */
 function saCtx() {
   const el = $("snap-attr");
@@ -1501,18 +1501,18 @@ function saCtx() {
   const num = (v) => (Number.isFinite(+v) ? +v : 0);
   /* 只保留**两期都有 items** 的期（缺的整期隐藏，但要如实写明隐藏了哪几期 —— 不静默、更不补 0 ✗）。
      用户要求：缺 items 的期隐藏掉；并去掉柱状形态（只留矩阵）。 */
-  const live = [], hidden = [], hiddenFull = [];   // hiddenFull 存**完整日期** ✓（画图判缺口要用 ✓，见 colSeries）
+  const live = [], hidden = [], hiddenFull = [];   // hiddenFull 存**完整日期** ✓（画图判缺口要用，见 colSeries）
   /* ── 矩阵的三段口径（2026-10-09 两轮：先 B 后 A —— 用户先问「全期 +8,278 是真的盈利吗？累计收益不是 +1,496 吗？」，
         随后确认「场内 6 月起、场外 2~3 月起、场外有的已清仓」并选了 A）────────────────────────────
-     ① 逐期行：只保留**前后两期都有 items** 的对 ✓
-        → baseD = 第一个这样的对的 a（2026-09-07 ✓）· lastD = 最后一个这样的对的 b ✓
-     ② 「期初结转」行（A）：**账户起点 → baseD** 的累计结果 ＝ 该期 Σ逐只 pl ✓
-        → 有了它，矩阵覆盖"账户起点 → 末期" ✓，**全期 ≡ 累计收益**（同一个 +1,496.31 ✓）
-          —— 用户看到的那对矛盾数（全期 8,278 vs 累计收益 1,496 ✗）就此消失 ✓
-     ③ 全期行：① ＋ ②（见下方 colSum / allSum ✓）
-     ⚠ 口径边界（同步写在口径注里 ✓）：② 用的是"在持标的自买入以来的结果"，**不含**场外那 17 笔已清仓 ✗
-       （它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金 ✓，故只在「清仓历史」卡 ✓）。
-       场内 06-01 起流水完整 ✓ 所以场内那半是精确的 ✓；场外那半精确到"在持 8 只自 03-03 起" ✓。 */
+     ① 逐期行：只保留**前后两期都有 items** 的对
+        → baseD = 第一个这样的对的 a（2026-09-07）· lastD = 最后一个这样的对的 b
+     ② 「期初结转」行（A）：**账户起点 → baseD** 的累计结果 ＝ 该期 Σ逐只 pl
+        → 有了它，矩阵覆盖"账户起点 → 末期"，**全期 ≡ 累计收益**（同一个 +1,496.31）
+          —— 用户看到的那对矛盾数（全期 8,278 vs 累计收益 1,496）就此消失
+     ③ 全期行：① ＋ ②（见下方 colSum / allSum）
+     ⚠ 口径边界（同步写在口径注里）：② 用的是"在持标的自买入以来的结果"，**不含**场外那 17 笔已清仓
+       （它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金，故只在「清仓历史」卡）。
+       场内 06-01 起流水完整 所以场内那半是精确的；场外那半精确到"在持 8 只自 03-03 起"。 */
   let baseD = null, basePl = 0, lastD = null, lastPl = 0;
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
@@ -1520,31 +1520,31 @@ function saCtx() {
     if (!baseD) { baseD = a.d; basePl = snapPl(a); }
     lastD = b.d; lastPl = snapPl(b);
     /* ★ 2026-10-09 改：取值改调 periodContrib()（★ 唯一实现 ★）——
-       原实现只遍历 b.items、且要求 a.items[c] 存在 ✗ → **建仓与清仓两种标的都被整条跳过、记 0** ✗；
-       清仓那半边正是 10.09 行合计虚高 **+635.40** 的成因 ✓（中韩 −567.40 ＋ 港美 −68.00 ✓，门禁 ④j 报红 ✓）。
-       现在遍历两期的**并集** ✓，并记下每只的 kind（供「清」角标与「不可归因」标记 ✓）。 */
+       原实现只遍历 b.items、且要求 a.items[c] 存在 → **建仓与清仓两种标的都被整条跳过、记 0**；
+       清仓那半边正是 10.09 行合计虚高 **+635.40** 的成因 ✓（中韩 −567.40 ＋ 港美 −68.00，门禁 ④j 报红）。
+       现在遍历两期的**并集**，并记下每只的 kind（供「清」角标与「不可归因」标记）。 */
     const items = {}, kinds = {};
     Array.from(new Set(Object.keys(a.items).concat(Object.keys(b.items)))).forEach((c) => {
       const r = periodContrib(c, a, b);
       items[c] = r.v; kinds[c] = r.kind;
     });
     /* ⚠ 2026-10-09 二次改（用户要求「A ＋ B」把维度做成可切换）：这里**不再**在建期时按主题聚合 ✗ ——
-       改为只留逐只明细（items ✓），列的分组推迟到渲染时按**当前维度**算（见下方的 colKeyOf / segOf ✓）。
-       为什么不在这里聚合：那样切到「按平台 / 场内·场外」时列还是主题的 ✗（聚合发生在建期阶段，切不动 ✓）。
-       （旧注释保留在此：500 元「并入其他」那档早在 10-09 就废了 ✓ —— 底色改对数尺度后失去理由 ✓） */
+       改为只留逐只明细（items），列的分组推迟到渲染时按**当前维度**算（见下方的 colKeyOf / segOf）。
+       为什么不在这里聚合：那样切到「按平台 / 场内·场外」时列还是主题的 ✗（聚合发生在建期阶段，切不动）。
+       （旧注释保留在此：500 元「并入其他」那档早在 10-09 就废了 —— 底色改对数尺度后失去理由） */
     const nClose = Object.keys(kinds).filter((c) => kinds[c] === "close");
     const nNa = Object.keys(kinds).filter((c) => kinds[c] === "na");
     /* rawA / rawB 留住两期的**原始 items**（qty / cost / val ✓）—— 下钻第三步的「本期快照对比」要用 ✓
-       （items 里只有算好的金额 ✗，看不出"是净值跌了还是份数变了" ✓） */
+       （items 里只有算好的金额，看不出"是净值跌了还是份数变了"） */
     live.push({ d: b.d, items: items, kinds: kinds, nClose: nClose, nNa: nNa, rawA: a.items, rawB: b.items,
       net: Object.values(items).reduce((s, v) => s + v, 0) });
   }
   /* ── 「期初结转」行的取值（A，2026-10-09）────────────────────────────────────────────
      它 ＝ **基准期的 Σ逐只 pl** ✓（−6,781.83）—— 而不是快照表头的 pl ✗（−6,783.59）：
-     实测两者差 **1.76 元** ✓，用表头值会让"全期 ≡ 累计收益"差这 1.76 ✗
-     —— 这正是上一轮那个"1.76 元残差"的真正来源 ✓（与算法无关 ✗，是快照表头合计与逐只明细不一致 ✓）。
-     含义：账户起点 → baseD 这段，各只在持标的累计结果之和 ✓
-     （场内那半＝6 月建仓以来 ✓ 流水完整 ✓；场外那半＝在持 8 只自 2026-03-03 起 ✓）。 */
+     实测两者差 **1.76 元**，用表头值会让"全期 ≡ 累计收益"差这 1.76
+     —— 这正是上一轮那个"1.76 元残差"的真正来源 ✓（与算法无关，是快照表头合计与逐只明细不一致）。
+     含义：账户起点 → baseD 这段，各只在持标的累计结果之和
+     （场内那半＝6 月建仓以来 流水完整；场外那半＝在持 8 只自 2026-03-03 起）。 */
   const baseSnap = baseD ? S.find((x) => x.d === baseD) : null;
   const carryItems = {};
   Object.entries((baseSnap && baseSnap.items) || {}).forEach(([c, it]) => { carryItems[c] = num(it.pl); });
@@ -1554,65 +1554,65 @@ function saCtx() {
     ? CLOSED.items.reduce((a, x) => a + (x.pnl || 0), 0) : null;
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
-  function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：本函数内任意位置可用 ✓
+  function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：本函数内任意位置可用
   /* 该格 / 该只 是否当前选中（2026-10-09 第三步的下钻高亮 ✓）。
-     写成**函数声明**：cellOf / carryCell 在下面几行就要调它 ✓（const 箭头会撞 TDZ ✗）。 */
+     写成**函数声明**：cellOf / carryCell 在下面几行就要调它 ✓（const 箭头会撞 TDZ）。 */
   function selIsCell(d, col) { return !!(saSel && saSel.k === "cell" && saSel.d === d && saSel.col === col); }
   /* ── 归因维度（2026-10-09 加，用户要求 A ＋ B）───────────────────────────────────────
-     默认**主题** ✓；另两种是"要查时切一下"的补充 ✓（顶部小切换器 ✓，选择记 localStorage ✓）。
-     为什么不默认平台（实测两者都 6 列，但平台维度在这套账户上会**塌缩** ✗）：
-       · 场内只有一家券商 → 「平安证券」一格把纳指 / 标普 / 日经三只不同市场合并（全期合计里占去大半 ✗）；
-       · 且与主题部分重合：广发基金 = 广发纳指F（纳指）＋ 广发精选（全球）✗ 又一格并了两种市场 ✗。
-     平台维度的真正用途是**对账** ✓（这数是哪个 App 给的、去哪一页核对 ✓）—— 按需切一下就能看 ✓。
-     （DIMS 字典随拆分移入 saMatrixHtml ✓ —— 只有矩阵的切换器用它 ✓，数据准备不需要它 ✓）。 */
+     默认**主题**；另两种是"要查时切一下"的补充 ✓（顶部小切换器，选择记 localStorage）。
+     为什么不默认平台（实测两者都 6 列，但平台维度在这套账户上会**塌缩**）：
+       · 场内只有一家券商 → 「平安证券」一格把纳指 / 标普 / 日经三只不同市场合并（全期合计里占去大半）；
+       · 且与主题部分重合：广发基金 = 广发纳指F（纳指）＋ 广发精选（全球） 又一格并了两种市场。
+     平台维度的真正用途是**对账** ✓（这数是哪个 App 给的、去哪一页核对）—— 按需切一下就能看。
+     （DIMS 字典随拆分移入 saMatrixHtml —— 只有矩阵的切换器用它，数据准备不需要它）。 */
   const colKeyOf = (c) => {
     if (saDim === "plat") return isOnExchange(c) ? "平安证券" : (srcLabel(c).f || "场外");
     if (saDim === "acct") return isOnExchange(c) ? "场内" : "场外";
     return TKEY(SA_THEME[c] || "global");
   };
-  const colNameOf = (k) => (saDim === "theme" ? ((SA_META[k] || ["全球"])[0]) : k);   // 平台 / 账户：键即显示名 ✓
-  const segOf = (p) => {                                  // 该期按**当前维度**聚合（大的在前 ✓）
+  const colNameOf = (k) => (saDim === "theme" ? ((SA_META[k] || ["全球"])[0]) : k);   // 平台 / 账户：键即显示名
+  const segOf = (p) => {                                  // 该期按**当前维度**聚合（大的在前）
     const o = {};
     Object.entries(p.items).forEach(([c, v]) => { const k = colKeyOf(c); o[k] = (o[k] || 0) + v; });
     return Object.entries(o).map(([k, v]) => ({ k: k, v: v })).sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
   };
-  live.forEach((p) => { p.seg = segOf(p); });              // 把当前维度的聚合挂回每期 ✓（下方 cellOf / colSum 直接用 ✓）
-  const cols = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];   // 列次序＝首次出现次序 ✓
+  live.forEach((p) => { p.seg = segOf(p); });              // 把当前维度的聚合挂回每期 ✓（下方 cellOf / colSum 直接用）
+  const cols = [...new Set(live.flatMap((p) => p.seg.map((x) => x.k)))];   // 列次序＝首次出现次序
   const mx = Math.max.apply(null, live.flatMap((p) => p.seg.map((x) => Math.abs(x.v))).concat([1]));
   /* 底色＝**对数**尺度（2026-10-09 借 finance「账户 × 月 收益矩阵」的 alpha 公式，同一套口径 ✓）：
-     线性分档下 8 万与 800 元的色差几乎看不出，只能靠"并入其他"回避 ✗；
-     对数尺度让跨两个数量级的变动都能分辨 ✓（透明度落在 0.10~0.60，负值同区间换红色 ✓）。
-     ⚠ 下限给 0.10 而不是 0：全透明会让"有值但极小"退回成"看起来是空格" ✗ */
+     线性分档下 8 万与 800 元的色差几乎看不出，只能靠"并入其他"回避；
+     对数尺度让跨两个数量级的变动都能分辨 ✓（透明度落在 0.10~0.60，负值同区间换红色）。
+     ⚠ 下限给 0.10 而不是 0：全透明会让"有值但极小"退回成"看起来是空格" */
   const cellBg = (v) => {
     const lv = 0.10 + 0.50 * Math.min(1, Math.log10(Math.abs(v) + 10) / Math.log10(mx + 10));
     return v >= 0 ? "rgba(45,212,167," + lv.toFixed(3) + ")" : "rgba(224,87,107," + lv.toFixed(3) + ")";
   };
   /* 「期初结转」行按**当前维度**聚合 ✓（切维度时它跟着走，与逐期行一致 ✓）；
-     下面的 colSum / allSum 都把它算进去 ✓ —— 于是"各列之和 ＝ 合计"在换维度后依然成立 ✓ */
+     下面的 colSum / allSum 都把它算进去 —— 于是"各列之和 ＝ 合计"在换维度后依然成立 */
   const carryByCol = {};
   Object.entries(carryItems).forEach(([c, v]) => { const k = colKeyOf(c); carryByCol[k] = (carryByCol[k] || 0) + v; });
   const colSum = (t) => live.reduce((a, p) => a + ((p.seg.find((x) => x.k === t) || { v: 0 }).v), 0) + (carryByCol[t] || 0);
   const allSum = live.reduce((a, p) => a + p.net, 0) + carryTotal;
 
   /* ── 选中期（saCur）：默认只算一次，之后由「点日期格 / 点期行 / 点期初行」记住 ✓
-     （自矩阵装配段**原位上移** ✓ —— 它只依赖 live ✓，与 HTML 装配顺序无关 ✓）。
-     ⚠ 越界/失效保护：维度切换或数据变了之后 saCur 可能指向不存在的期 ✗（或 carry ✓）→ 兜回默认 ✓；
-       ⚠ 空表时**不能**执行兜底 ✗（live.map(...)[0] 是 undefined、取 [1] 直接炸 ✗）——
-       原来靠「先早退再算到这里」保命 ✓，拆分后早退挪去了装配段 → 显式判 live.length ✓。 */
+     （自矩阵装配段**原位上移** —— 它只依赖 live，与 HTML 装配顺序无关）。
+     ⚠ 越界/失效保护：维度切换或数据变了之后 saCur 可能指向不存在的期 ✗（或 carry）→ 兜回默认；
+       ⚠ 空表时**不能**执行兜底 ✗（live.map(...)[0] 是 undefined、取 [1] 直接炸）——
+       原来靠「先早退再算到这里」保命，拆分后早退挪去了装配段 → 显式判 live.length。 */
   if (live.length) {
     if (saCur === null || (saCur !== "carry" && !live[saCur])) {
       saCur = live.map((p, i) => [Math.abs(p.net), i]).sort((a, b) => b[0] - a[0])[0][1];
     }
   }
-  const cur = saCur;                     // 只读别名（下游所有 `cur` 都不再改 ✓ —— 改的是 saCur ✓）
-  saD2I = {};                            // 日期 → 下标（供「逐期明细」点行跨进来定位 ✓，见 saD2I 声明处 ✓）
+  const cur = saCur;                     // 只读别名（下游所有 `cur` 都不再改 —— 改的是 saCur）
+  saD2I = {};                            // 日期 → 下标（供「逐期明细」点行跨进来定位，见 saD2I 声明处）
   live.forEach((p, i) => { saD2I[p.d] = i; });
   /* 名字解析：清仓历史 / 快照 items / 代码 —— 下钻视图与列头图悬停都要用 ✓（自下方原位上移 ✓） */
   const nameOf = (code) => (SA_NAME[code] || (baseSnap && baseSnap.items[code] && baseSnap.items[code].name) || code);
   /* 本列的逐期序列 —— **一处实现、三处消费** ✓（viewColChart 画它、viewAllChart 取数、
-     wireColChart 交互也用它 ✓，不会漂 ✗。自下方原位上移 ✓ —— 只依赖 live/baseD/hiddenFull/num ✓）。
-     gap：本期起点与本期之间若夹着"缺 items 的被跳过对" → 累计这一段**断开** ✓（不插值 ✓，
-     这正是图注里那句"缺口不插值"的兑现 ✓ —— 原实现是一笔连到底 ✗，话没做实 ✗）。 */
+     wireColChart 交互也用它，不会漂。自下方原位上移 —— 只依赖 live/baseD/hiddenFull/num）。
+     gap：本期起点与本期之间若夹着"缺 items 的被跳过对" → 累计这一段**断开** ✓（不插值，
+     这正是图注里那句"缺口不插值"的兑现 —— 原实现是一笔连到底，话没做实）。 */
   const colSeries = (col) => live.map((p, i) => {
     const p0 = i > 0 ? live[i - 1].d : baseD;
     return {
@@ -1629,19 +1629,19 @@ function saCtx() {
 
 /* ── ② 矩阵表：维度切换器 ＋ 单元格/期初结转格 ＋ 口径对照行 ＋ 表（新在上 / 期初结转 / 全期）── */
 function saMatrixHtml(C) {
-  const DIMS = { theme: "按主题", plat: "按平台", acct: "场内·场外" };   // 自 saCtx 移入 ✓（只有切换器用 ✓）
+  const DIMS = { theme: "按主题", plat: "按平台", acct: "场内·场外" };   // 自 saCtx 移入 ✓（只有切换器用）
   /* 单元格：三态**分开表达**（借 finance 收益矩阵的同一套思路 ✓）
-     ① 该期该主题「没有可归因的标的」（当时尚未持有 → 没有 Δpl）→ 淡色「·」＋ tooltip 明说是「缺」不是 0 ✓
-     ② 变动恰为 0 → 照常画出 0（0 是**真实读数**，与"缺"是两回事 ✓）
-     ③ 其余 → 对数尺度上色 ＋ 数字；悬停给出该期该主题的**成员与逐只金额** ✓
-     ★ 为什么必须有 ①：以前它和「小到被并入其他」长得一模一样 ✗ —— 用户 10-08 看到空格只能来问我 ✗ */
+     ① 该期该主题「没有可归因的标的」（当时尚未持有 → 没有 Δpl）→ 淡色「·」＋ tooltip 明说是「缺」不是 0
+     ② 变动恰为 0 → 照常画出 0（0 是**真实读数**，与"缺"是两回事）
+     ③ 其余 → 对数尺度上色 ＋ 数字；悬停给出该期该主题的**成员与逐只金额**
+     ★ 为什么必须有 ①：以前它和「小到被并入其他」长得一模一样 —— 用户 10-08 看到空格只能来问我 */
   const cellOf = (p, t) => {
     const s = p.seg.find((x) => x.k === t);
     if (!s) {
       return '<td class="mx-c mx-na" title="' + esc(mdFull(p.d) + "：" + C.colNameOf(t) + " 这一期没有可归因的标的（当时尚未持有，不是「变动为 0」）") + '">·</td>';
     }
     /* 成员明细（A：2026-10-09 加**渠道** ✓）—— 用户问"这数是谁的 App 给的、去哪核对"时，悬停即得 ✓。
-       ⚠ 平台维度下"渠道"就是列名本身 → 逐只再写一遍是重复 ✗，那一种不标 ✓。 */
+       ⚠ 平台维度下"渠道"就是列名本身 → 逐只再写一遍是重复，那一种不标。 */
     const mem = Object.entries(p.items)
       .filter(([c]) => C.colKeyOf(c) === t)
       .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
@@ -1649,15 +1649,15 @@ function saMatrixHtml(C) {
         + (saDim === "plat" ? "" : " · " + (isOnExchange(c) ? "平安证券" : (srcLabel(c).s || "场外")))
         + "　" + fmtAmt(x)).join("\n");
     /* 可点（2026-10-09 第三步 ✓）：点该格 → 下方只列这一格的成员 ✓。
-       data-v／data-cell-sum 给门禁 ④l 用**精确值** ✓（显示按整元取整 ✗，分辨不出漂移 ✓）；
-       tabindex ＋ role=button ＋ aria-label 让键盘与读屏也能到 ✓（与页内其它可点元素同一套 ✓）。 */
+       data-v／data-cell-sum 给门禁 ④l 用**精确值** ✓（显示按整元取整，分辨不出漂移）；
+       tabindex ＋ role=button ＋ aria-label 让键盘与读屏也能到 ✓（与页内其它可点元素同一套）。 */
     /* ⚠ tabindex 一律先给 **-1** ✓：整表只留**一个** Tab 位（roving ✓，见 wireRoving ✓）——
-       原来每格都是 0 ✗ → 5 列 × 16 行 ＝ 80 个 Tab 位 ✗，Tab 键直接变迷宫 ✓。 */
+       原来每格都是 0 → 5 列 × 16 行 ＝ 80 个 Tab 位，Tab 键直接变迷宫。 */
     return '<td class="mx-c mx-click' + (C.selIsCell(p.d, t) ? " mx-sel" : "") + '" data-cell="1"'
       + ' data-d="' + esc(p.d) + '" data-col="' + esc(t) + '" data-v="' + s.v.toFixed(2) + '"'
       + ' tabindex="-1" role="button" aria-label="' + esc("看 " + mdFull(p.d) + " 这一期「" + C.colNameOf(t) + "」的成员，合计 " + fmtAmt(s.v) + " 元") + '"'
       + ' style="background:' + C.cellBg(s.v) + '" title="'
-      + esc(C.colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + mdFull(p.d) + " 这一期）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(s.v) + "</td>";
+      + esc(C.colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + mdFull(p.d) + " 这一期）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格") + '">' + fmtAmt(s.v) + "</td>";
   };
   /* 维度切换器（2026-10-09 加，B）——沿用主视图那个 .vs-btn 的控件语言 ✓ */
   let h = '<div class="sa-dims">' + Object.keys(DIMS).map((k) =>
@@ -1667,29 +1667,29 @@ function saMatrixHtml(C) {
       : saDim === "plat" ? "行=期 · 列=平台（券商 ／ 各基金公司与第三方）"
         : "行=期 · 列=场内 / 场外")
     + " · 点任一行看该期逐只 · 悬停任一格看成员" + (saDim === "theme" ? "与渠道" : "")
-    + " · <b>换个维度不改合计</b> ✓</span></div>";
+    + " · <b>换个维度不改合计</b></span></div>";
   /* ── 口径对照行（2026-10-09 两轮：先 B 补"水平值 vs 变化量"，再按 A 加「期初结转」行）────────────
-     用户最初的疑问是把「全期 +8,278」与汇总卡的「累计收益 +1,496」并排看，问"到底赚了多少" ✗ ——
-     根因是矩阵当时**只覆盖** baseD（09-07）之后那段（更早的期缺 items 被隐藏 ✗），于是"全期"成了变化量 ✗。
-     A 加了「期初结转」行之后，矩阵覆盖"账户起点 → 末期" ✓ → **全期就是累计收益** ✓（同一个数 ✓）。
-     所以这行现在只讲一件事：这两个数现在是同一个数 ✓ ——"窗口不同"那套解释不再需要了 ✗。
-     两个数**分别取数**显示（左＝累计收益 ✓、右＝全期行合计 ✓），不写死成同一个字符串 ✗
-     —— 万一将来谁把两者算岔了，这一行会当场看出来 ✓（门禁 ④k 也盯着 ✓）。
-     排版取舍照旧：一行小字、不占格子 ✓；颜色走 up/down 绿红，不涂灰 ✗（灰在本页＝未更新 / 无数据 ✓）。 */
-  h += '<div class="sa-base" title="' + esc("累计收益 ＝ 总资产 − 外部净转入（本金）✓，既含已卖出的兑现盈亏、也含尚未卖出的浮动盈亏 ✓。"
-    + "自**账户起点**算起 ✓：场内自 2026-06-01 起（流水完整 ✓）、场外自 2026-03-03 起（在持 8 只 ✓）。"
-    + "下面「期初结转」行 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + " ✓），"
-    + "逐期行 ＝ " + mdFull(C.baseD) + " → " + mdFull(C.lastD) + " ✓ —— 两者相加就是「全期」✓，与这里的累计收益是同一个数 ✓。"
-    + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(C.closedOtcSum) + " ✓）")
-    + "：它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 ✗ → 无法归入本金 ✓，请去「清仓历史」卡看 ✓。")
+     用户最初的疑问是把「全期 +8,278」与汇总卡的「累计收益 +1,496」并排看，问"到底赚了多少" ——
+     根因是矩阵当时**只覆盖** baseD（09-07）之后那段（更早的期缺 items 被隐藏），于是"全期"成了变化量。
+     A 加了「期初结转」行之后，矩阵覆盖"账户起点 → 末期" → **全期就是累计收益** ✓（同一个数）。
+     所以这行现在只讲一件事：这两个数现在是同一个数 ——"窗口不同"那套解释不再需要了。
+     两个数**分别取数**显示（左＝累计收益、右＝全期行合计），不写死成同一个字符串
+     —— 万一将来谁把两者算岔了，这一行会当场看出来 ✓（门禁 ④k 也盯着）。
+     排版取舍照旧：一行小字、不占格子；颜色走 up/down 绿红，不涂灰 ✗（灰在本页＝未更新 / 无数据）。 */
+  h += '<div class="sa-base" title="' + esc("累计收益 ＝ 总资产 − 外部净转入（本金），既含已卖出的兑现盈亏、也含尚未卖出的浮动盈亏。"
+    + "自**账户起点**算起：场内自 2026-06-01 起（流水完整）、场外自 2026-03-03 起（在持 8 只）。"
+    + "下面「期初结转」行 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + "），"
+    + "逐期行 ＝ " + mdFull(C.baseD) + " → " + mdFull(C.lastD) + " —— 两者相加就是「全期」，与这里的累计收益是同一个数。"
+    + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
+    + "：它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金，请去「清仓历史」卡看。")
     + '">累计收益（自账户起点）<b class="' + cls(C.lastPl) + '">' + fmtAmt(C.lastPl) + "</b>"
-    + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(C.allSum) + ' ✓（同一口径、同一个数 ✓；'
-    + C.baseD.slice(5).replace("-", ".") + " 之前的账在「期初结转」行里 ✓）</span></div>";
+    + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(C.allSum) + ' ✓（同一口径、同一个数；'
+    + C.baseD.slice(5).replace("-", ".") + " 之前的账在「期初结转」行里）</span></div>";
   /* 列头**可点**（2026-10-09 第四步 ✓）：点它 → 该列的「逐期贡献 ＋ 累计」图（在矩阵下方 ✓）。
-     这是用户那句「点击表头 是不是也可以按日来做图？」的落点 ✓ —— x 轴铺成**真实日期间距** ✓
-     （真·日频数据仓库里没有 ✗，见 viewColChart 的注释 ✓）。 */
+     这是用户那句「点击表头 是不是也可以按日来做图？」的落点 —— x 轴铺成**真实日期间距**
+     （真·日频数据仓库里没有，见 viewColChart 的注释）。 */
   /* （选中期 cur ／ 日期下标表 saD2I 已随拆分**上移进 saCtx** ✓ —— 它们只依赖 live ✓，
-     与 HTML 装配顺序无关 ✓；这里直接读 C.cur ✓。） */
+     与 HTML 装配顺序无关；这里直接读 C.cur。） */
   h += '<div class="sa-mx-wrap"><table class="sa-mx"><thead><tr><th class="mx-d">期</th>'
     + C.cols.map((t) => "<th" + (saSel && saSel.k === "cell" && saSel.col === t ? ' class="mx-selc"' : "")
       + (saSel && saSel.k === "col" && saSel.col === t ? ' data-onsel="1"' : "")
@@ -1699,17 +1699,17 @@ function saMatrixHtml(C) {
     + '<th class="mx-sum" data-allhead="1" tabindex="0" role="button" aria-label="'
     + esc("看整表累计曲线对比（各列 ＋ 总累计）") + '">合计</th></tr></thead><tbody>';
   /* ⚠ 2026-10-09 改：**新在上** ✓（与逐期明细、快照列表统一 ✗ 原来是最老在上）——
-     渲染走 live.slice().reverse() ✓，data-i 仍指向**原下标** ✓（点击下钻的映射不变 ✓）。
-     日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只 ✓）；
-     清仓但查不到流水（不可归因 ✓）→ 琥珀「⚠」✓ —— 显式标"缺"，不假装 0 ✗。 */
+     渲染走 live.slice().reverse()，data-i 仍指向**原下标** ✓（点击下钻的映射不变）。
+     日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只）；
+     清仓但查不到流水（不可归因）→ 琥珀「⚠」 —— 显式标"缺"，不假装 0。 */
   C.live.slice().reverse().forEach((p) => {
     const i = C.live.indexOf(p);
     const mark = (p.nClose && p.nClose.length
-      ? '<span class="mx-close" title="' + esc("本期清仓：" + p.nClose.map((c) => SA_NAME[c] || c).join("、") + "（金额已按「回款 − 期初市值」计入本行 ✓）") + '">清' + p.nClose.length + "</span>" : "")
+      ? '<span class="mx-close" title="' + esc("本期清仓：" + p.nClose.map((c) => SA_NAME[c] || c).join("、") + "（金额已按「回款 − 期初市值」计入本行）") + '">清' + p.nClose.length + "</span>" : "")
       + (p.nNa && p.nNa.length
-        ? '<span class="mx-close warn" title="' + esc("本期清仓但查不到流水，**无法归因**（未按 0 计 ✗）：" + p.nNa.map((c) => SA_NAME[c] || c).join("、")) + '">⚠</span>' : "");
+        ? '<span class="mx-close warn" title="' + esc("本期清仓但查不到流水，**无法归因**（未按 0 计）：" + p.nNa.map((c) => SA_NAME[c] || c).join("、")) + '">⚠</span>' : "");
     /* 选中行高亮（2026-10-10 扩）：**当前期**那一行始终高亮 ✓ —— 点完日期格一眼就知道点中了哪一行 ✓
-       （原来只在"选了某个格子"时高亮 ✗ → 点日期格即使生效也看不出反馈 ✗）。 */
+       （原来只在"选了某个格子"时高亮 → 点日期格即使生效也看不出反馈）。 */
     const isCurRow = (C.cur !== "carry" && C.live[C.cur] === p);
     h += '<tr data-i="' + i + '"' + (isCurRow || (saSel && saSel.k === "cell" && saSel.d === p.d) ? ' class="mx-hlr"' : "") + '>'
       /* 日期格可点（2026-10-10）：点它 → 下方切到这一期 ✓（整行也可点 ✓，但数据格优先走"点格子"✓） */
@@ -1718,11 +1718,11 @@ function saMatrixHtml(C) {
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
   /* ── 「期初结转」行（A，2026-10-09）──────────────────────────────────────────────
-     位置：**最下一行**（逐期行是新在上 ✓，它比最早那一期还早 ✓）。
-     样式：与期行区分（虚线分隔 ＋ 「期初」标签 ＋ .mx-carry，见 CSS ✓）—— 它是一段**区间**、不是一个期 ✓。
-     取值：carryItems 逐只 ✓ → 按当前维度聚合到各列（carryByCol ✓）＋ 合计 carryTotal ✓。
-     点击：与期行一样下钻 ✓（detail() 里对 cur === "carry" 特判 ✓）。
-     ⚠ 它**不参与** mx（底色量级 ✓）—— 否则它那几笔大数会把逐期行的色差压暗 ✗（mx 只由逐期行定 ✓）。 */
+     位置：**最下一行**（逐期行是新在上，它比最早那一期还早）。
+     样式：与期行区分（虚线分隔 ＋ 「期初」标签 ＋ .mx-carry，见 CSS）—— 它是一段**区间**、不是一个期。
+     取值：carryItems 逐只 → 按当前维度聚合到各列（carryByCol）＋ 合计 carryTotal。
+     点击：与期行一样下钻 ✓（detail() 里对 cur === "carry" 特判）。
+     ⚠ 它**不参与** mx（底色量级）—— 否则它那几笔大数会把逐期行的色差压暗 ✗（mx 只由逐期行定）。 */
   const carryCell = (t) => {
     const v = C.carryByCol[t];
     if (v === undefined) {
@@ -1738,53 +1738,53 @@ function saMatrixHtml(C) {
       + ' data-d="__carry" data-col="' + esc(t) + '" data-v="' + v.toFixed(2) + '"'
       + ' tabindex="-1" role="button" aria-label="' + esc("看期初结转「" + C.colNameOf(t) + "」的成员，合计 " + fmtAmt(v) + " 元") + '"'
       + ' style="background:' + C.cellBg(v) + '" title="'
-      + esc(C.colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + mdFull(C.baseD) + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(v) + "</td>";
+      + esc(C.colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + mdFull(C.baseD) + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格") + '">' + fmtAmt(v) + "</td>";
   };
   const carryIn = Object.entries(C.carryItems).filter(([c]) => isOnExchange(c)).reduce((a, x) => a + x[1], 0);
   h += '<tr class="mx-carry' + ((C.cur === "carry" || (saSel && saSel.k === "cell" && saSel.d === "__carry")) ? " mx-hlr" : "") + '"'
     + ' data-carry="' + C.carryTotal.toFixed(2) + '" data-carry-d="' + C.baseD + '" title="' + esc(
       "期初结转 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(C.carryTotal) + " 元\n"
       + "场内 " + fmtAmt(carryIn) + " ＋ 场外 " + fmtAmt(C.carryTotal - carryIn)
-      + "（场内自 2026-06-01 起、流水完整 ✓；场外＝在持 8 只自 2026-03-03 起 ✓）\n"
-      + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(C.closedOtcSum) + " ✓）")
-      + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金 ✓，只在「清仓历史」卡 ✓。\n"
-      + "点这一行 → 看它是哪些标的、各多少 ✓") + '">'
+      + "（场内自 2026-06-01 起、流水完整；场外＝在持 8 只自 2026-03-03 起）\n"
+      + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
+      + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金，只在「清仓历史」卡。\n"
+      + "点这一行 → 看它是哪些标的、各多少") + '">'
     /* 副标签从「账户起点 → 09-07」缩成「起点 → 09-07」（2026-10-10 用户：「期 这列太宽了」✓）——
-       它是**期列最宽的一格** ✗，宽度由它决定 ✓（实测 156.5px → 缩后见提交里的实测 ✓）。
-       语义没丢：表上方对照行写「累计收益（自账户起点）」✓、这一行的 title 也写全 ✓。 */
-    + '<td class="mx-d mx-dpick" title="' + esc("期初结转：账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + " 元）—— 点一下看它是哪些标的 ✓") + '">期初<i class="mx-since">起点 → ' + C.baseD.slice(5).replace("-", ".") + "</i></td>"
+       它是**期列最宽的一格**，宽度由它决定 ✓（实测 156.5px → 缩后见提交里的实测）。
+       语义没丢：表上方对照行写「累计收益（自账户起点）」、这一行的 title 也写全。 */
+    + '<td class="mx-d mx-dpick" title="' + esc("期初结转：账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + " 元）—— 点一下看它是哪些标的") + '">期初<i class="mx-since">起点 → ' + C.baseD.slice(5).replace("-", ".") + "</i></td>"
     + C.cols.map(carryCell).join("")
     + '<td class="mx-c mx-sum ' + cls(C.carryTotal) + '">' + fmtAmt(C.carryTotal) + "</td></tr>";
   /* 「全期」＝ ①逐期行 ＋ ②期初结转 ✓ —— 也就是**累计收益本身** ✓（不再是"窗口内的变化量" ✗）。
-     起点写进标签（旧版只写「全期」，用户据此把 +8,278 读成了"账户一共赚了 8,278" ✗）；
-     data-* 给门禁 ④k 留**精确值** ✓（显示按整元取整 ✗，几十元的漂移在显示值上分辨不出 ✓）。 */
+     起点写进标签（旧版只写「全期」，用户据此把 +8,278 读成了"账户一共赚了 8,278"）；
+     data-* 给门禁 ④k 留**精确值** ✓（显示按整元取整，几十元的漂移在显示值上分辨不出）。 */
   h += '<tr class="mx-foot" data-all="' + C.allSum.toFixed(2) + '" data-base="' + C.baseD + '" data-base-pl="' + C.basePl.toFixed(2) + '">'
     /* 「全期」行头也可点（2026-10-09 ②）→ 各列生涯贡献排序条 ✓（数据＝本行各列 ✓ 同一个数 ✓） */
     + '<td class="mx-d mx-click" data-coltotal="1" tabindex="0" role="button" aria-label="'
     + esc("看各列的生涯贡献排序（合计 " + fmtAmt(C.allSum) + " 元）") + '">全期<i class="mx-since">自账户起点</i></td>'
     + C.cols.map((t) => '<td class="mx-c mx-sum ' + cls(C.colSum(t)) + '">' + fmtAmt(C.colSum(t)) + "</td>").join("")
     + '<td class="mx-c mx-sum ' + cls(C.allSum) + '">' + fmtAmt(C.allSum) + "</td></tr></tbody></table></div>";
-  return h;   // 矩阵段到此收口 ✓（detail-box ／ 图例 ／ 口径折叠块由装配段追加 ✓，字节顺序与拆前一致 ✓）
+  return h;   // 矩阵段到此收口 ✓（detail-box ／ 图例 ／ 口径折叠块由装配段追加，字节顺序与拆前一致）
 }
 
 /* ── ③ 下钻视图：整期 / 格子 / 逐期轨迹 / 列图 / 排序条 / 整表曲线 ＋ 分派 ✓ ──
-   （原为单体函数内的视图段 ✓；段内小工具 fmtPx/periodOf/histOf/totalOf/eventsOf/kindMark/pctTxt/rowHtml
-     只被视图用到 → 就地保留 ✓；nameOf ／ colSeries 已上移进 saCtx ✓ —— wireColChart 也要用 ✓；
-     跨段状态一律从 C 取 ✓。装配段用 `'<div class="sa-detail-box">' + saDetailView(C) + '</div>'` ✓。） */
+   （原为单体函数内的视图段；段内小工具 fmtPx/periodOf/histOf/totalOf/eventsOf/kindMark/pctTxt/rowHtml
+     只被视图用到 → 就地保留；nameOf ／ colSeries 已上移进 saCtx —— wireColChart 也要用；
+     跨段状态一律从 C 取。装配段用 `'<div class="sa-detail-box">' + saDetailView(C) + '</div>'`。） */
 function saDetailView(C) {
   /* ── 三级下钻（2026-10-09 第三步 A~F，用户问：「逐只明细还能细化吗？比如我点击某一个格子？」）───────
-     层级：**整期**（点行 ✓）→ **该格**（点格子 ✓：某一主题 × 某一期）→ **该只的逐期轨迹**（点成员 ✓）
-     状态 saSel（模块级，见文件里 saDim 旁边 ✓）：
-       null ＝ 整期视图（cur 仍决定是哪一期 ✓）· {k:"cell", d, col} · {k:"hold", code, back}
-     数据**全部来自现有 items / periodContrib / POSITIONS.log / OTC_LOG** ✓ —— 不新增口径 ✓：
-       · 该格成员之和 ≡ 格子里那个数 ✓（两处都用 colKeyOf 过滤 ✓，门禁 ④l 断言 ✓）
-       · 逐期轨迹各期之和 ＋ 期初结转 ≡ 生涯累计 ✓（门禁 ④l 断言 ✓）
-       · 「本期快照对比」只**摆事实**（份数 / 单价 / 市值 / 摊薄成本 的 A→B ✓）——
-         刻意**不做**"价格贡献 vs 份数贡献"的拆分 ✗：摊薄成本口径下必须假设成本摊销顺序 ✗，
-         拆出来的两个数无法与券商 App 对账 ✗ → 那就成了用户最不想要的"歧义数据" ✓
-     键盘：格子与成员行都 tabindex=0 ＋ role=button ＋ aria-label ✓，Enter/Space 与点击走同一套分派 ✓。 */
+     层级：**整期**（点行）→ **该格**（点格子 ✓：某一主题 × 某一期）→ **该只的逐期轨迹**（点成员）
+     状态 saSel（模块级，见文件里 saDim 旁边）：
+       null ＝ 整期视图（cur 仍决定是哪一期）· {k:"cell", d, col} · {k:"hold", code, back}
+     数据**全部来自现有 items / periodContrib / POSITIONS.log / OTC_LOG** —— 不新增口径 ✓：
+       · 该格成员之和 ≡ 格子里那个数 ✓（两处都用 colKeyOf 过滤，门禁 ④l 断言）
+       · 逐期轨迹各期之和 ＋ 期初结转 ≡ 生涯累计 ✓（门禁 ④l 断言）
+       · 「本期快照对比」只**摆事实**（份数 / 单价 / 市值 / 摊薄成本 的 A→B）——
+         刻意**不做**"价格贡献 vs 份数贡献"的拆分 ✗：摊薄成本口径下必须假设成本摊销顺序，
+         拆出来的两个数无法与券商 App 对账 → 那就成了用户最不想要的"歧义数据"
+     键盘：格子与成员行都 tabindex=0 ＋ role=button ＋ aria-label，Enter/Space 与点击走同一套分派。 */
   /* （nameOf 已随拆分上移进 saCtx ✓ —— 这里用 C.nameOf；选中期也由 saCtx 定好 → 这里读 C.cur ✓。） */
-  const fmtPx = (v) => (v >= 0 ? "" : "−") + Math.abs(v).toFixed(4);   // 单价 / 净值：4 位（场内 1.6 元档要看得见档位 ✓）
+  const fmtPx = (v) => (v >= 0 ? "" : "−") + Math.abs(v).toFixed(4);   // 单价 / 净值：4 位（场内 1.6 元档要看得见档位）
   const periodOf = (d) => C.live.find((p) => p.d === d) || null;
   /* 该只在各期的贡献（**新在上** ✓ 与矩阵一致；含值为 0 的期 ✓ —— 0 是真实读数 ✗ 不是"缺" ✓） */
   const histOf = (code) => C.live.filter((p) => p.items[code] !== undefined)
@@ -1793,7 +1793,7 @@ function saDetailView(C) {
   /* 生涯累计 ＝ 期初结转那段 ＋ 各期贡献之和 ✓（两段同源 ✓，不是另算一套 ✗） */
   const totalOf = (code) => C.num(C.carryItems[code]) + C.live.reduce((a, p) => a + C.num(p.items[code]), 0);
   /* 该只在本期（prevD, d] 的流水事件：场内按名称/代码匹配 POSITIONS.log ✓（建仓/加仓/减仓/清仓 ＋ 已实现 ✓）；
-     场外按代码查 OTC_LOG ✓ —— 那张表只有申购/定投、**没有赎回** ✗，所以只能报"本期 N 笔申购 · 共 X 元" ✓ */
+     场外按代码查 OTC_LOG —— 那张表只有申购/定投、**没有赎回**，所以只能报"本期 N 笔申购 · 共 X 元" */
   const eventsOf = (code, prevD, d) => {
     const out = [];
     if (isOnExchange(code)) {
@@ -1844,17 +1844,17 @@ function saDetailView(C) {
     const sum = list.reduce((a, x) => a + x.v, 0);
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     /* 从**图上**点进来的那一格（2026-10-09 第四步 B）：返回要回**那张图** ✓ 而不是一步跨到整期 ✗
-       —— 与"轨迹 → 那一格"同一套两级回退逻辑 ✓（saSel.back 记着来路 ✓）。 */
+       —— 与"轨迹 → 那一格"同一套两级回退逻辑 ✓（saSel.back 记着来路）。 */
     const backToChart = !!(saSel && saSel.k === "cell" && saSel.back && saSel.back.k === "col");
     return '<div class="sa-detail" data-cell-sum="' + sum.toFixed(2) + '"><div class="sd-head">'
       + '<button type="button" class="sa-back" data-nav="' + (backToChart ? "back" : "period") + '">'
       + (backToChart ? "← 回到该列的图" : "← 回到整期") + "</button>"
       + (isCarry ? "期初结转（账户起点 → " + mdFull(C.baseD) + "）" : mdFull(d)) + " · <b>" + esc(C.colNameOf(col)) + "</b>这一格"
       + "（合计 " + fmtAmt(sum) + " 元 · " + list.length + " 只）"
-      + '<span class="sd-hint">点标的看它的逐期轨迹 ✓</span></div>'
+      + '<span class="sd-hint">点标的看它的逐期轨迹</span></div>'
       + (list.length
         ? list.map((x) => rowHtml(esc(C.nameOf(x.c)), x.v, top, pctTxt(x.v, sum), kindMark((p && p.kinds || {})[x.c]), x.c)).join("")
-        : '<div class="sd-row"><span class="sd-nm">该格本期没有成员 ✓</span></div>')
+        : '<div class="sd-row"><span class="sd-nm">该格本期没有成员</span></div>')
       + "</div>";
   };
   /* 视图③ 某一只的**逐期轨迹**（B：各期贡献 ＋ 流水事件）＋ **本期快照对比**（C）＋ **生涯累计两段式**（F） */
@@ -1894,35 +1894,35 @@ function saDetailView(C) {
     });
     return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
-      + "<b>" + esc(C.nameOf(code)) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转 ✓）· <b>生涯累计 " + fmtAmt(total) + "</b>"
-      + '<span class="sd-hint">生涯累计 ＝ 期初结转 ' + fmtAmt(carryV) + " ＋ 各期贡献之和 ✓（门禁 ④l 盯着 ✓）</span></div>"
+      + "<b>" + esc(C.nameOf(code)) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转）· <b>生涯累计 " + fmtAmt(total) + "</b>"
+      + '<span class="sd-hint">生涯累计 ＝ 期初结转 ' + fmtAmt(carryV) + " ＋ 各期贡献之和 ✓（门禁 ④l 盯着）</span></div>"
       + out.join("") + "</div>";
   };
   /* 视图④ 某一列的**逐期贡献 ＋ 累计**图（2026-10-09 第四步 A，起于用户：「点击表头 是不是也可以按日来做图？」）
      ——「按日」拆成两半看 ✓：
-       ① 真·日频数据：仓库里**没有** ✗（持仓只有 21 个快照时点 ✓、`nav/price` 只有单点 ✓）
-          → 要做得先建行情抓取管线 ✓（独立项目 ✓），本图不做 ✗；
-       ② **把 x 轴铺成真实日期间距** ✓：这才是本条最实用的那半 ✓ —— 矩阵把每"期"当**等宽** ✗，
-          而 08-28 → 09-30 隔一个月、10-08 → 10-09 只隔一天 ✗ → 铺开后一眼看出"哪段被压扁了" ✓。
-     两块面板**上下分列、各用自己的尺** ✓ —— 刻意不做双 y 轴 ✗：贡献（千元级）与累计（万元级）同轴的话，
-     柱子会被压成一条线 ✗、图就开始撒谎了 ✓。
-     柱位＝该期的**实际区间**（前一期日期 → 本期日期 ✓）→ 长间隔自然变宽 ✓（这是日期轴的全部意义 ✓）。
-     起点结转画成**左侧虚线基线** ✓ —— 它不是"一期" ✗，画成柱子会被读成"第一期就亏 6,782" ✗。
-     柱子可点 → 落到**那一格** ✓（与三级下钻无缝接上 ✓，用的是同一套 data-cell 属性 ✓）。 */
+       ① 真·日频数据：仓库里**没有** ✗（持仓只有 21 个快照时点、`nav/price` 只有单点）
+          → 要做得先建行情抓取管线 ✓（独立项目），本图不做；
+       ② **把 x 轴铺成真实日期间距** ✓：这才是本条最实用的那半 —— 矩阵把每"期"当**等宽**，
+          而 08-28 → 09-30 隔一个月、10-08 → 10-09 只隔一天 → 铺开后一眼看出"哪段被压扁了"。
+     两块面板**上下分列、各用自己的尺** —— 刻意不做双 y 轴 ✗：贡献（千元级）与累计（万元级）同轴的话，
+     柱子会被压成一条线、图就开始撒谎了。
+     柱位＝该期的**实际区间**（前一期日期 → 本期日期）→ 长间隔自然变宽 ✓（这是日期轴的全部意义）。
+     起点结转画成**左侧虚线基线** —— 它不是"一期"，画成柱子会被读成"第一期就亏 6,782"。
+     柱子可点 → 落到**那一格** ✓（与三级下钻无缝接上，用的是同一套 data-cell 属性）。 */
   /* （colSeries 已随拆分上移进 saCtx ✓ —— C.colSeries：viewColChart 画它、viewAllChart 取数、
-     wireColChart 交互也用它 ✓，一处实现三处消费 ✓，不会漂 ✗。） */
+     wireColChart 交互也用它，一处实现三处消费，不会漂。） */
   const viewColChart = (col) => {
-    if (saChart.col !== col) { saChart.col = col; saChart.i = -1; }   // 换了一列 → 复位选中期 ✓（见 saChart 声明处 ✓）
+    if (saChart.col !== col) { saChart.col = col; saChart.i = -1; }   // 换了一列 → 复位选中期 ✓（见 saChart 声明处）
     const ser = C.colSeries(col);
-    const c0 = C.num(C.carryByCol[col]);                     // 账户起点 → baseD 的累计（基线 ✓）
+    const c0 = C.num(C.carryByCol[col]);                     // 账户起点 → baseD 的累计（基线）
     const barsSum = ser.reduce((a, x) => a + x.v, 0);
     const cEnd = c0 + barsSum;
     /* ⚠ 宽度要量**画图的那个容器**（.sa-detail-box ✓），不是整张卡 ✗ ——
-       与走势图同一套做法（它也量 box.clientWidth ✓，box 就是图表容器 ✓）。
-       2026-10-09 自己踩过：原来量 el.clientWidth（卡片 690 ✓），而详情面板只有 ~670 ✗
-       → svg 被 max-width:100% 缩了 3% ✗、preserveAspectRatio 又把它上下居中 ✓
-       → 上下各留 2~5px 空白带 ✗ 命中带在那几像素上失效 ✗（悬停到累计面板底部就"没反应"✓）。
-       ⚠ 首次渲染时旧面板可能还不存在 ✓ → 父级 `.sa-detail` 与卡片同宽域 ✓，退化取值安全 ✓。 */
+       与走势图同一套做法（它也量 box.clientWidth，box 就是图表容器）。
+       2026-10-09 自己踩过：原来量 el.clientWidth（卡片 690），而详情面板只有 ~670
+       → svg 被 max-width:100% 缩了 3%、preserveAspectRatio 又把它上下居中
+       → 上下各留 2~5px 空白带 命中带在那几像素上失效 ✗（悬停到累计面板底部就"没反应"）。
+       ⚠ 首次渲染时旧面板可能还不存在 → 父级 `.sa-detail` 与卡片同宽域，退化取值安全。 */
     const host = C.el.querySelector(".sa-detail-box") || C.el;
     const W = Math.max(300, Math.round(host.clientWidth || 690));
     const H = 176, mL = 56, mR = 16, mT = 12, mB = 24;
@@ -1935,21 +1935,21 @@ function saDetailView(C) {
     const cum = [c0];
     ser.forEach((x) => cum.push(cum[cum.length - 1] + x.v));
     /* ⚠ 2026-10-10 修（用户：「点击标普的时候 折线图不完整」✓）——
-       值域原来只取**两个端点** ✗（min/max(c0, cEnd)）→ 中点若越出这个区间，折线就画到面板外 ✗。
-       标普实测：端点 3,977 → 4,204 ✓，而中途跌到 ~2,052、冲到 ~5,152 ✗
-       → 折线在累计面板上下各越界 230~370px ✗（截图上就是几条上下乱窜的尖峰 ✓ = 用户看到的"不完整"✓）。
-       → 改成取**整条路径**的上下界（cum ＝ 起点 ＋ 每一期的累计 ✓），折线必然落在面板内 ✓。 */
+       值域原来只取**两个端点** ✗（min/max(c0, cEnd)）→ 中点若越出这个区间，折线就画到面板外。
+       标普实测：端点 3,977 → 4,204，而中途跌到 ~2,052、冲到 ~5,152
+       → 折线在累计面板上下各越界 230~370px ✗（截图上就是几条上下乱窜的尖峰 = 用户看到的"不完整"）。
+       → 改成取**整条路径**的上下界（cum ＝ 起点 ＋ 每一期的累计），折线必然落在面板内。 */
     const lo = Math.min.apply(null, cum), hi = Math.max.apply(null, cum);
     const padC = (hi - lo || Math.abs(c0) || 1) * 0.15;
     const yC = (v) => yCumTop + hCum - ((v - (lo - padC)) / ((hi + padC) - (lo - padC) || 1)) * hCum;
     /* 涨跌色走语义令牌 ✓（2026-10-12：原硬编码 #2dd4a7/#e0576b 是深色主题旧值——绿碰巧与 --up 相同、
-       红与全页语义红 #f26d7d 不一致 ✗，浅色主题下也不会跟着变 ✗）。
-       ⚠ SVG 的 fill/stroke 是 presentation attribute，**不支持 var()** → 凡带色的都改写进 style= ✓。 */
+       红与全页语义红 #f26d7d 不一致，浅色主题下也不会跟着变）。
+       ⚠ SVG 的 fill/stroke 是 presentation attribute，**不支持 var()** → 凡带色的都改写进 style=。 */
     const tcol = cEnd >= 0 ? "var(--up)" : "var(--down)";
     let g = "";
     /* ── 上：本期贡献（零线居中 ✓）──
-       ⚠ 柱子**不再**各自带 tabindex ✗：那样一张图会有 16 个 Tab 位 ✗（Tab 键变迷宫 ✓）。
-         键盘改由**整张图**统一接管 ✓（图是单一焦点 ✓，←/→ 逐期、Enter 查看 ✓，见 wireColChart ✓）。 */
+       ⚠ 柱子**不再**各自带 tabindex ✗：那样一张图会有 16 个 Tab 位 ✗（Tab 键变迷宫）。
+         键盘改由**整张图**统一接管 ✓（图是单一焦点，←/→ 逐期、Enter 查看，见 wireColChart）。 */
     g += '<line x1="' + mL + '" y1="' + zB.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + zB.toFixed(1) + '" style="stroke:var(--line)"/>';
     ser.forEach((x) => {
       const x1 = X(x.p0), x2 = X(x.d), h2 = Math.abs(x.v) * kB;
@@ -1962,19 +1962,19 @@ function saDetailView(C) {
     /* ── 下：累计（起点基线 ＋ 折线，**按缺口分段** ✓）── */
     g += '<line x1="' + mL + '" y1="' + yCumTop.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yCumTop.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
     /* 0 轴虚线**只在 0 落进面板时**才画 ✓（2026-10-10 与上一条同源 ✗）：0 不在值域里时，
-       yC(0) 会把它画到面板外 / 画布外 ✗ —— 要么看不见、要么是一根"漂在面板下方"的孤立虚线 ✗。
-       实测本页 6 列里只有极少数列的累计会穿过 0 ✓，多数列画它本来就没有意义 ✓。 */
+       yC(0) 会把它画到面板外 / 画布外 —— 要么看不见、要么是一根"漂在面板下方"的孤立虚线。
+       实测本页 6 列里只有极少数列的累计会穿过 0，多数列画它本来就没有意义。 */
     if (lo <= 0 && 0 <= hi)
       g += '<line x1="' + mL + '" y1="' + yC(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + yC(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
     /* ⚠ 起点那条虚线**删掉** ✓：X(baseD) ≡ mL ✓ → 它长度恒为 0 ✗（画了也看不见 ✓）；
-       "起点 X" 标签原来右对齐挂在 mL−5 ✓ → 文字宽约 52px，窄屏会**越界出画布左缘 5px** ✗
-       （2026-10-10 用户报「折线图有遮挡」✓ —— 探针实测越界元素就这一个 ✓）
-       → 改成画在绘图区**内侧**、锚在起点上方 ✓（顺带把这个坑写进 layout-check 的常驻检查 ✓）。 */
+       "起点 X" 标签原来右对齐挂在 mL−5 → 文字宽约 52px，窄屏会**越界出画布左缘 5px**
+       （2026-10-10 用户报「折线图有遮挡」 —— 探针实测越界元素就这一个）
+       → 改成画在绘图区**内侧**、锚在起点上方 ✓（顺带把这个坑写进 layout-check 的常驻检查）。 */
     g += '<circle cx="' + X(C.baseD).toFixed(1) + '" cy="' + yC(c0).toFixed(1) + '" r="2.4" style="fill:' + tcol + '"/>';
     const segsOut = [];
     let segPts = [[X(C.baseD), yC(c0)]];
     ser.forEach((x, i) => {
-      if (x.gap) { if (segPts.length > 1) segsOut.push(segPts); segPts = []; }   // 缺口 → 断开 ✓
+      if (x.gap) { if (segPts.length > 1) segsOut.push(segPts); segPts = []; }   // 缺口 → 断开
       segPts.push([X(x.d), yC(cum[i + 1])]);
     });
     if (segPts.length > 1) segsOut.push(segPts);
@@ -1995,59 +1995,59 @@ function saDetailView(C) {
     g += lab(mL - 5, yBarTop + hBar, fmtAmt(-Math.round(mxB)));
     g += lab(mL - 5, yC(hi) + 8, fmtAmt(Math.round(hi)));
     g += lab(mL - 5, yC(lo) + 3, fmtAmt(Math.round(lo)));
-    g += lab(mL + 3, yC(c0) - 5, "起点 " + fmtAmt(Math.round(c0)), "start");   // 画在绘图区**内侧** ✓（挂左边会越界 ✗）
+    g += lab(mL + 3, yC(c0) - 5, "起点 " + fmtAmt(Math.round(c0)), "start");   // 画在绘图区**内侧** ✓（挂左边会越界）
     const midI = Math.floor((ser.length - 1) / 2);
     [0, midI, ser.length - 1].forEach((i, k2) => {
       if (i < 0 || !ser[i]) return;
       g += lab(X(ser[i].d), H - 8, ser[i].d.slice(5).replace("-", "."), k2 === 0 ? "start" : (k2 === 2 ? "end" : "middle"));
     });
     /* ── 命中带（**每个"期"一整列** ✓，从柱面板顶到累计面板底 ✓，最后画＝在最上层 ✓）──
-       为什么要它 ✗：让"拐点可点"落成**整列可点** ✓ —— 手指 45px 对 2px 的圆点根本点不中 ✗，
-       而且悬停预览也需要一个够大的落点 ✓；圆点只当视觉锚点 ✓（pointer-events:none ✓）。 */
+       为什么要它 ✗：让"拐点可点"落成**整列可点** —— 手指 45px 对 2px 的圆点根本点不中，
+       而且悬停预览也需要一个够大的落点；圆点只当视觉锚点 ✓（pointer-events:none）。 */
     ser.forEach((x, i) => {
       const x1 = X(x.p0), x2 = X(x.d);
       g += '<rect class="sa-band" data-i="' + i + '" x="' + x1.toFixed(1) + '" y="0" width="' + Math.max(1, x2 - x1).toFixed(1)
         + '" height="' + H + '" data-cell="1" data-d="' + esc(x.d) + '" data-col="' + esc(col) + '" data-v="' + x.v.toFixed(2) + '">'
-        + "<title>" + esc(x.d + " 这一期 · " + C.colNameOf(col) + "　" + fmtAmt(x.v) + " 元（点一下看这一格的逐只 ✓）") + "</title></rect>";
+        + "<title>" + esc(x.d + " 这一期 · " + C.colNameOf(col) + "　" + fmtAmt(x.v) + " 元（点一下看这一格的逐只）") + "</title></rect>";
     });
     /* data-cumlo / data-cumhi / data-panel 是给**门禁**用的（2026-10-10 加）：
-       门禁把图里每根柱子的 data-v 独立累加成一条累计曲线 ✓，再断言它**整条**都落在声明的值域内 ✓
-       —— 这正好是"折线图不完整"那个 bug 的判据 ✓（值域只取端点时，中点的峰谷会立刻越界 ✗）。
-       data-panel ＝ 累计面板的上下边（SVG 坐标 ✓），用来断言折线**画在面板内** ✓。 */
+       门禁把图里每根柱子的 data-v 独立累加成一条累计曲线，再断言它**整条**都落在声明的值域内
+       —— 这正好是"折线图不完整"那个 bug 的判据 ✓（值域只取端点时，中点的峰谷会立刻越界）。
+       data-panel ＝ 累计面板的上下边（SVG 坐标），用来断言折线**画在面板内**。 */
     return '<div class="sa-detail sa-chart" data-col="' + esc(col) + '" data-c0="' + c0.toFixed(2) + '" data-bars="' + barsSum.toFixed(2)
       + '" data-end="' + cEnd.toFixed(2) + '" data-n="' + ser.length + '"'
       + ' data-cumlo="' + lo.toFixed(2) + '" data-cumhi="' + hi.toFixed(2) + '"'
       + ' data-panel="' + yCumTop.toFixed(1) + "," + (yCumTop + hCum).toFixed(1) + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
-      + "<b>" + esc(C.colNameOf(col)) + "</b> · 逐期贡献与累计（" + ser.length + " 期 ✓ · 按实际日期间距 ✓）· <b>合计 " + fmtAmt(cEnd) + "</b>"
-      + '<span class="sd-hint">上＝本期贡献、下＝累计（各用自己的尺 ✗ 不做双 y 轴 ✓）</span></div>'
+      + "<b>" + esc(C.colNameOf(col)) + "</b> · 逐期贡献与累计（" + ser.length + " 期 · 按实际日期间距）· <b>合计 " + fmtAmt(cEnd) + "</b>"
+      + '<span class="sd-hint">上＝本期贡献、下＝累计（各用自己的尺 不做双 y 轴）</span></div>'
       /* 读数行（A2）：拐点相对柱子的增量信息就是"到那期为止的累计" ✓ —— 放图**上方**固定一行 ✓，
-         悬停/移动时更新 ✓、aria-live 让读屏也能听见 ✓；不整块重渲染 ✗（见 wireColChart ✓）。 */
-      + '<div class="sa-ch-read" aria-live="polite">悬停或按 ←/→ 逐期查看 ✓ 　点一下 → 看这一格的逐只 ✓</div>'
+         悬停/移动时更新、aria-live 让读屏也能听见；不整块重渲染 ✗（见 wireColChart）。 */
+      + '<div class="sa-ch-read" aria-live="polite">悬停或按 ←/→ 逐期查看 　点一下 → 看这一格的逐只</div>'
       + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '"'
       + ' tabindex="0" role="group" aria-label="'
       + esc(C.colNameOf(col) + " 逐期贡献与累计图：起点 " + fmtAmt(c0) + " 元 → 末期 " + fmtAmt(cEnd) + " 元，共 " + ser.length + " 期。"
         + "用左右方向键逐期浏览，按其值可读出该期贡献与累计；回车查看该期该列的逐只明细。") + '">'
       + g + "</svg>"
-      + '<div class="sa-chart-note">x 轴按<b>实际日期间距</b>铺开 ✓（矩阵把每期当等宽 ✗，这里能看出哪段被压扁 ✓）；'
-      + "缺口（缺 items 的相邻对）**断开折线** ✓ 不插值 ✗ —— 真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）；"
-      + "每个<b>拐点</b>都可点（整列命中，含触屏 ✓）→ 落到那一格 ✓。</div></div>";
+      + '<div class="sa-chart-note">x 轴按<b>实际日期间距</b>铺开 ✓（矩阵把每期当等宽，这里能看出哪段被压扁）；'
+      + "缺口（缺 items 的相邻对）**断开折线** 不插值 —— 真·日频数据本仓库没有 ✓（持仓只有快照时点）；"
+      + "每个<b>拐点</b>都可点（整列命中，含触屏）→ 落到那一格。</div></div>";
   };
   /* 视图⑤ 「全期」行头 → **各列生涯贡献排序条**（2026-10-09 加 ②）——
-     数据＝全期行各列的值 ✓（colSum ✓ ＝ 期初结转 ＋ 各期贡献 ✓，与表里那格**同一个数** ✓）。
-     点一行 → 直接看该列的逐期图 ✓（排序条当"入口"用 ✓，不重复造第二套数字 ✓）。 */
+     数据＝全期行各列的值 ✓（colSum ＝ 期初结转 ＋ 各期贡献，与表里那格**同一个数**）。
+     点一行 → 直接看该列的逐期图 ✓（排序条当"入口"用，不重复造第二套数字）。 */
   const viewColsRank = () => {
     const list = C.cols.map((t) => ({ k: t, v: C.colSum(t) })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     const sum = list.reduce((a, x) => a + x.v, 0);
     /* 百分比＝该列 |值| 占**各列 |值| 之和**的比例 ✓ ——
-       ⚠ 不是"占合计的比例" ✗：各列正负相反 ✓（如 全球 −20,577 与 纳指 +17,543 ✓），
-         拿它除合计（+1,496 ✓）会算出 −1375% 这种没意义的数 ✗（实测踩过 ✓）。 */
+       ⚠ 不是"占合计的比例" ✗：各列正负相反 ✓（如 全球 −20,577 与 纳指 +17,543），
+         拿它除合计（+1,496）会算出 −1375% 这种没意义的数 ✗（实测踩过）。 */
     const absSum = list.reduce((a, x) => a + Math.abs(x.v), 0) || 1;
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     return '<div class="sa-detail" data-cols-sum="' + sum.toFixed(2) + '" data-cols-n="' + list.length + '"><div class="sd-head">'
       + '<button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
-      + "<b>各列生涯贡献</b>（账户起点 → " + C.lastD.slice(5).replace("-", ".") + " ✓ · 合计 " + fmtAmt(sum) + "）"
-      + '<span class="sd-hint">点一行 → 看该列的逐期图 ✓（＝「全期」行各列 ✓，同一个数 ✓）</span></div>'
+      + "<b>各列生涯贡献</b>（账户起点 → " + C.lastD.slice(5).replace("-", ".") + " · 合计 " + fmtAmt(sum) + "）"
+      + '<span class="sd-hint">点一行 → 看该列的逐期图 ✓（＝「全期」行各列，同一个数）</span></div>'
       + list.map((x) => '<div class="sd-row sd-click" data-colrow="' + esc(x.k) + '" data-v="' + x.v.toFixed(2) + '"'
         + ' tabindex="0" role="button" aria-label="' + esc("看「" + C.colNameOf(x.k) + "」的逐期图，生涯贡献 " + fmtAmt(x.v) + " 元") + '">'
         + '<span class="sd-nm">' + esc(C.colNameOf(x.k)) + "</span>"
@@ -2058,10 +2058,10 @@ function saDetailView(C) {
       + "</div>";
   };
   /* 视图⑥ 点「合计」列头 → **整表累计曲线对比**（各列各一条 ＋ 总累计一条 ✓，2026-10-09 加 ③）——
-     与矩阵互补：矩阵看"哪一期谁亏" ✓，这里看"一路怎么走" ✓。
-     配色用固定 8 色 ✓（按列次序取 ✓）—— 刻意不依赖主题色 ✗，这样"按平台 / 场内·场外"两种维度下
-     配色同样稳定 ✓；线端不标名 ✗（6 条易撞 ✗）→ 图下一行色块图例 ＋ **终值** ✓（按 |值| 排序 ✓）。
-     ⚠ 本视图**刻意不做悬停** ✓：每条线的终值都在图例里 ✓，逐期细看请点某一列头（那张图有拐点、读数与键盘 ✓）。 */
+     与矩阵互补：矩阵看"哪一期谁亏"，这里看"一路怎么走"。
+     配色用固定 8 色 ✓（按列次序取）—— 刻意不依赖主题色，这样"按平台 / 场内·场外"两种维度下
+     配色同样稳定；线端不标名 ✗（6 条易撞）→ 图下一行色块图例 ＋ **终值** ✓（按 |值| 排序）。
+     ⚠ 本视图**刻意不做悬停** ✓：每条线的终值都在图例里，逐期细看请点某一列头（那张图有拐点、读数与键盘）。 */
   const viewAllChart = () => {
     const PAL = ["#4c9aff", "#2dd4a7", "#e0a13a", "#e0576b", "#a78bfa", "#22d3ee", "#f472b6", "#84cc16"];
     const series = C.cols.map((t, k2) => {
@@ -2083,7 +2083,7 @@ function saDetailView(C) {
     if (lo - pad < 0 && hi + pad > 0)
       g += '<line x1="' + mL + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + Y(0).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="3 3"/>';
     g += '<line x1="' + mL + '" y1="' + Y(hi).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + Y(hi).toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>';
-    series.forEach((s2) => {                                        // 各列：细线 ✓（可被图例点亮 ✓）
+    series.forEach((s2) => {                                        // 各列：细线 ✓（可被图例点亮）
       g += '<polyline class="sa-line sa-col-line" data-colk="' + esc(s2.k) + '"'
         + ' points="' + s2.cum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ") + '"'
         + ' fill="none" stroke="' + s2.col + '" stroke-width="1.4" opacity=".85"/>';
@@ -2094,7 +2094,7 @@ function saDetailView(C) {
       series.forEach((s2) => { acc2 += s2.cum[i]; });
       tPts.push(xAt(i).toFixed(1) + "," + Y(acc2).toFixed(1));
     }
-    g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:2.2"/>';   // 总累计：粗 ＋ 中性色 ✓（var(--tx) 跟主题走 ✓；⚠ #snap-attr 内 --tx 被锁定（见 css），故浅色下仍解析为深色主题值——与改前一致，语义先正确化 ✓）
+    g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:2.2"/>';   // 总累计：粗 ＋ 中性色 ✓（var(--tx) 跟主题走；⚠ #snap-attr 内 --tx 被锁定（见 css），故浅色下仍解析为深色主题值——与改前一致，语义先正确化）
     const lab2 = (x, y, s3, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s3) + "</text>";
     g += lab2(mL - 5, Y(hi) + 6, fmtAmt(Math.round(hi)));
     g += lab2(mL - 5, Y(lo) + 3, fmtAmt(Math.round(lo)));
@@ -2111,12 +2111,12 @@ function saDetailView(C) {
         + ' <b class="' + cls(s2.end) + '">' + fmtAmt(s2.end) + "</b></span>").join("");
     return '<div class="sa-detail sa-chart" data-all-end="' + total2.toFixed(2) + '" data-all-n="' + series.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
-      + "<b>整表累计曲线</b>（" + series.length + " 列 ＋ 总累计 ✓ · 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " · <b>合计 " + fmtAmt(total2) + "</b>）"
-      + '<span class="sd-hint">粗白＝总累计 ✓ 细彩＝各列 ✓（终值见图例 ✓；逐期细看请点某个列头 ✓）</span></div>'
+      + "<b>整表累计曲线</b>（" + series.length + " 列 ＋ 总累计 · 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " · <b>合计 " + fmtAmt(total2) + "</b>）"
+      + '<span class="sd-hint">粗白＝总累计 细彩＝各列 ✓（终值见图例；逐期细看请点某个列头）</span></div>'
       + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
       + esc("整表累计曲线：各列终值合计 " + fmtAmt(total2) + " 元") + '">' + g + "</svg>"
       + '<div class="sa-all-legend">' + legend + "</div>"
-      + '<div class="sa-chart-note">x 轴同样按<b>实际日期间距</b> ✓；本视图刻意<b>不做悬停</b> ✓ —— 逐期细看请点某个列头（那张图有拐点、读数与键盘 ✓）。</div></div>';
+      + '<div class="sa-chart-note">x 轴同样按<b>实际日期间距</b>；本视图刻意<b>不做悬停</b> —— 逐期细看请点某个列头（那张图有拐点、读数与键盘）。</div></div>';
   };
   const detail = () => {
     if (saSel && saSel.k === "cols") return viewColsRank();
@@ -2126,63 +2126,63 @@ function saDetailView(C) {
     if (saSel && saSel.k === "cell") return viewCell(saSel.d, saSel.col);
     return viewPeriod();
   };
-  return detail();   // 视图分派收口 ✓（<div class="sa-detail-box"> 外壳由装配段包 ✓，字节顺序与拆前一致 ✓）
+  return detail();   // 视图分派收口 ✓（<div class="sa-detail-box"> 外壳由装配段包，字节顺序与拆前一致）
 }
 
 /* ── ④ 图例 ＋ 口径折叠块 ✓（原单体函数尾部两段 h += 原样移入 ✓）── */
 function saNotesHtml(C) {
   /* ⚠ 2026-10-09 删掉原来的**主题色块图例** ✗ —— 用户问：「逐只明细 后面几个颜色是不是没有用到？」✓
-     查实：SA_META 那套主题色**只被这个图例用**过 ✗（矩阵底色是 cellBg 的**对数绿/红** ✓、
-     下钻横条也是绿/红 ✓）→ 屏幕上那几块颜色**不编码任何东西** ✗，是柱状图时代的遗留 ✓
-     （柱状图 2026-10-07 已删 ✓，见函数头注释）。保留后半句说明 —— 它讲的是**真正在用**的色彩编码 ✓。
-     若将来要做回"按主题配色"，再恢复色块 ✓。 */
+     查实：SA_META 那套主题色**只被这个图例用**过 ✗（矩阵底色是 cellBg 的**对数绿/红**、
+     下钻横条也是绿/红）→ 屏幕上那几块颜色**不编码任何东西**，是柱状图时代的遗留
+     （柱状图 2026-10-07 已删，见函数头注释）。保留后半句说明 —— 它讲的是**真正在用**的色彩编码。
+     若将来要做回"按主题配色"，再恢复色块。 */
   let h = '<div class="sa-legend"><span class="sd-hint">底色深浅＝量级（<b>对数</b>尺度，不是占比；绿＝赚 / 红＝亏）'
     + " · 「·」＝该期该列无标的</span></div>";
   /* ── 口径与边界：**默认折叠**（2026-10-10 用户：「把下面口径什么的精简一些，默认折叠」）──────────
-     改前它是一坨**常显**长文 ✗ —— 探针实测：1440 下 446px、**380 下 840px** ✗（半屏都是小字 ✓）。
-     现在：① 收进 <details class="pf-fold">（复用全页折叠块版式 ✓，summary 就是小节题 ✓，默认关闭 ✓）；
-           ② 正文压到 4 段 ✓ —— 只留**口径事实与边界** ✓；
-              历史沿革（旧版怎么错、哪条门禁盯着）搬回代码注释里 ✗（那儿才是它该待的地方 ✓）。
-     ⚠ 数字仍从数据层取 ✓（不写死 ✓）：lastD / lastPl / baseD / carryTotal / closedOtcSum / hidden ✓。 */
+     改前它是一坨**常显**长文 —— 探针实测：1440 下 446px、**380 下 840px** ✗（半屏都是小字）。
+     现在：① 收进 <details class="pf-fold">（复用全页折叠块版式，summary 就是小节题，默认关闭）；
+           ② 正文压到 4 段 —— 只留**口径事实与边界**；
+              历史沿革（旧版怎么错、哪条门禁盯着）搬回代码注释里 ✗（那儿才是它该待的地方）。
+     ⚠ 数字仍从数据层取 ✓（不写死）：lastD / lastPl / baseD / carryTotal / closedOtcSum / hidden。 */
   h += '<details class="pf-fold"><summary class="snap-sec">口径与边界 <span class="snap-cnt">（点开看：口径三分支 · 全期与期初结转 · 下钻入口 · 不含哪些）</span></summary>'
     + '<div class="otc-note">'
-    + "<b>口径</b>：每只标的<b>本期的真实贡献</b> —— 在持＝Δpl ✓ · 建仓＝当期 pl ✓ · <b>清仓</b>＝卖出回款 − 期初市值 ✓"
-    + "（场内取流水 realized ＋ 期初成本 ✓；场外取 OTC_LOG 的赎回笔 ✓）；三分支同源（periodContrib ✓），"
-    + "故<b>每行合计 ≡ 卡头那期的「本期盈亏」</b> ✓。格里的「·」＝该期该列<b>没有可归因的标的</b> ✓（不是「变动为 0」✗）；"
-    + "底色＝<b>对数</b>尺度（跨两个数量级都能分辨 ✓）。"
-    + "<br><b>「全期」＝ 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(C.lastPl) + " ✓）；"
-    + "<b>「期初结转」行 ＝ 账户起点 → " + C.baseD.slice(5).replace("-", ".") + "</b>（该期 Σ逐只 pl ＝ " + fmtAmt(C.carryTotal) + " ✓；"
-    + "场内自 06-01 起、场外自 03-03 起 ✓）。⚠ 期初结转<b>不含场外那 17 笔已清仓</b>"
-    + (C.closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(C.closedOtcSum) + " ✓）")
-    + "：那批只有 App 的 pnl、没有成本与赎回去向 ✗ → 归不进本金 ✓，只在「清仓历史」卡 ✓；"
-    + "场内那 2 只已清仓<b>不同</b> ✓ —— 它们已由本金修正进总账 ✓。"
-    + (C.hidden.length ? "（缺 items 的 " + C.hidden.length + " 个相邻对已<b>并入期初结转</b> ✓：" + C.hidden.join(" ") + " ✓）" : "")
-    + "<br><b>下钻入口</b>：点格子 → 该格成员 ✓ · 点成员 → 该只逐期轨迹（＋本期快照对比：份数 / 单价 / 市值 / 摊薄成本 A→B ✓）"
-    + " · 点列头 → 该列贡献 ＋ 累计图（两块面板各用自己的尺 ✗ 不做双 y 轴 ✓；x 轴按<b>实际日期间距</b> ✓）"
-    + " · 点「全期」行头 → 各列生涯贡献排序 ✓ · 点「合计」列头 → 整表累计曲线 ✓。"
-    + "⚠ 快照对比只<b>摆事实</b> ✓ —— 不做「价格 vs 份数」的贡献拆分 ✗（摊薄口径下需假设摊销顺序 ✗，拆出来的数无法与 App 对账 ✗）。"
-    + "<br>键盘：格子用<b>方向键</b>移动、Enter 打开 ✓（整表只占一个 Tab 位 ✓）；图内 ←/→ 逐期 ✓；"
-    + "缺口处<b>断开折线</b>、不插值 ✓；真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）。"
+    + "<b>口径</b>：每只标的<b>本期的真实贡献</b> —— 在持＝Δpl · 建仓＝当期 pl · <b>清仓</b>＝卖出回款 − 期初市值"
+    + "（场内取流水 realized ＋ 期初成本；场外取 OTC_LOG 的赎回笔）；三分支同源（periodContrib），"
+    + "故<b>每行合计 ≡ 卡头那期的「本期盈亏」</b>。格里的「·」＝该期该列<b>没有可归因的标的</b> ✓（不是「变动为 0」）；"
+    + "底色＝<b>对数</b>尺度（跨两个数量级都能分辨）。"
+    + "<br><b>「全期」＝ 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " 的累计结果</b> —— 它<b>就是</b>累计收益（" + fmtAmt(C.lastPl) + "）；"
+    + "<b>「期初结转」行 ＝ 账户起点 → " + C.baseD.slice(5).replace("-", ".") + "</b>（该期 Σ逐只 pl ＝ " + fmtAmt(C.carryTotal) + "；"
+    + "场内自 06-01 起、场外自 03-03 起）。⚠ 期初结转<b>不含场外那 17 笔已清仓</b>"
+    + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
+    + "：那批只有 App 的 pnl、没有成本与赎回去向 → 归不进本金，只在「清仓历史」卡；"
+    + "场内那 2 只已清仓<b>不同</b> —— 它们已由本金修正进总账。"
+    + (C.hidden.length ? "（缺 items 的 " + C.hidden.length + " 个相邻对已<b>并入期初结转</b> ✓：" + C.hidden.join(" ") + "）" : "")
+    + "<br><b>下钻入口</b>：点格子 → 该格成员 · 点成员 → 该只逐期轨迹（＋本期快照对比：份数 / 单价 / 市值 / 摊薄成本 A→B）"
+    + " · 点列头 → 该列贡献 ＋ 累计图（两块面板各用自己的尺 不做双 y 轴；x 轴按<b>实际日期间距</b>）"
+    + " · 点「全期」行头 → 各列生涯贡献排序 · 点「合计」列头 → 整表累计曲线。"
+    + "⚠ 快照对比只<b>摆事实</b> —— 不做「价格 vs 份数」的贡献拆分 ✗（摊薄口径下需假设摊销顺序，拆出来的数无法与 App 对账）。"
+    + "<br>键盘：格子用<b>方向键</b>移动、Enter 打开 ✓（整表只占一个 Tab 位）；图内 ←/→ 逐期；"
+    + "缺口处<b>断开折线</b>、不插值；真·日频数据本仓库没有 ✓（持仓只有快照时点）。"
     + "</div></details>";
   return h;
   /* 注：此处曾有某次编辑遗留的残句 `+ "</div>";`（独立表达式语句 ＝ NaN、对 h 与 DOM 均无影响），拆分时已删 ✓。 */
 }
 
 /* ── ⑤ 交互（原单体函数尾部的全部事件绑定**原样移入** ✓ —— 只做两件事：
-      ① 闭包变量显式化（el → C.el、live → C.live、colSeries → C.colSeries …，下游读 C ✓）；
-      ② 注入不在这里做：h 已在 saMatrixHtml ✓，innerHTML 由薄装配函数 renderSnapAttr 统一负责 ✓（见 ⑥）。
-      绑定顺序与拆前一致 ✓：列图 → roving → 整表图例 → 容器委托点击/键盘 ✓。
-      setSel 递归调 renderSnapAttr()（顶层函数声明、提升 ✓）；wireColChart 的 svg.onkeydown
-      引用 actOn 是事件时求值（const TDZ 安全 ✓）。 ── */
+      ① 闭包变量显式化（el → C.el、live → C.live、colSeries → C.colSeries …，下游读 C）；
+      ② 注入不在这里做：h 已在 saMatrixHtml，innerHTML 由薄装配函数 renderSnapAttr 统一负责 ✓（见 ⑥）。
+      绑定顺序与拆前一致 ✓：列图 → roving → 整表图例 → 容器委托点击/键盘。
+      setSel 递归调 renderSnapAttr()（顶层函数声明、提升）；wireColChart 的 svg.onkeydown
+      引用 actOn 是事件时求值（const TDZ 安全）。 ── */
 function saWire(C) {
   /* ── 列头图的**悬停 / 键盘**（2026-10-09 第四步 B：A1~A4）──────────────────────────────
-     铁律：**外科式更新** ✓ —— 只改几个节点的 class 与读数文本 ✓，
+     铁律：**外科式更新** —— 只改几个节点的 class 与读数文本，
      **绝不**在 pointermove 里整块重渲染 ✗（那样会闪、还会把焦点与滚动位置一起冲掉 ✗）。
-     可点的是**整条期列**（.sa-band ✓），不是 2px 的圆点 ✗ —— 手指 45px 对 2px 根本点不中 ✓；
-     圆点（.sa-vertex）只当视觉锚点 ✓，被选中的那期用高亮圈（.sa-hl）圈出来 ✓。
-     键盘（A4）：图本身是**单一焦点** ✓ —— ←/→ 逐期、Enter 查看该格 ✓、Esc 取消 ✓
-     （不给 16 根柱子各一个 Tab 位 ✗，那会把 Tab 键变成迷宫 ✓）。
-     ⚠ 重渲染后（例如从某一格「← 返回」回来 ✓）用 saChart.i 把上次那期恢复出来 ✓。 */
+     可点的是**整条期列**（.sa-band），不是 2px 的圆点 —— 手指 45px 对 2px 根本点不中；
+     圆点（.sa-vertex）只当视觉锚点，被选中的那期用高亮圈（.sa-hl）圈出来。
+     键盘（A4）：图本身是**单一焦点** —— ←/→ 逐期、Enter 查看该格、Esc 取消
+     （不给 16 根柱子各一个 Tab 位，那会把 Tab 键变成迷宫）。
+     ⚠ 重渲染后（例如从某一格「← 返回」回来）用 saChart.i 把上次那期恢复出来。 */
   const wireColChart = () => {
     const box = C.el.querySelector(".sa-chart");
     if (!box) return;
@@ -2196,7 +2196,7 @@ function saWire(C) {
     const bands = Array.prototype.slice.call(svg.querySelectorAll("rect.sa-band"));
     const dots = Array.prototype.slice.call(svg.querySelectorAll("circle.sa-vertex"));
     const hl = svg.querySelector("circle.sa-hl");
-    const idle = "悬停或按 ←/→ 逐期查看 ✓ 　点一下 → 看这一格的逐只 ✓";
+    const idle = "悬停或按 ←/→ 逐期查看 　点一下 → 看这一格的逐只";
     const show = (i) => {
       if (!(i >= 0 && i < ser.length)) return;
       saChart.i = i;
@@ -2235,19 +2235,19 @@ function saWire(C) {
         e.preventDefault();
       } else if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
         const b2 = svg.querySelector('rect.sa-band[data-i="' + (saChart.i < 0 ? 0 : saChart.i) + '"]');
-        if (b2) { e.preventDefault(); actOn(b2); }   // 与鼠标点击**同一个分派** ✓（落点一致 ✓）
+        if (b2) { e.preventDefault(); actOn(b2); }   // 与鼠标点击**同一个分派** ✓（落点一致）
       } else if (e.key === "Escape") {
         hide();
       }
     };
-    if (saChart.i >= 0) show(saChart.i);             // 重渲染后恢复选中期 ✓
+    if (saChart.i >= 0) show(saChart.i);             // 重渲染后恢复选中期
   };
   /* ── 矩阵的 roving tabindex（2026-10-09 加 ①）──────────────────────────────────────
-     问题：每格都 tabindex=0 ✗ → 5 列 × 16 行 ＝ **80 个 Tab 位** ✗ —— Tab 键变成迷宫 ✓
-     （同一张页面上，走势图那种图是"单一焦点 ＋ 方向键" ✓，两种交互语言不该打架 ✗）。
-     做法：整表只留**一个** Tab 位 ✓ —— 记住"当前格"（saRove ✓，模块级 ✓），渲染后把它设 0、其余设 -1 ✓；
-     方向键在格间移动时**只改这两个节点的属性 ＋ 调 focus** ✓，**不整块重渲染** ✗
-     （重渲染会闪、还会把焦点冲掉 ✓）。Enter/Space 仍走 actOn ✓（与鼠标点击同一个分派 ✓）。 */
+     问题：每格都 tabindex=0 → 5 列 × 16 行 ＝ **80 个 Tab 位** —— Tab 键变成迷宫
+     （同一张页面上，走势图那种图是"单一焦点 ＋ 方向键"，两种交互语言不该打架）。
+     做法：整表只留**一个** Tab 位 —— 记住"当前格"（saRove，模块级），渲染后把它设 0、其余设 -1；
+     方向键在格间移动时**只改这两个节点的属性 ＋ 调 focus**，**不整块重渲染**
+     （重渲染会闪、还会把焦点冲掉）。Enter/Space 仍走 actOn ✓（与鼠标点击同一个分派）。 */
   const moveRove = (td2, key) => {
     const tr2 = td2.closest("tr");
     if (!tr2) return false;
@@ -2276,7 +2276,7 @@ function saWire(C) {
   const wireRoving = () => {
     const cells = Array.prototype.slice.call(C.el.querySelectorAll("td[data-cell]"));
     if (!cells.length) return;
-    let pick = cells[0];                                    // 没有历史 → 第一格（最新那一期 ✓）
+    let pick = cells[0];                                    // 没有历史 → 第一格（最新那一期）
     if (saRove) {
       const m = cells.find((c2) => c2.getAttribute("data-d") === saRove.d && c2.getAttribute("data-col") === saRove.col);
       if (m) pick = m;
@@ -2285,12 +2285,12 @@ function saWire(C) {
     saRove = { d: pick.getAttribute("data-d"), col: pick.getAttribute("data-col") };
   };
   /* ── 整表对比图的**图例点亮**（2026-10-10 用户报「折线图有遮挡」）──────────────────────
-     列多的时候（6 条）近水平的线必然互相压住 ✗ —— 这是线图本身的毛病 ✓，不是数据错 ✓。
-     治法：指到 / 聚焦某个图例，就把其它线压暗到 0.12 ✓（总累计那条**不参与** ✓，它始终是参照 ✓）。
-     鼠标与键盘**共用一套** ✓（pointerenter/leave ＋ focusin/out ✓，不写两份逻辑 ✗）；
-     ⚠ 依旧外科式：只改 opacity 与一个 class ✓，不重渲染 ✗（否则会闪 ✓）。
+     列多的时候（6 条）近水平的线必然互相压住 —— 这是线图本身的毛病，不是数据错。
+     治法：指到 / 聚焦某个图例，就把其它线压暗到 0.12 ✓（总累计那条**不参与**，它始终是参照）。
+     鼠标与键盘**共用一套** ✓（pointerenter/leave ＋ focusin/out，不写两份逻辑）；
+     ⚠ 依旧外科式：只改 opacity 与一个 class，不重渲染 ✗（否则会闪）。
      ⚠ pointerout 要判 relatedTarget ✓：在**图例内部**从一格移到另一格时，
-       若一收到 out 就复位，会闪一下 ✓（先复位再点亮 ✓）→ 只有真正离开图例才复位 ✓。 */
+       若一收到 out 就复位，会闪一下 ✓（先复位再点亮）→ 只有真正离开图例才复位。 */
   const wireAllChart = () => {
     const box = C.el.querySelector(".sa-chart[data-all-end]");
     if (!box) return;
@@ -2322,9 +2322,9 @@ function saWire(C) {
   wireRoving();
   wireAllChart();
   /* ── 交互分派（2026-10-09 第三步）：**一次点击与一次按键走同一套** ✓（不伪造事件对象 ✗）─────────────
-     优先级＝最内层先行 ✓：面包屑返回 → 格子 → 成员行 → 维度切换 → 期行 → 期初行 ✓
-     ⚠ 格子长在行里 ✗ → 必须先判格子 ✓，否则点一下格子会顺带把"期"也切了 ✓。
-     选择态一变就**整块重渲染**（高亮要跟着动 ✓）→ 再把焦点放回等价元素 ✓（键盘用户不会"掉出去" ✗）。 */
+     优先级＝最内层先行 ✓：面包屑返回 → 格子 → 成员行 → 维度切换 → 期行 → 期初行
+     ⚠ 格子长在行里 → 必须先判格子，否则点一下格子会顺带把"期"也切了。
+     选择态一变就**整块重渲染**（高亮要跟着动）→ 再把焦点放回等价元素 ✓（键盘用户不会"掉出去"）。 */
   const refocus = () => {
     let t = null;
     if (saSel && saSel.k === "cell") t = C.el.querySelector('[data-cell][data-d="' + saSel.d + '"][data-col="' + saSel.col + '"]');
@@ -2335,7 +2335,7 @@ function saWire(C) {
     if (t && t.focus) {
       t.focus();
       /* 焦点落在**某个格子**上 → 它就当 roving 的"当前格" ✓
-         （把 Tab 位一并挪过去 ✓ —— 否则会出现"焦点在这格、Tab 位在那格"的两处各说各话 ✗） */
+         （把 Tab 位一并挪过去 —— 否则会出现"焦点在这格、Tab 位在那格"的两处各说各话） */
       if (t.hasAttribute && t.hasAttribute("data-cell")) {
         C.el.querySelectorAll('td[data-cell][tabindex="0"]').forEach((x) => x.setAttribute("tabindex", "-1"));
         t.setAttribute("tabindex", "0");
@@ -2356,7 +2356,7 @@ function saWire(C) {
     if (nav) {
       /* 两级回退：轨迹 → 进来时那一格 ✓；从**图上**点进的格 → 回到那张图 ✓（2026-10-09 第四步 B） */
       if ((nav.dataset.nav === "back" || nav.dataset.nav === "cell") && saSel && saSel.back) { setSel(saSel.back); return true; }
-      setSel(null);                                    // 其余情况：回到整期（cur 不动 ✓ 就是进来时那一期 ✓）
+      setSel(null);                                    // 其余情况：回到整期（cur 不动 就是进来时那一期）
       return true;
     }
     const colTot = target.closest("[data-coltotal]");
@@ -2370,17 +2370,17 @@ function saWire(C) {
       return true;
     }
     const colRow = target.closest("[data-colrow]");
-    if (colRow) {                                      // 点排序条里的一行 → 该列的逐期图 ✓
+    if (colRow) {                                      // 点排序条里的一行 → 该列的逐期图
       setSel({ k: "col", col: colRow.getAttribute("data-colrow") });
       return true;
     }
     const colh = target.closest("[data-colhead]");
-    if (colh) {                                        // 点列头 → 该列的逐期贡献＋累计图 ✓
+    if (colh) {                                        // 点列头 → 该列的逐期贡献＋累计图
       setSel({ k: "col", col: colh.dataset.colhead });
       return true;
     }
     const cell = target.closest("[data-cell]");
-    if (cell) {                                        // 点格子 / 点图上的柱子·命中带 → 只看该格 ✓
+    if (cell) {                                        // 点格子 / 点图上的柱子·命中带 → 只看该格
       const d = cell.dataset.d;
       const i = C.live.findIndex((p) => p.d === d);
       /* 图上点进来的 → 记下来路，返回就回那张图 ✓（不是在两级回退里跳空 ✗） */
@@ -2390,12 +2390,12 @@ function saWire(C) {
       return true;
     }
     const hold = target.closest("[data-hold]");
-    if (hold) {                                        // 点成员 → 该只的逐期轨迹 ✓（记住从哪来 ✓）
+    if (hold) {                                        // 点成员 → 该只的逐期轨迹 ✓（记住从哪来）
       setSel({ k: "hold", code: hold.dataset.hold, back: (saSel && saSel.k === "cell") ? saSel : null });
       return true;
     }
     const dim = target.closest("[data-dim]");
-    if (dim) {                                         // 换维度：**清空下钻** ✓（维度一变、格的语义就变 ✗）
+    if (dim) {                                         // 换维度：**清空下钻** ✓（维度一变、格的语义就变）
       if (dim.dataset.dim === saDim) return true;
       saDim = dim.dataset.dim;
       try { localStorage.setItem("snapAttrDim", saDim); } catch (err) { /* 隐私模式下忽略 */ }
@@ -2404,8 +2404,8 @@ function saWire(C) {
       return true;
     }
     const row = target.closest("tr[data-i]");
-    if (row) { setSel(null, +row.dataset.i); return true; }      // 点期行 → 整期 ✓
-    if (target.closest("tr.mx-carry")) { setSel(null, "carry"); return true; }   // 点期初行 → 那一段 ✓
+    if (row) { setSel(null, +row.dataset.i); return true; }      // 点期行 → 整期
+    if (target.closest("tr.mx-carry")) { setSel(null, "carry"); return true; }   // 点期初行 → 那一段
     return false;
   };
   /* 用**容器委托**：与渲染次数无关，也不会随重渲染丢监听 ✓（原来的逐元素绑法已删 ✗） */
@@ -2426,7 +2426,7 @@ function saWire(C) {
 }
 
 /* ── ⑥ 薄装配 ✓（拆分后的总入口：状态 → 拼 HTML → 注入 → 绑事件，顺序与拆前完全一致 ✓）──
-   空表早退在 saCtx 内（原单体函数头部的判断原样保留 ✓，设完兜底文案返回 undefined ✓）。 */
+   空表早退在 saCtx 内（原单体函数头部的判断原样保留，设完兜底文案返回 undefined）。 */
 function renderSnapAttr() {
   const C = saCtx();
   if (!C) return;
@@ -2436,9 +2436,9 @@ function renderSnapAttr() {
   saWire(C);
 }
 /* 归因「列头图」的**窗口缩放重绘**（2026-10-09 第四步 A）——
-   那张图按**真实像素宽**画 ✓（与仓库其它图同一套做法 ✓），窗口一变就会画窄/画宽 ✗
-   → 只在"列头图正开着"时才重画 ✓（矩阵本身是 CSS 撑开的 ✓ 不需要重画 ✓）。
-   防抖 150ms ✓：与走势图的 resize 重绘同一套 ✓，避免拖动窗口时狂重绘 ✓。 */
+   那张图按**真实像素宽**画 ✓（与仓库其它图同一套做法），窗口一变就会画窄/画宽
+   → 只在"列头图正开着"时才重画 ✓（矩阵本身是 CSS 撑开的 不需要重画）。
+   防抖 150ms ✓：与走势图的 resize 重绘同一套，避免拖动窗口时狂重绘。 */
 window.addEventListener("resize", debounce(() => {
   const box = $("snap-attr");
   if (!box || box.hidden || !saSel || saSel.k !== "col") return;
@@ -2447,12 +2447,12 @@ window.addEventListener("resize", debounce(() => {
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
    用 onclick 赋值而非 addEventListener —— render() 会重跑，避免重复绑监听。 */
 /* ── 「逐期明细」的持仓变化行 → 直接跳到该只的**逐期轨迹**（2026-10-10，用户选的 ①）──────────
-   为什么跨视图：轨迹（各期贡献 ＋ 事件 ＋ 本期快照对比 ＋ 生涯累计 ✓）只在「盈亏归因」里有 ✓，
-   而用户第一眼看到的是「逐期明细」里那一行"这只这期亏了多少" ✓ → 从那里进去最顺手 ✓。
-   做法：**复用**既有的视图切换 ✓（点一下那个 tab ✓，不另写一套显隐逻辑 ✗），只是先把归因状态摆好 ✓：
-     · saSel = {k:"hold", code, back:null} → 「← 返回」直接回整期 ✓（不是回某一格 ✗）
-     · saCur ＝ 承载行的 `<article data-d="…">` 那一期 ✓（用 saD2I 反查 ✓；查不到就保持当前期 ✓）
-   ⚠ 顺序要紧：先设状态、再点 tab ✓ —— 切换时会 renderSnapAttr() ✓，读的就是这份状态 ✓。 */
+   为什么跨视图：轨迹（各期贡献 ＋ 事件 ＋ 本期快照对比 ＋ 生涯累计）只在「盈亏归因」里有，
+   而用户第一眼看到的是「逐期明细」里那一行"这只这期亏了多少" → 从那里进去最顺手。
+   做法：**复用**既有的视图切换 ✓（点一下那个 tab，不另写一套显隐逻辑），只是先把归因状态摆好 ✓：
+     · saSel = {k:"hold", code, back:null} → 「← 返回」直接回整期 ✓（不是回某一格）
+     · saCur ＝ 承载行的 `<article data-d="…">` 那一期 ✓（用 saD2I 反查；查不到就保持当前期）
+   ⚠ 顺序要紧：先设状态、再点 tab —— 切换时会 renderSnapAttr()，读的就是这份状态。 */
 function gotoHoldInAttr(code, d) {
   if (!code) return;
   const i = saD2I[d];
@@ -2463,17 +2463,17 @@ function gotoHoldInAttr(code, d) {
   else { const attr = $("snap-attr"), log = $("snap-list"); if (attr && log) { log.hidden = true; attr.hidden = false; renderSnapAttr(); } }
 }
 /* 委托绑一次即可 ✓（`#snap-list` 这个容器是常驻的 ✓，行是每次重渲染换掉的 ✓ —— 与页内其它列表同一手法 ✓）。
-   ⚠ 键盘与鼠标走同一套 ✓（Enter / Space ✓）；行是 role=button ＋ tabindex=0 ✓
-     （与「归因下钻」里的 .sd-click 行同一套 a11y 语言 ✓）。 */
+   ⚠ 键盘与鼠标走同一套 ✓（Enter / Space）；行是 role=button ＋ tabindex=0
+     （与「归因下钻」里的 .sd-click 行同一套 a11y 语言）。 */
 /* ── 场外账户统计卡的交互（2026-10-10，用户：「点击柱状图可以联动到下方的基金明细」✓）──────────
-   三件事，都在**卡内**完成 ✓（不新增口径、不跳视图 ✓）：
-     · 点柱（整列命中带 ✓ 柱本身才 3px 宽 ✗）→ 该月逐渠道明细 ✓；再点同一根 → 收起 ✓
-     · 点渠道行 → 该渠道逐月明细 ✓；再点同一行 → 收起 ✓
-     · 「← 收起」→ 清空选择 ✓
-   键盘：图是**单一焦点** ✓（tabindex=0 ✓），←/→ 逐月移动 ✓、Enter/Space 与点击同义 ✓ ——
-     刻意不给每根柱各一个 Tab 位 ✗（页内同一套纪律：Tab 键不该变成迷宫 ✓）。
-   ⚠ 用**容器委托**绑一次 ✓：卡内内容每次选择都整块重渲染 ✓，逐元素绑法会随重渲染丢监听 ✗。
-   ⚠ 重渲染后把焦点放回图 ✓（键盘用户不会"掉出去"✗ —— 与归因那边 refocus 同一课 ✓）。 */
+   三件事，都在**卡内**完成 ✓（不新增口径、不跳视图）：
+     · 点柱（整列命中带 柱本身才 3px 宽）→ 该月逐渠道明细；再点同一根 → 收起
+     · 点渠道行 → 该渠道逐月明细；再点同一行 → 收起
+     · 「← 收起」→ 清空选择
+   键盘：图是**单一焦点** ✓（tabindex=0），←/→ 逐月移动、Enter/Space 与点击同义 ——
+     刻意不给每根柱各一个 Tab 位 ✗（页内同一套纪律：Tab 键不该变成迷宫）。
+   ⚠ 用**容器委托**绑一次 ✓：卡内内容每次选择都整块重渲染，逐元素绑法会随重渲染丢监听。
+   ⚠ 重渲染后把焦点放回图 ✓（键盘用户不会"掉出去" —— 与归因那边 refocus 同一课）。 */
 function focusOtcSvg() {
   const s = $("otc-acct-card") ? $("otc-acct-card").querySelector("svg.sa-otc") : null;
   if (s && s.focus) s.focus();
@@ -2545,10 +2545,10 @@ function bindSnapSwitch() {
 
 safeCard("snap-list", "快照对比", renderSnapLog);
   bindSnapSwitch();                        // 视图切换：归因图按需渲染（零首屏成本）
-  bindSnapListJump();                      // 「逐期明细」持仓行 → 归因轨迹（2026-10-10 ✓）
-  bindOtcCard();                           // 场外账户统计：点柱 / 点渠道行 → 卡内下钻（2026-10-10 ✓）
+  bindSnapListJump();                      // 「逐期明细」持仓行 → 归因轨迹（2026-10-10）
+  bindOtcCard();                           // 场外账户统计：点柱 / 点渠道行 → 卡内下钻（2026-10-10）
   safeCard("acct-card", "场内账户统计", renderAcctStats);
-  safeCard("otc-acct-card", "场外账户统计", renderOtcAcctStats);   // 2026-10-10 加 ✓
+  safeCard("otc-acct-card", "场外账户统计", renderOtcAcctStats);   // 2026-10-10 加
   safeCard("fee-card", "费率体检", renderFees);
   safeCard("alt-card", "标的替换回测", renderAlt);
 }
@@ -2663,7 +2663,7 @@ function renderTrendLegend() {
     html = item("dn", "回撤", "红色实线＋面积＝资金流调整后单位净值相对历史峰值的回撤（0 在顶，越深越亏）；圆点为各期快照");
   } else {
     html = item("", "总资产", "蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）") +
-      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入＝外部净转入（含全额清仓加回 ✓）。两条线之间的竖直间距就是**累计收益（含已实现）**：资产线在上＝赚（绿色填充）；在下＝亏（不铺色，「水下」由两线相对位置表达，铺满红底会被误读成图表背景）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
+      '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入＝外部净转入（含全额清仓加回）。两条线之间的竖直间距就是**累计收益（含已实现）**：资产线在上＝赚（绿色填充）；在下＝亏（不铺色，「水下」由两线相对位置表达，铺满红底会被误读成图表背景）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
       item("base", "同节奏纳指", "灰色密虚线＝同节奏基准：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌。回答「同样的钱、同样的日期，全买纳指今天是多少」。末点＝最近一个有纳指收盘的日期（基准点位缺当日时自动停在前一天，不猜）。");
   }
   el.innerHTML = html;
@@ -2726,11 +2726,11 @@ function todayStr() {
 /* 完整历程序列：SNAPSHOTS 只覆盖 08-28 起（12 天），真实建仓自 06-01（100 天 / 43 笔），中间 88 天缺失。
    ★ 2026-10-04：由「场内单线」升级为**三条线**（合计 / 场内 / 场外），实现见 buildPnlSeries。
      2026-09-30 这里曾写着「合计做不到」：08-28 前场外无读数，要还原得靠「逐笔份额 × 当月末净值」——
-     那是**当时**的事实 ✓；10-01 财务页带来 App 月度账单（FIN_PL）后，场外也能按月拼接了 ✓。
+     那是**当时**的事实；10-01 财务页带来 App 月度账单（FIN_PL）后，场外也能按月拼接了。
    ⚠ 仍要记住两条来源口径不同名（月度账单 vs 快照持仓收益）——
-   ⚠ 2026-10-10 订正：这里原来写死「−1,964 vs −2,149，差约 180 元」✗，9 月账单订正后**已过期** ✗
-      （实测现值 −1,946.07 vs −1,653.54，差 292.53 ✓）→ 具体数字改由 otcTwoNoteText() 现算 ✓，
-      本注释不再记数（凡是写死的数都会过期 ✓）。 */
+   ⚠ 2026-10-10 订正：这里原来写死「−1,964 vs −2,149，差约 180 元」，9 月账单订正后**已过期**
+      （实测现值 −1,946.07 vs −1,653.54，差 292.53）→ 具体数字改由 otcTwoNoteText() 现算，
+      本注释不再记数（凡是写死的数都会过期）。 */
 function buildPnlPts() {
   return buildPnlSeries().all;
 }
@@ -2756,7 +2756,7 @@ function buildPnlSeries() {
   const empty = { all: [], etf: [], otc: [], hasOtc: false };
   if (!S || !S.monthly || !S.monthly.length) return empty;
   /* 场内：月度 → { "2026-06": pnl }（ACCT_STATS 的标签是「6月」，年份取最早成交日那年，跨年按倒序 +1） */
-  const etfM = {}, pxM = {};     // pxM: 场内当月收益率 / 上证基准（只有场内有月度百分比 ✗ 见读数条注释）
+  const etfM = {}, pxM = {};     // pxM: 场内当月收益率 / 上证基准（只有场内有月度百分比 见读数条注释）
   let yr0 = +String((log[0] || {}).d || "").slice(0, 4) || new Date().getFullYear();
   { let prevM = 0, yr = yr0;
     S.monthly.forEach((mo) => {
@@ -2796,7 +2796,7 @@ function buildPnlSeries() {
   const anchor = [etfFirst, otcFirst].filter(Boolean).sort()[0];
   const all = build(anchor, (ym) => (etfM[ym] || 0) + (otcM[ym] || 0));
   /* byMonth：读数条按月查表用（键＝"2026-09"，即该点的「年月」）——
-     把当月拆分（场内/场外）、场内当月收益率与上证基准一次算好，避免读数条里再按年份去猜 ACCT_STATS 的「9月」属于哪年 ✗ */
+     把当月拆分（场内/场外）、场内当月收益率与上证基准一次算好，避免读数条里再按年份去猜 ACCT_STATS 的「9月」属于哪年 */
   const byMonth = {};
   use.forEach((ym) => { byMonth[ym] = { etf: etfM[ym] || 0, otc: otcM[ym] || 0,
     all: (etfM[ym] || 0) + (otcM[ym] || 0), pct: (pxM[ym] || {}).pct, bench: (pxM[ym] || {}).bench }; });
@@ -3012,7 +3012,7 @@ function renderTrendKpis(pts) {
         '<div class="k-val' + (flat ? "" : " down") + '"' + (flat ? ' style="color:var(--tx3)"' : "") + ">" + (flat ? "无回撤" : fmtPct(ddv, 2)) + "</div>" +
         '<div class="k-sub" style="color:var(--tx3)">' + (flat ? "区间内步步新高" : mdOf(pts[ddN.deepI].d) + (ddN.recI >= 0 ? " · 已修复" : " · 未修复")) + "</div></div>";
     })() : "") +
-    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（2026-10-04 起为**合计口径**＝场内 ＋ 场外 5 个基金渠道，两者都是 App 月度读数）。⚠ 与「最大回撤（区间）」的全账户净值口径不是同一个数；不含现金，招行的理财/黄金按用户口径（债基、低风险）不计入">最大浮亏' + (pnlHasOtc() ? "" : " · 场内") + '</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
+    (deepW ? '<div class="kpi"><div class="k-label" title="建仓以来最深的累计浮亏（合计口径：场内 ＋ 场外 5 个基金渠道，两者都是 App 月度读数）。⚠ 与「最大回撤（区间）」的全账户净值口径不是同一个数；不含现金，招行的理财/黄金按用户口径（债基、低风险）不计入">最大浮亏' + (pnlHasOtc() ? "" : " · 场内") + '</div><div class="k-val down">' + fmtAmt(deepW.pl) + '</div><div class="k-sub" style="color:var(--tx3)">' + (+deepW.d.slice(5, 7)) + "." + (+deepW.d.slice(8, 10)) + ' · 全程</div></div>' : "");
 }
 /**
  * 相邻两点间：总资产线与投入线围成的区域，只填浮盈段（绿色；浮亏段不铺色，交叉时按交点拆分）。
@@ -3120,8 +3120,8 @@ function trendNav(pts) {
   return { nav: nav, dd: dd, deepI: deepI, peakI: peakI, recI: recI };
 }
 /* trendNav 结果按 pts 数组身份缓存（2026-10-12）：showXhair 在 pointermove 路径上高频调用（rate / dd 两分支），
-   同一期数据每移动一像素就重算一遍 O(n) 前缀是纯浪费 ✗ —— pts 数组只在 renderTrend 重绘时才换 ✓，
-   以数组引用为键即可安全缓存（换视图 / 换数据自然失效，无手动清理 ✓） */
+   同一期数据每移动一像素就重算一遍 O(n) 前缀是纯浪费 —— pts 数组只在 renderTrend 重绘时才换，
+   以数组引用为键即可安全缓存（换视图 / 换数据自然失效，无手动清理） */
 let _trendNavCache = null;
 function trendNavCached(pts) {
   if (!_trendNavCache || _trendNavCache.pts !== pts) _trendNavCache = { pts, N: trendNav(pts) };
@@ -3335,7 +3335,7 @@ function renderTrend(todayVal, todayCost) {
     const pl0 = pts[0].val - pts[0].cost, pl1 = pts[pts.length - 1].val - pts[pts.length - 1].cost, dPl = pl1 - pl0;
     setTrendSum("区间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 累计收益 " + fmtAmt(pl0) + " → <b>" + fmtAmt(pl1) + "</b>（" + (dPl >= 0 ? "改善 " : "恶化 ") + "<b>" + fmtAbs2(dPl) + "</b> 元）",
       "口径：全账户（场内券商 + 场外基金 + 现金）。总资产为各期快照读数，今日为盘中估算、尚未收盘。" +
-      "累计投入 ＝ 外部净转入（＝持仓成本 + 现金 + 全额清仓加回 ✓）；累计收益 ＝ 总资产 − 累计投入，**含已卖出的兑现盈亏** ✓。" +
+      "累计投入 ＝ 外部净转入（＝持仓成本 + 现金 + 全额清仓加回）；累计收益 ＝ 总资产 − 累计投入，**含已卖出的兑现盈亏**。" +
       "区间投入由逐期 Δ累计投入推导（人工记录的 flow 优先），正为净转入、负为净转出。" +
       "区间随上方「时间范围」变化；完整逐期归因见下方「快照对比」。");
   }
@@ -3365,7 +3365,7 @@ function renderPnlView(box) {
   const P = (v) => v.toFixed(1);
   const px = pts.map((_, i) => X(i)), py = pts.map((p) => Y(p.pl));
   /* pnlSeries 挂进 trendLayout：读数条（showXhair）要按年月查「当月拆分 / 场内收益率」，
-     与图同一份数据 —— 不在读数条里重算（那是每次指针移动都跑一遍 ✗）。 */
+     与图同一份数据 —— 不在读数条里重算（那是每次指针移动都跑一遍）。 */
   trendLayout = { px: px, py: py, pts: pts, mode: "pnl", pnlSeries: SR };
   if ($("trend-cnt")) $("trend-cnt").innerHTML = "(月度 " + pts.length + " 期 · " + pts[0].d.slice(5).replace("-", ".") + " 起 · 快照至 " + (mdOf(snapAsOf()) || "未记录") + ")";
   let deepI = 0;
@@ -3644,7 +3644,7 @@ function showXhair(i) {
   if (rsel) ro.innerHTML += rsel;
 }
 /* 十字线取点：指针 x → 最近的期（2026-10-12 收拢 —— pointermove 的 pick 与 click 选点此前是
-   两份逐字相同的「getBoundingClientRect + forEach 求最近」拷贝 ✗）。返回 -1 ＝ 当前没有可取的期。 */
+   两份逐字相同的「getBoundingClientRect + forEach 求最近」拷贝）。返回 -1 ＝ 当前没有可取的期。 */
 function nearestPoint(box, e) {
   if (!trendLayout || trendLayout.px.length < 2) return -1;
   const r = box.getBoundingClientRect(), cx = e.clientX - r.left;
@@ -3657,8 +3657,8 @@ function bindTrendCrosshair() {
   if (!box) return;
   /* ⚠ saWire 2134 行那条「绝不在 pointermove 里整块重渲染」的铁律，本读数条此前是反例 ✗：
      showXhair 每次都整块重建 ro.innerHTML（四个视图分支 ＋ 区间统计行），指针划过一次要触发几十次。
-     2026-10-12 加 rAF 节流：每帧最多渲染一次 ✓（上一帧未渲染就被覆盖 = 天然去抖 ✓）；
-     pointerdown / pointerleave / 键盘 / 聚焦路径仍是**立即**渲染 ✓（低频且要即时反馈 ✓）。 */
+     2026-10-12 加 rAF 节流：每帧最多渲染一次 ✓（上一帧未渲染就被覆盖 = 天然去抖）；
+     pointerdown / pointerleave / 键盘 / 聚焦路径仍是**立即**渲染 ✓（低频且要即时反馈）。 */
   let xhRaf = null;
   const showXhairSoon = (i) => {
     if (xhRaf !== null) cancelAnimationFrame(xhRaf);
@@ -3712,21 +3712,21 @@ function snapTotal(s) {
   return Object.values(s.items || {}).reduce((a, b) => a + (b.val || 0), 0) + (s.cash || 0);
 }
 /* ── 全额清仓「漏出的已实现」（2026-10-09 加，用户选 A）─────────────────────────────
-   摊薄口径下，卖出只是「成本 → 现金」的搬运 → **Σ持仓成本 ＋ 现金 不变** ✓，
-   所以部分减仓不会破坏「本金 ≡ 外部净转入」（2026-09-30 与银证对账单核过，差 1.66 元 ✓）。
+   摊薄口径下，卖出只是「成本 → 现金」的搬运 → **Σ持仓成本 ＋ 现金 不变**，
+   所以部分减仓不会破坏「本金 ≡ 外部净转入」（2026-09-30 与银证对账单核过，差 1.66 元）。
    ⚠ 但**全额清仓**时，该标的整条从 items 消失：成本额离开了 Σ成本、净回款进了现金，
-     两者之差（＝ −该笔 realized）从此**没人接手** ✗。2026-10-09 首次全额清仓（中韩/港美）实测：
-     场内「Σ摊薄成本 ＋ 可用」从 10-08 的 422,635.65 掉到 404,143.65 ✗，
-     正好少了 18,492.00（＝ 13,217.10 ＋ 5,274.90 ✓），而真·银证净转入 422,633.99 一分未变 ✗
-     → 「本金」被低估 18,490.34（＝ 18,492.00 − 1.66 ✓），「累计收益 ＝ 总资产 − 本金」也不再含已实现 ✗。
-   ▸ 修正：把这一项**加回本金** ✓ → 本金重新等于「外部净转入」✓、累计收益重新含已实现 ✓
-     （10-09：404,143.65 ＋ 18,492.00 ＝ 422,635.65 ✓；累计收益 ＝ 534,018.37 − 532,522.46 ＝ **+1,496** ✓，
-      与「场内 425,785.50 − 422,633.99 ＝ +3,151.51」＋「场外 −1,653.94」互证 ✓）。
-   ★ 与 cross-check ② 的 flow 补丁是**同一个修正项**（那边：flow ＝ ΔΣ成本 ＋ Δ现金 − Σ清仓realized）✓。
-   ▸ 判据：某笔卖出使该标的**累计份数归零** → 取这一笔的 realized ✓
+     两者之差（＝ −该笔 realized）从此**没人接手**。2026-10-09 首次全额清仓（中韩/港美）实测：
+     场内「Σ摊薄成本 ＋ 可用」从 10-08 的 422,635.65 掉到 404,143.65，
+     正好少了 18,492.00（＝ 13,217.10 ＋ 5,274.90），而真·银证净转入 422,633.99 一分未变
+     → 「本金」被低估 18,490.34（＝ 18,492.00 − 1.66），「累计收益 ＝ 总资产 − 本金」也不再含已实现。
+   ▸ 修正：把这一项**加回本金** → 本金重新等于「外部净转入」、累计收益重新含已实现
+     （10-09：404,143.65 ＋ 18,492.00 ＝ 422,635.65；累计收益 ＝ 534,018.37 − 532,522.46 ＝ **+1,496**，
+      与「场内 425,785.50 − 422,633.99 ＝ +3,151.51」＋「场外 −1,653.94」互证）。
+   ★ 与 cross-check ② 的 flow 补丁是**同一个修正项**（那边：flow ＝ ΔΣ成本 ＋ Δ现金 − Σ清仓realized）。
+   ▸ 判据：某笔卖出使该标的**累计份数归零** → 取这一笔的 realized
      （它已含该标的此前的部分卖出效应：摊薄成本额本身就是「Σ买入含费 − Σ卖出净额」，
-      故此前的部分卖出**不可再加** ✗ —— 会重复计 ✓）。
-   ▸ upTo 供走势图逐期取历史 ✓；10-08 及以前恒为 0 ✓（仓库史上首次全额清仓发生在 10-09）。 */
+      故此前的部分卖出**不可再加** —— 会重复计）。
+   ▸ upTo 供走势图逐期取历史；10-08 及以前恒为 0 ✓（仓库史上首次全额清仓发生在 10-09）。 */
 function closedCostGap(upTo) {
   const log = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
     .filter((e) => !upTo || e.d <= upTo).slice()
@@ -3747,8 +3747,8 @@ function snapRawCost(s) {
   return c;
 }
 /* 真·累计收益（含已实现）＝ 快照 pl（摊薄口径的"在持浮盈亏"）− 全额清仓漏出的那一块 ✓
-   它就是「总资产 − 外部净转入」这个数，也是走势图上两条线之间的竖直间距 ✓
-   （10-09 起与 pl 不再相等 ✓ —— pl 只是券商 App 那个「浮动盈亏」口径）。 */
+   它就是「总资产 − 外部净转入」这个数，也是走势图上两条线之间的竖直间距
+   （10-09 起与 pl 不再相等 —— pl 只是券商 App 那个「浮动盈亏」口径）。 */
 function snapPl(s) {
   const pl = (typeof s.pl === "number") ? s.pl : (snapTotal(s) - snapRawCost(s));
   return pl - closedCostGap(s && s.d);
@@ -3758,7 +3758,7 @@ function snapCost(s) {
   return (typeof s.pl === "number") ? snapTotal(s) - snapPl(s) : snapRawCost(s) + closedCostGap(s && s.d);
 }
 /* 持仓成本合计（剔现金）：比对成本时要减掉现金，否则现金变动会被误读成申购。
-   ⚠ 这里**不能**走 snapCost ✗ —— snapCost 含「全额清仓漏出的已实现」那一项，
+   ⚠ 这里**不能**走 snapCost —— snapCost 含「全额清仓漏出的已实现」那一项，
      减现金也剔不掉它，会被算成持仓成本 ✗（2026-10-09 加）。
    简快照（无 items / cash 字段）返回 null —— 缺现金就无法剔除，硬减 0 会把现金混进「持仓成本」。 */
 const snapHoldCost = (s) => (s && s.items && typeof s.cash === "number") ? snapRawCost(s) - s.cash : null;
@@ -3850,10 +3850,10 @@ function snapFlowSplit(prev, cur, flow) {
   };
 }
 /* ⚠ 2026-10-09 删除 snapHeadKpi()（2026-09-24 加）：它把「本期盈亏 / 总盈亏」渲染成卡头的小字胶囊；
-   用户要求这两个数改为 **KPI 格** ✓ → 现在由 snapPartsHtml 里的 tile(arrow(…)) 承担 ✓，
-   本函数已无调用方（留着会被 eslint 判未用变量 ✗）。
-   卡头从此只留「日期 + vs 前一期（跨 N 天）+ 事件标签」✓，先回答"这是哪一期" ✓。
-   （原注释里的另一个调用方「区间卡」早随区间累计卡一起删掉了 —— 区间盈亏现在是小节标题里的一行灰字 ✓。） */
+   用户要求这两个数改为 **KPI 格** → 现在由 snapPartsHtml 里的 tile(arrow(…)) 承担，
+   本函数已无调用方（留着会被 eslint 判未用变量）。
+   卡头从此只留「日期 + vs 前一期（跨 N 天）+ 事件标签」，先回答"这是哪一期"。
+   （原注释里的另一个调用方「区间卡」早随区间累计卡一起删掉了 —— 区间盈亏现在是小节标题里的一行灰字。） */
 /* 期间外部资金进出：人工记录优先，否则按 Δ累计投入推导（恒等式：Δ总资产 = Δ浮盈亏 + 资金进出） */
 function snapFlow(prev, cur) {
   if (typeof cur.flow === "number") return cur.flow;
@@ -3879,20 +3879,20 @@ function qPair(txt, label) {
   };
 }
 /* ── 每只标的在区间 (prev.d, cur.d] 的**真实贡献**（★ 唯一实现 ★，2026-10-09 抽出）─────────────
-   语义：这一期它给账户带来了多少盈亏 —— 与「本期盈亏 ＝ Δ总资产 − 资金进出」严格自洽 ✓。
+   语义：这一期它给账户带来了多少盈亏 —— 与「本期盈亏 ＝ Δ总资产 − 资金进出」严格自洽。
    ⚠ 为什么必须**只有一份**：同一语义原来在**三处各写一遍** ✗（逐期明细行 / 分组小计 / 盈亏归因），
-     于是 2026-10-09 首次全额清仓时，先修了前两处、归因没跟上 ✗ → 归因 10.09 行合计显示 **+2,939** ✗，
-     而真值 **+2,304** ✓，差 **+635.40** ＝ 中韩 −567.40 ＋ 港美 −68.00 ✓✓（被清仓那两只本期的真实结果），
-     门禁 ④j 当场报红 ✓。以后不要再在别处手写这套三分支 ✗ —— 一律调本函数 ✓。
-   口径（等价于「期末累计结果 − 期初累计结果」，故在整段历史上**逐期自然加总** ✓）：
-     · 在持（两期都在）   → Δpl ✓
-     · 建仓（只后一期有） → 后一期 pl ✓（期初累计结果＝0 ✓）
-     · 清仓（只前一期有） → **卖出回款 − 期初市值** ✓（＝该只生命周期实际结果 − 期初 pl ✓，两者等价 ✓）
-         场内：该期卖出行 realized ＋ 期初成本 ✓（realized 口径＝净回款 − 摊薄成本额，故回款＝realized＋成本 ✓）
-         场外：OTC_LOG 该期「赎回」笔金额合计 ✓（场外没有 POSITIONS.log 流水 ✓）
-       两种都查不到 → kind "na"（**不可归因**）：调用方必须**显式标出** ✗，不许当成 0 ✗
-         （0 会被读成"没赚没赔"，比"缺"更误导 —— 与 2026-10-08「是缺数据还是没显示」同一条教训 ✓）
-   返回 { v, kind }，kind ∈ hold | open | close | na ✓ */
+     于是 2026-10-09 首次全额清仓时，先修了前两处、归因没跟上 → 归因 10.09 行合计显示 **+2,939**，
+     而真值 **+2,304**，差 **+635.40** ＝ 中韩 −567.40 ＋ 港美 −68.00 ✓✓（被清仓那两只本期的真实结果），
+     门禁 ④j 当场报红。以后不要再在别处手写这套三分支 —— 一律调本函数。
+   口径（等价于「期末累计结果 − 期初累计结果」，故在整段历史上**逐期自然加总**）：
+     · 在持（两期都在）   → Δpl
+     · 建仓（只后一期有） → 后一期 pl ✓（期初累计结果＝0）
+     · 清仓（只前一期有） → **卖出回款 − 期初市值** ✓（＝该只生命周期实际结果 − 期初 pl，两者等价）
+         场内：该期卖出行 realized ＋ 期初成本 ✓（realized 口径＝净回款 − 摊薄成本额，故回款＝realized＋成本）
+         场外：OTC_LOG 该期「赎回」笔金额合计 ✓（场外没有 POSITIONS.log 流水）
+       两种都查不到 → kind "na"（**不可归因**）：调用方必须**显式标出**，不许当成 0
+         （0 会被读成"没赚没赔"，比"缺"更误导）
+   返回 { v, kind }，kind ∈ hold | open | close | na */
 function periodContrib(code, prev, cur) {
   const a = (prev && prev.items) ? prev.items[code] : null;
   const b = (cur && cur.items) ? cur.items[code] : null;
@@ -3915,7 +3915,7 @@ function periodContrib(code, prev, cur) {
 /* 场内 / 场外 拆分：本期（d＝两期累计之差）与累计（c＝当期累计）两个口径，
    对照条的拆分小注与明细的分组小计共用同一份计算，避免两处算法漂移。
    缺 items（简快照）时返回 null，调用方跳过拆分。
-   ⚠ 2026-10-09：本期那一支改调 periodContrib()（★ 唯一实现 ★）—— 清仓修正从此不会只落在某一条路径上 ✓ */
+   ⚠ 2026-10-09：本期那一支改调 periodContrib()（★ 唯一实现 ★）—— 清仓修正从此不会只落在某一条路径上 */
 function snapGrpSplit(prev, cur) {
   if (!prev || !prev.items || !cur || !cur.items) return null;
   const codes = Array.from(new Set(Object.keys(prev.items).concat(Object.keys(cur.items))));
@@ -3925,12 +3925,12 @@ function snapGrpSplit(prev, cur) {
     x.n++;
     const pc = periodContrib(code, prev, cur);                                   // ★ 唯一实现 ★（见其函数头）
     x.d += pc.v;
-    if (pc.kind === "close") x.cl = (x.cl || 0) + 1;                             // 该组本期几只被清仓 ✓
-    if (pc.kind === "na") x.na = (x.na || 0) + 1;                                // 清仓但查不到流水 → 显式计数 ✓
+    if (pc.kind === "close") x.cl = (x.cl || 0) + 1;                             // 该组本期几只被清仓
+    if (pc.kind === "na") x.na = (x.na || 0) + 1;                                // 清仓但查不到流水 → 显式计数
     /* ⚠ 2026-10-09 二次整理：本处原来的三分支（建仓 / 在持 / 清仓）**整块删掉** ✓ ——
-       清仓那一支（回款 − 期初市值 ✓）与 snapPairHtml 逐行、renderSnapAttr 归因是**三份手写副本** ✗，
-       三次事故都出在"只修了其中一份"（10-09 归因没跟上 → 行合计 +2,939 vs 真值 +2,304 ✗，④j 报红 ✓）。
-       现在统一调 periodContrib()（★ 唯一实现 ★），本函数只负责"按场内 / 场外分组求和"这一件事 ✓。 */
+       清仓那一支（回款 − 期初市值）与 snapPairHtml 逐行、renderSnapAttr 归因是**三份手写副本**，
+       三次事故都出在"只修了其中一份"（10-09 归因没跟上 → 行合计 +2,939 vs 真值 +2,304，④j 报红）。
+       现在统一调 periodContrib()（★ 唯一实现 ★），本函数只负责"按场内 / 场外分组求和"这一件事。 */
     x.c += (b && b.pl) || 0;
   });
   return g;
@@ -4004,7 +4004,7 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
   const o = opts || {}, trio = !!o.trio;   // trio：逐期卡（当日盈亏/总盈亏两行）；区间卡为（区间盈亏/银行进出）
   const tp = snapTotal(prev), tc = snapTotal(cur);
   /* ⚠ 2026-10-09 删除 pctTot（「总变化」那格的百分比副行）—— 该格已按用户要求下线 ✗，
-     留着会被 eslint 判为未用变量；总资产的期初值仍在 tile 的 sub 里 ✓ */
+     留着会被 eslint 判为未用变量；总资产的期初值仍在 tile 的 sub 里 */
 
   const costHold = snapHoldCost(cur);
   /* 「银行进出」行溯源用的中间量：两期持仓成本、本期成本变动逐只明细、现金变动 */
@@ -4043,25 +4043,25 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
      ⚠ 银行进出用 info/warn 上色（资金方向），不用盈亏的 up/down —— 与卡内原有约定一致。 */
   /* 唯一形态：KPI 三格（调用点固定传 tiles:true）。行式分支 2026-09-24 删除；
      这里用 throw 而不是静默返回 undefined —— 万一以后有人不传 tiles，宁可当场报错被 dom-check 抓住。 */
-  if (!o.tiles) throw new Error("snapPartsHtml: 只支持 tiles 形态（行式分支已于 2026-09-24 删除）");
+  if (!o.tiles) throw new Error("snapPartsHtml: 只支持 tiles 形态");
   {
     const tile = (label, val, colorCls, sub, tip) =>
       '<div class="kpi"><div class="k-label">' + label + (tip ? tip.btn : "") + "</div>" +
       '<div class="k-val ' + colorCls + '">' + val + "</div>" +
       (sub ? '<div class="k-sub">' + sub + "</div>" : "") + "</div>";
     /* ⚠ 2026-10-09 两轮调整（都是按用户要求）：
-       ① 删「总变化」「银行进出」两格 ✓（「总变化 ＝ 盈亏 ＋ 银行进出」是记账视角的分解 ✗）；
+       ① 删「总变化」「银行进出」两格 ✓（「总变化 ＝ 盈亏 ＋ 银行进出」是记账视角的分解）；
        ② 把卡头的「本期 / 总盈亏」**下移进来** ✓（用户：「这两个变化改为 KPI」）。
-       ⇒ 现在三格：**总资产**（期末，副行给期初 ／ **本期盈亏** ／ **总盈亏**（副行给累计收益率 ✓）。
-       ▸ 箭头 + ↑/↓ 沿用原卡头那套（有箭头就不再带正负号 ✓），数值等宽 ✓
-       ▸ 总盈亏那格的副行 ＝ snapPl(cur) ÷ snapCost(cur)，与「本金与收益」卡的累计收益率**同式** ✓
-       ★ 保留在代码里的两件（**别当垃圾删** ✗）：
+       ⇒ 现在三格：**总资产**（期末，副行给期初 ／ **本期盈亏** ／ **总盈亏**（副行给累计收益率）。
+       ▸ 箭头 + ↑/↓ 沿用原卡头那套（有箭头就不再带正负号），数值等宽
+       ▸ 总盈亏那格的副行 ＝ snapPl(cur) ÷ snapCost(cur)，与「本金与收益」卡的累计收益率**同式**
+       ★ 保留在代码里的两件（**别当垃圾删**）：
          · qTot / qFlow 的 ? 浮层文案照常产出、仍挂在 DOM 上（现在暂无按钮触发）——
            「银行进出」那套溯源口径（银证 ＋ 场外申购 ＋ 逐只明细 ＋ 手账实锤）与考证都留在
-           snapFlowTip() 里，将来要把格子加回来可直接复用 ✓（详见函数头注释 ✓）。
-         · flow / dTot 仍在别处用：flow 参与「本期盈亏 ＝ 总变化 − 资金进出」✓、
-           dTot 用于「总资产」格的期初/期末 ✓、也参与走势与区间小注 ✓。
-       ▸ 布局：三格并排用 .kpi-row.kpi3（窄屏 480px 以下自动两列 ✓ 见 positions.css）。 */
+           snapFlowTip() 里，将来要把格子加回来可直接复用 ✓（详见函数头注释）。
+         · flow / dTot 仍在别处用：flow 参与「本期盈亏 ＝ 总变化 − 资金进出」、
+           dTot 用于「总资产」格的期初/期末、也参与走势与区间小注。
+       ▸ 布局：三格并排用 .kpi-row.kpi3（窄屏 480px 以下自动两列 见 positions.css）。 */
     const arrow = (v) => '<span aria-hidden="true">' + (v >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(v);
     const plCum = snapPl(cur);
     const cumBase = snapCost(cur);
@@ -4074,12 +4074,12 @@ function snapPartsHtml(prev, cur, dTot, dPl, flow, spanDays, grp, opts) {
 }
 /* 区间 (prev.d, cur.d] 内的操作标签：场内买卖（POSITIONS.log）＋ 场外定投申购（OTC_LOG）✓
    2026-10-09 按用户要求改两处：
-     ① 标题「场内动作」→「动作」✓（现在两边都列，再叫"场内"就不准了 ✗）
-     ② 补上场外那侧的「定投 xx」标签 ✓ —— 原来只列场内（理由曾是"场外定投不产生本页流水"✗，
-        但那恰恰是用户想看的：这一期到底定投了哪些、各多少钱 ✓）。
+     ① 标题「场内动作」→「动作」✓（现在两边都列，再叫"场内"就不准了）
+     ② 补上场外那侧的「定投 xx」标签 —— 原来只列场内（理由曾是"场外定投不产生本页流水"，
+        但那恰恰是用户想看的：这一期到底定投了哪些、各多少钱）。
    ⚠ 场外只列 OTC_LOG 里 status === "成功" 的笔 ✓（待确认的不列 —— 还没扣款成功，
-     列出来会与卡内 flow 对不上 ✗）；同一只 + 同一动作的合并成一枚（早期一个月 5 笔的那种，
-     拆开会把动作行撑成三行 ✗），并标「（N 笔）」✓。 */
+     列出来会与卡内 flow 对不上）；同一只 + 同一动作的合并成一枚（早期一个月 5 笔的那种，
+     拆开会把动作行撑成三行），并标「（N 笔）」。 */
 function snapActions(prev, cur) {
   const acts = (POSITIONS.log || []).filter((e) => e.d > prev.d && e.d <= cur.d);
   const olog = (typeof OTC_LOG !== "undefined" && OTC_LOG) ? OTC_LOG : {};
@@ -4098,11 +4098,11 @@ function snapActions(prev, cur) {
     });
   });
   /* 银行转入 / 转出（FLOWS 手账 ✓）—— 2026-10-09 用户：「如果有银行转入转出 就加上 银行转入/转出 标签」✓。
-     取数判据与 flowsNet() **完全一致**（同一区间、同一字段 f.d / f.amt ✓），只是这里逐笔列出而非求和 ✓。
+     取数判据与 flowsNet() **完全一致**（同一区间、同一字段 f.d / f.amt），只是这里逐笔列出而非求和。
      ⚠ FLOWS 在公开仓库里**恒为空数组** ✓（隐私约定：收入侧指纹不入库，见 data.js 那段的注释）→
-       本段一枚标签都不产出 ✓；本地补录（data.private.backup.js 或临时填写）后才会出现 ✓ 且不会落库 ✗。
-     ▸ 配色沿用旧「银行进出」KPI 那套：转入＝add（青 · info）、转出＝cut（黄 · warn）✓ ——
-       不用 up/down（绿/红）✗：转账不是赚亏，用赚亏色会误导 ✓ */
+       本段一枚标签都不产出；本地补录（data.private.backup.js 或临时填写）后才会出现 且不会落库。
+     ▸ 配色沿用旧「银行进出」KPI 那套：转入＝add（青 · info）、转出＝cut（黄 · warn） ——
+       不用 up/down（绿/红）✗：转账不是赚亏，用赚亏色会误导 */
   const bankParts = [];
   const flRows = ((typeof FLOWS !== "undefined" && Array.isArray(FLOWS)) ? FLOWS : [])
     .filter((f) => f.d > prev.d && f.d <= cur.d).slice()
@@ -4128,7 +4128,7 @@ function snapActions(prev, cur) {
     .forEach((o) => parts.push('<span class="snap-tag ' + (/赎回/.test(o.act) ? "cut" : "add") + '" title="' +
       esc(otcName(o.code) + " · " + o.code + " · " + o.act + " " + o.amt + " 元" + (o.n > 1 ? "（" + o.n + " 笔）" : "")) + '">' +
       esc(o.act) + " " + esc(otcName(o.code)) + " " + fmtYuan(o.amt) + " 元" + (o.n > 1 ? "（" + o.n + " 笔）" : "") + "</span>"));
-  return '<div class="snap-line acts snap-sec"><span class="n" title="银行＝银证转账手账（FLOWS；公开仓库里恒为空，本地补录才有 ✓）；场内＝券商买卖流水（POSITIONS.log）；场外＝定投 / 申购 / 赎回（OTC_LOG，只列「成功」的笔）。三者金额口径不同：场内按份数成交、场外按扣款金额、银证按转账金额 ✓">动作</span><span class="v">' + parts.join("") + "</span></div>";
+  return '<div class="snap-line acts snap-sec"><span class="n" title="银行＝银证转账手账（FLOWS；公开仓库里恒为空，本地补录才有）；场内＝券商买卖流水（POSITIONS.log）；场外＝定投 / 申购 / 赎回（OTC_LOG，只列「成功」的笔）。三者金额口径不同：场内按份数成交、场外按扣款金额、银证按转账金额">动作</span><span class="v">' + parts.join("") + "</span></div>";
 }
 /* 事件标签：单一来源（中文 → 配色 class），文案即 key。
    原来 CLS（中文→class）与 TXT（class→中文）是两张互逆的表，只改一张就会标签与配色错位。 */
@@ -4224,14 +4224,14 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
      原来两者同字号同字重、各占一列（64+72px），手机上既挤名称，又分不出主次。 */
   const num = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);
   /* 整行可点（2026-10-10）：点它 → 切到「盈亏归因」看这只的逐期轨迹 ✓（见 gotoHoldInAttr ✓）。
-     ⚠ 只在**这个视图**加 ✓（同一个 snapItemRow 也用于别处吗？——不 ✓，它只服务「逐期明细」✓）。 */
+     ⚠ 只在**这个视图**加 ✓（同一个 snapItemRow 也用于别处吗？——不，它只服务「逐期明细」）。 */
   return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '" data-attr="' + esc(code) + '"'
     + ' role="button" tabindex="0" aria-label="' + esc("看 " + name + " 的逐期轨迹（跳到「盈亏归因」）") + '"'
     + ' title="' + esc("点一下（或回车）→ 到「盈亏归因」看 " + name + " 的逐期轨迹：各期贡献 ＋ 本期快照对比 ＋ 生涯累计") + '">'
     + '<span class="n" title="' + esc(name) + " · " + esc(src.f) +
       (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
     srcTag + qt + "</span>" +
-    '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（该只累计实际结果，含已实现与双边费用；清仓行＝从建仓到清仓的结果 ✓）">' +
+    '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（该只累计实际结果，含已实现与双边费用；清仓行＝从建仓到清仓的结果）">' +
       '<span class="dv ' + cls(dPlItem) + '">' + num(dPlItem) + '</span>' +
       '<span class="cv ' + cls(plCum) + '">' + num(plCum) + "</span></span></div>";
 }
@@ -4256,19 +4256,19 @@ function snapPairHtml(prev, cur) {
       if (!b) {
         /* ⚠ 2026-10-09 修正：清仓行的「本期盈亏」**不能**取「上期浮盈亏的相反数」✗ ——
            那等于把"浮亏不再挂在账上"当成收益（旧口径 -(a.pl)）：中韩半导体ETF华泰 10-09 被清掉时
-           行内显示 **+12,649**，可它是**亏着卖**的（realized −13,217.10）✗✗ —— 用户一眼看出不对 ✓。
+           行内显示 **+12,649**，可它是**亏着卖**的（realized −13,217.10）✗ —— 用户一眼看出不对。
            正确口径＝**这只在本期真正的盈亏** ＝ 卖出回款 − 本期期初市值：
              回款 = 该只在本期（prev.d, cur.d] 的卖出行 realized ＋ 该只期初成本 a.cost
-             实测：69,155.00 − 69,722.40 = **−567.40**（＝当日价跌 (4.587→4.550)×15,200 = −562.40 − 费 5.00 ✓）
-           ⚠ 找不到对应流水（或没有 realized）时退回旧口径 —— 数据层门禁强制卖出行带 realized ✓，
-             故现状不会有此分支；真出现时说明数据缺流水，而不是这里的算法问题 ✓ */
+             实测：69,155.00 − 69,722.40 = **−567.40**（＝当日价跌 (4.587→4.550)×15,200 = −562.40 − 费 5.00）
+           ⚠ 找不到对应流水（或没有 realized）时退回旧口径 —— 数据层门禁强制卖出行带 realized，
+             故现状不会有此分支；真出现时说明数据缺流水，而不是这里的算法问题 */
         /* 2026-10-09 抽共用：取值改调 periodContrib()（★ 唯一实现 ★）—— 与分组小计、盈亏归因三方同源 ✓。
-           ⚠ 本处原来是"清仓怎么算"的**手写副本之一** ✗，10-09 归因那份没跟上就出了 +635.40 的错 ✓。
+           ⚠ 本处原来是"清仓怎么算"的**手写副本之一**，10-09 归因那份没跟上就出了 +635.40 的错。
            ⚠ kind "na"（清仓但查不到流水，场外可能遇到）时 v＝0，同时打 noFlow 标记让行内显示 ⚠ ——
-             不假装"没赚没赔" ✗（0 比"缺"更误导 ✓）。
-           ▸「总盈亏」列（plCum）另说 ✓：清仓后该只成本归零、也退出 items ✗，
-             故取**该只从建仓到清仓的实际结果** ✓（＝ Σ卖出净额 − Σ买入含费，含双边费用 ✓），
-             与「清仓历史」卡**同一个数** ✓ —— 曾写死 0 ✗ 被用户当场看出，④g 盯着不许改回 ✗ */
+             不假装"没赚没赔" ✗（0 比"缺"更误导）。
+           ▸「总盈亏」列（plCum）另说 ✓：清仓后该只成本归零、也退出 items，
+             故取**该只从建仓到清仓的实际结果** ✓（＝ Σ卖出净额 − Σ买入含费，含双边费用），
+             与「清仓历史」卡**同一个数** —— 曾写死 0 被用户当场看出，④g 盯着不许改回 */
         const pc = periodContrib(code, prev, cur);
         const closedRow = closedEtfRows().filter((r) => r.sym === a.name)[0];
         diffs.push({ code: code, name: a.name, dq: null, dPlItem: pc.v, plCum: closedRow ? closedRow.pnl : 0, tag: "close",
@@ -4343,11 +4343,11 @@ function snapPairHtml(prev, cur) {
     '<h3 class="snap-head"><time class="snap-date" datetime="' + cur.d + '">' + cur.d.slice(5).replace("-", ".") + "</time>" +
       '<span class="snap-vs">vs ' + prev.d.slice(5).replace("-", ".") + (spanDays > 1 ? "（跨 " + spanDays + " 天）" : "") + "</span>" +
       /* ⚠ 2026-10-09 二次调整（用户：「本期 ↑2,304 总盈亏 ↑1,496 这两个变化改为 KPI」✓）：
-         这两个数从**卡头**下移到卡内 KPI 行（见 snapPartsHtml 的 tiles ✓）——
-         卡头只留「日期 + vs 前一期（跨 N 天）+ 事件标签」✓，一眼先看清是哪一期；
-         数字与「总资产」并排成三格，还多出了副行位置（总盈亏那格挂累计收益率 ✓）。
-         ▸ 口径一字未变：本期盈亏 ＝ 总变化 − 资金进出 ✓；总盈亏 ＝ snapPl(cur) ＝ 真·累计收益（含已实现 ✓，
-           与汇总卡 / 本金卡同一个数 ✓ —— 见 2026-10-09 那条「不再直接取快照 pl ✗」的修正 ✓）。 */
+         这两个数从**卡头**下移到卡内 KPI 行（见 snapPartsHtml 的 tiles）——
+         卡头只留「日期 + vs 前一期（跨 N 天）+ 事件标签」，一眼先看清是哪一期；
+         数字与「总资产」并排成三格，还多出了副行位置（总盈亏那格挂累计收益率）。
+         ▸ 口径一字未变：本期盈亏 ＝ 总变化 − 资金进出；总盈亏 ＝ snapPl(cur) ＝ 真·累计收益（含已实现，
+           与汇总卡 / 本金卡同一个数 —— 见 2026-10-09 那条「不再直接取快照 pl」的修正）。 */
       (cur.tag ? '<span class="snap-tag ' + snapTagCls(cur.tag) + '">' + esc(cur.tag) + "</span>" : "") + "</h3>" +
     /* 三格 KPI（总资产 / 总变化 / 银行进出）＋ 紧跟其后的银行进出小账本（2026-09-24 用户要求）——
        这三项原来是卡内三行文字；卡头的「本期 / 总盈亏」保持不变。 */
@@ -4386,8 +4386,8 @@ function closedEtfRows() {
       o.realized += (typeof e.realized === "number" ? e.realized : 0);
       o.cash += netProceedsOf(e);                                   // 卖出净回款 ✓（原子量见 netProceedsOf）
       /* ⚠ 必须取**最新**那笔卖出日：流水是"新在上"（log 新的在前），直接赋值会取到**最早**那笔 ✗
-         —— 2026-10-09 实测：中韩显示 09-16、港美显示 08-13，而两者的清仓日都是 10-09 ✗。
-         （当天新加的门禁只校验了只数与金额，没盯日期，所以是我自己复核时发现的 ✗ → 现已补断言 ✓） */
+         —— 2026-10-09 实测：中韩显示 09-16、港美显示 08-13，而两者的清仓日都是 10-09。
+         （当天新加的门禁只校验了只数与金额，没盯日期，所以是我自己复核时发现的 → 现已补断言） */
       if (!o.last || e.d > o.last) o.last = e.d;
     } else {
       o.qty += (e.qty || 0);
@@ -4398,29 +4398,29 @@ function closedEtfRows() {
   /* 主题名（纳指/标普/中韩/日本/港美）：清仓后 POSITIONS.hold 里已经没有它 ✗ → 按名称包含关系反查 ✓ */
   const themeOf = (nm) => { for (const k in MARKET_NAMES) if (nm.indexOf(MARKET_NAMES[k]) >= 0) return MARKET_NAMES[k]; return ""; };
   /* ── 券商原读数（2026-10-10 加 ✓）：平安「已清仓股票」页的**实现盈亏** ＝ 摊薄口径 ✓
-     它有两个用处 ✓：① 在卡里与上面的"生命周期实际结果"**并列显示**（两个都列，谁都不用猜 ✓）；
-     ② 给门禁当**独立校验锚** ✓（cross-check ⑥ 读它 vs 读流水推导 ✓，任何一边动了都会红 ✓）。
-     匹配按**标的名**（两只名与流水 sym 完全一致 ✓）；找不到就留 null ✓（不硬凑 ✗）。 */
+     它有两个用处 ✓：① 在卡里与上面的"生命周期实际结果"**并列显示**（两个都列，谁都不用猜）；
+     ② 给门禁当**独立校验锚** ✓（cross-check ⑥ 读它 vs 读流水推导，任何一边动了都会红）。
+     匹配按**标的名**（两只名与流水 sym 完全一致）；找不到就留 null ✓（不硬凑）。 */
   const orig = (typeof CLOSED_ETF !== "undefined" && CLOSED_ETF && Array.isArray(CLOSED_ETF.items)) ? CLOSED_ETF.items : [];
   const origOf = (nm) => orig.filter((x) => x.name === nm)[0]
     || orig.filter((x) => x.name && (String(nm).indexOf(x.name) >= 0 || x.name.indexOf(String(nm)) >= 0))[0] || null;
   return Object.keys(by).map((k) => by[k])
-    .filter((o) => o.qty === 0)                       // 期末归零 = 已了结 ✓（在持的不会被列进来 ✓）
+    .filter((o) => o.qty === 0)                       // 期末归零 = 已了结 ✓（在持的不会被列进来）
     .map((o) => ({
       sym: o.sym, theme: themeOf(o.sym), n: o.n,
       buy: o.first, sell: o.last,
       days: (o.first && o.last) ? Math.round((new Date(o.last) - new Date(o.first)) / 864e5) : null,
       /* ⚠ 2026-10-09 改口径（用户：「卡片那个数偏大……按实际结果比较好」✓）
-         pnl ＝ **生命周期实际结果** ＝ Σ卖出净额 − Σ买入含费（含双边费用 ✓、**不重复计** ✓，
-         与券商 App「累计收益」同类 ✓）。
+         pnl ＝ **生命周期实际结果** ＝ Σ卖出净额 − Σ买入含费（含双边费用、**不重复计**，
+         与券商 App「累计收益」同类）。
          旧口径「Σ逐笔 realized」**偏大** ✗：摊薄口径下每笔卖出后会重算剩余份额成本，逐笔相加减
          会把亏损**重复计一遍** —— 实测差：中韩 −13,681.06（逐笔）vs **−13,217.10**（实际）；
-         港美 −10,346.91 vs **−5,270.50** ✓。
-         ⚠ log 里逐笔的 realized **保持不动** ✓ —— 快照对比的「清仓行」要靠它反推卖出回款
-           （回款 = realized ＋ 期初成本 ✓），与本卡是两个用途 ✓ */
+         港美 −10,346.91 vs **−5,270.50**。
+         ⚠ log 里逐笔的 realized **保持不动** —— 快照对比的「清仓行」要靠它反推卖出回款
+           （回款 = realized ＋ 期初成本），与本卡是两个用途 */
       pnl: o.cash - o.buyAmt, cost: o.buyAmt, cash: o.cash,
       rate: o.buyAmt ? (o.cash - o.buyAmt) / o.buyAmt * 100 : 0,
-      orig: origOf(o.sym),                            // 券商原读数（可能 null ✓，见上方 origOf 注释 ✓）
+      orig: origOf(o.sym),                            // 券商原读数（可能 null，见上方 origOf 注释）
     }))
     .sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));   // 新的在前
 }
@@ -4434,14 +4434,14 @@ function renderClosed() {
     return;
   }
   /* 2026-10-09 按用户要求**简化**：去掉"债基 / 美股QDII / 日本QDII / A股行业"的类别分组 ✗，
-     改为「总清仓盈亏 → 总清场内 / 总清场外 → 按平台（账户 App）汇总 → 全部明细合一」✓
-     两半来源不同，必须标清（别让人以为是同一口径 ✗）：
-       · 场外＝支付宝「清仓分析」App **原读数**（CLOSED.items；平台直销四渠道从未清仓 ✓）
-       · 场内＝本页由 POSITIONS.log **推导**（含费用 ✓ 见 closedEtfRows()）
-     可以相加的依据：两半都是"已卖出兑现的盈亏" ✓、分属不同账户无重复计入 ✓
-     ⚠ 这些已实现**不进**「累计浮盈亏 / 本金」（那是持仓 / 快照口径 ✗） */
-  const OTC_PLATFORM = "支付宝";     // CLOSED 块整块来自支付宝「清仓分析」（见 data.js 注释 ✓）
-  const ETF_PLATFORM = "平安证券";   // 场内只有这一家券商（ACCT_STATS 与全部流水都指向它 ✓）
+     改为「总清仓盈亏 → 总清场内 / 总清场外 → 按平台（账户 App）汇总 → 全部明细合一」
+     两半来源不同，必须标清（别让人以为是同一口径）：
+       · 场外＝支付宝「清仓分析」App **原读数**（CLOSED.items；平台直销四渠道从未清仓）
+       · 场内＝本页由 POSITIONS.log **推导**（含费用 见 closedEtfRows()）
+     可以相加的依据：两半都是"已卖出兑现的盈亏"、分属不同账户无重复计入
+     ⚠ 这些已实现**不进**「累计浮盈亏 / 本金」（那是持仓 / 快照口径） */
+  const OTC_PLATFORM = "支付宝";     // CLOSED 块整块来自支付宝「清仓分析」（见 data.js 注释）
+  const ETF_PLATFORM = "平安证券";   // 场内只有这一家券商（ACCT_STATS 与全部流水都指向它）
   const fmt2 = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(dp === undefined ? 2 : dp) + "%";
   const days = (a, b) => (a && b) ? Math.round((new Date(b) - new Date(a)) / 864e5) : null;
@@ -4461,46 +4461,46 @@ function renderClosed() {
   const sAll = sumOf(rows), sIn = sumOf(inR), sOt = sumOf(otR);
   const cAll = rows.reduce((a, r) => a + (r.cost || 0), 0);
   /* 按**平台（账户 App）**汇总（用户要求"看到每个平台上的盈亏" ✓）：
-     按 platform 分组、不写死行数 —— 将来别的渠道也清了仓，这里会自然多一行 ✓ */
+     按 platform 分组、不写死行数 —— 将来别的渠道也清了仓，这里会自然多一行 */
   const plats = [];
   rows.forEach((r) => {
     let g = plats.filter((x) => x.p === r.platform)[0];
     if (!g) { g = { p: r.platform, kind: r.kind, n: 0, s: 0, c: 0 }; plats.push(g); }
     g.n++; g.s += r.pnl; g.c += (r.cost || 0);
   });
-  plats.sort((a, b) => (a.s - b.s));            // 亏得多的在上（与页面明细排序习惯一致 ✓）
+  plats.sort((a, b) => (a.s - b.s));            // 亏得多的在上（与页面明细排序习惯一致）
   const cnt = $("closed-cnt");
   if (cnt) cnt.textContent = "（总 " + fmt2(sAll) + " 元 ＝ 场内 " + fmt2(sIn) + " ＋ 场外 " + fmt2(sOt) +
     " · 共 " + rows.length + " 笔 · 按平台看卡内）";
   /* 券商原读数那一行的数据（2026-10-10 加 ✓，见 data.js CLOSED_ETF 注释 ✓）；
-     没这块数据时整行不渲染 ✓（不硬凑 ✗） */
+     没这块数据时整行不渲染 ✓（不硬凑） */
   const bt = (typeof CLOSED_ETF !== "undefined" && CLOSED_ETF) ? CLOSED_ETF : null;
   const qBtn = '<button type="button" class="strat-hint" data-note="closed-q" aria-label="清仓口径" aria-expanded="false">?</button>';
   const qNote = '<div class="strat-note" id="closed-q">' +
-    "来源与口径：<b>场外</b>＝支付宝 App「清仓分析」页的<b>原读数</b>（2026-09-30 三张完整版：每行含持有区间 / 清仓收益 / 清仓收益率）；" +
-    "平台直销的四个渠道（广发 / 南方 / 博时 / 华安）<b>从未清仓过</b> → 这 " + otR.length + " 笔就是场外的全部清仓史 ✓。<br>" +
+    "来源与口径：<b>场外</b>＝支付宝 App「清仓分析」页的<b>原读数</b>（三张完整版截图：每行含持有区间 / 清仓收益 / 清仓收益率）；" +
+    "平台直销的四个渠道（广发 / 南方 / 博时 / 华安）<b>从未清仓过</b> → 这 " + otR.length + " 笔就是场外的全部清仓史。<br>" +
     "<b>场内</b>＝本页由 <code>POSITIONS.log</code> <b>推导</b>：份数回放、期末归零者＝已了结；" +
-    "盈亏＝<b>生命周期实际结果</b>＝Σ卖出净额 − Σ买入含费（含双边费用 ✓、不重复计 ✓）；投入＝Σ(买入金额 ＋ 单边费) ✓。<br>" +
-    "⚠ 为什么**不用**「Σ逐笔 realized」：摊薄口径下每笔卖出后会重算剩余份额成本，逐笔相加减会把亏损<b>重复计一遍</b> ✗ ——" +
-    "例：中韩 −13,681.06（逐笔）vs <b>−13,217.10</b>（实际）；港美 −10,346.91 vs <b>−5,270.50</b>（2026-10-09 与用户核对后改 ✓）。<br>" +
-    "两半都是「已卖出兑现的盈亏」、分属<b>不同账户</b>、无重复计入 → <b>可以相加</b> ✓；但仍分场内 / 场外两栏 —— " +
+    "盈亏＝<b>生命周期实际结果</b>＝Σ卖出净额 − Σ买入含费（含双边费用、不重复计）；投入＝Σ(买入金额 ＋ 单边费)。<br>" +
+    "⚠ 为什么**不用**「Σ逐笔 realized」：摊薄口径下每笔卖出后会重算剩余份额成本，逐笔相加减会把亏损<b>重复计一遍</b> ——" +
+    "例：中韩 −13,681.06（逐笔）vs <b>−13,217.10</b>（实际）；港美 −10,346.91 vs <b>−5,270.50</b>。<br>" +
+    "两半都是「已卖出兑现的盈亏」、分属<b>不同账户</b>、无重复计入 → <b>可以相加</b>；但仍分场内 / 场外两栏 —— " +
     "因为这决定了你信哪一份（App 原读数 vs 本页推导）。<br>" +
-    "⚠ <b>回款 ≠ 盈亏</b>：回款是卖出收回的现金（场内每只都给出精确值 ✓；场外 App 不给这个读数 ✗）。<br>" +
-    "⚠ 这些已实现盈亏<b>不进</b>「累计浮盈亏 / 本金」—— 那边是持仓（快照）口径 ✗；" +
+    "⚠ <b>回款 ≠ 盈亏</b>：回款是卖出收回的现金（场内每只都给出精确值；场外 App 不给这个读数）。<br>" +
+    "⚠ 这些已实现盈亏<b>不进</b>「累计浮盈亏 / 本金」—— 那边是持仓（快照）口径；" +
     "场外那 " + otR.length + " 笔绝大多数发生在首份快照（2026-08-28）之前（最晚一笔 2026-09-01）。<br>" +
-    "⚠ 「清仓后涨跌幅」本页不展示（2026-09-30 用户要求整列停用；数据留在 data.js 的 after 字段作留档 ✓）。<br>" +
-    "<b>券商原读数</b>（2026-10-10 加 ✓）：平安「已清仓股票 · 近三月」页另给一份<b>实现盈亏</b>（摊薄口径 ✓）——" +
-    "场内合计 <b>" + (bt ? fmt2(bt.total) : "—") + "</b> ✓" +
+    "⚠ 「清仓后涨跌幅」本页不展示；数据留档在 data.js 的 after 字段。<br>" +
+    "<b>券商原读数</b>：平安「已清仓股票 · 近三月」页另给一份<b>实现盈亏</b>（摊薄口径）——" +
+    "场内合计 <b>" + (bt ? fmt2(bt.total) : "—") + "</b>" +
     "（逐只 " + (bt ? bt.items.map((x) => x.name + " " + fmt2(x.pnl) + " / 同期大盘 " + pct(x.bench)).join(" · ") : "—") + "）；" +
-    "与上面「生命周期」口径合计差 <b>" + (bt ? fmt2(bt.total - sIn) : "—") + "</b>（港美卖出成交价取整尾差 ✓）。" +
-    "两个都列出来 ✓ —— 谁都不用猜哪个是对的 ✓（「本金修正」用的是<b>摊薄</b>那份 ✓，所以它是更关键的那个 ✓）。" +
+    "与上面「生命周期」口径合计差 <b>" + (bt ? fmt2(bt.total - sIn) : "—") + "</b>（港美卖出成交价取整尾差）。" +
+    "两个都列出来 —— 谁都不用猜哪个是对的 ✓（「本金修正」用的是<b>摊薄</b>那份，所以它是更关键的那个）。" +
     "</div>";
   const rowHtml = (r) => {
     const meta = [];
     if (r.buy && r.sell) meta.push(r.buy.slice(5).replace("-", ".") + "→" + r.sell.slice(5).replace("-", ".") + (r.days === null ? "" : " · " + r.days + " 天"));
     if (typeof r.rate === "number") meta.push("收益率 " + pct(r.rate));
-    if (r.cost !== null) meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US") + (r.kind === "场内" ? " ✓" : ""));
-    if (r.kind === "场内" && Number.isFinite(r.cash)) meta.push("回款 " + Math.round(r.cash).toLocaleString("en-US") + " ✓");
+    if (r.cost !== null) meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US") + (r.kind === "场内" ? "" : ""));
+    if (r.kind === "场内" && Number.isFinite(r.cash)) meta.push("回款 " + Math.round(r.cash).toLocaleString("en-US") + "");
     return '<div class="closed-row"' + (r.sym ? ' data-sym="' + esc(r.sym) + '"' : "") + ">" +
       '<span class="c-nm"><b>' + esc(r.name) + "</b>" +
         '<span class="c-code">' + esc(r.platform) + "</span>" +
@@ -4514,25 +4514,25 @@ function renderClosed() {
       '<span class="b-k">总清场外盈亏</span><span class="b-v ' + cls(sOt) + '">' + fmt2(sOt) + "（" + otR.length + " 笔 · " + OTC_PLATFORM + " App 原读数）</span>" +
       '<span class="b-k">总清场内盈亏</span><span class="b-v ' + cls(sIn) + '">' + fmt2(sIn) + "（" + inR.length + " 只 · 本页由流水推导、含费用）</span>" +
       /* 券商原读数（2026-10-10 加 ✓，数据在 data.js CLOSED_ETF ✓）：与上面那行**并列**显示 ✓ ——
-         它＝摊薄口径的实现盈亏 ✓（「本金修正」用的就是它 ✓），两者差 4.40 元（港美卖出成交价取整 ✓）。
-         `id` 给门禁取精确值 ✓（cross-check ④q 断言：原读数 ≡ 流水推导 ✓、页面 ≡ data.js ✓）。 */
+         它＝摊薄口径的实现盈亏 ✓（「本金修正」用的就是它），两者差 4.40 元（港美卖出成交价取整）。
+         `id` 给门禁取精确值 ✓（cross-check ④q 断言：原读数 ≡ 流水推导、页面 ≡ data.js）。 */
       (bt ? '<span class="b-k">券商原读数</span><span class="b-v" id="closed-etf-orig" data-orig="' + bt.total.toFixed(2) + '">'
         + fmt2(bt.total) + "（" + bt.count + " 笔 · 逐只 " + bt.items.map((x) => x.name + " " + fmt2(x.pnl)).join(" · ") + "）"
-        + '<span class="snap-sub">＝<b>摊薄口径</b>实现盈亏 ✓（「本金修正」用的就是它 ✓）；与上面「生命周期」口径差 '
-        + fmt2(bt.total - sIn) + "（港美卖出成交价取整尾差 ✓）</span></span>" : "") +
+        + '<span class="snap-sub">＝<b>摊薄口径</b>实现盈亏 ✓（「本金修正」用的就是它）；与上面「生命周期」口径差 '
+        + fmt2(bt.total - sIn) + "（港美卖出成交价取整尾差）</span></span>" : "") +
       '<span class="b-k">投入 ≈ / 加权</span><span class="b-v">' + fmtYuan(cAll) + " 元 → <b class=\"" + cls(sAll) + '">' + pct(cAll ? sAll / cAll * 100 : 0) + "</b>（场外投入由「盈亏 ÷ 收益率」反推 ≈）</span>" +
       '<span class="b-k">笔数</span><span class="b-v">场外 ' + otR.length + " 笔 ＋ 场内 " + inR.length + " 只 ＝ " + rows.length + " 笔（明细见下，按清仓日倒序）</span>" +
       /* 两份**聚合读数**（2026-10-12 补）：数据早就在（data.js 的 CLOSED.winRate/avgHoldDays、
-         CLOSED_ETF 的 winRate/avgHoldDays/avgWin/avgLoss/maxLoss/dividend ✓），此前只显示了合计 ✗ ——
-         有了这两行才回答得上「胜率多少 / 平均持有多久 / 最惨一笔亏多少」 ✓。
-         ⚠ 两份口径不同（场外＝支付宝清仓分析原读数 ｜ 场内＝平安「已清仓股票」摊薄口径 ✓）→ 分行显示、不合并 ✗ */
+         CLOSED_ETF 的 winRate/avgHoldDays/avgWin/avgLoss/maxLoss/dividend），此前只显示了合计 ——
+         有了这两行才回答得上「胜率多少 / 平均持有多久 / 最惨一笔亏多少」。
+         ⚠ 两份口径不同（场外＝支付宝清仓分析原读数 ｜ 场内＝平安「已清仓股票」摊薄口径）→ 分行显示、不合并 */
       (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)
         ? '<span class="b-k">场外 · 胜率 / 持有</span><span class="b-v" id="closed-otc-agg" data-winrate="' + CLOSED.winRate
           + '" data-hold="' + CLOSED.avgHoldDays + '" data-n="' + CLOSED.count + '">胜率 <b>' + CLOSED.winRate + "%</b>（" + CLOSED.count
           + " 笔）· 平均持有 <b>" + CLOSED.avgHoldDays + "</b> 天 · 单笔最大盈利 <b class=\"up\">"
           + fmt2(Math.max.apply(null, CLOSED.items.map((x) => x.pnl))) + "</b> · 最惨 <b class=\"down\">"
           + fmt2(Math.min.apply(null, CLOSED.items.map((x) => x.pnl))) + "</b>"
-          + '<span class="snap-sub">支付宝「清仓分析」原读数 ✓（区分：这是 App 口径，本页推导那份见上一行 ✓）</span></span>' : "") +
+          + '<span class="snap-sub">支付宝「清仓分析」原读数 ✓（区分：这是 App 口径，本页推导那份见上一行）</span></span>' : "") +
       (bt
         ? '<span class="b-k">场内 · 胜率 / 持有</span><span class="b-v" id="closed-etf-agg" data-winrate="' + bt.winRate
           + '" data-hold="' + bt.avgHoldDays + '" data-maxloss="' + bt.maxLoss + '" data-avgwin="' + bt.avgWin + '">胜率 <b>'
@@ -4561,19 +4561,19 @@ function renderClosed() {
  *   与走势图上两条线之间的竖直间距是同一个数（快照的 pl 字段）。
  * 已卖出 ＝ 券商流水逐笔「实现盈亏」之和 − 卖出费；余额归入「未卖出」（含买入费与摊薄口径微差）。 */
 /* ── 本金与收益卡 · 拆分说明（2026-10-12，P1-b）────────────────────────────────────────────
-   原来是一个 ~635 行的单体函数 ✗ —— 数据准备、KPI 三格、收益率口径、逐只 XIRR 表、
-   逐只体检表、收益构成全挤在一起 ✗。现按「准备 → 视图 → 装配」拆成六段，
+   原来是一个 ~635 行的单体函数 —— 数据准备、KPI 三格、收益率口径、逐只 XIRR 表、
+   逐只体检表、收益构成全挤在一起。现按「准备 → 视图 → 装配」拆成六段，
    **纯代码搬移** ✓（不改任何一行输出逻辑 ✓）：
      · prCtx()           —— ① 数据准备（快照推导的本金 / 收益 / 拆解 ＋ 口径浮层文案）
      · prRateSec()       —— ② 收益率口径（TWR / XIRR / 同节奏基准 ＋ 卡顶一句话结论）
      · prPerFund(C)      —— ③ 逐只 XIRR＋TWR 表 ＋ 逐只体检表（只要末期快照 → C.cur）
      · prKpisHtml(C)     —— ④ 本金＋累计收益＝总资产 三格
      · prMixHtml(C)      —— ⑤ 收益构成（已实现 / 未实现 / 按账户）
-     · renderPrincipal() —— ⑥ 只剩装配（拼段 → 注入 box，顺序与拆前一致 ✓）
-   段间状态一律走上下文对象 C（原来靠闭包共享 ✗，拆开后必须显式传递 ✓）。
-   铁律：DOM 输出逐字节不变 ✓ —— 与 P1-a 共用同一套 9 状态 sha256 基线
-   （/tmp/p1a-domsha.js；A~I 每个状态的整棵 DOM 都含本卡输出 ✓，
-   本卡无交互态、details 默认全收 ✓，故 9 状态足够覆盖）。 */
+     · renderPrincipal() —— ⑥ 只剩装配（拼段 → 注入 box，顺序与拆前一致）
+   段间状态一律走上下文对象 C（原来靠闭包共享，拆开后必须显式传递）。
+   铁律：DOM 输出逐字节不变 —— 与 P1-a 共用同一套 9 状态 sha256 基线
+   （/tmp/p1a-domsha.js；A~I 每个状态的整棵 DOM 都含本卡输出，
+   本卡无交互态、details 默认全收，故 9 状态足够覆盖）。 */
 function prCtx() {
   const box = $("principal-card");
   if (!box) return;
@@ -4584,45 +4584,45 @@ function prCtx() {
   }
   const cur = snaps[snaps.length - 1];
   const total = snapTotal(cur);
-  const principal = snapCost(cur);                 // 累计投入（＝持仓成本 ＋ 现金 ＋ 全额清仓加回 ✓）
+  const principal = snapCost(cur);                 // 累计投入（＝持仓成本 ＋ 现金 ＋ 全额清仓加回）
   /* 2026-10-09 改（用户选 A）：累计收益**不再直接取快照 pl** ✗ ——
-     pl 是摊薄口径的「在持浮盈亏」（＝券商 App 的「浮动盈亏」），全额清仓后它不含已兑现那部分 ✗；
-     正确口径恒为「总资产 − 本金」✓（本金里已加回清仓漏出的已实现 ✓）：
-     10-09 实测 pl 19,988.31 ✗ → 累计收益 **+1,496.31** ✓（＝ 19,988.31 − 18,492.00 ✓）。 */
+     pl 是摊薄口径的「在持浮盈亏」（＝券商 App 的「浮动盈亏」），全额清仓后它不含已兑现那部分；
+     正确口径恒为「总资产 − 本金」✓（本金里已加回清仓漏出的已实现）：
+     10-09 实测 pl 19,988.31 → 累计收益 **+1,496.31** ✓（＝ 19,988.31 − 18,492.00）。 */
   const pnl = total - principal;
   /* （此处原有的死码 `const sells = …filter(isSellAct)` 已删：零消费 ✓；别与逐只表 / 历史极值段里各自内层的 sells 混淆。） */
   const gap = closedCostGap(cur.d);
   /* 已实现（已离场）＝ 只有「使某标的累计份数归零」的那笔才算 ✓。
-     ⚠ 2026-10-09 改（原来取「Σ全部卖出的 realized − 卖出费」✗）：摊薄成本额本身就是
+     ⚠ 2026-10-09 改（原来取「Σ全部卖出的 realized − 卖出费」）：摊薄成本额本身就是
        「Σ买入含费 − Σ卖出净额」，一只标的被整体清仓时，那笔平仓的 realized 已把**此前部分卖出**
-       的效应含在里面 ✓ —— 再把那些部分卖出单列一次就是重复计 ✗（10-09 会把已实现从 −18,492
-       虚增到 −2.6 万量级 ✗）。费用已含在平仓笔的净回款里 ✓ 故不再另减。 */
-  const cashed = -gap;                             // 已实现（10-09：−18,492.00 ✓）
-  const held = pnl - cashed;                       // 未实现（还拿在手里的账面浮动）＝ Σ快照逐只 pl ✓
+       的效应含在里面 —— 再把那些部分卖出单列一次就是重复计 ✗（10-09 会把已实现从 −18,492
+       虚增到 −2.6 万量级）。费用已含在平仓笔的净回款里 故不再另减。 */
+  const cashed = -gap;                             // 已实现（10-09：−18,492.00）
+  const held = pnl - cashed;                       // 未实现（还拿在手里的账面浮动）＝ Σ快照逐只 pl
   const rate = principal ? pnl / principal * 100 : 0;
   const cnt = $("prin-cnt");
   if (cnt) cnt.textContent = "（截至 " + mdOf(cur.d) + " · 本金＝外部净转入）";
   const qBtn = '<button type="button" class="strat-hint" data-note="prin-q" aria-label="本金与收益口径" aria-expanded="false">?</button>';
   /* 本金 ＝ 持仓成本 ＋ 现金 ＋ 全额清仓加回：现金是真转进来、但还没买成持仓的那部分（减仓回款也停在这里）；
-     第三项见 closedCostGap() 的注释（摊薄口径下全额清仓会把它整块漏掉 ✗，2026-10-09 首次遇到 ✓）。
+     第三项见 closedCostGap() 的注释（摊薄口径下全额清仓会把它整块漏掉，2026-10-09 首次遇到）。
      这条等式把「本金」与「盈亏总览」里逐只本金之和（＝持仓成本）接起来——两处都叫本金，差的就是它。 */
   const cash = (typeof cur.cash === "number") ? cur.cash : ((typeof OTC !== "undefined" && OTC.cash) || 0);
   const holdCost = (snapHoldCost(cur) !== null) ? snapHoldCost(cur) : principal - cash - gap;
   /* 收益的两种成色（2026-10-09 改口径后反而更简单）：
-       已实现 ＝ **全额清仓**落袋的那些（钱已离开持仓 ✓，＝ −gap ✓）
-       未实现 ＝ 累计收益 − 已实现 ≡ **Σ快照逐只 pl** ✓ ——
-     场内券商用摊薄成本，部分卖出的效应已折进剩余仓位成本 ✓，所以它能直接取逐只之和，
-     不再需要旧版那种"从「未实现」里倒扣"的手法（旧注释与 ±10 元微差一并作废 ✓）。 */
+       已实现 ＝ **全额清仓**落袋的那些（钱已离开持仓，＝ −gap）
+       未实现 ＝ 累计收益 − 已实现 ≡ **Σ快照逐只 pl** ——
+     场内券商用摊薄成本，部分卖出的效应已折进剩余仓位成本，所以它能直接取逐只之和，
+     不再需要旧版那种"从「未实现」里倒扣"的手法（旧注释与 ±10 元微差一并作废）。 */
   const items = cur.items || {};
   const hasItems = Object.keys(items).length > 0;
   const unrealOtc = Object.keys(items).filter((c) => !isOnExchange(c)).reduce((a, c) => a + (items[c].pl || 0), 0);
-  const unrealEtf = held - unrealOtc;              // 10-09：＝ Σ场内逐只 pl = +21,641.85 ✓
+  const unrealEtf = held - unrealOtc;              // 10-09：＝ Σ场内逐只 pl = +21,641.85
   /* 累计收益的「场内 / 场外」拆解（2026-10-09 加，起于用户一问「累计收益包含场内场外对吗？」）：
-     包含 ✓，但**不能**拿汇总卡右侧那两格直接相加 ✗ —— 那两格是在持口径，场内那半还差一个「已兑现」
-     （摊薄成本把已实现折进了剩余仓位，全额清仓时又整块漏出 → 单列成 cashed ✓）。
-     场外那半恰好＝场外的全部贡献 ✓（期内无卖出；那 17 笔历史清仓在首份快照之前、不在本口径 ✓）。
-     场内取「累计收益 − 场外」，以保证两者**相加严格等于上面那行** ✓
-     （与独立互算的 3,151.51 差 1.66 元，正是仓库既有的对账尾差 ✓）。 */
+     包含，但**不能**拿汇总卡右侧那两格直接相加 —— 那两格是在持口径，场内那半还差一个「已兑现」
+     （摊薄成本把已实现折进了剩余仓位，全额清仓时又整块漏出 → 单列成 cashed）。
+     场外那半恰好＝场外的全部贡献 ✓（期内无卖出；那 17 笔历史清仓在首份快照之前、不在本口径）。
+     场内取「累计收益 − 场外」，以保证两者**相加严格等于上面那行**
+     （与独立互算的 3,151.51 差 1.66 元，正是仓库既有的对账尾差）。 */
   const contribOtc = unrealOtc;
   const contribEtf = pnl - contribOtc;
   /* 场外 / 场内拆分本身较长，独占一行（.snap-sub 允许换行；挤在一行会折成难读的两截）。
@@ -4633,25 +4633,25 @@ function prCtx() {
     + "买卖、申赎、手续费、税费都只是账户内的「现金 ↔ 持仓」转换，<b>不改变本金</b>；只有真从外面转进 / 转出才会让它变。"
     + "股数、买卖、税费都不会污染这一行，所以「本金有没有变」＝ 有没有真金白银转进来。<br>"
     + "<b>本金 ＝ 持仓成本 " + fmtYuan(holdCost) + " ＋ 现金 " + fmtYuan(cash) + "</b> ＋ 全额清仓加回 <b>" + fmtAmt2(gap) + "</b>。"
-    + "第三项（摊薄口径下被漏出、故显式加回 ✓）＝ 那些**整体卖掉**的标的之兑现盈亏的相反数："
-    + "亏损的钱离开了持仓、成本额也跟着消失 ✗，不加回本金就会比真·银证净转入低（2026-10-09 首次清仓实测差 18,490 ✗）。"
+    + "第三项（摊薄口径下被漏出、故显式加回）＝ 那些**整体卖掉**的标的之兑现盈亏的相反数："
+    + "亏损的钱离开了持仓、成本额也跟着消失，不加回本金就会比真·银证净转入低（2026-10-09 首次清仓实测差 18,490）。"
     + "现金是转进来但还没买成持仓的那部分（减仓回款也停在这里），所以「盈亏总览」里逐只本金相加（＝持仓成本）会比这一行少一个现金数。<br>"
-    + "<b>累计收益</b> ＝ 总资产 − 本金，即<b>本金 ＋ 累计收益 ＝ 总资产</b>——<b>含已卖出的兑现盈亏</b> ✓，"
-    + "与走势图上「总资产 / 累计投入」两条线之间的竖直间距是同一个数 ✓。"
-    + "⚠ 它<b>不等于</b>汇总卡右侧那两格「累计浮盈亏 · 场内 / 场外」之和 ✗ —— 那两格是**在持**口径（券商 / 基金 App 的「浮动盈亏」）。<br>"
-    + "<b>收益构成</b>按「离没离场」分两种：<b>已实现</b>＝**全额清仓**那些标的的兑现盈亏（费用含在净回款里 ✓；"
-    + "部分卖出不加单 ✗ —— 摊薄成本额已把它的效应折进剩余仓位成本 ✓）；"
-    + "<b>未实现</b> ＝ 累计收益 − 已实现，就是还拿在手里的账面浮动，再按市场拆成场外 / 场内 ✓。</div>";
+    + "<b>累计收益</b> ＝ 总资产 − 本金，即<b>本金 ＋ 累计收益 ＝ 总资产</b>——<b>含已卖出的兑现盈亏</b>，"
+    + "与走势图上「总资产 / 累计投入」两条线之间的竖直间距是同一个数。"
+    + "⚠ 它<b>不等于</b>汇总卡右侧那两格「累计浮盈亏 · 场内 / 场外」之和 —— 那两格是**在持**口径（券商 / 基金 App 的「浮动盈亏」）。<br>"
+    + "<b>收益构成</b>按「离没离场」分两种：<b>已实现</b>＝**全额清仓**那些标的的兑现盈亏（费用含在净回款里；"
+    + "部分卖出不加单 —— 摊薄成本额已把它的效应折进剩余仓位成本）；"
+    + "<b>未实现</b> ＝ 累计收益 − 已实现，就是还拿在手里的账面浮动，再按市场拆成场外 / 场内。</div>";
   /* ── 上下文打包（一次准备、下游各段全从 C 取 ✓，不再共享闭包 ✗）──
-     gap / holdCost / items / hasItems / unrealOtc / unrealEtf 只被本段的口径文案就地消费 ✓
-     （qNote ／ cashNote ／ contribOtc ＝ unrealOtc），下游用不到 → 不导出 ✓。 */
+     gap / holdCost / items / hasItems / unrealOtc / unrealEtf 只被本段的口径文案就地消费
+     （qNote ／ cashNote ／ contribOtc ＝ unrealOtc），下游用不到 → 不导出。 */
   return { box, cur, total, principal, pnl, cashed, held, rate, cash, qBtn,
     contribEtf, contribOtc, cashNote, qNote };
 }
 
 /* ── ② 收益率口径（原单体函数中段整块**原样移入** ✓；只依赖全局 trendCtx / BENCH 等 ✓）──
    产出两块：折叠块 rateSec ＋ 卡顶一句话结论 conclLine —— 两者共用同一批中间量
-   （twr / bTwr / ann / days ✓），若拆成两个函数就得算两遍 ✗，故合并返回 ✓。 */
+   （twr / bTwr / ann / days），若拆成两个函数就得算两遍，故合并返回。 */
 function prRateSec() {
   /* ===== 两种收益率口径（借鉴 Portfolio Performance 的账目学）=====================
      TWR（时间加权）＝按快照末端资金流逐期剔除转入/转出 → 衡量"标的与持有本身"
@@ -4725,9 +4725,9 @@ function prRateSec() {
 }
 
 /* ── ②′ 逐只 TWR / XIRR 的**纯计算底座**（2026-10-12 第二批 ④：从 prPerFund 拆出）──
-   只消费全局数据（SNAPSHOTS / POSITIONS / OTC_LOG / BENCH）与窗口参数，**不碰 DOM** ✓
-   —— prPerFund 此前 460+ 行里混着这 40 行闭包工具，违反文件头「纯计算函数不碰 DOM」的分区规矩 ✗。
-   每次调用现算（prPerFund 一个渲染周期只调一次 ✓）；不做缓存 —— 数据一变就得失效，缓存收益≈0 ✗。 */
+   只消费全局数据（SNAPSHOTS / POSITIONS / OTC_LOG / BENCH）与窗口参数，**不碰 DOM**
+   —— prPerFund 此前 460+ 行里混着这 40 行闭包工具，违反文件头「纯计算函数不碰 DOM」的分区规矩。
+   每次调用现算（prPerFund 一个渲染周期只调一次）；不做缓存 —— 数据一变就得失效，缓存收益≈0。 */
 function perFundCalcBase() {
   /* 逐只 TWR（时间加权）：窗口固定为「首个含持仓明细的快照 → 最新」，按快照期切段、
      每段剔除该只自己的资金流后连乘 —— 它衡量【标的本身】，与进出金时点无关。
@@ -4744,7 +4744,7 @@ function perFundCalcBase() {
     const symMap = {}; POSITIONS.hold.forEach((h) => { symMap[h.sym] = h.code; });
     (POSITIONS.log || []).forEach((e) => { const c = symMap[e.sym]; if (!c) return;
       /* 卖出判定用全局 isSellAct（2026-10-12 统一；此前散写 /卖出/ —— 数据里 act 只有建仓/买入/卖出 ✓
-         两者当前等价；未来若出现「减仓 / 清仓」，现金流记负号本就**应该** ✓） */
+         两者当前等价；未来若出现「减仓 / 清仓」，现金流记负号本就**应该**） */
       (etfFlow[c] = etfFlow[c] || []).push({ d: e.d, amt: (isSellAct(e.act) ? -1 : 1) * (e.qty || 0) * (e.cost || 0) }); });
   }
   const flowIn = (code, d0, d1) => (OTC_LOG[code] || []).filter((t) => t.status === "成功")
@@ -4783,8 +4783,8 @@ function perFundCalcBase() {
 }
 
 /* ── ③ 逐只 XIRR＋TWR ＋ 逐只体检（原单体函数尾段整块**原样移入** ✓）──
-   只消费末期快照（lastD / lastItems / extOf 里的 cur.d ✓）→ 入参取 C.cur ✓；
-   其余依赖（SNAPSHOTS / OTC_LOG / OTC / POSITIONS / BENCH / DEFAULT / calcXIRR …）全是全局 ✓。 */
+   只消费末期快照（lastD / lastItems / extOf 里的 cur.d）→ 入参取 C.cur；
+   其余依赖（SNAPSHOTS / OTC_LOG / OTC / POSITIONS / BENCH / DEFAULT / calcXIRR …）全是全局。 */
 function prPerFund(C) {
   const cur = C.cur;
   /* ===== 逐只资金加权（XIRR）===================================================
@@ -4860,7 +4860,7 @@ function prPerFund(C) {
     const etfRows = [];
     if (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold) && Object.keys(lastItems).length) {
       const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e.act));
-      const feeOfEtf = feeOf;   // 与全局同一实现（2026-10-12 收拢；此前本函数内又写了一份 ✗）
+      const feeOfEtf = feeOf;   // 与全局同一实现（2026-10-12 收拢；此前本函数内又写了一份）
       POSITIONS.hold.forEach((h) => {
         const code = String(h.code);
         const it = lastItems[code];
@@ -4917,7 +4917,7 @@ function prPerFund(C) {
          ⚠ 它评的是**「你的钱」**（按你实际出入金的日期与金额），不是标的本身（标的是 TWR 那列）。 */
       const rfPer = (d) => ((rf === null || !(d > 0)) ? null : Math.pow(1 + rf, d / 365) - 1);
       const gradeOf = (r) => {
-        const pp = fmtPp;   // 全局 fmtPp 同一实现（2026-10-12 收拢；此前本函数内自写了一份 ✗）
+        const pp = fmtPp;   // 全局 fmtPp 同一实现（2026-10-12 收拢；此前本函数内自写了一份）
         if (r.miss) return { k: "na", t: "⏳", why: "缺成交流水 → 算不出「你的钱」赚了多少，不评级" };
         if (rf === null) return { k: "na", t: "⏳", why: "缺无风险利率（10Y）→ 无从对照，不评级" };
         if (!(r.expo >= 30)) return { k: "na", t: "⏳", why: "有效在场期仅 " + Math.round(r.expo || 0) + " 天（< 30 天）→ 比较无意义，不评级" };
@@ -5019,8 +5019,8 @@ function prPerFund(C) {
             " · 最好 " + fmtPp(rank[rank.length - 1].ex, 1) + "（" + rank[rank.length - 1].nm + "）"
           : " · 有效在场期均不足 30 天，暂不评级") +
         " · " + (drift.length ? "⚠ " + drift.length + " 只流水比快照成本多，需核对"
-          : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平 ✓"
-          : "与快照成本逐只对平 ✓") + "）</span></summary>" +
+          : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平"
+          : "与快照成本逐只对平") + "）</span></summary>" +
         /* 真表格（2026-09-30 重做）：8 列、列宽由内容自动对齐 —— 「对不齐」的根治就在这里。
            数字列一律右对齐 + 等宽，所以连小数点也成一条线；第二行的自由文本改为「备注」列、一条一行。
            手机端由 CSS 落成「名称独占一行 + 分项等宽三列 ×2 行 + 备注」（与操作体检同构）。 */
@@ -5091,7 +5091,7 @@ function prPerFund(C) {
                 : r.n + " 笔申购共 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtYuan(r.transit) + "）" : "")) +
                 "；现值 " + fmtYuan(r.val) + "，简单 " + fmtPct(r.rate, 2),
               /* ④ 数据自检 */
-              warn ? "数据：" + warn : "数据：Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平 ✓"
+              warn ? "数据：" + warn : "数据：Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平"
             ];
           notes.push(extLine(extOf(r)));   /* ⑤ 历史极值（最大浮盈 / 最深浮亏 / 已实现单笔最好·最差） */
           /* 结论（用户要求「给一个结论」）：一句话把这一行说清楚 —— 跑赢/没跑赢、在同类里第几、
@@ -5149,7 +5149,7 @@ function prPerFund(C) {
          输入不足的项一律标 ⏳「样本不足」而不是硬给结论 —— 与全页同一条原则。
          每行只出「3 枚灯的结论」，具体数字都在上面的逐只表里、也在本行 title 里（避免重复占屏）。 */
       /* rf 与 winDays 都已提到本块开头（评级与表尾图例要用），此处不再重复声明 */
-      const IC = { ok: "✓", watch: "⚠", bad: "✗", na: "⏳" };
+      const IC = { ok: "", watch: "⚠", bad: "", na: "⏳" };
       perFundSec += '<details class="pf-fold"><summary class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 时点＝同窗口 XIRR − TWR ③ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
         '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
         " · 骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜「你的钱」是否达标＝上一张表的评级（同口径，不重复给灯）" +
@@ -5170,7 +5170,7 @@ function prPerFund(C) {
           const twrB = (r.theme === "ndx" && benchRet !== null) ? twrRange(r.code, bStart, bEnd) : null;
           /* ① 也要 ≥90 天才出结论：短窗口下「QDII 联接 vs 指数」本身不可比 ——
              币种不同（人民币净值 vs 美元指数）＋ QDII 净值滞后 1~2 个交易日，
-             11 天的错配足以造出 2~3pp 的假差距（首版就在这里误报了"标的落后"✗）。 */
+             11 天的错配足以造出 2~3pp 的假差距（首版就在这里误报了"标的落后"）。 */
           const bDays = (bStart && bEnd) ? Math.round((Date.parse(bEnd) - Date.parse(bStart)) / 86400000) : 0;
           const v1 = (twrB === null || benchRet === null || bDays < 90) ? "na" : (twrB >= benchRet - 0.005 ? "ok" : "bad");
           const xW = (winDays >= 90 && r.v0 > 0) ? xirrRange(r.code, full[0].d, full[full.length - 1].d, r.v0, r.val) : null;
@@ -5188,8 +5188,8 @@ function prPerFund(C) {
               : " · Σ 与快照成本对平" + (r.transit > 0.05 ? "（含在途补记 " + fmtAmt2(r.transit) + "）" : ""));
           const concl = (v1 === "na" && v3 === "na")
             ? "跨度与基准都不足 → 暂不出结论（数据够了会自动点亮）"
-            : (v1 === "bad" ? "标的落后同类指数 ✗" : v1 === "ok" ? "标的持平或更好 ✓" : "") +
-              (v3 === "bad" ? "；节奏拖累 ✗" : v3 === "ok" ? "；节奏加分 ✓" : "") ||
+            : (v1 === "bad" ? "标的落后同类指数" : v1 === "ok" ? "标的持平或更好" : "") +
+              (v3 === "bad" ? "；节奏拖累" : v3 === "ok" ? "；节奏加分" : "") ||
               "「你的钱」是否达标见上一张表的评级（同口径，不在这里重复）";
           /* 四枚灯各占一列：颜色与字重见 CSS 里的 .xr-tbl b.ok/.watch/.bad/.na（与 .oc-* 同色系）。
              完整推导（含每个数的来源）挂在标的格上 —— 桌面悬停可看，不必占屏。 */
@@ -5217,7 +5217,7 @@ function prKpisHtml(C) {
       '<div class="pk"><div class="pk-k">本金</div><div class="pk-v">' + fmtYuan(C.principal) + "</div>" +
         '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(C.cash) + '。">外部净转入</div></div>' +
       '<div class="pk-op" aria-hidden="true">＋</div>' +
-      '<div class="pk"><div class="pk-k" title="快照口径：＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。与「账户累计盈亏」（券商 / 月度账单口径）不是同一个数 ✗">累计收益（快照口径）</div><div class="pk-v ' + cls(C.pnl) + '">' + fmtAmt2(C.pnl) + "</div>" +
+      '<div class="pk"><div class="pk-k" title="快照口径：＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。与「账户累计盈亏」（券商 / 月度账单口径）不是同一个数">累计收益（快照口径）</div><div class="pk-v ' + cls(C.pnl) + '">' + fmtAmt2(C.pnl) + "</div>" +
         '<div class="pk-n">' + fmtPct(C.rate / 100, 2) + C.qBtn + "</div></div>" +
       '<div class="pk-op" aria-hidden="true">＝</div>' +
       '<div class="pk"><div class="pk-k">总资产</div><div class="pk-v">' + fmtYuan(C.total) + "</div>" +
@@ -5234,22 +5234,22 @@ function prMixHtml(C) {
     '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(C.cashed) + " · 未实现 " + fmtAmt2(C.held) + "</span></summary>" +
     '<div class="snap-tbl">' +
       '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(C.cashed) + '">' + fmtAmt2(C.cashed) +
-        '</b><span class="snap-sub">' + (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计 ✓）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里 ✓）") + "</span></span></div>" +
+        '</b><span class="snap-sub">' + (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里）") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(C.held) + '">' + fmtAmt2(C.held) +
         '</b><span class="snap-sub">' + (C.held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动（＝ Σ 逐只在持浮动盈亏）" + C.cashNote + "</span></span></div>" +
       /* 按账户拆解（2026-10-09 加）：回答「累计收益包含场内场外对吗」= 包含 ✓，
-         ⚠ 但**不是**汇总卡那两格相加 ✗ —— 场内还差一个「已兑现」（那两格是在持口径 ✓）。 */
+         ⚠ 但**不是**汇总卡那两格相加 —— 场内还差一个「已兑现」（那两格是在持口径）。 */
       '<div class="snap-part"><span class="pn">按账户</span><span class="pv">' +
         '<b class="' + cls(C.contribEtf) + '" id="prin-etf-contrib" data-v="' + C.contribEtf.toFixed(2) + '">' + fmtAmt2(C.contribEtf) + "</b>" +
         '<span class="snap-sub">场内（含已兑现 ' + fmtAmt2(C.cashed) + '）· 场外 <b class="' + cls(C.contribOtc) +
           '" id="prin-otc-contrib" data-v="' + C.contribOtc.toFixed(2) + '">' + fmtAmt2(C.contribOtc) +
-          "</b> · 两者相加 ＝ 上面的累计收益 ✓（⚠ 它与汇总卡右侧那两格不是同一口径 ✗）</span></span></div>" +
+          "</b> · 两者相加 ＝ 上面的累计收益 ✓（⚠ 它与汇总卡右侧那两格不是同一口径）</span></span></div>" +
     "</div></details>"
   );
 }
 
 /* ── ⑥ 薄装配 ✓（拆分后的总入口：准备 → 各段拼装 → 注入，顺序与拆前完全一致 ✓）──
-   空快照 / 无卡早退都在 prCtx 内（原单体函数头部的判断原样保留 ✓）。 */
+   空快照 / 无卡早退都在 prCtx 内（原单体函数头部的判断原样保留）。 */
 function renderPrincipal() {
   const C = prCtx();
   if (!C) return;
@@ -5271,7 +5271,7 @@ function renderSnapLog() {
     const a = snaps[0], b = snaps[snaps.length - 1];
     const dTot = snapTotal(b) - snapTotal(a);
     /* ⚠ 2026-10-09 改（同逐期卡卡头）：用 snapPl()（含已实现 ✓）而不是原始 pl ✗ ——
-       跨 10-09 的区间若按 Δpl 算会凭空多出清仓已兑现的 18,492 ✗。gap 在 10-08 及以前为 0 → 历史区间不变 ✓。 */
+       跨 10-09 的区间若按 Δpl 算会凭空多出清仓已兑现的 18,492。gap 在 10-08 及以前为 0 → 历史区间不变。 */
     const dPl = (typeof a.pl === "number" && typeof b.pl === "number") ? snapPl(b) - snapPl(a) : dTot - snapFlow(a, b);
     /* 每个「标签 + 数字」整对 nowrap（一次性内联样式）：中文可以在**任意两字之间**断行，
        只加 &nbsp; 挡不住 —— 手机实测会把「总资产」拆成「总资 / 产 +106,524」（更难看）。
@@ -5339,15 +5339,15 @@ function renderSnapLog() {
 /* ── 场外的两个「全年」口径（★ 一处实现、多处引用 ★，2026-10-10 抽）────────────────────
    为什么要抽：这两个数原先在**4 处文本里各写死一遍** ✗（Trend 图例、renderTrend 注释、盈亏总览行的 title…）：
        「场外全年 −1,964（月度账单）vs −2,149（快照持仓收益），差约 180 元」
-   而那对数字在 9 月账单订正（招行 +158.32 / 华安 +18.13 ✓）之后**已经过期** ✗，实测：
-       月度账单口径 = **−1,946.07**（差 17.93 ✗）· 快照持仓口径 = **−1,653.54**（差 495.46 ✗✗）
-   写死的数没人负责更新 ✓ → 改成现算 ✓，门禁 ④o 同时盯住"页面文本里的数与独立复算一致" ✓。
-   ⚠ 两口径**不同名、不能互相换算**（这是本页反复强调的那条 ✓）：
-     · monthly ＝ 各平台 App 的**月度账单**（账户级 · 月频 ✓）＝ FIN_PL 里 kind === "fund" 的 5 个渠道 ✓
-       （蚂蚁 / 南方 / 博时 / 广发 / 华安 ✓；招行理财与平安证券**不计入** ✓ —— 前者是银行理财、按用户口径
-        不入场外 ✓，后者是场内本身、计入会重复 ✓）—— 与「盈亏全程」那条场外线**同源** ✓。
-     · snap    ＝ 最新快照里**场外各只的 pl 之和**（持仓级 · 日频 ✓）＝ 盈亏总览的场外持仓收益 ✓。
-   数据缺失（老缓存里没有 finance-data.js）时返回 null ✓ —— 调用处一律要能显示「—」✓ 不许静默 0 ✗。 */
+   而那对数字在 9 月账单订正（招行 +158.32 / 华安 +18.13）之后**已经过期**，实测：
+       月度账单口径 = **−1,946.07**（差 17.93）· 快照持仓口径 = **−1,653.54**（差 495.46 ✗）
+   写死的数没人负责更新 → 改成现算，门禁 ④o 同时盯住"页面文本里的数与独立复算一致"。
+   ⚠ 两口径**不同名、不能互相换算**（这是本页反复强调的那条）：
+     · monthly ＝ 各平台 App 的**月度账单**（账户级 · 月频）＝ FIN_PL 里 kind === "fund" 的 5 个渠道
+       （蚂蚁 / 南方 / 博时 / 广发 / 华安；招行理财与平安证券**不计入** —— 前者是银行理财、按用户口径
+        不入场外，后者是场内本身、计入会重复）—— 与「盈亏全程」那条场外线**同源**。
+     · snap    ＝ 最新快照里**场外各只的 pl 之和**（持仓级 · 日频）＝ 盈亏总览的场外持仓收益。
+   数据缺失（老缓存里没有 finance-data.js）时返回 null —— 调用处一律要能显示「—」 不许静默 0。 */
 function otcMonthlyTotal() {
   if (typeof FIN_PL === "undefined" || typeof FIN_ACCOUNTS === "undefined") return null;
   const funds = FIN_ACCOUNTS.filter((a) => a.kind === "fund");
@@ -5356,12 +5356,12 @@ function otcMonthlyTotal() {
     .reduce((s, v) => s + (typeof v === "number" ? v : 0), 0), 0);
 }
 /* 那句"两条口径不同名"的话的**唯一出处** ✓（现算 ✓）—— 图例 / 读数条 title / 场外账户统计卡 三处共用 ✓，
-   从此这三处不会各写一个数、各说各话 ✗（旧版就是 4 处各写死，9 月订正后全部过期 ✗）。 */
+   从此这三处不会各写一个数、各说各话 ✗（旧版就是 4 处各写死，9 月订正后全部过期）。 */
 function otcTwoNoteText() {
   const m = otcMonthlyTotal(), s = otcSnapPl();
-  if (m === null || s === null) return "⚠ 两条来源口径不同名：场外的「月度账单」与「快照持仓收益」不是同一个数（数据未加载完，这次不报具体数字 ✓）。";
+  if (m === null || s === null) return "⚠ 两条来源口径不同名：场外的「月度账单」与「快照持仓收益」不是同一个数（数据未加载完，这次不报具体数字）。";
   return "⚠ 两条来源口径不同名：场外全年 " + fmtAmt2(m) + "（月度账单 · 平台 App 月频）vs " + fmtAmt2(s)
-    + "（快照持仓收益 · 最新快照日频），差 " + fmtAmt2(m - s) + " 元属已知口径差（两套口径不能互相换算 ✓）。";
+    + "（快照持仓收益 · 最新快照日频），差 " + fmtAmt2(m - s) + " 元属已知口径差（两套口径不能互相换算）。";
 }
 function otcSnapPl() {
   const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
@@ -5371,29 +5371,29 @@ function otcSnapPl() {
     .reduce((a, [, it]) => a + (typeof it.pl === "number" ? it.pl : 0), 0);
 }
 /* ================= 场外账户统计（2026-10-10 加；容器与注释见 HTML 那一节 ✓）=================
-   与「盈亏全程」的场外线**同源** ✓：都取 FIN_PL 里 kind === "fund" 的 5 个渠道（蚂蚁/南方/博时/广发/华安 ✓），
-   所以两处的数字永远对得上 ✓（不是各算一套 ✗ —— 门禁 ④o 会把这条关系钉住 ✓）。
-   三态照抄财务页的纪律 ✓：**缺键 = 该渠道当月还没开户**（≠ 0 ✗，不画柱 ✓）｜数字 = App 原读数 ✓。
-   ⚠ 颜色沿用**本页**的「绿＝盈、红＝亏」✓（var(--up)/var(--down) ✓）—— 财务页是红涨绿跌 ✓，
-     同一批账户在两页看着相反，是两页的习惯不同 ✓，不是数据反了 ✗（别照抄那边的色感 ✓）。
-   ⚠ 月频·账户级 vs 本页其它卡的日频·持仓级：可互证、**不可直接相减** ✓（见卡底口径注 ✓）。 */
+   与「盈亏全程」的场外线**同源** ✓：都取 FIN_PL 里 kind === "fund" 的 5 个渠道（蚂蚁/南方/博时/广发/华安），
+   所以两处的数字永远对得上 ✓（不是各算一套 —— 门禁 ④o 会把这条关系钉住）。
+   三态照抄财务页的纪律 ✓：**缺键 = 该渠道当月还没开户**（≠ 0，不画柱）｜数字 = App 原读数。
+   ⚠ 颜色沿用**本页**的「绿＝盈、红＝亏」✓（var(--up)/var(--down)）—— 财务页是红涨绿跌，
+     同一批账户在两页看着相反，是两页的习惯不同，不是数据反了 ✗（别照抄那边的色感）。
+   ⚠ 月频·账户级 vs 本页其它卡的日频·持仓级：可互证、**不可直接相减** ✓（见卡底口径注）。 */
 /* 本卡专用的金额格式（2026-10-10 用户报：「1、2 月显示是 0，实际是 0.31」✓）────────────────
-   为什么不能直接用 fmtAmt ✗：页面通用口径是「**截断到元**」（fmtAbs2 = Math.trunc ✓）✓ ——
-   对 +582 / +3,570 是对的 ✓，但对小额会印成「+0」「+8」✗（0.31 → +0 ✗、8.91 → +8 ✗）：
-   不是四舍五入错，而是"只到元"这条约定在"小额真实存在"的数据上会撒谎 ✗（本卡恰好有：蚂蚁 1–2 月 ✓）。
-   故本卡按**量级自适应**（只在本卡用 ✓，不动全局 fmtAmt ✗ —— 其它卡的数字口径要一致 ✓）：
-     |v| ≥ 100 → 到元（+582 / +3,570 ✓，与其它卡同精度 ✓）
-     |v| < 100 → 到分（+8.91 / +0.31 / −13.23 ✓ —— 小额看得出真假 ✓）
-     0        → 「0」✓（不写 +0.00 ✗）
-   ▸ 结论（用户问"去掉还是显示"）：**显示** ✓ —— 0.31 是真数据 ✓，去掉才是丢信息 ✗；
-     但也**不能印成 0** ✗（那是把 0.31 说成没有 ✓）→ 自适应精度是唯一不撒谎的选项 ✓。 */
+   为什么不能直接用 fmtAmt ✗：页面通用口径是「**截断到元**」（fmtAbs2 = Math.trunc） ——
+   对 +582 / +3,570 是对的，但对小额会印成「+0」「+8」✗（0.31 → +0、8.91 → +8）：
+   不是四舍五入错，而是"只到元"这条约定在"小额真实存在"的数据上会撒谎 ✗（本卡恰好有：蚂蚁 1–2 月）。
+   故本卡按**量级自适应**（只在本卡用，不动全局 fmtAmt —— 其它卡的数字口径要一致）：
+     |v| ≥ 100 → 到元（+582 / +3,570，与其它卡同精度）
+     |v| < 100 → 到分（+8.91 / +0.31 / −13.23 —— 小额看得出真假）
+     0        → 「0」✓（不写 +0.00）
+   ▸ 结论（用户问"去掉还是显示"）：**显示** —— 0.31 是真数据，去掉才是丢信息；
+     但也**不能印成 0** ✗（那是把 0.31 说成没有）→ 自适应精度是唯一不撒谎的选项。 */
 function otcFmt(v) {
   if (v === 0) return "0";
   if (Math.abs(v) >= 100) return fmtAmt(v);
   return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
 }
 /* 本卡的下钻选择（2026-10-10 加，用户：「点击柱状图可以联动到下方的基金明细」✓）——
-   模块级 ✓（选择态一变就整块重渲染 ✓，函数内局部变量留不下 ✗ —— 与 saSel / saCur 同一课 ✓）。
+   模块级 ✓（选择态一变就整块重渲染，函数内局部变量留不下 —— 与 saSel / saCur 同一课）。
    null ＝ 没选 ｜ {k:"m", m:"2026-01"} ＝ 某个月的逐渠道明细 ｜ {k:"ch", id:"alipay"} ＝ 某渠道的逐月明细 */
 let otcSel = null;
 function renderOtcAcctStats() {
@@ -5404,7 +5404,7 @@ function renderOtcAcctStats() {
   const F = (typeof FIN_PL !== "undefined") ? FIN_PL : null;
   if (!F || !funds.length) {
     el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">'
-      + "暂无场外月度读数：本卡读 finance/finance-data.js（财务页的月度账单）✓。</span></div>";
+      + "暂无场外月度读数：本卡读 finance/finance-data.js（财务页的月度账单）。</span></div>";
     return;
   }
   const MS = (typeof FIN_MONTHS !== "undefined" && FIN_MONTHS.length) ? FIN_MONTHS : [];
@@ -5417,7 +5417,7 @@ function renderOtcAcctStats() {
     const byV = mon.slice().sort((x, y) => y.v - x.v);
     return { id: a.id, name: a.name, mon: mon, sum: sum, best: byV[0] || null, worst: byV[byV.length - 1] || null, since: mon.length ? mon[0].k : null };
   });
-  rows.sort((x, y) => y.sum - x.sum);                     // 强者在上 ✓（与财务页排行同一读法 ✓）
+  rows.sort((x, y) => y.sum - x.sum);                     // 强者在上 ✓（与财务页排行同一读法）
   const otcM = {};
   MS.forEach((k) => rows.forEach((r) => { const h = r.mon.filter((x) => x.k === k)[0]; if (h) otcM[k] = (otcM[k] || 0) + h.v; }));
   const total = rows.reduce((x, r) => x + r.sum, 0);
@@ -5434,7 +5434,7 @@ function renderOtcAcctStats() {
   el.setAttribute("data-etf-monthly", etfTotal === null ? "" : etfTotal.toFixed(2));
   el.setAttribute("data-sum-etf-otc", etfTotal === null ? "" : (etfTotal + total).toFixed(2));
   $("otc-acct-cnt").innerHTML = "（" + funds.length + " 个渠道 · 月频 App 账单 · 基准日 "
-    + (typeof FIN_ASOF !== "undefined" ? FIN_ASOF : "—") + " ✓）";
+    + (typeof FIN_ASOF !== "undefined" ? FIN_ASOF : "—") + "）";
   /* ── ① 月度柱（口径与「场内账户统计」那张同构 ✓：零线居中、涨绿跌红、柱下月份 ✓）── */
   const W = el.clientWidth || 360, H = 128, mT = 16, mB = 18, mL = 10, mR = 10;
   const vals = MS.map((k) => ({ k: k, v: otcM[k] })).filter((x) => x.v !== undefined);
@@ -5459,10 +5459,10 @@ function renderOtcAcctStats() {
       + (on ? ' font-weight="800"' : "") + ">" + otcFmt(x.v) + "</text>";
     svg += '<text x="' + cxx.toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + monthNum(x.k) + "</text>";
     /* 命中带：整列可点 ✓（柱子才 3px 宽 ✗ —— 手指/鼠标都点不中 ✓，与归因列头图同一手法 ✓）。
-       ⚠ 只对"有读数的月"生成 ✓：缺键＝该月该渠道都还没开户 ✓ → 不给假入口 ✗。 */
+       ⚠ 只对"有读数的月"生成 ✓：缺键＝该月该渠道都还没开户 → 不给假入口。 */
     svg += '<rect class="otc-band' + (on ? " on" : "") + '" data-otc-m="' + x.k + '" data-v="' + x.v.toFixed(2) + '" x="' + (cxx - stepW / 2).toFixed(1)
       + '" y="0" width="' + stepW.toFixed(1) + '" height="' + H + '">'
-      + "<title>" + esc(monthNum(x.k) + "　场外合计 " + otcFmt(x.v) + " 元 —— 点一下看该月逐渠道明细 ✓") + "</title></rect>";
+      + "<title>" + esc(monthNum(x.k) + "　场外合计 " + otcFmt(x.v) + " 元 —— 点一下看该月逐渠道明细") + "</title></rect>";
   });
   svg += "</svg>";
   /* ── ② 逐渠道行（左对齐条形 ∝ |全年| ✓；右侧两列＝全年 ＋ 最好 / 最差月 ✓）── */
@@ -5470,20 +5470,20 @@ function renderOtcAcctStats() {
   const rowHtml = (r) => '<div class="otc-row' + (otcSel && otcSel.k === "ch" && otcSel.id === r.id ? " sel" : "")
     + '" data-ch="' + esc(r.id) + '" data-v="' + r.sum.toFixed(2) + '" data-n="' + r.mon.length + '"'
     + ' role="button" tabindex="0" aria-label="' + esc("看 " + r.name + " 的逐月明细") + '"'
-    + ' title="' + esc(r.name + "：全年 " + otcFmt(r.sum) + "（条形长度 ∝ |全年|，与其它渠道同一把尺 ✓）· 点一下 → 下方看它的逐月明细 ✓") + '">'
+    + ' title="' + esc(r.name + "：全年 " + otcFmt(r.sum) + "（条形长度 ∝ |全年|，与其它渠道同一把尺）· 点一下 → 下方看它的逐月明细") + '">'
     + '<span class="otc-nm">' + esc(r.name) + '<i class="chip">基金</i></span>'
     + '<span class="otc-track"><i class="otc-fill ' + (r.sum >= 0 ? "up" : "down") + '" style="width:' + (Math.abs(r.sum) / wMax * 100).toFixed(2) + '%"></i></span>'
     + '<span class="otc-v ' + cls(r.sum) + '">' + otcFmt(r.sum) + "</span>"
     + '<span class="otc-sub">' + (r.mon.length
-        ? r.mon.length + " 个月（自 " + monthNum(r.since) + " ✓）· 最好 " + monthNum(r.best.k) + " " + otcFmt(r.best.v) + " · 最差 " + monthNum(r.worst.k) + " " + otcFmt(r.worst.v)
-          + ' · <span class="otc-hint">点它 → 逐月明细 ✓</span>'
+        ? r.mon.length + " 个月（自 " + monthNum(r.since) + "）· 最好 " + monthNum(r.best.k) + " " + otcFmt(r.best.v) + " · 最差 " + monthNum(r.worst.k) + " " + otcFmt(r.worst.v)
+          + ' · <span class="otc-hint">点它 → 逐月明细</span>'
         : "该渠道暂无月度读数") + "</span></div>";
   /* ── 下钻面板（2026-10-10 加，用户：「点击柱状图可以联动到下方的基金明细」✓）──────────────
-     两种视图，都在**卡内**、都只用 FIN_PL ✓（不新增口径 ✓）：
-       {k:"m", m}   点柱 → 该月逐渠道明细 ✓（未开户的渠道写「未开户」✗ 不是 0 ✓ + 占比 ✓）
-       {k:"ch", id} 点渠道行 → 该渠道逐月明细 ✓（合计 ≡ 上面那行的全年 ✓，同一个数 ✓）
-     ⚠ 「未开户」那几行必须**显式**写出来 ✗ 不能藏 ✗ —— 否则"5 个渠道合计"看起来就是全量 ✓，
-       而 1–2 月其实只有蚂蚁一家有账户 ✓（这正是本卡最容易读错的地方 ✓）。 */
+     两种视图，都在**卡内**、都只用 FIN_PL ✓（不新增口径）：
+       {k:"m", m}   点柱 → 该月逐渠道明细 ✓（未开户的渠道写「未开户」 不是 0 + 占比）
+       {k:"ch", id} 点渠道行 → 该渠道逐月明细 ✓（合计 ≡ 上面那行的全年，同一个数）
+     ⚠ 「未开户」那几行必须**显式**写出来 不能藏 —— 否则"5 个渠道合计"看起来就是全量，
+       而 1–2 月其实只有蚂蚁一家有账户 ✓（这正是本卡最容易读错的地方）。 */
   const panelHtml = () => {
     if (!otcSel) return "";
     const closeBtn = '<button type="button" class="sa-back" data-otc-close="1">← 收起</button>';
@@ -5501,27 +5501,27 @@ function renderOtcAcctStats() {
       const nOpen = list.filter((x) => x.hit).length;
       const wMax2 = Math.max.apply(null, list.map((x) => Math.abs(x.hit ? x.hit.v : 0)).concat([1]));
       /* ⚠ 占比的**分母取绝对值之和** ✗ 不是净额 ✓（2026-10-10 实测踩到：用净额时 5月 +2,407 会显示
-         "−186%" ✗ —— 因为该渠道全年净额是 −1,297，正负相消 ✓；归因页的「各列生涯贡献」踩过同一个坑 ✓）。 */
+         "−186%" —— 因为该渠道全年净额是 −1,297，正负相消；归因页的「各列生涯贡献」踩过同一个坑）。 */
       const absSum2 = list.reduce((a, x) => a + Math.abs(x.hit ? x.hit.v : 0), 0) || 1;
       return '<div class="otc-panel" data-panel-m="' + esc(m) + '" data-panel-sum="' + sum2.toFixed(2) + '" data-panel-n="' + nOpen + '">'
         + '<div class="otc-ph">' + closeBtn + "<b>" + monthNum(m) + "</b> · 逐渠道明细（" + nOpen + "/" + rows.length
         + ' 个渠道有读数 · 合计 <b>' + otcFmt(sum2) + "</b>）</div>"
         + list.map((x) => pRow(esc(x.r.name), x.hit ? x.hit.v : 0, !!x.hit, wMax2, x.hit ? (Math.abs(x.hit.v) / absSum2 * 100).toFixed(0) + "%" : "—")).join("")
-        + '<div class="otc-pnote">⚠「未开户」＝该渠道当月<b>还没有账户</b>（数据层缺键 ✓）—— <b>不是 0</b> ✗：'
-        + "把它当 0 会把「没过钱」和「过钱但持平」混成一件事 ✓。"
-        + "占比＝该值 ÷ <b>本组 |值| 之和</b> ✓（分母用绝对值之和 ✗ 不用净额 —— 净额会被正负相消，"
-        + "曾算出「−186%」这种没意义的数 ✓）。</div></div>";
+        + '<div class="otc-pnote">⚠「未开户」＝该渠道当月<b>还没有账户</b>（数据层缺键）—— <b>不是 0</b> ✗：'
+        + "把它当 0 会把「没过钱」和「过钱但持平」混成一件事。"
+        + "占比＝该值 ÷ <b>本组 |值| 之和</b> ✓（分母用绝对值之和 不用净额 —— 净额会被正负相消，"
+        + "曾算出「−186%」这种没意义的数）。</div></div>";
     }
     const r = rows.filter((x) => x.id === otcSel.id)[0];
     if (!r) return "";
     const wMax2 = Math.max.apply(null, r.mon.map((x) => Math.abs(x.v)).concat([1]));
-    const absSumR = r.mon.reduce((a, x) => a + Math.abs(x.v), 0) || 1;   // 占比分母：绝对值之和 ✓（见 pnote ✓）
+    const absSumR = r.mon.reduce((a, x) => a + Math.abs(x.v), 0) || 1;   // 占比分母：绝对值之和 ✓（见 pnote）
     return '<div class="otc-panel" data-panel-ch="' + esc(r.id) + '" data-panel-total="' + r.sum.toFixed(2) + '">'
       + '<div class="otc-ph">' + closeBtn + "<b>" + esc(r.name) + "</b> · 逐月明细（" + r.mon.length + " 个月 · 合计 <b>" + otcFmt(r.sum) + "</b>）</div>"
       + r.mon.map((x) => pRow(monthNum(x.k), x.v, true, wMax2, (Math.abs(x.v) / absSumR * 100).toFixed(0) + "%")).join("")
-      + '<div class="otc-pnote">合计 ' + otcFmt(r.sum) + " ＝ 上面那一行的全年 ✓（同一个数 ✓，不是另算一套 ✗）。"
-      + "占比＝该月 ÷ <b>本渠道各月 |值| 之和</b> " + otcFmt(absSumR) + " ✓（不用净额 ✗ —— 该渠道净额是 "
-      + otcFmt(r.sum) + "，正负相消后会算出 −186% 这种没意义的数 ✓）。</div></div>";
+      + '<div class="otc-pnote">合计 ' + otcFmt(r.sum) + " ＝ 上面那一行的全年 ✓（同一个数，不是另算一套）。"
+      + "占比＝该月 ÷ <b>本渠道各月 |值| 之和</b> " + otcFmt(absSumR) + " ✓（不用净额 —— 该渠道净额是 "
+      + otcFmt(r.sum) + "，正负相消后会算出 −186% 这种没意义的数）。</div></div>";
   };
   /* ── ③ 三个 KPI（与场内那张同一套 .kpi 语言 ✓）── */
   const best = rows[0], worst = rows[rows.length - 1];
@@ -5529,12 +5529,12 @@ function renderOtcAcctStats() {
     + '<div class="kpi"><div class="k-label" title="月度账单口径（平台 App 各月读数之和），与页首「累计收益（快照口径）」**不是同一个数** ✗：那一格 ＝ 总资产 − 外部净转入（含已实现），这一格只认各平台月度账单。">场外累计盈亏（月度口径）</div><div class="k-val ' + cls(total) + '">' + fmtAmt2(total) + "</div>"
     + '<div class="k-sub ' + cls(total) + '">' + funds.length + " 个渠道 · 自 " + (rows.filter((r) => r.since).map((r) => r.since).sort()[0] ? monthNum(rows.filter((r) => r.since).map((r) => r.since).sort()[0]) : "—") + " 起 · App 月度账单</div></div>"
     /* ⚠ 这一格的口径要写明 ✓（2026-10-10 我先按记忆写成"场内 App 累计是 +158"✗ —— 实测 ACCT_STATS.pnl
-       ＝ **+3,166.40** ＝ Σmonthly ✓，与月度行之和**一致** ✓，压根没有第二个数 ✗ → 那句话删掉 ✓）。
-       现在这格 ＝ 场内月度账单之和 ＋ 本卡 5 渠道 ✓ ＝ 「盈亏全程」那条合计线（+1,220 ✓）✓。 */
+       ＝ **+3,166.40** ＝ Σmonthly，与月度行之和**一致**，压根没有第二个数 → 那句话删掉）。
+       现在这格 ＝ 场内月度账单之和 ＋ 本卡 5 渠道 ＝ 「盈亏全程」那条合计线（+1,220）。 */
     + '<div class="kpi"><div class="k-label">场内 ＋ 场外 · 月度口径</div><div class="k-val ' + (etfTotal === null ? "muted" : cls(etfTotal + total)) + '">'
     + (etfTotal === null ? "—" : fmtAmt2(etfTotal + total)) + "</div>"
     + '<div class="k-sub" style="color:var(--tx3)">＝ 「盈亏全程」那条合计线 ✓（场内取 App 月度账单之和 '
-    + (etfTotal === null ? "—" : fmtAmt2(etfTotal)) + " ✓ · 不含招行理财 ✗）</div></div>"
+    + (etfTotal === null ? "—" : fmtAmt2(etfTotal)) + " · 不含招行理财）</div></div>"
     + '<div class="kpi"><div class="k-label">渠道（最好 / 最差）</div><div class="k-val ' + cls(best.sum) + '">' + fmtAmt2(best.sum) + "</div>"
     + '<div class="k-sub">' + esc(best.name) + ' <span class="' + cls(worst.sum) + '">· 最差 ' + esc(worst.name) + " " + fmtAmt2(worst.sum) + "</span></div></div>"
     + "</div>"
@@ -5544,16 +5544,16 @@ function renderOtcAcctStats() {
     /* 10 月进行中（只有部分渠道有读数 ✓）—— 与财务页同一条纪律：**不入任何合计** ✓ */
     + (mtdOn.length
       ? '<div class="otc-mtd" data-mtd-sum="' + mtdSum.toFixed(2) + '" data-mtd-n="' + mtdOn.length + '">10 月<b>进行中</b>（'
-        + mtdOn.length + "/" + funds.length + " 个渠道有读数：" + mtdOn.map((x) => esc(x.name) + " " + otcFmt(x.v) + "（截至 " + x.asof.slice(5).replace("-", ".") + " ✓）").join(" · ")
-        + "）→ 部分合计 <b>" + otcFmt(mtdSum) + "</b> ✗ <b>不计入</b>上面的全年（月频口径要整月 ✓；其余渠道这次没读数 = 未提供，不是 0 ✗）</div>"
+        + mtdOn.length + "/" + funds.length + " 个渠道有读数：" + mtdOn.map((x) => esc(x.name) + " " + otcFmt(x.v) + "（截至 " + x.asof.slice(5).replace("-", ".") + "）").join(" · ")
+        + "）→ 部分合计 <b>" + otcFmt(mtdSum) + "</b> <b>不计入</b>上面的全年（月频口径要整月；其余渠道这次没读数 = 未提供，不是 0）</div>"
       : "")
-    + '<div class="otc-note"><b>口径</b>：月频 · <b>账户级</b>（各平台 App 的「月度账单」，含已实现 ✓；招行理财 / 平安证券<b>不计入</b> ✓'
-    + "—— 前者是银行理财、按你的口径不入场外 ✓，后者是场内本身、计入会重复 ✓）。"
-    + "⚠ 这与本页其它卡的<b>日频 · 持仓级</b>（快照）是两种粒度：<b>可互证、不可直接相减</b> ✓。"
-    + "<br><b>「场内 ＋ 场外」那格</b>用的是<b>月度账单口径</b>：场内 App 月度行之和 ＋ 本卡 5 渠道 ✓ "
+    + '<div class="otc-note"><b>口径</b>：月频 · <b>账户级</b>（各平台 App 的「月度账单」，含已实现；招行理财 / 平安证券<b>不计入</b>'
+    + "—— 前者是银行理财、按你的口径不入场外，后者是场内本身、计入会重复）。"
+    + "⚠ 这与本页其它卡的<b>日频 · 持仓级</b>（快照）是两种粒度：<b>可互证、不可直接相减</b>。"
+    + "<br><b>「场内 ＋ 场外」那格</b>用的是<b>月度账单口径</b>：场内 App 月度行之和 ＋ 本卡 5 渠道 "
     + "＝ 「盈亏全程」那条合计线 ✓（场内那半边与上方场内卡的「账户累计盈亏」<b>是同一个数</b> ✓："
-    + "ACCT_STATS.pnl ≡ Σ 月度行 ✓，2026-10-10 已核对 ✓）。不含招行理财 / 黄金 ✗（按你的口径：债基、低风险 ✓）。"
-    + esc(otcTwoNoteText()) + " 数据来自 <code>finance/finance-data.js</code>（财务页 ✓），改数只改那一处 ✓。</div>";
+    + "ACCT_STATS.pnl ≡ Σ 月度行）。不含招行理财 / 黄金（按你的口径：债基、低风险）。"
+    + esc(otcTwoNoteText()) + " 数据来自 <code>finance/finance-data.js</code>（财务页），改数只改那一处。</div>";
 }
 function renderAcctStats() {
   const el = $("acct-card");
@@ -5605,11 +5605,11 @@ function renderAcctStats() {
   });
   svg += "</svg>";
   /* 金额与百分比是**两套口径**（2026-09-22 加说明；2026-10-01 按收官读数更新数字）：
-     金额＝券商累计盈亏，与月度柱子闭合 ✓；
+     金额＝券商累计盈亏，与月度柱子闭合；
      百分比＝App 自带口径（≠ 盈亏÷本金，也 ≠ 月度收益率相加：实测相加 −10.26% 而它是 −10.98%），
      按资金在场权重加权 → 会出现「金额为正、百分比为负」。不加说明时正常人都读成「亏了 11%」。 */
   const pnlTip = "App 自带收益率口径：不等于 盈亏÷本金（本期金额为正而它是负），也不等于月度收益率相加"
-    + "（实测 −4.57−13.73+6.50+1.54 = −10.26%，对不上 −10.98%）—— 它按资金在场权重加权，"
+    + "—— 它按资金在场权重加权，"
     + "故与金额不同号。统一的资金加权口径见「本金与收益 · 收益率口径」里的 XIRR。";
   el.innerHTML = svg +
     /* 4 格 → 3 格（2026-09-30）：删掉「盈 / 亏持仓」—— 它数的是同一批持仓，却用**券商"今年"口径**（3/2），
@@ -5623,10 +5623,9 @@ function renderAcctStats() {
       '<div class="kpi"><div class="k-label">平均仓位</div><div class="k-val">' + S.avgPos.toFixed(1) + '%</div><div class="k-sub" style="color:var(--tx3)">持股 ' + S.holdDays + " 天</div></div>" +
     '</div>' +
     '<div class="strat-note" id="acct-pnl-q"><b>金额</b>＝券商「累计盈亏」原读数（含已实现盈亏与税费），与下方月度柱子相加闭合 ✓：'
-      + "−661.71 − 17,378.05 + 12,736.10 + 5,461.46 ＝ +157.80。<br>"
       + "<b>百分比</b>＝App 自带的收益率口径，与金额是<b>两套算法、不能互相换算</b>，更不代表账户实际亏了 11%："
-      + "① 不是「盈亏 ÷ 本金」（本期金额为正、它却是负 ✗）；"
-      + "② 也不是月度收益率相加（−4.57 −13.73 +6.50 +1.54 ＝ −10.26%，对不上 −10.98% ✗）——"
+      + "① 不是「盈亏 ÷ 本金」（本期金额为正、它却是负）；"
+      + "② 也不是月度收益率相加（−4.57 −13.73 +6.50 +1.54 ＝ −10.26%，对不上 −10.98%）——"
       + "它按<b>资金在</b>场的权重加权：7 月那 −1.74 万是在大额资金在场时亏的、权重最大，"
       + "后面赚回来只让<b>金额</b>回正，收益率不会折返抵消。<br>"
       + "→ 想看统一的资金加权口径（你的钱实际赚了多少），见「本金与收益 · 收益率口径」里的 <b>XIRR</b>。</div>" +
@@ -5634,18 +5633,18 @@ function renderAcctStats() {
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
 }
 /* 场内核月度图的**缩放重绘**（2026-10-09 修）——
-   这张图与走势图、归因列头图一样是按**真实像素宽**画的 ✓（W = el.clientWidth ✓），
-   但原来**漏了** resize 重绘 ✗：从 1440 拖到 380 后它仍是 718px 宽 ✗ → 页面横向溢出 **367px** ✗
-   取证：越界元素的父节点就是 #acct-card ✓、且**不打开归因视图也复现** ✓ → 与本轮其它改动无关 ✓。
-   与走势图同一套写法（防抖 150ms ✓，避免拖动窗口时狂重绘 ✓）；
-   只在卡里**真有图**时才重画 ✓（KPI 文字是 CSS 排的、不需要重画 ✓；未渲染过就什么都不做 ✓）。
-   ▸ 防回归：scripts/layout-check.mjs（真实浏览器 · 有 playwright 才跑 ✓）会在
-     1440 → 380 拖动缩放后断言"页面无横向溢出 ＋ 每个 SVG 不超出容器" ✓。 */
+   这张图与走势图、归因列头图一样是按**真实像素宽**画的 ✓（W = el.clientWidth），
+   但原来**漏了** resize 重绘 ✗：从 1440 拖到 380 后它仍是 718px 宽 → 页面横向溢出 **367px**
+   取证：越界元素的父节点就是 #acct-card、且**不打开归因视图也复现** → 与本轮其它改动无关。
+   与走势图同一套写法（防抖 150ms，避免拖动窗口时狂重绘）；
+   只在卡里**真有图**时才重画 ✓（KPI 文字是 CSS 排的、不需要重画；未渲染过就什么都不做）。
+   ▸ 防回归：scripts/layout-check.mjs（真实浏览器 · 有 playwright 才跑）会在
+     1440 → 380 拖动缩放后断言"页面无横向溢出 ＋ 每个 SVG 不超出容器"。 */
 window.addEventListener("resize", debounce(() => {
   const box = $("acct-card");
   if (box && box.querySelector("svg")) renderAcctStats();
   /* 2026-10-10：场外那张图同样按**真实像素宽**画 ✓ → 也必须跟着窗口重绘 ✓（同一套防抖 ✓），
-     否则从 1440 拖到 380 后会留一张 700px 宽的图 → 页面横向溢出 ✗（场内那张 10-09 正是这么踩的 ✓）。 */
+     否则从 1440 拖到 380 后会留一张 700px 宽的图 → 页面横向溢出 ✗（场内那张 10-09 正是这么踩的）。 */
   const box2 = $("otc-acct-card");
   if (box2 && box2.querySelector("svg")) renderOtcAcctStats();
 }, 150));
@@ -5803,7 +5802,7 @@ function renderAlt() {
   const B = (typeof ALT_BACKTEST === "undefined") ? null : ALT_BACKTEST;
   const num = (x) => Math.round(x).toLocaleString("en-US");
   const sgn = (x) => (x >= 0 ? "+" : "−") + num(Math.abs(x));
-  const pp = fmtPp;   // 全局 fmtPp（2026-10-12 收拢；此前本函数内自写了一份 ✗）
+  const pp = fmtPp;   // 全局 fmtPp（2026-10-12 收拢；此前本函数内自写了一份）
   const pc = (x) => (x * 100).toFixed(2) + "%";
   const cls = (x) => (x > 0 ? "up" : x < 0 ? "down" : "");
   if (!B || !(B.groups || []).length) {
@@ -6083,7 +6082,7 @@ function holdCardHtml(row, i, ctx) {
       + "QDII 的净值要晚 1~2 个交易日才公布，所以这两个数不同日、只能算近似（不是同期溢价）。"
       + "正数＝溢价：场内买价比基金实际价值贵，买入即吃亏（卖出时溢价收窄同样吃亏）；负数＝折价：场内买更划算。";
     /* 结论文字与阈值（2026-09-23 补）：溢价行改成卡头胶囊时（同日早些时候），
-       「溢价过高，慎买 / 溢价偏高，买入留意 / 折价，场内买更划算」这行文字随原行一起没了 ✗，
+       「溢价过高，慎买 / 溢价偏高，买入留意 / 折价，场内买更划算」这行文字随原行一起没了，
        只剩颜色 + ≥8% 的 ⚠️ —— 而阈值（3% / 8%）页面上任何地方都没写，读者只能猜颜色含义。
        胶囊一行放不下这句（手机上会折行、且与「溢价 +7.4%」重复），故补进悬停：口径说明后追加一行结论。 */
     const premLvl = pv >= CONFIG.PREM_HIGH ? "⚠ 溢价过高（≥" + CONFIG.PREM_HIGH + "%）：慎买"
@@ -6120,7 +6119,7 @@ function holdCardHtml(row, i, ctx) {
   if (sellsOf.length) {
     kpiThird =       '<div class="kpi"><div class="k-label" title="这只券商流水逐笔「实现盈亏」之和 − 卖出费（费用已含在净回款里的那几笔不再另减）。' +
       '⚠ 这不是额外一笔：券商用摊薄成本，卖出的净回款已冲减剩余仓位成本，所以它已经包含在左边的「浮盈（估）」里，两者不能相加。' +
-      '（「本金与收益」卡的「已实现」只认**全额清仓**那几笔 ✓ —— 在持标的的部分卖出已折进剩余仓位成本，故两边不该相加 ✗。）">' +
+      '（「本金与收益」卡的「已实现」只认**全额清仓**那几笔 —— 在持标的的部分卖出已折进剩余仓位成本，故两边不该相加。）">' +
       '其中已实现</div><div class="k-val ' + cls(cashed) + '">' + fmtAmt(cashed) + ' 元</div>' +
       '<div class="k-sub" style="color:var(--tx3)">卖出 ' + sellsOf.length + ' 笔 · 已在浮盈里</div></div>';
   }
@@ -6156,7 +6155,7 @@ function holdCardHtml(row, i, ctx) {
     return '<tr' + (pp === 0 ? ' class="rb-cost"' : (isNow ? ' class="rb-now"' : "")) + ">" +
       "<td>" + (pp === 0 ? "0%（回本）" : pp + "%") + (isNow ? ' <span class="rb-here">← 现在</span>' : "") + "</td>" +
       /* 2026-10-09：给数字列预埋手机列名（.c-lb，与 .chk-tbl / .dca-tbl 同一约定）✓
-         首列（档位「0%（回本）」/「+20%」）是这一格的**标题**、整行占满，故不加列名 ✓ */
+         首列（档位「0%（回本）」/「+20%」）是这一格的**标题**、整行占满，故不加列名 */
       '<td class="num"><i class="c-lb">价格(元/份)</i>' + price.toFixed(4) + "</td>" +
       '<td class="num ' + cls(price / nowPx - 1) + '"><i class="c-lb">相对现价</i>' + fmtPct(price / nowPx - 1, 2) + "</td>" +
       '<td class="num"><i class="c-lb">持仓市值</i>' + fmtYuan(val) + "</td>" +
@@ -6281,8 +6280,8 @@ function costTrace() {
     const before = s.qty > 0 ? s.basis / s.qty : null;
     const gross = (e.qty || 0) * (e.cost || 0);
     /* rec 只用来标记「这笔费是记录值还是估算值」（est 字段 ✓）；fee 的取值走全局 feeOf ✓
-       （2026-10-12 收拢时曾在只改两行的情况下删掉 rec ✗ → 页面 ReferenceError：拆闭包 / 收拢前
-         必须把该变量的**全部**使用点 grep 干净 —— 与本轮 ② 的 benchKeys 是同一个坑 ✓） */
+       （2026-10-12 收拢时曾在只改两行的情况下删掉 rec → 页面 ReferenceError：拆闭包 / 收拢前
+         必须把该变量的**全部**使用点 grep 干净 —— 与本轮 ② 的 benchKeys 是同一个坑） */
     const rec = logFee(e), fee = feeOf(e);
     if (isSellAct(e)) { s.qty -= (e.qty || 0); s.basis -= gross - fee; }
     else { s.qty += (e.qty || 0); s.basis += gross + fee; }
@@ -6548,7 +6547,7 @@ function renderCheckup() {
         成本与调仓衡量"结果"（摊薄成没成功、卖出赚没赚），买点只作参考故减半。
         →「D+D+D」排在「D+A+A」之前：三项都差，更该先看。
         ⚠ 必须用**平均**而不是求和：求和会让"只有 1 项有数据"的显得更差（摩根日本精选只有成本项 C，
-          而日经 225 是买点 C + 成本 C）→ 反了；平均后两者都是 1.00，交给下一级判定 ✓
+          而日经 225 是买点 C + 成本 C）→ 反了；平均后两者都是 1.00，交给下一级判定
      ③ 问题项数（有几个 C/D，按同一套权重：买点算半项），多者在前
      ④ 现值降序（同档里先看金额大的）
      ⚠ 「数据不足」**不参与排序降级**：只有 1 项数据的（中欧港股A / 摩根日本精选A，支付宝渠道无流水）
@@ -6589,10 +6588,10 @@ function renderCheckup() {
   const gb = (g) => (g ? '<b class="oc-' + g.toLowerCase() + '">' + g + "</b>" : '<b class="oc-na">—</b>');
   const na = (t) => '<span class="oc-na"' + (t ? ' title="' + esc(t) + '"' : "") + ">—</span>";
   /* ⚠ 窄屏默认收起（2026-10-12）：体检表是 13 行 × 5 列，380px 下默认展开会把整页拉得很长 ✗
-     → 包一层 details（复用 .rebound 的观感与「展开 ▾ / 收起 ▴」提示 ✓）；
-     open 状态由 applyAutoFold() 按屏宽决定（≥481px 默认展开，保持桌面原有观感 ✓）。 */
+     → 包一层 details（复用 .rebound 的观感与「展开 ▾ / 收起 ▴」提示）；
+     open 状态由 applyAutoFold() 按屏宽决定（≥481px 默认展开，保持桌面原有观感）。 */
   box.innerHTML = '<details class="rebound chk-fold auto-fold"><summary>操作体检表 · ' + data.length
-    + ' 只（买点 / 成本位 / 调仓）<span class="rebound-cnt">越差的越靠前 · 只描述已发生的操作 ✓</span></summary>'
+    + ' 只（买点 / 成本位 / 调仓）<span class="rebound-cnt">越差的越靠前 · 只描述已发生的操作</span></summary>'
     + '<table class="chk-tbl"><thead><tr><th class="c-nm">标的</th>'
     + '<th class="c-buy" title="各笔申购 / 成交价在「52周低 ~ 历史高」里的分位，取算术平均（一笔一票）。越靠底部越好；⚠ 上涨趋势里偏高是必然，只作参考。悬停任一行可看金额加权口径">买点</th>'
     + '<th title="成本位 → 现价位（都是该标的 52 周区间里的分位）。相减即为原来的 pp 值：箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈），向左 = 套牢。与市场涨跌无关">成本</th>'
@@ -6634,7 +6633,7 @@ function renderCheckup() {
              ① 该渠道**根本没有流水记录**（支付宝 2 只：摩根 / 中欧）→「无记录」
              ② 有记录、也赎回过的 →「赎回 N 笔」（场外赎回只有笔数、没有实现盈亏 → 不给档位）
              ③ 有记录、但从未卖出 →「—」（这才是"本项不适用"）
-           原来 ①③ 共用「—」，把"没有记录"伪装成了"没有卖出" ✗ */
+           原来 ①③ 共用「—」，把"没有记录"伪装成了"没有卖出" */
         const log = (typeof OTC_LOG !== "undefined" && OTC_LOG[r.p.code]) || [];
         const s = log.filter((e) => /赎回/.test(String(e.act)));
         if (!log.length) swing = '<b class="oc-na" title="该渠道（支付宝）没有记录任何操作流水，本项无从评 —— 不是「没有卖出」">无记录</b>';
@@ -6677,7 +6676,7 @@ function renderCheckup() {
     "</div></details>";
 }
 /* 窄屏自动收起（2026-10-12）：宽表（体检表）在 480px 以下默认收起 ✓、宽屏默认展开 ✓。
-   只在我们**没设过**时设 —— 用户手点过一次就尊重用户 ✓（toggle 事件不冒泡 ✗ → capture 监听）。 */
+   只在我们**没设过**时设 —— 用户手点过一次就尊重用户 ✓（toggle 事件不冒泡 → capture 监听）。 */
 function applyAutoFold() {
   const wide = window.matchMedia("(min-width: 481px)").matches;
   document.querySelectorAll("details.auto-fold").forEach((d) => { if (!d.dataset.touched) d.open = wide; });
@@ -7030,7 +7029,7 @@ render();
 /* 操作体检表：挂在自己的静态容器上（#checkup-card 不由 render 重建），所以放在 render() 之后即可。
    数据自己读 POSITIONS / OTC，不依赖 render 的产物。 */
 renderCheckup();
-applyAutoFold();   // 宽表按屏宽定默认展开（窄屏收起 ✓）——必须在 renderCheckup 之后 ✓
+applyAutoFold();   // 宽表按屏宽定默认展开（窄屏收起）——必须在 renderCheckup 之后
 
 /* ---- 走势图交互绑定：时间 chips / 图例开关 / crosshair（box 元素持久，innerHTML 重绘不影响监听） ---- */
 $("trend-views").addEventListener("click", (e) => {
@@ -7159,7 +7158,7 @@ bindTrendCrosshair();
       const es = (POSITIONS.log || []).filter((x) => x.sym === h.sym);
       /* 注意：早期本块自带的 isSellAct 只收「动作字符串」，误写成 filter(isSellAct) 会因
          String({act:…}) 整对象不匹配而把卖出笔数算成 0，从而假报「回路 ≠ 卖出」——
-         2026-10-12 起全局版两态都收 ✓，这个坑已由实现本身填掉，此处留注释作历史存档。 */
+         2026-10-12 起全局版两态都收，这个坑已由实现本身填掉，此处留注释作历史存档。 */
       const sells = es.filter((e) => isSellAct(e.act));
       const ev = swingEvents(swingRounds(es));
       const sq = sells.reduce((a, x) => a + x.qty, 0), eq = ev.reduce((a, x) => a + x.qty, 0);
@@ -7300,7 +7299,7 @@ bindTrendCrosshair();
   panel.id = "dbg-panel";
   panel.setAttribute("role", "status");
   panel.innerHTML = '<div class="dbg-head">自检 ' + pass + "/" + R.length + (pass === R.length ? " · 全部通过" : " · 存在问题") + '</div>' +
-    R.map((x) => '<div class="' + (x.ok ? "ok" : "fail") + '">' + (x.ok ? "✓" : "✗") + " " + x.name +
+    R.map((x) => '<div class="' + (x.ok ? "ok" : "fail") + '">' + (x.ok ? "" : "") + " " + x.name +
       (x.ok ? "" : " — " + x.msg) + "</div>").join("");
   document.body.appendChild(panel);
   console.log("[debug 自检]", R);
