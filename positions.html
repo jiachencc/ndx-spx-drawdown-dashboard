@@ -178,6 +178,7 @@ try {
   场内市值（估算）= ETF 场内报价 × 当前份数；来源未核验时仅为沿用读数｜场外市值与盈亏为 App 快照口径<br>
   各模块标题与卡片头部标注<b>口径日期</b>：<b>场内</b>＝该份报价的成交日（五只若不同则显示区间）｜<b>场外</b>＝App 截图快照日（净值日通常再早一天，逐只见「盈亏总览」行）<br>
   场外成本净值 = 最新净值 ÷（1 + 持有收益率）；场外按净值申赎、无溢价；场外明细卡已并入「盈亏总览」，仅保留逐只盈亏与同步徽章<br>
+  <b>跨页提醒</b>：本页涨跌色是<b>绿涨红跌</b>（ETF / 英文社区习惯 ✓），而<a href="finance/index.html">💰 个人财务看板</a>是<b>红涨绿跌</b>（境内 App 习惯 ✓）—— 两页刻意相反 ✗，对着看时留意；口径统一只需改各页 :root 里 --up / --down 两行（语义只有那一处定义 ✓）。<br>
   本页为个人记录工具，不构成投资建议<br>
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
@@ -1284,7 +1285,7 @@ function renderImpl() {
      改口径不用再在拼接串里找作文 ✓。含动态数字的两格保留拼接（静态段进表 ✓）；
      纯文本搬家，DOM 输出逐字节不变 ✓（有 sha256 基线背书）。 */
   const SUM_TIPS = {
-    total: "本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它 ✓。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径 ✓。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现 ✗），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492 ✓）。",
+    total: "本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它 ✓。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径 ✓。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现 ✗），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492 ✓）。⚠ **范围**（2026-10-12 补）：本格 ＝ 场内 5 只 ETF ＋ 场外 8 只基金 ＋ 券商可用现金，**不含招行理财 / 黄金**；财务看板的「总资产」（≈88 万）含 7 个账户、**不是同一范围** ✗ —— 两页的粒度也不同（这里日频持仓级、那边月频账户级 ✓），口径详见页脚。",
     etf: "场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
     otcA: "场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ",
     otcB: "（2026-10-09 补录 10 月定投后的构成：南方 600 ＝ 09-30 ＋ 10-08 ＋ 10-09 三笔 ✓（10-08 / 10-09 App 仍显示「支付成功 / 确认中」✓，公司 QDII 确认慢于扣款 ✓）；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平 ✓；华安 A/C 与其余五只逐分为 0 ✓）。⚠ 市值里另有在途 ",
@@ -6587,7 +6588,12 @@ function renderCheckup() {
   if (cnt) cnt.innerHTML = "(" + data.length + " 只 · 场内 " + holds.length + " · 场外 " + funds.length + ")";
   const gb = (g) => (g ? '<b class="oc-' + g.toLowerCase() + '">' + g + "</b>" : '<b class="oc-na">—</b>');
   const na = (t) => '<span class="oc-na"' + (t ? ' title="' + esc(t) + '"' : "") + ">—</span>";
-  box.innerHTML = '<table class="chk-tbl"><thead><tr><th class="c-nm">标的</th>'
+  /* ⚠ 窄屏默认收起（2026-10-12）：体检表是 13 行 × 5 列，380px 下默认展开会把整页拉得很长 ✗
+     → 包一层 details（复用 .rebound 的观感与「展开 ▾ / 收起 ▴」提示 ✓）；
+     open 状态由 applyAutoFold() 按屏宽决定（≥481px 默认展开，保持桌面原有观感 ✓）。 */
+  box.innerHTML = '<details class="rebound chk-fold auto-fold"><summary>操作体检表 · ' + data.length
+    + ' 只（买点 / 成本位 / 调仓）<span class="rebound-cnt">越差的越靠前 · 只描述已发生的操作 ✓</span></summary>'
+    + '<table class="chk-tbl"><thead><tr><th class="c-nm">标的</th>'
     + '<th class="c-buy" title="各笔申购 / 成交价在「52周低 ~ 历史高」里的分位，取算术平均（一笔一票）。越靠底部越好；⚠ 上涨趋势里偏高是必然，只作参考。悬停任一行可看金额加权口径">买点</th>'
     + '<th title="成本位 → 现价位（都是该标的 52 周区间里的分位）。相减即为原来的 pp 值：箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈），向左 = 套牢。与市场涨跌无关">成本</th>'
     + '<th>调仓</th><th class="c-note">说明</th></tr></thead><tbody>' +
@@ -6668,8 +6674,19 @@ function renderCheckup() {
       "<b>东财历史净值（按申购日逐笔定位）</b>算好写进数据层 —— 所以场外也有买点了；" +
       "支付宝渠道 2 只（摩根日本精选 A、中欧港股 A）<b>没有任何流水记录</b> → 买点「不适用」、调仓标「无记录」，" +
       "不代表没操作过。" +
-    "</div>";
+    "</div></details>";
 }
+/* 窄屏自动收起（2026-10-12）：宽表（体检表）在 480px 以下默认收起 ✓、宽屏默认展开 ✓。
+   只在我们**没设过**时设 —— 用户手点过一次就尊重用户 ✓（toggle 事件不冒泡 ✗ → capture 监听）。 */
+function applyAutoFold() {
+  const wide = window.matchMedia("(min-width: 481px)").matches;
+  document.querySelectorAll("details.auto-fold").forEach((d) => { if (!d.dataset.touched) d.open = wide; });
+}
+document.addEventListener("toggle", (e) => {
+  const d = e.target;
+  if (d && d.tagName === "DETAILS" && d.classList && d.classList.contains("auto-fold")) d.dataset.touched = "1";
+}, true);
+window.addEventListener("resize", debounce(applyAutoFold, 150));
 function opCheckupHtml(p) {
   const d = opCheckup(p);
   const { nowPct, costPct, gap, gBuy, gCost, gSwing, avgB, sells, realized, win, pct, item, note, tip } = d;
@@ -7013,6 +7030,7 @@ render();
 /* 操作体检表：挂在自己的静态容器上（#checkup-card 不由 render 重建），所以放在 render() 之后即可。
    数据自己读 POSITIONS / OTC，不依赖 render 的产物。 */
 renderCheckup();
+applyAutoFold();   // 宽表按屏宽定默认展开（窄屏收起 ✓）——必须在 renderCheckup 之后 ✓
 
 /* ---- 走势图交互绑定：时间 chips / 图例开关 / crosshair（box 元素持久，innerHTML 重绘不影响监听） ---- */
 $("trend-views").addEventListener("click", (e) => {
