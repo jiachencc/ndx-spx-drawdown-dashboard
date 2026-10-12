@@ -762,13 +762,16 @@ function renderOtcEst(nc) {
   const otcVal = OTC.funds.reduce((a, f) => a + (f.value || 0), 0);
   const cmp = [];
   let pend = 0;
+  /* 待公布的**目标日**（2026-10-12 加）：等待态里只写「N 条待公布」不够 —— 用户当天问的就是
+     「是明天截图后才看到吗？」✗。把目标日摆出来，「等哪一天」才一目了然 ✓。 */
+  const pendDays = [];
   /* ⚠ 这里**只读台账** ✓ —— 不在页面里拿 App 读数去算"实际" ✗：
      2026-10-12 首版就这么干过 → App 净值日与东财净值序列差一天 →
      出现 est +0.499% vs act 0.000%（−125 元）这种**假差异** ✗✗（拿 App 的 10-09 除东财的 10-08）。
      "实际"必须与 est **同源**（东财净值序列）→ 由脚本回填 act ✓（见 fetch-nowcast.mjs 的台账注释）。 */
   if (LOG) OTC.funds.forEach((f) => {
     (LOG[f.code] || []).forEach((e) => {
-      if (typeof e.act !== "number" || !Number.isFinite(e.act)) { pend++; return; }
+      if (typeof e.act !== "number" || !Number.isFinite(e.act)) { pend++; if (pendDays.indexOf(e.d) < 0) pendDays.push(e.d); return; }
       cmp.push({ f: f, d: e.d, from: e.navDate0, est: e.est, act: e.act, diff: e.act - e.est, amt: (e.act - e.est) / 100 * (f.value || 0) });
     });
   });
@@ -781,9 +784,11 @@ function renderOtcEst(nc) {
   const ppS = (v) => fmtPp(v / 100, 3);
   if (!cmp.length) {
     h += '<div class="est-cmp wait" data-cmp-n="0" data-log-n="' + logN + '">'
-      + "<b>预估 vs 实际</b>：暂无已对账的那一天 —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只）。"
-      + "你下次发场外截图、某只的净值日推进到台账记过的那天，这一栏会<b>自动</b>出现「预估 / 实际 / 差多少」"
-      + "（两边锁在同一对日期上，差 ＝ 实际 − 预估；出结果前不写任何数字）。</div>";
+      + "<b>预估 vs 实际</b>：暂无已对账的那一天 —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只）"
+      + " · 目标日 " + (pendDays.length ? pendDays.map(d2).join(" / ") : "—") + "。"
+      + "等待的是<b>净值序列</b>（东财，与拟合同源）走到那一天 —— 届时脚本会把「实际」自动回填 ✓，"
+      + "这一栏就出现「预估 / 实际 / 差多少」（两边同源同日期，差 ＝ 实际 − 预估；出结果前不写任何数字 ✓）。"
+      + "⚠ <b>与 App 截图无关</b>，不用特意发图 ✓。</div>";
   } else {
     const sumDiff = cmp.reduce((a, x) => a + x.amt, 0);
     const avgE = cmp.reduce((a, x) => a + x.est, 0) / cmp.length;
@@ -3230,6 +3235,14 @@ function renderDdView(box, pts) {
   if (!pts || pts.length < 2) { box.innerHTML = '<div class="trend-empty">数据不足，无法计算回撤（至少需要 2 期）。</div>'; return; }
   const N = trendNav(pts);
   const dd = N.dd, deepI = N.deepI, peakI = N.peakI, recI = N.recI;
+  /* 「全程没跌破前高」这一档（2026-10-12 修）：KPI 卡早已特判过 ✓（见「最大回撤（区间）」那段），
+     但本函数的结论行 / 图注 / 图上标注没跟上 ✗ → 默认档「近5次」常常全程上涨，于是出现
+     「最深回撤 +0.00%（09.29 峰值 → 09.29 谷底）· 已于 09.30 修复」这种自相矛盾的话
+     （峰＝谷 ✗、给 0 加正号读起来像收益 ✗、没有回撤却说「已修复」✗）。这里统一成一把尺：
+       · flat  ＝ 最深点也在 0 附近（阈值与 KPI 卡同一档 ✓，显示上就是 0.00%）
+       · fmtDd ＝ 回撤专用格式：0 不带正号 ✓（回撤是负向语义），其余仍走 fmtPct ✓ */
+  const flat = Math.abs(dd[deepI]) < 0.0005;
+  const fmtDd = (v) => (Math.abs(v) < 0.00005 ? "0.00%" : fmtPct(v, 2));
   const W = box.clientWidth || 320, H = geoH(), mL = TREND_GEO.mL, mR = TREND_GEO.mR, mT = TREND_GEO.mT, mB = TREND_GEO.mB;
   const xs = pts.map((p) => Date.parse(p.d));
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
@@ -3241,9 +3254,10 @@ function renderDdView(box, pts) {
   const yBot = loV - pad, Y = (v) => mT + (0 - v) / (0 - yBot || 1) * (H - mT - mB);
   const py = dd.map(Y), zeroY = Y(0);
   trendLayout = { px: px, py: py, pts: pts, mode: "dd" };
-  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · 资金流调整口径 · 最深 " + fmtPct(dd[deepI], 2) + ")";
-  let svg = trendSvgOpen(W, H, "回撤走势：最深 " +
-    fmtPct(dd[deepI], 2) + "（" + pts[deepI].d + "）" + (recI >= 0 ? "，已于 " + pts[recI].d + " 修复" : "，尚未修复"));
+  if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · 资金流调整口径 · " + (flat ? "区间内无回撤" : "最深 " + fmtDd(dd[deepI])) + ")";
+  let svg = trendSvgOpen(W, H, flat
+    ? "回撤走势：区间内未出现回撤 —— 净值一路创新高（最深不足 0.05%，图上即 0.00%）"
+    : "回撤走势：最深 " + fmtDd(dd[deepI]) + "（" + mdFull(pts[deepI].d) + "）" + (recI >= 0 ? "，已于 " + mdFull(pts[recI].d) + " 修复" : "，尚未修复"));
   [0, yBot / 2, yBot].forEach((tv) => {
     const y = Y(tv);
     svg += '<line x1="' + mL + '" y1="' + y.toFixed(1) + '" x2="' + (W - mR) + '" y2="' + y.toFixed(1) + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>' +
@@ -3259,21 +3273,28 @@ function renderDdView(box, pts) {
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="fill:var(--down);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
-      mdFull(p.d) + " 回撤 " + fmtPct(dd[i], 2) + '"/>';
+      mdFull(p.d) + " 回撤 " + fmtDd(dd[i]) + '"/>';
   });
-  /* 最深点标注：文字宽度限制在绘图区内，避免贴边被裁 */
-  const lbl = "最深 " + fmtPct(dd[deepI], 2), lw = [...lbl].length * 6.2 + 6;
-  const lx = Math.min(Math.max(px[deepI], mL + lw / 2), W - mR - lw / 2);
-  svg += '<text x="' + P(lx) + '" y="' + P(Math.min(H - mB - 2, py[deepI] + 13)) + '" text-anchor="middle" style="fill:var(--down);font:700 var(--fs-xxs) var(--mono)">' + lbl + "</text>";
+  /* 最深点标注：文字宽度限制在绘图区内，避免贴边被裁。
+     ⚠ 全程无回撤时**不画这个标注** ✗（2026-10-12）：那时「最深」落在第一期、值为 0，
+       印一个红色的「最深 0.00%」既误导又和结论行重复 ✓。 */
+  if (!flat) {
+    const lbl = "最深 " + fmtDd(dd[deepI]), lw = [...lbl].length * 6.2 + 6;
+    const lx = Math.min(Math.max(px[deepI], mL + lw / 2), W - mR - lw / 2);
+    svg += '<text x="' + P(lx) + '" y="' + P(Math.min(H - mB - 2, py[deepI] + 13)) + '" text-anchor="middle" style="fill:var(--down);font:700 var(--fs-xxs) var(--mono)">' + lbl + "</text>";
+  }
   svg += trendXTicks(pts, px, P, mT, H - mB, H - 7);
   svg += trendXhair(mT, H - mB);
   svg += "</svg>";
   box.innerHTML = svg;
   showXhair(pts.length - 1);
-  setTrendSum("最深回撤 <b class=\"down\">" + fmtPct(dd[deepI], 2) + "</b>（" + mdOf(pts[peakI].d) + " 峰值 → " + mdOf(pts[deepI].d) +
+  setTrendSum(flat
+    /* 全程无回撤：不给「峰→谷」这种自相矛盾的说法 ✗，也不说「已修复」✗ —— 直说没有回撤 ✓ */
+    ? "区间内未出现回撤 —— 净值一路创新高（最深不足 0.05%，图上即 0.00%）"
+    : "最深回撤 <b class=\"down\">" + fmtDd(dd[deepI]) + "</b>（" + mdOf(pts[peakI].d) + " 峰值 → " + mdOf(pts[deepI].d) +
     " 谷底）· " + (recI >= 0
       ? "已于 <b class=\"up\">" + mdOf(pts[recI].d) + "</b> 修复"
-      : "<b class=\"warn\">尚未修复</b>，当前 " + fmtPct(dd[dd.length - 1], 2)),
+      : "<b class=\"warn\">尚未修复</b>，当前 " + fmtDd(dd[dd.length - 1])),
     "口径：资金流调整后的单位净值回撤 —— 按 TWR 方式逐期剔除转入/转出后再算（避免把转账造成的资产跳变当成回撤），" +
     "起点净值归一为 1。与 KPI 的「最大浮亏」（App 累计浮亏口径＝场内＋场外）不是同一个数。" +
     "区间随上方「时间范围」变化；「已修复」指最深点之后净值是否回到过该次峰值。");

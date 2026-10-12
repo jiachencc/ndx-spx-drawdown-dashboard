@@ -1568,6 +1568,66 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   }
 }
 
+/* ④r 回撤视图「全程无回撤」这一档必须四句话同一口径（2026-10-12 加，起于用户问
+   「资产走势的回撤按钮 折线没有变化是 bug 吗？」——线平是**数据事实** ✓（默认档「近5次」那几期的
+   资金流调整收益全为正 → 净值一路创新高），但**文案**当时自相矛盾 ✗：KPI 卡早在 09-23 就特判成
+   「无回撤 / 区间内步步新高」✓，结论行却还写「最深回撤 **+0.00%**（09.29 峰值 → **09.29** 谷底）·
+   已于 09.30 修复」✗（峰＝谷 ✗、给 0 加正号读起来像收益 ✗、没有回撤却说「已修复」✗）。
+   判据：先用**数据**独立算出所选区间的最深回撤（trendNav 同款：逐期剔除 flow 后连乘 ✓，
+   不读页面中间量 ✓），再按落地的档位检查文案 ——
+     · 最深 ≈ 0 → 结论 / 图上标注都不许出现「+0.00%」「峰值 → …谷底」「已修复」✗，且必须说「未出现回撤」✓
+     · 最深 ≠ 0 → 结论必须给出**带负号**的最深值与「峰值 → 谷底」两期 ✓（别把这两档改反 ✗） */
+{
+  const snapsR = (() => { try {
+    const s = readFileSync(path.join(root, "positions-data.js"), "utf8");
+    const c = vm.createContext({});
+    vm.runInContext(s.match(/^const SNAPSHOTS = \[[\s\S]*?\n\];/m)[0] + "\nthis.o = SNAPSHOTS;", c, { timeout: 500 });
+    return c.o.filter((x) => x.items).map((x) => ({ d: x.d,
+      total: Object.values(x.items).reduce((t, i) => t + (i.val || 0), 0) + (x.cash || 0),
+      flow: (typeof x.flow === "number") ? x.flow : null }));
+  } catch (e) { return null; } })();
+  const ddChip = [...win.document.querySelectorAll("#trend-views .tchip")].find((b) => b.getAttribute("data-v") === "dd");
+  const r5Chip = [...win.document.querySelectorAll("#trend-chips .tchip")].find((b) => b.getAttribute("data-r") === "5");
+  if (snapsR && ddChip && r5Chip) {
+    /* ⚠ 点视图 chip 会让**区间 chips 整块重建** ✗（renderTrend → renderTrendRange）——
+       所以区间那个节点必须在视图点完之后**重新查询** ✓（否则点到的是一枚已脱离 DOM 的旧按钮，
+       区间根本没切 → 后面的断言会拿着别的区间去比 ✗ —— 首版就是这么误报的 ✓）。 */
+    ddChip.click();
+    const r5b = [...win.document.querySelectorAll("#trend-chips .tchip")].find((b) => b.getAttribute("data-r") === "5");
+    if (r5b) r5b.click();                           // 本块后续无别的断言依赖走势视图状态 ✓
+    const seg = snapsR.slice(-5);
+    let nav = 1, peak = 1, deep = 0;
+    for (let i = 1; i < seg.length; i++) {
+      const p = seg[i - 1], x = seg[i];
+      const f = (x.flow === null) ? (x.total - p.total) : x.flow;
+      nav *= (x.total - f) / p.total; peak = Math.max(peak, nav); deep = Math.min(deep, nav / peak - 1);
+    }
+    const sumTxt = ((win.document.getElementById("trend-sum") || {}).textContent || "").replace(/\s+/g, " ");
+    /* ⚠ 判据只取**结论那一行**（#trend-sum > span）✓：整块的 textContent 还包含「口径说明」小注，
+       而那段定义里天生就有「已修复」「峰值」两个词 ✗ → 拿整块去测会永远误报 ✓（首版就这么误报的 ✓）。 */
+    const sumLine = ((win.document.querySelector("#trend-sum > span") || {}).textContent || "").replace(/\s+/g, " ");
+    const cntTxt = ((win.document.getElementById("trend-cnt") || {}).textContent || "").replace(/\s+/g, " ");
+    const svgTxt = [...win.document.querySelectorAll("#trend-box svg text")].map((t) => t.textContent).join(" ");
+    const flatCase = Math.abs(deep) < 0.0005, badR = [];
+    if (flatCase) {
+      if (sumLine.indexOf("未出现回撤") < 0) badR.push("结论没说「未出现回撤」✗");
+      if (sumLine.indexOf("+0.00%") >= 0 || svgTxt.indexOf("+0.00%") >= 0) badR.push("还在给 0 加正号 ✗（回撤是负向语义）");
+      if (/峰值/.test(sumLine)) badR.push("还在写「09.29 峰值 → 09.29 谷底」这种自相矛盾 ✗");
+      if (/修复/.test(sumLine)) badR.push("没有回撤却说「已修复」✗");
+      if (/最深/.test(svgTxt)) badR.push("图上仍印「最深 +0.00%」标注 ✗（无回撤时不该画）");
+    } else {
+      if (!/最深回撤 −/.test(sumLine)) badR.push("结论缺带负号的最深值 ✗");
+      if (sumLine.indexOf("峰值") < 0) badR.push("结论缺「峰值 → 谷底」✗");
+    }
+    const onRChip = win.document.querySelector("#trend-chips .tchip.on");
+    const onR = onRChip ? onRChip.getAttribute("data-r") : "?";
+    check("回撤视图（区间「近5次」）：最深 ＝ 独立复算 " + (deep * 100).toFixed(3) + "% → 结论 / 计数 / 图上标注同一口径"
+      + (flatCase ? "（无回撤档 ✓）" : ""),
+      badR.length === 0,
+      (badR.join("；") || "逐项一致 ✓") + " ｜ 页面区间＝" + onR + " · 结论「" + sumLine.slice(0, 46) + "」");
+  }
+}
+
 /* ④p `.sa-back` 必须是**页面级**规则（2026-10-10，用户报：「逐渠道明细 后面那个 收起 UI 有 bug」）──
    根因：它原来写成 `#snap-attr .sa-back { … }` ✗ —— 只有归因面板里命中 ✓，而「场外账户统计」卡里
      用了**同一个 class** ✓ → 命不中 ✗ → 那个「← 收起」掉回浏览器**默认按钮外观** ✗
@@ -1619,9 +1679,16 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     check("预估对账：台账 NOWCAST_LOG 与 OTC 都能读到（对账的数据底座）", false,
       (!log2 ? "data.js 里没有 NOWCAST_LOG ✗" : "") + (!OTC2 ? " 读不到 positions-data.js 的 OTC ✗" : ""));
   } else if (!rowsE.length) {
-    check("预估对账：台账已就绪（" + logN + " 条待公布）但尚无已对账的那天 → 页面**不编数**、只提示等下次截图 ✓",
-      !!waitE && Number(waitE.getAttribute("data-cmp-n")) === 0 && logN > 0,
-      waitE ? "data-cmp-n=0 ✓ · 文案：" + waitE.textContent.replace(/\s+/g, " ").trim().slice(0, 64)
+    /* ⚠ 等待态的**文案**也要守（2026-10-12 加，用户当天问「是明天截图后才看到吗？」）：
+       原文案写「你下次发场外截图、某只的净值日推进到台账记过的那天…」✗ —— 与实际机制不符 ✗：
+       act 是**脚本**按东财净值序列回填的（见 fetch-nowcast.mjs:208 与它 note 里那句「别在页面里拿 App
+       读数去算 ✗」），与截图无关 ✓。判据：必须说「净值序列」✓、必须点明与截图无关 ✓，
+       且不许再出现「你下次发场外截图」这种把用户引向做无用功的句子 ✗。 */
+    const wTxt = waitE ? waitE.textContent.replace(/\s+/g, " ") : "";
+    check("预估对账：台账已就绪（" + logN + " 条待公布）但尚无已对账的那天 → 页面**不编数**、只说明在等净值序列 ✓",
+      !!waitE && Number(waitE.getAttribute("data-cmp-n")) === 0 && logN > 0
+        && wTxt.indexOf("净值序列") >= 0 && wTxt.indexOf("与 App 截图无关") >= 0 && wTxt.indexOf("你下次发场外截图") < 0,
+      waitE ? "data-cmp-n=0 ✓ · 文案：" + wTxt.trim().slice(0, 96)
         : "既没有对账行、也没有 .est-cmp.wait 提示 ✗（用户会以为这功能没做 ✓）");
   } else {
     const badE = [];
