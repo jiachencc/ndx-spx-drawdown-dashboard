@@ -1895,18 +1895,17 @@ function saDetailView(C) {
         : '<div class="sd-row"><span class="sd-nm">该格本期没有成员</span></div>')
       + "</div>";
   };
-  /* 视图③ 某一只的**逐期轨迹**（2026-10-12 ④＋① 合并）
-     ▸ 头部：市价 vs **每股摊薄成本**的小图 ＋ 4 个读数（现价 / 每股摊薄成本 / 当下溢价 / 操作笔数）✓
-     ▸ 列表：保持原来的**行**形态（窄屏放得下 ✓，不换表格 ✗），只去噪 ——
-       份数 / 成本是**交易驱动**的（没交易就一模一样 ✗）→ 只在有交易的那期写「A → B」✓；
-       单价 / 市值是**行情驱动**的（每期真的在动 ✓）→ 保留 A → B ✓（这才是"变化"，不是"重复"✓）。
-     ▸ 占比口径从「占当期账户净值」改成「**占累计**」✗→✓：前者对单只会出现 103% / 108% 那种，
-       读起来像出错 ✓（口径写在头部小注里，不让人猜 ✓）。
-     ▸ 事件行内只留「日期 ＋ 动作 ＋ 份数」✓，对账单全文进悬停 ✓（原来整段散文铺在行里 ✗）。
-     ⚠ 门禁 ④l 靠 data-hold-total / data-hold-n 与**行数** ✓ —— 这两个属性和 hist 的行数一格不能动 ✗；
-       本次只改呈现：行数、数值、恒等式（各期之和 ＋ 结转 ≡ 生涯累计）全不变 ✓。 */
+  /* 视图③ 某一只的**逐期轨迹**（2026-10-12：④＋① 合并 → 当天晚些按用户选择**换表格形态 ＋ 旧→新** ✓）
+     ▸ 头部：小图（市价 vs **每股摊薄成本** ＋ 买卖点）＋ 4 个读数 ✓
+     ▸ body：**表**（期 / 事件 / 份数 / 单价 / 持仓成本 / 市值 / 本期贡献 / 占累计 ✓）
+       · 顺序 **旧 → 新** ✓ —— 与上面那张图**同向**，眼睛能把行和点对起来 ✓
+         （别的下钻视图仍保持「新 → 旧」✓：矩阵 / 逐期明细是"先看最近"✓；本视图是"从头看一遍"✓）
+       · 「A → B」只在该期**真的变了**时才写 ✓（份数 / 成本是**交易驱动** ✓；单价 / 市值是行情驱动 ✓）
+       · 有交易的那一期整行淡染 ✓；窄屏靠**容器内横向滚动** ✓（整页不溢出 ✗ layout-check 会红 ✓）
+     ⚠ 门禁 ④l 靠 data-hold-total / data-hold-n 与**行数** ✓ —— 这两个属性与 hist 的行数一格不能动 ✗。 */
   const viewHold = (code) => {
-    const hist = histOf(code);                         // 新 → 旧 ✓（本页列表的既有顺序，本次不动 ✓）
+    const hist = histOf(code);                          // 内部是新 → 旧 ✓
+    const chrono = hist.slice().reverse();              // 本视图按**旧 → 新**渲染 ✓
     const total = totalOf(code);
     const carryV = C.num(C.carryItems[code]);
     const carryIt = C.carryItems[code];
@@ -1918,11 +1917,10 @@ function saDetailView(C) {
     const pxs = (x) => (x && x.qty ? x.val / x.qty : null);      // 每股**市价** ✓
     const cps = (x) => (x && x.qty ? x.cost / x.qty : null);     // 每股**摊薄成本** ✓（不是成本合计 ✗）
     const fpx = (v) => (Number.isFinite(v) ? v.toFixed(4) : "—");
-    /* 「A → B」只在**真的变了**时才写 ✓ —— 这是本次去噪的关键 ✓（份数 / 成本是交易驱动的 ✓） */
     const pair = (a, b, f, chg) => (chg && Number.isFinite(a) && Number.isFinite(b) ? f(a) + " → " + f(b) : f(b));
-    /* 头部小图的数据：期初结转那一点 ＋ 各期（旧 → 新 ✓，图从左往右读才顺 ✓） */
+    /* 头部小图的数据：期初结转那一点 ＋ 各期（旧 → 新 ✓） */
     const pts = [{ d: C.baseD, p: pxs(carryIt), c: cps(carryIt) }]
-      .concat(hist.slice().reverse().map((x) => ({ d: x.d, p: pxs(x.rawB), c: cps(x.rawB) })))
+      .concat(chrono.map((x) => ({ d: x.d, p: pxs(x.rawB), c: cps(x.rawB) })))
       .filter((x) => Number.isFinite(x.p) || Number.isFinite(x.c));
     const evRaw = exch ? (((typeof POSITIONS !== "undefined" && POSITIONS.log) || []))
       .filter((e) => (e.sym === nm || e.sym === code) && e.d > C.baseD && e.d <= lastD) : [];
@@ -1936,49 +1934,49 @@ function saDetailView(C) {
     const boxW = Math.max(280, (boxEl && boxEl.clientWidth) || 620);
     const lastIt = hist.length ? hist[0].rawB : carryIt;
     const nowPx = pxs(lastIt), nowCost = cps(lastIt);
-    const out = [];
+    const rows = [];
     if (C.carryItems[code] !== undefined) {
-      out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + mdOf(C.baseD) + "</i></div>"
-        + '<div class="sd-row"><span class="sd-nm">起点之前的累计结果</span>'
-        + '<span class="sd-bar"><i style="width:' + (Math.abs(carryV) / top * 100).toFixed(1) + "%;background:"
-        + (carryV >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
-        + '<span class="sd-amt ' + cls(carryV) + '">' + fmtAmt(carryV) + "</span>"
-        + '<span class="sd-pct">占累计 ' + pctTxt(carryV, total) + "</span></div></div>");
+      rows.push('<tr class="carry"><td>期初结转</td><td>账户起点 → ' + mdOf(C.baseD) + "</td>"
+        + '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>'
+        + '<td class="r num ' + cls(carryV) + '">' + fmtAmt(carryV) + "</td>"
+        + '<td class="r num mut">' + pctTxt(carryV, total) + "</td></tr>");
     }
-    hist.forEach((h2) => {
+    chrono.forEach((h2) => {
       const i = C.live.findIndex((p) => p.d === h2.d);
       const prevD = i > 0 ? C.live[i - 1].d : C.baseD;
       const ev = eventsOf(code, prevD, h2.d);
       const A = h2.rawA, B = h2.rawB;
-      const chg = !!(A && B) && (A.qty !== B.qty || Math.abs((A.cost || 0) - (B.cost || 0)) > 0.005);
-      const seg = [];
-      if (B) {
-        seg.push("份数 " + pair(A && A.qty, B.qty, fmtQty, chg));
-        seg.push("单价 " + (A && Number.isFinite(pxs(A)) ? fpx(pxs(A)) + " → " : "") + fpx(pxs(B)));
-        seg.push("市值 " + (A ? fmtYuan(A.val) + " → " : "") + fmtYuan(B.val));
-        seg.push("成本 " + pair(A && A.cost, B.cost, fmtYuan, chg) + "（" + pair(A && cps(A), cps(B), fpx, chg) + "/份）");
-      }
-      /* 行内 chip：只留「日期 ＋ 动作 ＋ 份数」✓（对账单全文进悬停 ✓）。
-         ⚠ 若本期所有事件**同一天**（如 09-28 两笔 ✓），日期就与行头重复了 →
-           这时去掉前缀 ✗，否则会读成「09.28 买入 … ／ 09.28 买入 …」像出错 ✓。 */
+      /* ⚠ 判断要**按列**做 ✗：首版用行级一个 chg，结果「成本因四舍五入差 1 元」也会让**份数**列挂上
+         「44,000 → 44,000」这种完全没意义的箭头 ✗（实测 09.08 行 ✓）。所以：
+           份数箭头只看份数、成本箭头只看成本 ✓。
+         高亮则只看**有没有真实交易记录**（ev.length ✓）—— 那天没动手就不高亮 ✓（09.08 就是这样 ✓）。 */
+      const chgQ = !!(A && B) && Math.abs((A.qty || 0) - (B.qty || 0)) > 0.005;
+      /* 成本的阈值为 2 元 ✓ —— 手填快照的**四舍五入抖动**常常是 1 元左右 ✗（实测 09.08：
+         85,483 → 85,482 却没有任何交易 ✓），而真实交易的量级是 5 元（日定投）/ 200 / 上千 ✓ → 不会漏 ✓ */
+      const chgC = !!(A && B) && Math.abs((A.cost || 0) - (B.cost || 0)) > 2;
+      /* 行内 chip：只留「日期 ＋ 动作 ＋ 份数」✓（对账单全文进悬停 ✓）；
+         本期所有事件同一天时去掉重复日期前缀 ✓（否则读成「09.28 买入…／09.28 买入…」像出错 ✓）。 */
       const evHeads = ev.map((t) => t.split(" · ")[0]);
       const evSameDay = evHeads.length > 1 && evHeads.every((t) => t.slice(0, 5) === evHeads[0].slice(0, 5));
       const evShort = evHeads.map((t) => (evSameDay ? t.slice(6) : t)).join(" ／ ");
-      out.push('<div class="sd-hrow' + (chg ? " sd-traded" : "") + '"><div class="sd-hd"><b>' + mdOf(h2.d) + "</b>"
-        + (ev.length ? '<i class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(evShort) + "</i>" : "")
-        + "</div>" + '<div class="sd-row"><span class="sd-nm">本期贡献' + kindMark(h2.kind) + "</span>"
-        + '<span class="sd-bar"><i style="width:' + (Math.abs(h2.v) / top * 100).toFixed(1) + "%;background:"
-        + (h2.v >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
-        + '<span class="sd-amt ' + cls(h2.v) + '">' + fmtAmt(h2.v) + "</span>"
-        + '<span class="sd-pct">占累计 ' + pctTxt(h2.v, total) + "</span></div>"
-        + (seg.length ? '<div class="sd-cmp">' + esc(seg.join(" · ")) + "</div>" : "") + "</div>");
+      rows.push('<tr' + (ev.length ? ' class="sd-traded"' : "") + "><td>" + mdOf(h2.d) + kindMark(h2.kind) + "</td>"
+        + "<td>" + (ev.length ? '<span class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(evShort) + "</span>" : '<span class="mut">—</span>') + "</td>"
+        + '<td class="r num">' + (B ? pair(A && A.qty, B.qty, fmtQty, chgQ) : "—") + "</td>"
+        + '<td class="r num">' + (B ? fpx(pxs(B)) : "—") + "</td>"
+        + '<td class="r num">' + (B ? pair(A && A.cost, B.cost, fmtYuan, chgC) : "—") + "</td>"
+        + '<td class="r num">' + (B ? fmtYuan(B.val) : "—") + "</td>"
+        + '<td class="r num ' + cls(h2.v) + '">' + fmtAmt(h2.v) + "</td>"
+        + '<td class="r num mut">' + pctTxt(h2.v, total) + "</td></tr>");
     });
+    rows.push('<tr class="sum"><td>合计</td><td>＋ 期初结转</td><td class="r" colspan="4"></td>'
+      + '<td class="r num ' + cls(total) + '">' + fmtAmt(total) + '</td>'
+      + '<td class="r num mut">100%</td></tr>');
     const chart = traceSparkSvg(boxW, pts, evs);
     return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
       + "<b>" + esc(nm) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转）· <b>生涯累计 " + fmtAmt(total) + "</b>"
-      + '<span class="sd-hint">图为市价（实线）vs 每股摊薄成本（虚线，x 轴按真实日期间距 ✓）；'
-      + "列表每期一行：本期贡献 ＋ 持仓变化 —— 份数 / 成本只在有交易的那期写「A → B」✓</span></div>"
+      + '<span class="sd-hint">表按 <b>旧 → 新</b> 排 ✓（与上面的图同向）；份数 / 成本只在有交易的那期写「A → B」✓；'
+      + "有交易的行淡染 ✓；单价 = 市值 ÷ 份数、每股摊薄成本 = 持仓成本 ÷ 份数 ✓</span></div>"
       + (chart ? '<div class="sd-spark">' + chart + "</div>"
         + '<div class="sd-lg"><span><i></i>市价</span><span><i class="dash"></i>每股摊薄成本</span>'
         + '<span><i class="buy"></i>' + (exch ? "买入" : "（场外无成交价，仅两条线）") + "</span></div>" : "")
@@ -1987,7 +1985,9 @@ function saDetailView(C) {
       + (Number.isFinite(nowPx) && Number.isFinite(nowCost) && nowCost > 0
         ? '<span>当下溢价 <b class="' + cls(nowPx / nowCost - 1) + '">' + fmtPct(nowPx / nowCost - 1, 2) + "</b></span>" : "")
       + "<span>" + (exch ? "操作" : "申购") + " <b>" + ops + "</b> 笔</span></div>"
-      + out.join("") + "</div>";
+      + '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th><th>份数</th><th>单价</th>'
+      + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>占累计</th></tr></thead><tbody>"
+      + rows.join("") + "</tbody></table></div></div>";
   };
   /* 视图④ 某一列的**逐期贡献 ＋ 累计**图（2026-10-09 第四步 A，起于用户：「点击表头 是不是也可以按日来做图？」）
      ——「按日」拆成两半看 ✓：

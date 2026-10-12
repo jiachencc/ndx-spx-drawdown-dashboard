@@ -1604,8 +1604,22 @@
   #snap-attr .sd-kpi { display: flex; flex-wrap: wrap; gap: 1px 14px; margin: 5px 2px 3px;
     font-size: var(--chk-fs-mini); color: var(--tx3); }
   #snap-attr .sd-kpi b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--tx); }
-  /* 有交易的那一期：整行淡染一层 ✓ —— 用令牌 --card2 ✓，不硬编码 rgba ✗ */
-  #snap-attr .sd-hrow.sd-traded { background: var(--card2); border-radius: 6px; padding-left: 4px; padding-right: 4px; }
+  /* ── 轨迹的**表格形态**（2026-10-12 用户选定：从行列表换成分列的表 ✓）───────────────────────
+     顺序 **旧 → 新**（与上面那张图同向 ✓）；「份数 / 成本」没变就只写一个值 ✓；
+     有交易的那一期整行淡染 ✓（令牌 --card2 ✓ 不硬编码 rgba ✗）。
+     ⚠ 窄屏：靠**容器内**横向滚动 ✓ —— 绝不能让**整页**横向溢出 ✗（layout-check 三档会红 ✓）。 */
+  #snap-attr .sd-tbl-wrap { overflow-x: auto; margin: 2px 0 1px; }
+  #snap-attr table.sd-tbl { border-collapse: collapse; width: 100%; min-width: 540px;
+    font-size: var(--chk-fs-mini); font-family: var(--mono); }
+  #snap-attr table.sd-tbl th, #snap-attr table.sd-tbl td { padding: 3px 7px;
+    border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  #snap-attr table.sd-tbl th { color: var(--tx3); font-weight: 500; text-align: right; }
+  #snap-attr table.sd-tbl th:first-child, #snap-attr table.sd-tbl td:first-child { text-align: left; }
+  #snap-attr table.sd-tbl td.r { text-align: right; }
+  #snap-attr table.sd-tbl tr.sd-traded { background: var(--card2); }
+  #snap-attr table.sd-tbl tr.carry td { color: var(--tx2); }
+  #snap-attr table.sd-tbl tr.sum td { border-top: 1px solid var(--line); border-bottom: 0; color: var(--tx2); }
+  #snap-attr table.sd-tbl td .sd-ev { font-family: var(--sans); }
 
   /* ── 归因矩阵：列头可点 ＋ 该列图表（2026-10-09 第四步 A）─────────────────────────────
      列头沿用"可点元素"那套反馈（hover 下划线 / focus 环 ✓），与格子(.mx-click)一致 ✓ */
