@@ -1723,7 +1723,7 @@ function renderSnapAttr() {
     + (clickCode ? ' data-hold="' + esc(clickCode) + '" tabindex="0" role="button" aria-label="'
       + esc("看 " + nameOf(clickCode) + " 的逐期轨迹") + '"' : "")
     + '><span class="sd-nm">' + nm + (km || "") + "</span>"
-    + '<span class="sd-bar"><i style="width:' + (Math.abs(v) / (wTop || 1) * 100).toFixed(1) + "%;background:" + (v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+    + '<span class="sd-bar"><i style="width:' + (Math.abs(v) / (wTop || 1) * 100).toFixed(1) + "%;background:" + (v >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
     + '<span class="sd-amt ' + cls(v) + '">' + fmtAmt(v) + "</span>"
     + '<span class="sd-pct">' + pct + "</span></div>";
   /* 视图① 整期（含「期初结转」那一段 ✓）：点行切换期 ✓、点格子只看该格 ✓、点标的下钻轨迹 ✓ */
@@ -1774,7 +1774,7 @@ function renderSnapAttr() {
       out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + baseD.slice(5) + "</i></div>"
         + '<div class="sd-row"><span class="sd-nm">起点之前的累计结果</span>'
         + '<span class="sd-bar"><i style="width:' + (Math.abs(carryV) / top * 100).toFixed(1) + "%;background:"
-        + (carryV >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+        + (carryV >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
         + '<span class="sd-amt ' + cls(carryV) + '">' + fmtAmt(carryV) + "</span>"
         + '<span class="sd-pct">' + pctTxt(carryV, total) + "</span></div></div>");
     }
@@ -1856,7 +1856,10 @@ function renderSnapAttr() {
     const lo = Math.min.apply(null, cum), hi = Math.max.apply(null, cum);
     const padC = (hi - lo || Math.abs(c0) || 1) * 0.15;
     const yC = (v) => yCumTop + hCum - ((v - (lo - padC)) / ((hi + padC) - (lo - padC) || 1)) * hCum;
-    const tcol = cEnd >= 0 ? "#2dd4a7" : "#e0576b";
+    /* 涨跌色走语义令牌 ✓（2026-10-12：原硬编码 #2dd4a7/#e0576b 是深色主题旧值——绿碰巧与 --up 相同、
+       红与全页语义红 #f26d7d 不一致 ✗，浅色主题下也不会跟着变 ✗）。
+       ⚠ SVG 的 fill/stroke 是 presentation attribute，**不支持 var()** → 凡带色的都改写进 style= ✓。 */
+    const tcol = cEnd >= 0 ? "var(--up)" : "var(--down)";
     let g = "";
     /* ── 上：本期贡献（零线居中 ✓）──
        ⚠ 柱子**不再**各自带 tabindex ✗：那样一张图会有 16 个 Tab 位 ✗（Tab 键变迷宫 ✓）。
@@ -1881,7 +1884,7 @@ function renderSnapAttr() {
        "起点 X" 标签原来右对齐挂在 mL−5 ✓ → 文字宽约 52px，窄屏会**越界出画布左缘 5px** ✗
        （2026-10-10 用户报「折线图有遮挡」✓ —— 探针实测越界元素就这一个 ✓）
        → 改成画在绘图区**内侧**、锚在起点上方 ✓（顺带把这个坑写进 layout-check 的常驻检查 ✓）。 */
-    g += '<circle cx="' + X(baseD).toFixed(1) + '" cy="' + yC(c0).toFixed(1) + '" r="2.4" fill="' + tcol + '"/>';
+    g += '<circle cx="' + X(baseD).toFixed(1) + '" cy="' + yC(c0).toFixed(1) + '" r="2.4" style="fill:' + tcol + '"/>';
     const segsOut = [];
     let segPts = [[X(baseD), yC(c0)]];
     ser.forEach((x, i) => {
@@ -1891,14 +1894,14 @@ function renderSnapAttr() {
     if (segPts.length > 1) segsOut.push(segPts);
     segsOut.forEach((pts) => {
       const dAttr = pts.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ");
-      g += '<polyline class="sa-line" points="' + dAttr + '" fill="none" stroke="' + tcol + '" stroke-width="1.6"/>';
+      g += '<polyline class="sa-line" points="' + dAttr + '" fill="none" style="stroke:' + tcol + ';stroke-width:1.6"/>';
     });
     /* 顶点圆点（每个拐点一个**视觉锚点** ✓；命中靠下面的透明带 ✓ —— 2px 的圆点根本点不中 ✗） */
     ser.forEach((x, i) => {
-      g += '<circle class="sa-vertex" cx="' + X(x.d).toFixed(1) + '" cy="' + yC(cum[i + 1]).toFixed(1) + '" r="2.4" fill="' + tcol + '"/>';
+      g += '<circle class="sa-vertex" cx="' + X(x.d).toFixed(1) + '" cy="' + yC(cum[i + 1]).toFixed(1) + '" r="2.4" style="fill:' + tcol + '"/>';
     });
     /* 选中期高亮圈（悬停 / ←→ 移动时显示 ✓，初始隐藏 ✓） */
-    g += '<circle class="sa-hl" cx="0" cy="0" r="5.2" fill="none" stroke="' + tcol + '" stroke-width="1.6" style="display:none"/>';
+    g += '<circle class="sa-hl" cx="0" cy="0" r="5.2" fill="none" style="stroke:' + tcol + ';stroke-width:1.6;display:none"/>';
     /* ── 轴标签（左＝两块面板各两条 ✓；下＝首/中/末三个日期 ✓）── */
     const lab = (x, y, s, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s) + "</text>";
     g += lab(mL - 5, zB + 3, "0");
@@ -1963,7 +1966,7 @@ function renderSnapAttr() {
         + ' tabindex="0" role="button" aria-label="' + esc("看「" + colNameOf(x.k) + "」的逐期图，生涯贡献 " + fmtAmt(x.v) + " 元") + '">'
         + '<span class="sd-nm">' + esc(colNameOf(x.k)) + "</span>"
         + '<span class="sd-bar"><i style="width:' + (Math.abs(x.v) / top * 100).toFixed(1) + "%;background:"
-        + (x.v >= 0 ? "#2dd4a7" : "#e0576b") + '"></i></span>'
+        + (x.v >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
         + '<span class="sd-amt ' + cls(x.v) + '">' + fmtAmt(x.v) + "</span>"
         + '<span class="sd-pct">' + (Math.abs(x.v) / absSum * 100).toFixed(0) + "%</span></div>").join("")
       + "</div>";
@@ -2005,7 +2008,7 @@ function renderSnapAttr() {
       series.forEach((s2) => { acc2 += s2.cum[i]; });
       tPts.push(xAt(i).toFixed(1) + "," + Y(acc2).toFixed(1));
     }
-    g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" stroke="#e2e9f5" stroke-width="2.2"/>';   // 总累计：粗 ＋ 中性色 ✓
+    g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:2.2"/>';   // 总累计：粗 ＋ 中性色 ✓（var(--tx) 跟主题走 ✓；⚠ #snap-attr 内 --tx 被锁定（见 css），故浅色下仍解析为深色主题值——与改前一致，语义先正确化 ✓）
     const lab2 = (x, y, s3, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s3) + "</text>";
     g += lab2(mL - 5, Y(hi) + 6, fmtAmt(Math.round(hi)));
     g += lab2(mL - 5, Y(lo) + 3, fmtAmt(Math.round(lo)));

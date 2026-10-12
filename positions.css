@@ -112,6 +112,12 @@
     --tx3: #7c8ba1;      /* 浅色底上同样与 --tx2 拉开一档 */
     --green: #0ea372;
     --red: #e23b53;
+    /* ⚠ --up/--down 必须在这里**重声明**（2026-10-12）：`:root` 上 `--up: var(--green)` 的 var()
+       在 :root 处就替换固化了（custom property 的计算值规则 ✓），body.light 只改 --green 时
+       后代继承到的 --up 仍是深色值 #2dd4a7 ✗ —— 浅色板这两个颜色从未真正生效过 ✗
+       （实测：浅色下 .up 数字 = rgb(45,212,167) = 深色绿 ✓ 本行修复后才是 #0ea372 ✓）。 */
+    --up: var(--green);
+    --down: var(--red);
     --yellow: #c8901a;
     --blue: #2f7be0;
     --cyan: #0a9fc4;
@@ -1685,7 +1691,7 @@
      → 字号只留**一处权威**（见后面那块 ✓）。 */
   #snap-attr .sd-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
   #snap-attr .sd-nm { flex: 0 0 92px; color: var(--tx2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #snap-attr .sd-bar { flex: 1 1 auto; display: block; height: 7px; background: rgba(255, 255, 255, .06); border-radius: 2px; overflow: hidden; }
+  #snap-attr .sd-bar { flex: 1 1 auto; display: block; height: 7px; background: var(--tint); border-radius: 2px; overflow: hidden; }   /* 轨道走 --tint ✓（2026-10-12：原 rgba(255,255,255,.06) 是深色主题专属——浅色白底上不可见 ✗，属主题泄漏 ✓） */
   #snap-attr .sd-bar i { display: block; height: 100%; border-radius: 2px; }
   #snap-attr .sd-amt { flex: 0 0 62px; text-align: right; font-family: var(--mono); }
   #snap-attr .sd-pct { flex: 0 0 34px; text-align: right; color: var(--tx3); font-family: var(--mono); }
