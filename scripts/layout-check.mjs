@@ -59,29 +59,43 @@ const audit = (p) => p.evaluate(() => {
   return { ov: document.documentElement.scrollWidth - iw, bad: bad, out: out, nSvg: document.querySelectorAll("svg").length };
 });
 
-/* 把按需渲染的归因视图也点亮（列头图是真实像素画的 ✓ 必须一起查 ✓） */
+/* 把按需渲染的归因视图也点亮（列头图是真实像素画的 ✓ 必须一起查 ✓）——
+   用「目标元素已画出」当信号，替代固定 waitForTimeout(250) ✗（归因矩阵/列头图都在点击处理里同步渲染 ✓） */
 const openAttr = async (p) => {
   await p.evaluate(() => {
     const b = [...document.querySelectorAll("#snap-switch .vs-btn")].find((v) => v.dataset.view === "attr");
     if (b) b.click();
   });
-  await p.waitForTimeout(250);
+  await p.waitForFunction(() => !!document.querySelector("#snap-attr table.sa-mx"), { timeout: 3000 }).catch(() => {});
   await p.evaluate(() => {
     const th = document.querySelectorAll("#snap-attr thead th")[2];
     if (th) th.click();
   });
-  await p.waitForTimeout(250);
+  await p.waitForFunction(() => {
+    const s = document.querySelector("#snap-attr .sa-chart-svg");
+    return !!(s && s.getBoundingClientRect().width > 0);
+  }, { timeout: 3000 }).catch(() => {});
 };
 
 const browser = await chromium.launch();
 const errs = [];
+
+/* 就绪信号：等页面**真正画出图**（#trend-box 里有 svg 且非零宽）再测 ——
+   替代原来的固定 waitForTimeout(900) ✗：本地 file:// 页面在 load 事件后内联脚本已同步渲染完，
+   900ms 是纯空等（三档 ＋ 拖动页 ＝ 4×900 ＝ 3.6s 白等 ✗）。用信号等，画完即测 ✓。
+   信号没等到也不硬报 ✗ —— audit 自己会量出真实值，等不到只是少了那次测量、不影响判定 ✓。 */
+const waitReady = (p) => p.waitForFunction(() => {
+  const svg = document.querySelector("#trend-box svg");
+  const grid = document.getElementById("sum-grid");
+  return !!(svg && svg.getBoundingClientRect().width > 0 && grid && grid.children.length > 0);
+}, { timeout: 5000 }).catch(() => {});
 
 /* ① 三档首屏 */
 for (const w of [1440, 760, 380]) {
   const p = await browser.newPage({ viewport: { width: w, height: 1000 } });
   p.on("pageerror", (e) => errs.push(w + "px " + e.message));
   await p.goto(page, { waitUntil: "load" });
-  await p.waitForTimeout(900);
+  await waitReady(p);
   if (w === 380) await openAttr(p);
   const r = await audit(p);
   check("首屏 " + w + "px：页面无横向溢出" + (w === 380 ? "（含归因列头图 ✓）" : ""), r.ov <= 0,
@@ -98,17 +112,17 @@ for (const w of [1440, 760, 380]) {
   const p = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   p.on("pageerror", (e) => errs.push("resize " + e.message));
   await p.goto(page, { waitUntil: "load" });
-  await p.waitForTimeout(900);
+  await waitReady(p);
   const a = await audit(p);
   check("拖动前 1440px：无横向溢出", a.ov <= 0, a.ov > 0 ? "溢出 " + a.ov + "px" : "溢出 0px ✓");
   await p.setViewportSize({ width: 380, height: 1000 });
-  await p.waitForTimeout(700);
+  await p.waitForTimeout(300);   // 页内 resize 防抖 150ms 后重绘 → 留 300ms 余量 ✓（原 700 ✗ 空等翻倍）
   const b2 = await audit(p);
   check("1440 → 380 拖动缩放后：页面无横向溢出", b2.ov <= 0,
     b2.ov > 0 ? "溢出 " + b2.ov + "px（图没重绘 ✗ 就是这次的 bug ✓）" : "溢出 0px ✓");
   check("1440 → 380 拖动缩放后：每个 SVG 都不超出容器", b2.bad.length === 0, b2.bad.slice(0, 3).join(" · "));
   await p.setViewportSize({ width: 1440, height: 1000 });
-  await p.waitForTimeout(700);
+  await p.waitForTimeout(300);
   const c2 = await audit(p);
   check("380 → 1440 拖回后：页面无横向溢出", c2.ov <= 0, c2.ov > 0 ? "溢出 " + c2.ov + "px" : "溢出 0px ✓");
   await p.close();

@@ -13,7 +13,7 @@
  *
  * 用法：node scripts/verify-all.mjs [--deep]      （--deep 追加 typecheck）
  */
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 const DEEP = process.argv.includes("--deep");
@@ -48,20 +48,27 @@ if (DEEP) steps.push(["typecheck（深度）", ["node", ["scripts/typecheck.mjs"
 
 let fail = 0;
 console.log("═══ 门禁总检（scripts/verify-all.mjs）═══");
-steps.forEach(([name, cmd, skip]) => {
-  if (skip) { console.log("  ⏭ " + name + " —— " + skip); return; }
+/* ⚠ 并行跑（2026-10-12 提速 ✓）：各门禁互不依赖、都只读文件/各自起进程 ✓ ——
+   墙钟 ≈ 最慢那项、而不是相加 ✓（串行时 dom-check 2.9s ＋ layout-check 6.7s ＝ 9.6s ✗ → 并行 ≈ 6.7s ✓）。
+   结果仍按**原顺序**打印（不按完成先后 ✗），失败项照旧收集、任一非 0 整体 exit 1 ✓ —— 判定力一分没减 ✓。 */
+const results = await Promise.all(steps.map(([name, cmd, skip]) => new Promise((resolve) => {
+  if (skip) return resolve({ name, skip });
   const t0 = Date.now();
-  try {
-    const out = execFileSync(cmd[0], cmd[1], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    const tail = (out.trim().split("\n").slice(-1)[0] || "").trim();
-    console.log("  ✓ " + name + "  " + ((Date.now() - t0) / 1000).toFixed(1) + "s  " + tail.slice(0, 80));
-  } catch (e) {
+  execFile(cmd[0], cmd[1], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    (err, stdout, stderr) => resolve({ name, err, out: (stdout || "") + "\n" + (stderr || ""), ms: Date.now() - t0 }));
+})));
+for (const r of results) {
+  if (r.skip) { console.log("  ⏭ " + r.name + " —— " + r.skip); continue; }
+  const tail = (r.out.trim().split("\n").slice(-1)[0] || "").trim();
+  if (r.err) {
     fail++;
-    console.log("  ✗ " + name + " 失败");
-    ((e.stdout || "") + (e.stderr || "")).split("\n")
+    console.log("  ✗ " + r.name + " 失败");
+    r.out.split("\n")
       .filter((l) => /✗|error|Error|失败|未通过|not ok|# fail [1-9]/.test(l)).slice(0, 8)
       .forEach((l) => console.log("      " + l.trim().slice(0, 140)));
+  } else {
+    console.log("  ✓ " + r.name + "  " + (r.ms / 1000).toFixed(1) + "s  " + tail.slice(0, 80));
   }
-});
+}
 console.log(fail ? "\n门禁未通过：" + fail + " 项失败" : "\n全部门禁通过 ✓" + (DEEP ? "" : "（typecheck 需加 --deep）"));
 process.exit(fail ? 1 : 0);
