@@ -749,7 +749,9 @@ function renderOtcEst(nc) {
   cmp.sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
   const logN = LOG ? Object.keys(LOG).reduce((a, k) => a + (LOG[k] || []).length, 0) : 0;
   const logFunds = LOG ? Object.keys(LOG).filter((k) => (LOG[k] || []).length).length : 0;
-  const pctS = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  /* 对账表原另有一个 pctS，与上方 pc 逐字符同实现（同一种「百分比数字 → +x.xx%」格式抄了两份）→
+     2026-10-12 合并到 pc：同一格式只留一处 ✓，改格式不会再漏掉一张表 ✓。
+     ⚠ ppS 保留为独立实现：它是「百分点」差值口径（3 位 + pp），与百分比不是同一个东西 ✗。 */
   const ppS = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(3) + "pp";
   if (!cmp.length) {
     h += '<div class="est-cmp wait" data-cmp-n="0" data-log-n="' + logN + '">'
@@ -771,15 +773,15 @@ function renderOtcEst(nc) {
           + ' data-cmp-est="' + x.est.toFixed(4) + '" data-cmp-act="' + x.act.toFixed(4) + '"'
           + ' data-cmp-diff="' + x.diff.toFixed(4) + '" data-cmp-amt="' + x.amt.toFixed(2) + '">'
           + '<td class="e-nm">' + esc(plDisplayName(x.f.name)) + '<span class="e-date">' + d2(x.from) + " → " + d2(x.d) + "</span></td>"
-          + '<td class="e-mid">' + pctS(x.est) + '</td><td class="e-mid">' + pctS(x.act) + "</td>"
+          + '<td class="e-mid">' + pc(x.est) + '</td><td class="e-mid">' + pc(x.act) + "</td>"
           + '<td class="e-mid ' + cls(x.diff) + '">' + ppS(x.diff) + "</td>"
           + '<td class="e-amt ' + cls(x.amt) + '">' + fmtAmt2(x.amt) + "</td></tr>").join("")
       + '<tr class="sum" data-cmp-total="' + sumDiff.toFixed(2) + '"><td class="e-nm">合计（' + cmp.length + ' 只）</td>'
-      + '<td class="e-mid">' + pctS(avgE) + '</td><td class="e-mid">' + pctS(avgA) + "</td>"
+      + '<td class="e-mid">' + pc(avgE) + '</td><td class="e-mid">' + pc(avgA) + "</td>"
       + '<td class="e-mid ' + cls(avgA - avgE) + '">' + ppS(avgA - avgE) + "</td>"
       + '<td class="e-amt ' + cls(sumDiff) + '">' + fmtAmt2(sumDiff) + "</td></tr></tbody></table>"
       + '<div class="otc-note"><b>结论</b>：这一批预估<b>' + (avgE >= avgA ? "偏乐观" : "偏保守") + "</b> " + Math.abs(avgE - avgA).toFixed(3)
-      + "pp（预估均值 " + pctS(avgE) + " vs 实际均值 " + pctS(avgA) + "）；折成钱 ≈ <b>" + fmtAmt2(sumDiff) + " 元</b>"
+      + "pp（预估均值 " + pc(avgE) + " vs 实际均值 " + pc(avgA) + "）；折成钱 ≈ <b>" + fmtAmt2(sumDiff) + " 元</b>"
       + (otcVal ? "（占场外市值 " + (Math.abs(sumDiff) / otcVal * 100).toFixed(2) + "%）" : "") + " · 方向命中 " + hitDir + "/" + cmp.length + " ✓。"
       + "<br>⚠ 单次差异里既有模型误差、也有「App 净值日 ↔ 代理指数日」的错位 ✓ —— 攒几天（台账会一直记 ✓）"
       + "才看得出是<b>系统性</b>偏高还是偏低 ✓，别拿一次就下结论 ✓。</div></div>";
