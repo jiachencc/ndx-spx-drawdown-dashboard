@@ -1825,6 +1825,46 @@ function traceSparkSvg(w, pts, evs, opt) {
   svg += "</svg>";
   return svg;
 }
+/* 「同节奏纳指」逐只（2026-10-12 加，用户选的 ⑥）—— 回答「同样日期、同样的钱全买纳指会怎样」✓
+   ▸ 算法与**走势图的「同节奏纳指」同源** ✓（把每一期的资金流按期末日收盘买入 ✓）：
+       units ← units ×(B_d / B_prev) ＋ 该期净流 / B_d ✓；末值 ＝ units × B_末 ✓。
+     「该期净流」＝ 场内 POSITIONS.log 买卖净额 / 场外 OTC_LOG 成功笔（赎回记负 ✓）
+       —— 直接复用 perFundCalcBase() 的 flowIn ✓（一处实现，避免两处口径漂移 ✓）。
+   ▸ ⚠ 边界都写进界面的 title 里、不让人猜 ✓：
+       · 按**快照期**归属资金流、不是日频 ✗（仓库里没有日频 ✓）
+       · 基准**缺当日就停在前一个交易日** ✓（与走势图同规矩；10-12 美股未收盘 → 末点 10-09 ✓）
+       · 不含费用与汇率 ✗；⚠ 纳指只是**参照**，未必是这只的合适基准（日经 / 港股那几只 ✓）。 */
+function sameRhythmBench(code, baseD, lastD) {
+  const { flowIn, full } = perFundCalcBase();
+  if (!flowIn || !full || !full.length || typeof BENCH === "undefined") return null;
+  /* ⚠ 期初**存量**必须折成份额 ✗→✓：这只在第一份含它的快照里就已经有成本了 ✓（159941 是 10.7 万 ✓），
+     只模拟窗口内的新买入会让同节奏数小一个量级 ✗ —— 首版就是这么错的 ✓（实测 159941 得 3.8 万 ✗）。
+     更早的买点没有基准价可用 ✗（BENCH 从 08-28 起 ✓）→ 就拿**那天**的基准价折 ✓，并在 title 里写明 ✓。 */
+  const first = full.filter((x) => x.items && x.items[code])[0];
+  const it0 = first && first.items ? first.items[code] : null;
+  if (!it0 || !(BENCH[first.d] > 0)) return null;
+  const base = first.d;
+  const keys = Object.keys(BENCH).sort().filter((d) => d >= base && d <= (lastD || "9999"));
+  if (keys.length < 2) return null;
+  let units = (it0.cost || 0) / BENCH[base];              // 期初存量按基准价折份额 ✓
+  let flows = (it0.cost || 0), prev = base;
+  for (let i = 1; i < keys.length; i++) {
+    const d = keys[i], B0 = BENCH[prev], B1 = BENCH[d];
+    if (Number.isFinite(B1)) {
+      if (Number.isFinite(B0) && B0 > 0) units = units * (B1 / B0);   // 先让已有份额跟着基准走 ✓
+      const f = flowIn(code, prev, d);                                 // 期末日买入（与走势图同约定 ✓）
+      units += f / B1; flows += f;
+    }
+    prev = d;                                                          // 基准缺值 → 只补资金流、不猜点位 ✓
+  }
+  const last = prev, B = BENCH[last];
+  const snap = full.filter((x) => x.d === last)[0];
+  const it = snap && snap.items ? snap.items[code] : null;
+  if (!Number.isFinite(B) || !it) return null;
+  const benchVal = units * B;
+  return { d: last, base: base, flows: flows, benchVal: benchVal, actual: it.val, diff: it.val - benchVal };
+}
+
 /* ── ③ 下钻视图：整期 / 格子 / 逐期轨迹 / 列图 / 排序条 / 整表曲线 ＋ 分派 ✓ ──
    （原为单体函数内的视图段；段内小工具 fmtPx/periodOf/histOf/totalOf/eventsOf/kindMark/pctTxt/rowHtml
      只被视图用到 → 就地保留；nameOf ／ colSeries 已上移进 saCtx —— wireColChart 也要用；
@@ -2025,6 +2065,16 @@ function saDetailView(C) {
     rows.push('<tr class="sum"><td>合计</td><td>＋ 期初结转</td><td class="r" colspan="4"></td>'
       + '<td class="r num ' + cls(total) + '">' + fmtAmt(total) + "</td>"
       + '<td class="r num mut">100%</td></tr>');
+    /* ⑥ 同节奏纳指（只做参照 ✓）：口径与边界全写进 title，不让人猜 ✓ */
+    const bench = sameRhythmBench(code, C.baseD, lastD);
+    const themeOfCode = exch
+      ? ((((typeof POSITIONS !== "undefined" && (POSITIONS.hold || []).filter((h) => h.code === code)[0]) || {}).idx) || null)
+      : (((typeof OTC !== "undefined" && (OTC.funds || []).filter((f) => f.code === code)[0]) || {}).theme || null);
+    const benchNote = "口径：把每一期的资金流按期末日的纳指收盘买入（与上方走势图的「同节奏纳指」同一算法 ✓）；"
+      + "基准缺当日就停在前一个交易日、不猜点位 ✓（10-12 美股未收盘 → 末点落在 10-09 ✓）；"
+      + "按快照期归属资金流、不是日频 ✗；不含费用与汇率 ✗。"
+      + (bench ? " 期初存量（第一份含该只的快照 " + bench.base + " 上的成本）按当期基准价折成份额 ✓。" : "")
+      + (themeOfCode && themeOfCode !== "ndx" ? " ⚠ 该只不是纳指类（" + themeOfCode + "）—— 这里只能当跨基准参照看 ✓。" : "");
     const chart = traceSparkSvg(boxW, pts, evs, { carryD: hasAnchor ? C.baseD : null });
     return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
@@ -2043,6 +2093,14 @@ function saDetailView(C) {
       + (Number.isFinite(nowPx) && Number.isFinite(nowCost) && nowCost > 0
         ? '<span>当下溢价 <b class="' + cls(nowPx / nowCost - 1) + '">' + fmtPct(nowPx / nowCost - 1, 2) + "</b></span>" : "")
       + "<span>" + (exch ? "操作" : "申购") + " <b>" + ops + "</b> 笔</span></div>"
+      + (bench ? '<div class="sd-bench" title="' + esc(benchNote) + '"><span>同节奏纳指（参照）</span>：同样的钱、同样的日期全买纳指 → '
+        + "<b>" + mdOf(bench.d) + "</b> 时 <b class=\"" + cls(bench.benchVal) + "\">" + fmtAmt(bench.benchVal) + "</b> 元；"
+        + "这只实际 <b class=\"" + cls(bench.actual) + "\">" + fmtAmt(bench.actual) + "</b> 元 → 差 <b class=\""
+        + cls(bench.diff) + "\">" + fmtAmt(bench.diff) + "</b> 元"
+        /* ⚠ 这里**不能取绝对值** ✗：差是负的时候（如 513650 −7,483）会印成「+4.4%」✗，
+           和左边的「−7,483 元」自相矛盾 ✓（首版就踩了 ✓）→ 用带符号的比值 ✓ */
+        + (bench.benchVal ? "（相对纳指那侧 " + fmtPct(bench.diff / bench.benchVal, 1) + "）" : "")
+        + " · 期间净投入 " + fmtAmt(bench.flows) + " 元</div>" : "")
       + '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th><th>份数</th><th>单价</th>'
       + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>占累计</th></tr></thead><tbody>"
       + rows.join("") + "</tbody></table></div></div>";

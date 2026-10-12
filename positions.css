@@ -1604,6 +1604,11 @@
   #snap-attr .sd-kpi { display: flex; flex-wrap: wrap; gap: 1px 14px; margin: 5px 2px 3px;
     font-size: var(--chk-fs-mini); color: var(--tx3); }
   #snap-attr .sd-kpi b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--tx); }
+  /* 同节奏纳指那一行（2026-10-12 加，⑥）：小一号、灰底，明示它是**参照**而不是这只的成绩 ✓ */
+  #snap-attr .sd-bench { font-size: var(--chk-fs-mini); color: var(--tx3); margin: 3px 2px 5px;
+    padding: 3px 7px; border-left: 2px solid var(--line); background: var(--card2); border-radius: 0 5px 5px 0; }
+  #snap-attr .sd-bench b { font-family: var(--mono); color: var(--tx2); }
+  #snap-attr .sd-bench > span { color: var(--tx2); }
   /* ── 轨迹的**表格形态**（2026-10-12 用户选定：从行列表换成分列的表 ✓）───────────────────────
      顺序 **旧 → 新**（与上面那张图同向 ✓）；「份数 / 成本」没变就只写一个值 ✓；
      有交易的那一期整行淡染 ✓（令牌 --card2 ✓ 不硬编码 rgba ✗）。
