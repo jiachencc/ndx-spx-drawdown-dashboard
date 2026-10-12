@@ -265,6 +265,10 @@ themeBtn.addEventListener("click", () => {
 const fmtPct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(dp === undefined ? 1 : dp) + "%";   // 负号同样用「−」，与金额一致
 /* 日内涨跌专用：幅度小（常年在 ±3% 内），默认 1 位会把 0.05% 抹成“+0.1%”——固定 2 位与同卡“较成本 / 距高点”区分开 */
 const fmtPctChg = (v) => fmtPct(v, 2);
+/* 带符号百分点（pp）：相对基准差值 / 归因贡献 / 口径差 —— 2026-10-12 收拢（此前 6+ 处各自散写 ✗，与上轮合并 pctS 同一动机）。
+   ⚠ 入参恒为「小数比例」（×100 在函数内做，与 fmtPct 同一约定，好记：fmtPct / fmtPp 都收比例 ✓）；
+   拿到的值本身已是 pp 单位的（如「两个百分数相减」），除以 100 再传 ✓。 */
+const fmtPp = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(dp === undefined ? 2 : dp) + "pp";
 const fmtIdx = (v) => v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : (Number.isFinite(v) ? v.toFixed(2) : "--");
 const cls = (v) => v >= 0 ? "up" : "down";
 /* 金额与数量：**只在显示层取整**（原值仍保留全精度，所有计算、对账、diff 一律用原始数）。
@@ -356,7 +360,14 @@ function logFee(e) {
   const m = String(e.note || "").match(/费\s*([\d.]+)/);
   return m ? parseFloat(m[1]) : null;
 }
-const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+/* 卖出判定：收「流水对象」或「动作字符串」均可（2026-10-12 收拢 —— ?debug 自检块此前又定义了一份只收字符串的 ✗） */
+const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e && typeof e === "object" ? e.act : e || ""));
+/* resize 防抖统一收口（2026-10-12）：窗口拖动高频触发 resize，按真实像素宽重绘 SVG 必须防抖 ✓。
+   此前手写了 3 份「clearTimeout + setTimeout(…, 150)」、养了 4 个 timer 变量 —— 同一模式不该有 4 份 ✗ */
+function debounce(fn, ms) {
+  let t = null;
+  return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+}
 function legMode(e) {
   const t = String(e.tag || "");
   if (/调仓|建仓|加仓|减仓|清仓/.test(t)) return "off";
@@ -751,8 +762,8 @@ function renderOtcEst(nc) {
   const logFunds = LOG ? Object.keys(LOG).filter((k) => (LOG[k] || []).length).length : 0;
   /* 对账表原另有一个 pctS，与上方 pc 逐字符同实现（同一种「百分比数字 → +x.xx%」格式抄了两份）→
      2026-10-12 合并到 pc：同一格式只留一处 ✓，改格式不会再漏掉一张表 ✓。
-     ⚠ ppS 保留为独立实现：它是「百分点」差值口径（3 位 + pp），与百分比不是同一个东西 ✗。 */
-  const ppS = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(3) + "pp";
+     ⚠ ppS 是「百分点」差值口径（3 位 + pp），与百分比不是同一个东西 ✗ —— 实现已并入全局 fmtPp ✓（2026-10-12）。 */
+  const ppS = (v) => fmtPp(v / 100, 3);
   if (!cmp.length) {
     h += '<div class="est-cmp wait" data-cmp-n="0" data-log-n="' + logN + '">'
       + "<b>预估 vs 实际</b>：暂无已对账的那一天 ✓ —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只 ✓）。"
@@ -944,7 +955,7 @@ function renderOtcLog() {
       /* 逐笔盈亏之和 vs App 持仓收益：差 = 申购费 ＋ 在途 ＋ 份额差 —— 并排给、不覆盖 */
       + (r.px ? " · 逐笔盈亏 " + fmtAmt(r.pnlEst) + "（App " + fmtAmt(r.f.pnl) + "）" : "")
       /* 逐笔份额 vs App 份额：两只对到 0.00%，南方差 +3.3%（与其已知的「已扣款未入成本」同源） */
-      + (r.shDiff !== null ? " · 份额 " + (r.shDiff >= 0 ? "+" : "−") + Math.abs(r.shDiff * 100).toFixed(2) + "% vs App" : "")
+      + (r.shDiff !== null ? " · 份额 " + fmtPct(r.shDiff, 2) + " vs App" : "")
       + '</summary><ol class="dca-list">'
       + r.log.slice().sort((a, b) => (a.d < b.d ? 1 : -1)).map((t) => "<li>"
         + '<span class="d-d">' + d5(t.d) + '</span><span class="d-a">' + esc(t.act) + "</span>"
@@ -1228,7 +1239,7 @@ function renderImpl() {
   const dayOtcEst = nc.amt;
   const ncTip = nc.est || nc.days
     ? "场外预估＝按代理指数把【最后净值日之后】的行情补齐（逐日累乘 α + β×指数日涨跌）。"
-      + nc.rows.filter((r) => r.src === "est").map((r) => "\n  " + r.f.code + " " + r.f.name.slice(0, 12) + "：缺口 " + r.days + " 天 → " + (r.pct >= 0 ? "+" : "−") + Math.abs(r.pct).toFixed(2) + "%（" + fmtAmt2(r.amt) + " 元）" + (r.ft.tier === "ref" ? " ·★参考（跟踪不紧）" : "")).join("")
+      + nc.rows.filter((r) => r.src === "est").map((r) => "\n  " + r.f.code + " " + r.f.name.slice(0, 12) + "：缺口 " + r.days + " 天 → " + fmtPct(r.pct / 100, 2) + "（" + fmtAmt2(r.amt) + " 元）" + (r.ft.tier === "ref" ? " ·★参考（跟踪不紧）" : "")).join("")
       + nc.rows.filter((r) => r.src === "app").map((r) => "\n  " + r.f.code + " 净值已追上 → 用 App 快照 " + fmtAmt2(r.f.day) + " 元").join("")
       + (nc.dir.length ? nc.dir.map((d) => "\n  " + d.f.code + " " + d.f.name.slice(0, 12) + "：跟踪太弱（r " + d.ft.r + "）→ 不计入金额，只作方向参考").join("") : "")
       + "\n口径：净值日 d ↔ 指数同日 d（实证 r 0.999/0.996）；窗口用东财净值日（拟合同一套日期）。"
@@ -2395,13 +2406,11 @@ function renderSnapAttr() {
    那张图按**真实像素宽**画 ✓（与仓库其它图同一套做法 ✓），窗口一变就会画窄/画宽 ✗
    → 只在"列头图正开着"时才重画 ✓（矩阵本身是 CSS 撑开的 ✓ 不需要重画 ✓）。
    防抖 150ms ✓：与走势图的 resize 重绘同一套 ✓，避免拖动窗口时狂重绘 ✓。 */
-let snapAttrRzTimer = null;
-window.addEventListener("resize", () => {
+window.addEventListener("resize", debounce(() => {
   const box = $("snap-attr");
   if (!box || box.hidden || !saSel || saSel.k !== "col") return;
-  clearTimeout(snapAttrRzTimer);
-  snapAttrRzTimer = setTimeout(() => renderSnapAttr(), 150);
-});
+  renderSnapAttr();
+}, 150));
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
    用 onclick 赋值而非 addEventListener —— render() 会重跑，避免重复绑监听。 */
 /* ── 「逐期明细」的持仓变化行 → 直接跳到该只的**逐期轨迹**（2026-10-10，用户选的 ①）──────────
@@ -3077,6 +3086,14 @@ function trendNav(pts) {
   for (let i = deepI + 1; i < nav.length; i++) if (nav[i] >= nav[peakI]) { recI = i; break; }
   return { nav: nav, dd: dd, deepI: deepI, peakI: peakI, recI: recI };
 }
+/* trendNav 结果按 pts 数组身份缓存（2026-10-12）：showXhair 在 pointermove 路径上高频调用（rate / dd 两分支），
+   同一期数据每移动一像素就重算一遍 O(n) 前缀是纯浪费 ✗ —— pts 数组只在 renderTrend 重绘时才换 ✓，
+   以数组引用为键即可安全缓存（换视图 / 换数据自然失效，无手动清理 ✓） */
+let _trendNavCache = null;
+function trendNavCached(pts) {
+  if (!_trendNavCache || _trendNavCache.pts !== pts) _trendNavCache = { pts, N: trendNav(pts) };
+  return _trendNavCache.N;
+}
 /* ---- 视图④：回撤 ----
  * 纵轴 0 在顶、最深在底；面积铺 down 色，一眼看出「泡在水里有多深」。
  * 标注三件事：最深回撤（值 + 日期）、从哪次峰值开始跌、是否已修复。 */
@@ -3523,7 +3540,7 @@ function showXhair(i) {
         : ' title="场外月度读数未加载，故图上只有场内（券商 App 月度读数，含已实现）"') + ">"
         + (pnlHasOtc() ? "合计 · 场内＋场外（不含现金）" : "场内口径 · 含已实现") + "</span></span></div>";
   } else if (mode === "rate") {
-    const N = trendNav(L.pts), tw = N.nav[k] - 1;
+    const N = trendNavCached(L.pts), tw = N.nav[k] - 1;
     const bi = benchRelAt(L.pts, k);
     const ex = bi === null ? null : tw - bi;
     const rr = p.cost ? (p.val - p.cost) / p.cost : 0;
@@ -3534,7 +3551,7 @@ function showXhair(i) {
       '<div class="ro-attr"><span class="nb"><span class="ro-k">超额 ＝ 组合 − 同期纳指（同口径同起点）</span></span>' +
         '<span class="nb"><span class="ro-k">· 成本口径</span>' + roPct(rr) + "</span></div>";
   } else if (mode === "dd") {
-    const N = trendNav(L.pts);
+    const N = trendNavCached(L.pts);
     let pk = 0;
     for (let j = 1; j <= k; j++) if (N.nav[j] >= N.nav[pk]) pk = j;
     const ago = k - pk;
@@ -3593,27 +3610,39 @@ function showXhair(i) {
   const rsel = trendRangeHtml();
   if (rsel) ro.innerHTML += rsel;
 }
+/* 十字线取点：指针 x → 最近的期（2026-10-12 收拢 —— pointermove 的 pick 与 click 选点此前是
+   两份逐字相同的「getBoundingClientRect + forEach 求最近」拷贝 ✗）。返回 -1 ＝ 当前没有可取的期。 */
+function nearestPoint(box, e) {
+  if (!trendLayout || trendLayout.px.length < 2) return -1;
+  const r = box.getBoundingClientRect(), cx = e.clientX - r.left;
+  let best = 0, bd = Infinity;
+  trendLayout.px.forEach((x, i) => { const d = Math.abs(x - cx); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
 function bindTrendCrosshair() {
   const box = $("trend-box");
   if (!box) return;
-  const pick = (e) => {
-    if (!trendLayout || trendLayout.px.length < 2) return;
-    const r = box.getBoundingClientRect();
-    const cx = e.clientX - r.left;
-    let best = 0, bd = Infinity;
-    trendLayout.px.forEach((x, i) => { const d = Math.abs(x - cx); if (d < bd) { bd = d; best = i; } });
-    showXhair(best);
+  /* ⚠ saWire 2134 行那条「绝不在 pointermove 里整块重渲染」的铁律，本读数条此前是反例 ✗：
+     showXhair 每次都整块重建 ro.innerHTML（四个视图分支 ＋ 区间统计行），指针划过一次要触发几十次。
+     2026-10-12 加 rAF 节流：每帧最多渲染一次 ✓（上一帧未渲染就被覆盖 = 天然去抖 ✓）；
+     pointerdown / pointerleave / 键盘 / 聚焦路径仍是**立即**渲染 ✓（低频且要即时反馈 ✓）。 */
+  let xhRaf = null;
+  const showXhairSoon = (i) => {
+    if (xhRaf !== null) cancelAnimationFrame(xhRaf);
+    xhRaf = requestAnimationFrame(() => { xhRaf = null; showXhair(i); });
   };
+  const pick = (e) => { const i = nearestPoint(box, e); if (i >= 0) showXhairSoon(i); };
   box.addEventListener("pointermove", pick);
-  box.addEventListener("pointerdown", pick);
-  box.addEventListener("pointerleave", () => showXhair(-1));
+  box.addEventListener("pointerdown", (e) => { const i = nearestPoint(box, e); if (i >= 0) showXhair(i); });
+  box.addEventListener("pointerleave", () => {
+    if (xhRaf !== null) { cancelAnimationFrame(xhRaf); xhRaf = null; }   // 别让挂起的旧帧盖掉「回到最新一期」
+    showXhair(-1);
+  });
   /* 区间统计模式下的点选：click 在 pointerup 之后触发，不会与 crosshair 的 pick 抢事件 */
   box.addEventListener("click", (e) => {
-    if (!trendSelOn || !trendLayout || trendLayout.px.length < 2) return;
-    const r = box.getBoundingClientRect(), cx = e.clientX - r.left;
-    let best = 0, bd = Infinity;
-    trendLayout.px.forEach((x, i) => { const d = Math.abs(x - cx); if (d < bd) { bd = d; best = i; } });
-    selectTrendPoint(best);
+    if (!trendSelOn) return;
+    const i = nearestPoint(box, e);
+    if (i >= 0) selectTrendPoint(i);
   });
   /* ← / → 逐点切换：trend-dot 已带 tabindex="0"，上一版能聚焦但方向键无反应，
    * 给用户“能用键盘”的错觉。现在键盘与鼠标同构：聚焦到某个点就拉 crosshair 到那个点。 */
@@ -4633,7 +4662,7 @@ function prRateSec() {
         '<span class="snap-sub" title="时间加权收益率：按快照末端资金流逐期剔除转入/转出，衡量标的与持有本身 —— 不含你「何时加减仓」的影响">时间加权 · 剔除出入金时点</span></span></div>' +
       '<div class="snap-part"><span class="pn">XIRR</span><span class="pv"><b>' + xCell + '</b>' +
         '<span class="snap-sub" title="资金加权年化：用每一笔出入金的日期与金额解 IRR，衡量你的钱实际赚了多少">资金加权 · 含出入金时点' +
-        (gap !== null ? "；与 TWR 差 " + (gap >= 0 ? "+" : "−") + Math.abs(gap * 100).toFixed(2) + "pp＝出入金节奏的贡献" : "（跨度过短不做年化，与走势图同一规则）") + "</span></span></div>" +
+        (gap !== null ? "；与 TWR 差 " + fmtPp(gap) + "＝出入金节奏的贡献" : "（跨度过短不做年化，与走势图同一规则）") + "</span></span></div>" +
       /* 标签列窄屏只有 58px，「同节奏纳指」5 字（≈60px）会被省略成「同节奏纳…」→ 缩成「同节奏」，
          完整名字与口径挂 title（2026-09-23 移动端审查）。 */
       (bTwr !== null ? '<div class="snap-part"><span class="pn" title="同节奏纳指：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌，回答「同样的钱、同样的日期全买纳指今天是多少」">同节奏</span><span class="pv"><b class="' + cls(bTwr) + '">' + pc(annT(bTwr)) + '</b>' +
@@ -4826,7 +4855,7 @@ function prPerFund(C) {
          ⚠ 它评的是**「你的钱」**（按你实际出入金的日期与金额），不是标的本身（标的是 TWR 那列）。 */
       const rfPer = (d) => ((rf === null || !(d > 0)) ? null : Math.pow(1 + rf, d / 365) - 1);
       const gradeOf = (r) => {
-        const pp = (x) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(2) + "pp";
+        const pp = fmtPp;   // 全局 fmtPp 同一实现（2026-10-12 收拢；此前本函数内自写了一份 ✗）
         if (r.miss) return { k: "na", t: "⏳", why: "缺成交流水 → 算不出「你的钱」赚了多少，不评级" };
         if (rf === null) return { k: "na", t: "⏳", why: "缺无风险利率（10Y）→ 无从对照，不评级" };
         if (!(r.expo >= 30)) return { k: "na", t: "⏳", why: "有效在场期仅 " + Math.round(r.expo || 0) + " 天（< 30 天）→ 比较无意义，不评级" };
@@ -4924,8 +4953,8 @@ function prPerFund(C) {
         '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
         " · " + (allRows.length - miss) + " 只已录流水" +
         (rank.length
-          ? " · 超额（简单−同期无风险）最差 " + (rank[0].ex >= 0 ? "+" : "−") + Math.abs(rank[0].ex * 100).toFixed(1) + "pp（" + rank[0].nm + "）" +
-            " · 最好 " + (rank[rank.length - 1].ex >= 0 ? "+" : "−") + Math.abs(rank[rank.length - 1].ex * 100).toFixed(1) + "pp（" + rank[rank.length - 1].nm + "）"
+          ? " · 超额（简单−同期无风险）最差 " + fmtPp(rank[0].ex, 1) + "（" + rank[0].nm + "）" +
+            " · 最好 " + fmtPp(rank[rank.length - 1].ex, 1) + "（" + rank[rank.length - 1].nm + "）"
           : " · 有效在场期均不足 30 天，暂不评级") +
         " · " + (drift.length ? "⚠ " + drift.length + " 只流水比快照成本多，需核对"
           : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平 ✓"
@@ -4978,7 +5007,7 @@ function prPerFund(C) {
             ? "⚠ 流水比快照成本多 " + fmtYuan(-r.drift) + "（App 成本滞后一期），需核对" : "";
           const baseRv = rfPer(r.expo);                                    // 同期无风险（按有效在场期折算）
           const exv = (r.miss || baseRv === null) ? null : r.rate - baseRv; // 超额
-          const ppTxt = (x) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(2) + "pp";
+          const ppTxt = fmtPp;   // 全局 fmtPp（2026-10-12 收拢）
           const notes = r.miss
             ? ["没有逐笔成交流水（该只在支付宝渠道，App 不提供申赎记录）→ 不参与年化与评级，只按现值列入",
               "现值 " + fmtYuan(r.val) + (typeof r.cost === "number" ? "（快照成本 " + fmtYuan(r.cost) + "）" : "")]
@@ -5486,9 +5515,9 @@ function renderAcctStats() {
     if (B === null || typeof S.pnlPct !== "number") return "";
     const diff = S.pnlPct - B, bn = S.benchName || "基准";
     const chips = (S.monthly || []).filter((r) => typeof r.pct === "number" && typeof r.bench === "number")
-      .map((r) => { const d = r.pct - r.bench; return '<span class="bench-chip ' + (d >= 0 ? "up" : "down") + '">' + r.m + " " + (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(2) + "pp</span>"; }).join("");
+      .map((r) => { const d = r.pct - r.bench; return '<span class="bench-chip ' + (d >= 0 ? "up" : "down") + '">' + r.m + " " + fmtPp(d / 100) + "</span>"; }).join("");
     return '<div class="bench-row"><span class="bench-l">相对' + bn + "</span>" +
-        '<b class="' + (diff >= 0 ? "up" : "down") + '">' + (diff >= 0 ? "+" : "−") + Math.abs(diff).toFixed(2) + "pp</b>" +
+        '<b class="' + (diff >= 0 ? "up" : "down") + '">' + fmtPp(diff / 100) + "</b>" +
         '<span class="bench-sub">你 ' + fmtPct(S.pnlPct / 100, 2) + "（App 口径）· " + bn + " " + fmtPct(B / 100, 2) + "</span>" +
         '<button type="button" class="strat-hint" data-note="acct-bench-q" aria-label="基准口径" aria-expanded="false">?</button></div>' +
       '<div class="strat-note" id="acct-bench-q">基准取券商对账单每行右侧的「' + bn + "」涨跌（App 原样给出，本页未换算）。"
@@ -5550,15 +5579,14 @@ function renderAcctStats() {
    只在卡里**真有图**时才重画 ✓（KPI 文字是 CSS 排的、不需要重画 ✓；未渲染过就什么都不做 ✓）。
    ▸ 防回归：scripts/layout-check.mjs（真实浏览器 · 有 playwright 才跑 ✓）会在
      1440 → 380 拖动缩放后断言"页面无横向溢出 ＋ 每个 SVG 不超出容器" ✓。 */
-let acctRzTimer = null, otcAcctRzTimer = null;
-window.addEventListener("resize", () => {
+window.addEventListener("resize", debounce(() => {
   const box = $("acct-card");
-  if (box && box.querySelector("svg")) { clearTimeout(acctRzTimer); acctRzTimer = setTimeout(renderAcctStats, 150); }
+  if (box && box.querySelector("svg")) renderAcctStats();
   /* 2026-10-10：场外那张图同样按**真实像素宽**画 ✓ → 也必须跟着窗口重绘 ✓（同一套防抖 ✓），
      否则从 1440 拖到 380 后会留一张 700px 宽的图 → 页面横向溢出 ✗（场内那张 10-09 正是这么踩的 ✓）。 */
   const box2 = $("otc-acct-card");
-  if (box2 && box2.querySelector("svg")) { clearTimeout(otcAcctRzTimer); otcAcctRzTimer = setTimeout(renderOtcAcctStats, 150); }
-});
+  if (box2 && box2.querySelector("svg")) renderOtcAcctStats();
+}, 150));
 
 /* ================= 波段配对引擎（跨标的） =================
  * ⚠ 2026-10-09：**独立的「波段复盘」卡片已按用户要求删除** ✓ —— 但本节的配对内核
@@ -5713,7 +5741,7 @@ function renderAlt() {
   const B = (typeof ALT_BACKTEST === "undefined") ? null : ALT_BACKTEST;
   const num = (x) => Math.round(x).toLocaleString("en-US");
   const sgn = (x) => (x >= 0 ? "+" : "−") + num(Math.abs(x));
-  const pp = (x) => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(2) + "pp";
+  const pp = fmtPp;   // 全局 fmtPp（2026-10-12 收拢；此前本函数内自写了一份 ✗）
   const pc = (x) => (x * 100).toFixed(2) + "%";
   const cls = (x) => (x > 0 ? "up" : x < 0 ? "down" : "");
   if (!B || !(B.groups || []).length) {
@@ -6203,9 +6231,9 @@ function costTrace() {
  * pair：配对角标 HTML（同一回路的买入行与卖出行挂同一个编号，逐笔流水才看得出「哪一买对哪一卖」） ---- */
 function logItemHtml(e, hideSym, pair) {
   const a = String(e.act || "");
-  const c = /建仓|加仓|买入/.test(a) ? "act-open" : /减仓|卖出|清仓/.test(a) ? "act-close" : "act-other";
+  const c = /建仓|加仓|买入/.test(a) ? "act-open" : isSellAct(a) ? "act-close" : "act-other";
   const d = e.d ? e.d.slice(5).replace("-", ".") : "--";
-  const isSell = /卖出|减仓|清仓/.test(a);
+  const isSell = isSellAct(a);
   const link = e.cost !== undefined && !isSell;
   /* 成本价 chip（2026-09-25 方案 B 重做）：
      · 买入行 →「成本价 A → B（±X%）」：百分比 ＝ 相对**操作前**成本价的变化率（正=抬升、负=摊薄）。
@@ -6269,7 +6297,7 @@ function weekOf(d) {
 const mdFmt = (d) => +d.slice(5, 7) + "." + +d.slice(8, 10);
 function weekRowHtml(entries, wk) {
   const we = new Date(Date.parse(wk + "T00:00:00Z") + 6 * 86400000).toISOString().slice(0, 10);
-  const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+  /* isSellAct 用全局版（2026-10-12 收拢；此前本函数内又定义了一份 ✗） */
   const buys = entries.filter((e) => !isSellAct(e)), sells = entries.filter(isSellAct);
   const bAmt = buys.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
   const sAmt = sells.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
@@ -6407,7 +6435,7 @@ function buyPointTip(d) {
   if (!isOtc && bps.length) t += "（" + bps.length + " 笔，最低 " + Math.round(Math.min(...bps)) + "% / 最高 " + Math.round(Math.max(...bps)) + "%）";
   t += "。越靠底部越好；⚠ 上涨趋势里偏高是必然，本项只作参考。";
   if (avgBW !== null && Math.round(avgBW) !== Math.round(avgB)) {
-    t += " ｜ 金额加权口径 " + Math.round(avgBW) + "%（" + (buyGap >= 0 ? "+" : "−") + Math.abs(buyGap).toFixed(1) + "pp）："
+    t += " ｜ 金额加权口径 " + Math.round(avgBW) + "%（" + fmtPp(buyGap / 100, 1) + "）："
       + "权重是「这笔投了多少钱」。定投固定金额时，低净值那几天买到更多份额 → 加权偏低；"
       + "各期金额悬殊时（如广发纳指F 从 1,000/日降到 30/日）→ 加权偏向大额那几天、反而偏高。"
       + "两个口径都不更准，只是回答不同问题 —— 算术平均答「我每次买在什么位置」、加权答「我的钱买在什么位置」，"
@@ -6428,7 +6456,7 @@ function opCheckupBrief(p) {
     swing = d.sells.length ? g(d.gSwing) + " " + fmtAmt(d.realized) : "—";
   }
   return '<span class="oc-brief" title="' + esc(d.tip) + '">成本 ' + g(d.gCost)
-    + " " + (d.gap === null ? "—" : (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp")
+    + " " + (d.gap === null ? "—" : fmtPp(Math.round(d.gap) / 100, 0))
     + " · 调仓 " + swing + "</span>";
 }
 /* 操作体检表（2026-09-27）：把原先嵌在持仓卡 / 盈亏总览行里的体检**集中到一张表**（用户要求「单独做一块」）。
@@ -6520,7 +6548,7 @@ function renderCheckup() {
         cost = '<span title="' + (out
           ? "成本价已" + (out === "上" ? "高于" : "低于") + "该标的 52 周区间" + out + "沿（算出来是 " + d.pct(d.costPct)
             + "）—— 本页的「成本」是**摊薄成本**（Σ买入含费 − Σ卖出净额），卖出回收后会把它抬高、甚至超过历史价格，"
-            + "此时区间分位没有意义，故不摆出来。档位仍按 现价位 − 成本位 计（" + (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "pp）：「成本远高于现价」本身是真的。"
+            + "此时区间分位没有意义，故不摆出来。档位仍按 现价位 − 成本位 计（" + fmtPp(Math.round(d.gap) / 100, 0) + "）：「成本远高于现价」本身是真的。"
           : "成本位 " + d.pct(d.costPct) + " → 现价位 " + d.pct(d.nowPct) + "，相减 = " + (d.gap >= 0 ? "+" : "−")
             + Math.abs(Math.round(d.gap)) + "pp。箭头向右 = 摊薄成功 / 已浮盈；向左 = 套牢。")
           + '">' + gb(d.gCost) + " " + (out ? "成本价超区间" + out + "沿" : d.pct(d.costPct) + " → " + d.pct(d.nowPct))
@@ -6587,7 +6615,7 @@ function opCheckupHtml(p) {
         : (costPct > 100 || costPct < 0 ? "成本价超区间" + (costPct > 100 ? "上" : "下") + "沿" : pct(costPct) + " → " + pct(nowPct))
           + (Number.isFinite(gap) && costPct <= 100 && costPct >= 0 ? '<em class="c-gap">' + (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap)) + "</em>" : ""),
         "成本位 " + pct(costPct) + " → 现价位 " + pct(nowPct) + "（都是该标的「52周低 ~ 历史高」里的分位），相减 = "
-        + (gap === null ? "—" : (gap >= 0 ? "+" : "−") + Math.abs(Math.round(gap)) + "pp")
+        + (gap === null ? "—" : fmtPp(Math.round(gap) / 100, 0))
         + "。箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈）；向左 = 成本反被现价压制（套牢）。与市场涨跌无关。")
     + item("调仓", gSwing, sells.length ? fmtAmt(realized) : "", sells.length
         ? "卖出 " + sells.length + " 笔，盈利 " + win + " 笔，实现盈亏合计 " + fmtAmt(realized) + " 元。"
@@ -6872,12 +6900,10 @@ document.addEventListener("click", (e) => {
     idxPop.style.top = "26px";
   }
 });
-let trendRzTimer = null;
-window.addEventListener("resize", () => {
+window.addEventListener("resize", debounce(() => {
   closeIdxPop();
-  clearTimeout(trendRzTimer);
-  trendRzTimer = setTimeout(() => { if (trendCtx) renderTrend(trendCtx.v, trendCtx.c); }, 150);   // 走势图按容器宽度重绘
-});
+  if (trendCtx) renderTrend(trendCtx.v, trendCtx.c);   // 走势图按容器宽度重绘
+}, 150));
 /* Esc 关闭解读弹窗与买入气泡（键盘可达，读屏友好） */
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closeIdxPop(); buyTip.style.display = "none"; lastBuyMark = null; }
@@ -7009,7 +7035,7 @@ bindTrendCrosshair();
     try { const r = fn(); R.push({ name, ok: r === true, msg: r === true ? "" : String(r) }); }
     catch (e) { R.push({ name, ok: false, msg: (e && e.message) || "执行异常" }); }
   };
-  const isSellAct = (a) => /卖出|减仓|清仓/.test(String(a || ""));
+  /* isSellAct 用全局版（2026-10-12 收拢 —— 此前本块又定义了一份只收字符串的 ✗） */
 
   chk("页面渲染无异常", () => {
     const el = $("pos-list");
@@ -7049,8 +7075,9 @@ bindTrendCrosshair();
   chk("波段回路数 = 卖出笔数，且份数合计一致", () => {
     const bad = (POSITIONS.hold || []).map((h) => {
       const es = (POSITIONS.log || []).filter((x) => x.sym === h.sym);
-      /* 注意：本块内的 isSellAct 收「动作字符串」，不是流水对象——早期误写成 filter(isSellAct)
-         会因 String({}) 恒不匹配而把卖出笔数算成 0，从而假报「回路 ≠ 卖出」。 */
+      /* 注意：早期本块自带的 isSellAct 只收「动作字符串」，误写成 filter(isSellAct) 会因
+         String({act:…}) 整对象不匹配而把卖出笔数算成 0，从而假报「回路 ≠ 卖出」——
+         2026-10-12 起全局版两态都收 ✓，这个坑已由实现本身填掉，此处留注释作历史存档。 */
       const sells = es.filter((e) => isSellAct(e.act));
       const ev = swingEvents(swingRounds(es));
       const sq = sells.reduce((a, x) => a + x.qty, 0), eq = ev.reduce((a, x) => a + x.qty, 0);
