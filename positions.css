@@ -1575,7 +1575,6 @@
 
   /* ── 下钻面板（三级视图共用）───────────────────────────────────────────────────── */
   #snap-attr .sd-click { cursor: pointer; border-radius: 4px; }
-  #snap-attr .sd-click { cursor: pointer; border-radius: 4px; }
   #snap-attr .sd-click:hover { background: rgba(147, 163, 187, .12); }
   #snap-attr .sd-click:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   /* 轨迹里"一期一大块"：块间虚线分隔 ✓（与矩阵的期行分隔同一语言 ✓） */
@@ -1588,6 +1587,25 @@
   #snap-attr .sd-ev { font-size: var(--chk-fs-mini); font-family: var(--sans); color: var(--tx3);
     background: rgba(147, 163, 187, .10); border-radius: 3px; padding: 0 4px; }
   #snap-attr .sd-cmp { font-size: var(--chk-fs-mini); color: var(--tx3); font-family: var(--mono); padding-left: 2px; }
+  /* ── 逐期轨迹的头部（2026-10-12 ④＋① 合并）：迷你双线 ＋ 4 个读数 ＋ 有交易期高亮 ─────────────
+     用词先对齐：图里那条虚线是**每股摊薄成本**（＝ items.cost ÷ qty ✓）——
+     不是「持仓成本合计」✗：后者是 8 万量级，和 2 元级的市价同轴会把市价压成一条平线 ✗
+     （demo 第一版就这么画坏过 ✓）。文字不设 !important 的 fill —— 本块没有全局 svg text 规则 ✓，
+     填充色全部写成 svg 内联 style ✓（含 up/down 语义色，不能被一条通用规则盖掉 ✗）。 */
+  #snap-attr .sd-spark { margin: 7px 2px 0; }
+  #snap-attr .sd-spark svg { display: block; width: 100%; height: auto; }
+  #snap-attr .sd-spark line, #snap-attr .sd-spark text,
+  #snap-attr .sd-spark polyline, #snap-attr .sd-spark circle { pointer-events: none; }
+  #snap-attr .sd-lg { display: flex; flex-wrap: wrap; gap: 1px 12px; font-size: var(--chk-fs-mini); color: var(--tx3); }
+  #snap-attr .sd-lg i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--tx2);
+    vertical-align: 3px; margin-right: 4px; }
+  #snap-attr .sd-lg i.dash { border-top-style: dashed; border-top-color: var(--tx3); }
+  #snap-attr .sd-lg i.buy { border-top-color: var(--up); }
+  #snap-attr .sd-kpi { display: flex; flex-wrap: wrap; gap: 1px 14px; margin: 5px 2px 3px;
+    font-size: var(--chk-fs-mini); color: var(--tx3); }
+  #snap-attr .sd-kpi b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--tx); }
+  /* 有交易的那一期：整行淡染一层 ✓ —— 用令牌 --card2 ✓，不硬编码 rgba ✗ */
+  #snap-attr .sd-hrow.sd-traded { background: var(--card2); border-radius: 6px; padding-left: 4px; padding-right: 4px; }
 
   /* ── 归因矩阵：列头可点 ＋ 该列图表（2026-10-09 第四步 A）─────────────────────────────
      列头沿用"可点元素"那套反馈（hover 下划线 / focus 环 ✓），与格子(.mx-click)一致 ✓ */

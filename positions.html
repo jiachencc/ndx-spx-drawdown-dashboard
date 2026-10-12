@@ -1763,6 +1763,48 @@ function saMatrixHtml(C) {
   return h;   // 矩阵段到此收口 ✓（detail-box ／ 图例 ／ 口径折叠块由装配段追加，字节顺序与拆前一致）
 }
 
+/* 逐期轨迹的头部小图（2026-10-12 ④＋① 合并）：**市价**实线 vs **每股摊薄成本**虚线 ＋ 买卖点 ✓
+   ▸ x 轴按**真实日期间距**铺开 ✓ —— 与列头图同一条规矩：08.28 → 09.30 隔一个月、10.08 → 10.09 只隔一天，
+     等宽会把后者压成一条缝 ✗。
+   ▸ 一律用**每股**口径 ✓：items.cost 是「持仓成本合计」（8 万量级 ✗），和 2 元级的市价同轴会把市价压成
+     一条平线 ✗（demo 第一版就这么画坏过 ✓）→ 两个都要 ÷ qty ✓。
+   ▸ pts ＝ [{d, p, c}]（旧 → 新 ✓ —— 列表是新→旧 ✓，图反过来才读得顺 ✓）；
+     evs ＝ [{d, cost, buy, title}]（**只有场内**能画点 ✓：OTC_LOG 不带成交净值 ✗，场外只画两条线 ✓）。
+   ▸ w 由调用方量好传进来（页面里量的是 .sa-detail-box ✓，与列头图同一套做法 ✓）。 */
+function traceSparkSvg(w, pts, evs) {
+  const h = 116, mL = 46, mR = 12, mT = 10, mB = 18;
+  const vals = [];
+  pts.forEach((x) => { if (Number.isFinite(x.p)) vals.push(x.p); if (Number.isFinite(x.c)) vals.push(x.c); });
+  if (vals.length < 2 || pts.length < 2) return "";
+  const lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.18 || 0.02;
+  const t0 = Date.parse(pts[0].d), span = (Date.parse(pts[pts.length - 1].d) - t0) || 1;
+  const X = (d) => mL + (Date.parse(d) - t0) / span * (w - mL - mR);
+  const Y = (v) => mT + (hi + pad - v) / ((hi + pad) - (lo - pad)) * (h - mT - mB);
+  const poly = (k) => pts.filter((x) => Number.isFinite(x[k]))
+    .map((x) => X(x.d).toFixed(1) + "," + Y(x[k]).toFixed(1)).join(" ");
+  let svg = '<svg viewBox="0 0 ' + w + " " + h + '" width="' + w + '" height="' + h + '">';
+  [0, 0.5, 1].forEach((f) => {
+    const v = (hi + pad) - f * ((hi + pad) - (lo - pad));
+    svg += '<line x1="' + mL + '" y1="' + Y(v).toFixed(1) + '" x2="' + (w - mR) + '" y2="' + Y(v).toFixed(1)
+      + '" style="stroke:var(--line-soft)" stroke-dasharray="2 4"/>'
+      + '<text x="' + (mL - 5) + '" y="' + (Y(v) + 3.5).toFixed(1)
+      + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + v.toFixed(4) + "</text>";
+  });
+  const pl = poly("p"), cl = poly("c");
+  if (pl) svg += '<polyline points="' + pl + '" style="fill:none;stroke:var(--tx2);stroke-width:2"/>';
+  if (cl) svg += '<polyline points="' + cl + '" style="fill:none;stroke:var(--tx3);stroke-width:2;stroke-dasharray:5 4"/>';
+  evs.forEach((e) => {
+    if (!Number.isFinite(e.cost)) return;
+    svg += '<circle cx="' + X(e.d).toFixed(1) + '" cy="' + Y(e.cost).toFixed(1) + '" r="4" style="fill:'
+      + (e.buy ? "var(--up)" : "var(--down)") + ';stroke:var(--card);stroke-width:2"><title>' + esc(e.title || "") + "</title></circle>";
+  });
+  pts.forEach((x) => { if (Number.isFinite(x.p)) svg += '<circle cx="' + X(x.d).toFixed(1) + '" cy="' + Y(x.p).toFixed(1)
+    + '" r="2" style="fill:var(--tx2)"/>'; });
+  svg += '<text x="' + mL + '" y="' + (h - 4) + '" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + mdOf(pts[0].d) + "</text>"
+    + '<text x="' + (w - mR) + '" y="' + (h - 4) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">'
+    + mdOf(pts[pts.length - 1].d) + "</text></svg>";
+  return svg;
+}
 /* ── ③ 下钻视图：整期 / 格子 / 逐期轨迹 / 列图 / 排序条 / 整表曲线 ＋ 分派 ✓ ──
    （原为单体函数内的视图段；段内小工具 fmtPx/periodOf/histOf/totalOf/eventsOf/kindMark/pctTxt/rowHtml
      只被视图用到 → 就地保留；nameOf ／ colSeries 已上移进 saCtx —— wireColChart 也要用；
@@ -1853,45 +1895,98 @@ function saDetailView(C) {
         : '<div class="sd-row"><span class="sd-nm">该格本期没有成员</span></div>')
       + "</div>";
   };
-  /* 视图③ 某一只的**逐期轨迹**（B：各期贡献 ＋ 流水事件）＋ **本期快照对比**（C）＋ **生涯累计两段式**（F） */
+  /* 视图③ 某一只的**逐期轨迹**（2026-10-12 ④＋① 合并）
+     ▸ 头部：市价 vs **每股摊薄成本**的小图 ＋ 4 个读数（现价 / 每股摊薄成本 / 当下溢价 / 操作笔数）✓
+     ▸ 列表：保持原来的**行**形态（窄屏放得下 ✓，不换表格 ✗），只去噪 ——
+       份数 / 成本是**交易驱动**的（没交易就一模一样 ✗）→ 只在有交易的那期写「A → B」✓；
+       单价 / 市值是**行情驱动**的（每期真的在动 ✓）→ 保留 A → B ✓（这才是"变化"，不是"重复"✓）。
+     ▸ 占比口径从「占当期账户净值」改成「**占累计**」✗→✓：前者对单只会出现 103% / 108% 那种，
+       读起来像出错 ✓（口径写在头部小注里，不让人猜 ✓）。
+     ▸ 事件行内只留「日期 ＋ 动作 ＋ 份数」✓，对账单全文进悬停 ✓（原来整段散文铺在行里 ✗）。
+     ⚠ 门禁 ④l 靠 data-hold-total / data-hold-n 与**行数** ✓ —— 这两个属性和 hist 的行数一格不能动 ✗；
+       本次只改呈现：行数、数值、恒等式（各期之和 ＋ 结转 ≡ 生涯累计）全不变 ✓。 */
   const viewHold = (code) => {
-    const hist = histOf(code);
+    const hist = histOf(code);                         // 新 → 旧 ✓（本页列表的既有顺序，本次不动 ✓）
     const total = totalOf(code);
     const carryV = C.num(C.carryItems[code]);
+    const carryIt = C.carryItems[code];
     const top = Math.max.apply(null, hist.map((x) => Math.abs(x.v)).concat([Math.abs(carryV), 1]));
     const back = (saSel && saSel.k === "hold" && saSel.back) ? saSel.back : null;
+    const exch = isOnExchange(code);
+    const nm = C.nameOf(code);
+    const lastD = C.live.length ? C.live[C.live.length - 1].d : C.baseD;
+    const pxs = (x) => (x && x.qty ? x.val / x.qty : null);      // 每股**市价** ✓
+    const cps = (x) => (x && x.qty ? x.cost / x.qty : null);     // 每股**摊薄成本** ✓（不是成本合计 ✗）
+    const fpx = (v) => (Number.isFinite(v) ? v.toFixed(4) : "—");
+    /* 「A → B」只在**真的变了**时才写 ✓ —— 这是本次去噪的关键 ✓（份数 / 成本是交易驱动的 ✓） */
+    const pair = (a, b, f, chg) => (chg && Number.isFinite(a) && Number.isFinite(b) ? f(a) + " → " + f(b) : f(b));
+    /* 头部小图的数据：期初结转那一点 ＋ 各期（旧 → 新 ✓，图从左往右读才顺 ✓） */
+    const pts = [{ d: C.baseD, p: pxs(carryIt), c: cps(carryIt) }]
+      .concat(hist.slice().reverse().map((x) => ({ d: x.d, p: pxs(x.rawB), c: cps(x.rawB) })))
+      .filter((x) => Number.isFinite(x.p) || Number.isFinite(x.c));
+    const evRaw = exch ? (((typeof POSITIONS !== "undefined" && POSITIONS.log) || []))
+      .filter((e) => (e.sym === nm || e.sym === code) && e.d > C.baseD && e.d <= lastD) : [];
+    const evs = evRaw.filter((e) => Number.isFinite(e.cost)).map((e) => ({ d: e.d, cost: e.cost, buy: !isSellAct(e),
+      title: e.d + " " + (e.act || "成交") + (e.qty ? " " + fmtQty(e.qty) + " 份" : "")
+        + (Number.isFinite(e.cost) ? " @" + fpx(e.cost) : "")
+        + (Number.isFinite(e.realized) ? "（已实现 " + fmtAmt(e.realized) + "）" : "") }));
+    const ops = exch ? evRaw.length
+      : (((typeof OTC_LOG !== "undefined" && OTC_LOG && OTC_LOG[code]) || []).filter((e) => e.d > C.baseD && e.d <= lastD).length);
+    const boxEl = $("snap-attr") ? $("snap-attr").querySelector(".sa-detail-box") : null;
+    const boxW = Math.max(280, (boxEl && boxEl.clientWidth) || 620);
+    const lastIt = hist.length ? hist[0].rawB : carryIt;
+    const nowPx = pxs(lastIt), nowCost = cps(lastIt);
     const out = [];
     if (C.carryItems[code] !== undefined) {
-      out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + C.baseD.slice(5).replace("-", ".") + "</i></div>"
+      out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + mdOf(C.baseD) + "</i></div>"
         + '<div class="sd-row"><span class="sd-nm">起点之前的累计结果</span>'
         + '<span class="sd-bar"><i style="width:' + (Math.abs(carryV) / top * 100).toFixed(1) + "%;background:"
         + (carryV >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
         + '<span class="sd-amt ' + cls(carryV) + '">' + fmtAmt(carryV) + "</span>"
-        + '<span class="sd-pct">' + pctTxt(carryV, total) + "</span></div></div>");
+        + '<span class="sd-pct">占累计 ' + pctTxt(carryV, total) + "</span></div></div>");
     }
     hist.forEach((h2) => {
       const i = C.live.findIndex((p) => p.d === h2.d);
-      const p = i >= 0 ? C.live[i] : null;
       const prevD = i > 0 ? C.live[i - 1].d : C.baseD;
       const ev = eventsOf(code, prevD, h2.d);
       const A = h2.rawA, B = h2.rawB;
-      const px = (it) => ((it && it.qty) ? it.val / it.qty : null);
+      const chg = !!(A && B) && (A.qty !== B.qty || Math.abs((A.cost || 0) - (B.cost || 0)) > 0.005);
       const seg = [];
       if (B) {
-        seg.push("份数 " + (A ? fmtQty(A.qty) + " → " : "") + fmtQty(B.qty));
-        if (px(B) !== null) seg.push("单价 " + (A && px(A) !== null ? fmtPx(px(A)) + " → " : "") + fmtPx(px(B)));
-        if (A) seg.push("市值 " + fmtYuan(A.val) + " → " + fmtYuan(B.val) + " · 摊薄成本 " + fmtYuan(A.cost) + " → " + fmtYuan(B.cost));
+        seg.push("份数 " + pair(A && A.qty, B.qty, fmtQty, chg));
+        seg.push("单价 " + (A && Number.isFinite(pxs(A)) ? fpx(pxs(A)) + " → " : "") + fpx(pxs(B)));
+        seg.push("市值 " + (A ? fmtYuan(A.val) + " → " : "") + fmtYuan(B.val));
+        seg.push("成本 " + pair(A && A.cost, B.cost, fmtYuan, chg) + "（" + pair(A && cps(A), cps(B), fpx, chg) + "/份）");
       }
-      out.push('<div class="sd-hrow"><div class="sd-hd"><b>' + h2.d.slice(5).replace("-", ".") + "</b>"
-        + (ev.length ? '<i class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(ev.join(" ／ ")) + "</i>" : "")
-        + "</div>" + rowHtml("本期贡献", h2.v, top, pctTxt(h2.v, p ? p.net : 0), kindMark(h2.kind), null)
-        + (seg.length ? '<div class="sd-cmp">' + esc(seg.join(" · ")) + "</div>" : "")
-        + "</div>");
+      /* 行内 chip：只留「日期 ＋ 动作 ＋ 份数」✓（对账单全文进悬停 ✓）。
+         ⚠ 若本期所有事件**同一天**（如 09-28 两笔 ✓），日期就与行头重复了 →
+           这时去掉前缀 ✗，否则会读成「09.28 买入 … ／ 09.28 买入 …」像出错 ✓。 */
+      const evHeads = ev.map((t) => t.split(" · ")[0]);
+      const evSameDay = evHeads.length > 1 && evHeads.every((t) => t.slice(0, 5) === evHeads[0].slice(0, 5));
+      const evShort = evHeads.map((t) => (evSameDay ? t.slice(6) : t)).join(" ／ ");
+      out.push('<div class="sd-hrow' + (chg ? " sd-traded" : "") + '"><div class="sd-hd"><b>' + mdOf(h2.d) + "</b>"
+        + (ev.length ? '<i class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(evShort) + "</i>" : "")
+        + "</div>" + '<div class="sd-row"><span class="sd-nm">本期贡献' + kindMark(h2.kind) + "</span>"
+        + '<span class="sd-bar"><i style="width:' + (Math.abs(h2.v) / top * 100).toFixed(1) + "%;background:"
+        + (h2.v >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
+        + '<span class="sd-amt ' + cls(h2.v) + '">' + fmtAmt(h2.v) + "</span>"
+        + '<span class="sd-pct">占累计 ' + pctTxt(h2.v, total) + "</span></div>"
+        + (seg.length ? '<div class="sd-cmp">' + esc(seg.join(" · ")) + "</div>" : "") + "</div>");
     });
+    const chart = traceSparkSvg(boxW, pts, evs);
     return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
-      + "<b>" + esc(C.nameOf(code)) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转）· <b>生涯累计 " + fmtAmt(total) + "</b>"
-      + '<span class="sd-hint">生涯累计 ＝ 期初结转 ' + fmtAmt(carryV) + " ＋ 各期贡献之和 ✓（门禁 ④l 盯着）</span></div>"
+      + "<b>" + esc(nm) + "</b> · 逐期轨迹（" + hist.length + " 期 ＋ 期初结转）· <b>生涯累计 " + fmtAmt(total) + "</b>"
+      + '<span class="sd-hint">图为市价（实线）vs 每股摊薄成本（虚线，x 轴按真实日期间距 ✓）；'
+      + "列表每期一行：本期贡献 ＋ 持仓变化 —— 份数 / 成本只在有交易的那期写「A → B」✓</span></div>"
+      + (chart ? '<div class="sd-spark">' + chart + "</div>"
+        + '<div class="sd-lg"><span><i></i>市价</span><span><i class="dash"></i>每股摊薄成本</span>'
+        + '<span><i class="buy"></i>' + (exch ? "买入" : "（场外无成交价，仅两条线）") + "</span></div>" : "")
+      + '<div class="sd-kpi"><span>现价 <b>' + fpx(nowPx) + "</b></span>"
+      + "<span>每股摊薄成本 <b>" + fpx(nowCost) + "</b></span>"
+      + (Number.isFinite(nowPx) && Number.isFinite(nowCost) && nowCost > 0
+        ? '<span>当下溢价 <b class="' + cls(nowPx / nowCost - 1) + '">' + fmtPct(nowPx / nowCost - 1, 2) + "</b></span>" : "")
+      + "<span>" + (exch ? "操作" : "申购") + " <b>" + ops + "</b> 笔</span></div>"
       + out.join("") + "</div>";
   };
   /* 视图④ 某一列的**逐期贡献 ＋ 累计**图（2026-10-09 第四步 A，起于用户：「点击表头 是不是也可以按日来做图？」）
@@ -2542,7 +2637,9 @@ function renderSnapAttr() {
    防抖 150ms ✓：与走势图的 resize 重绘同一套，避免拖动窗口时狂重绘。 */
 window.addEventListener("resize", debounce(() => {
   const box = $("snap-attr");
-  if (!box || box.hidden || !saSel || saSel.k !== "col") return;
+  /* 2026-10-12：**逐期轨迹**也画图了（头部小图 ✓）→ 它同样得跟着窗口重绘 ✓
+     （小图宽度量的是 .sa-detail-box ✓，窗口一窄 SVG 会被 CSS 缩掉 ✗ → 与列头图同一套防抖 ✓） */
+  if (!box || box.hidden || !saSel || (saSel.k !== "col" && saSel.k !== "hold")) return;
   renderSnapAttr();
 }, 150));
 /* 视图切换：默认「逐期明细」（现有文字视图）；点到「盈亏归因」才算图。
