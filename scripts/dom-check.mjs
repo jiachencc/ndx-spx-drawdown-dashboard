@@ -174,7 +174,12 @@ const traded = prevFull ? Object.keys(latest.items).some((c) => {
 const nowcastSrc = (() => { try { const s = readFileSync(path.join(root, "data.js"), "utf8"); const m = s.match(/^const NOWCAST = \{[\s\S]*?^\};/m); return m ? m[0] : null; } catch { return null; } })();
 const NC = (() => { if (!nowcastSrc) return null; const c = vm.createContext({}); vm.runInContext(nowcastSrc + "\nthis.n = NOWCAST;", c, { timeout: 500 }); return c.n; })();
 const OC = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC;", c, { timeout: 500 }); return c.o; })();
-const otcDayApp = OC.funds.reduce((a, f) => a + (Number.isFinite(f.day) ? f.day : 0), 0);
+/* ⚠ 2026-10-12 修：本条口径是「App 快照里**已公布的那部分**」✗ —— 原式把**沿用旧读数**的基金 day 也加了进来
+   ✗：10-12 期 015884 中欧未更新（已清仓在途、按用户指示本期不记），它的 day 仍是 10-08 那个净值日的 −192.26，
+   算进来就会把副标里对的数判成错 ✗（副标写 +329＝7 只本周读到 App 的合计，原式给 137 ✗）。
+   改为只累加「upd 日期 ＝ OTC.updated」的那些只 —— 与页面副标「App 快照 +X · 1 只未更新」同一口径 ✓。 */
+const otcDayApp = OC.funds.filter((f) => String(f.upd || "").slice(0, 10) === String(OC.updated).slice(0, 10))
+  .reduce((a, f) => a + (Number.isFinite(f.day) ? f.day : 0), 0);
 /* ③b-0 预估值与「快照 day」只比**量级**（2026-10-03 改）：两者口径本就不同 ——
    快照 day 是"场内当日 ＋ 场外已公布"，页面合计是"场内估值 ＋ 场外预估补齐"，不该相等；
    但若差出半个场外，说明 beta / 窗口 / 对齐错了。（旧版是严格比相等，那是场外还是 App 快照时候的事。） */
@@ -465,15 +470,23 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     return c.o;
   })();
   const full = snapRows.filter((s) => s.items);
-  const prevS = full[full.length - 2], curS = full[full.length - 1];
-  const cleared = prevS ? Object.keys(prevS.items).filter((code) => !curS.items[code]) : [];
-  const want = cleared.filter((code) => /ETF|LOF/.test(prevS.items[code].name)).map((code) => {
-    const nm = prevS.items[code].name;
-    const sell = ((P2 && P2.log) || []).filter((e) => /卖出|减仓|清仓/.test(String(e.act || "")) &&
-      e.sym === nm && e.d > prevS.d && e.d <= curS.d)[0];
-    return (sell && Number.isFinite(sell.realized))
-      ? { nm: nm, v: (sell.realized + (prevS.items[code].cost || 0)) - (prevS.items[code].val || 0) } : null;
-  }).filter(Boolean);
+  /* ⚠ 2026-10-12 修：原来只看**最后两次快照**✗ —— 清仓并不总发生在最新一期（10-12 那期没有清仓，
+     清仓在 10-09 期，于是 want ＝ 0 只、断言退化失败 ✗）。改为**扫描全部相邻期** ✓：
+     任何一期有场内标的从 items 消失，就把「回款 − 期初市值」算出来、要求它出现在快照卡里
+     （快照卡是逐期全渲染的 ✓，历史期的清仓行也在卡内 ✓）。 */
+  const want = [];
+  for (let i = 1; i < full.length; i++) {
+    const prevS2 = full[i - 1], curS2 = full[i];
+    Object.keys(prevS2.items)
+      .filter((code) => !curS2.items[code] && /ETF|LOF/.test(prevS2.items[code].name))
+      .forEach((code) => {
+        const nm = prevS2.items[code].name;
+        const sell = ((P2 && P2.log) || []).filter((e) => /卖出|减仓|清仓/.test(String(e.act || "")) &&
+          e.sym === nm && e.d > prevS2.d && e.d <= curS2.d)[0];
+        if (sell && Number.isFinite(sell.realized))
+          want.push({ nm: nm, v: (sell.realized + (prevS2.items[code].cost || 0)) - (prevS2.items[code].val || 0) });
+      });
+  }
   const snapEl = win.document.getElementById("snap-list");
   const snapTxt = snapEl ? snapEl.textContent.replace(/\s+/g, "") : "";
   const bad = want.filter((w) => !near(snapTxt, w.v, 1));
@@ -600,15 +613,18 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
    期望值取页面的 closedEtfRows()（与清仓历史卡**同源** ✓；它的绝对正确性由 ④b 的独立复算守住 ✓）；
    本条盯的是**两张卡不许各说各话** ✗，且不许有人把 plCum 改回 0 ✗。 */
 {
-  const item = win.document.querySelector(".snap-item");        // 新在上 → 第一张＝最新一期
+  /* ⚠ 2026-10-12 修：原来只在**最新一期**那张卡里找清仓行 ✗ —— 清仓发生在历史期（10-09）时找不到 ✗。
+     改为在**全部期**的 .snap-item 里找 ✓（清仓行只出现在它被清掉的那一期 ✓，全表扫不会误配 ✓）。 */
+  const items = [...win.document.querySelectorAll(".snap-item")];
   const fn = win.closedEtfRows;
   const rows = (typeof fn === "function") ? fn() : [];
   const bad = [];
   rows.forEach((r) => {
-    const row = item ? [...item.querySelectorAll(".snap-line.item")].find((x) => x.textContent.indexOf(r.sym) >= 0) : null;
+    const row = items.map((it) => [...it.querySelectorAll(".snap-line.item")].find((x) => x.textContent.indexOf(r.sym) >= 0))
+      .filter(Boolean)[0] || null;
     const cv = row ? row.querySelector(".cv") : null;
     if (!cv || !near(cv.textContent, r.pnl, 1))
-      bad.push(r.sym + "：" + (cv ? cv.textContent.replace(/\s+/g, "") : "(最新一期没有这一行 ✗)") + " ≠ " + r.pnl.toFixed(2));
+      bad.push(r.sym + "：" + (cv ? cv.textContent.replace(/\s+/g, "") : "(各期卡片里都没有这一行 ✗)") + " ≠ " + r.pnl.toFixed(2));
   });
   check("快照对比「清仓行 · 总盈亏」= 清仓历史同只（" + rows.length + " 只：" + rows.map((r) => r.sym).join("/") + "）",
     rows.length > 0 && bad.length === 0, bad.length ? "对不上：" + bad.join("、") : "逐只核对通过 ✓");
@@ -874,11 +890,28 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
             const c2 = Object.keys(b2.items).find((k) => !lastItems[k]);
             if (c2) { closedCode = c2; closedD = b2.d; }
           }
+          /* ⚠ 2026-10-12 修：光有 closedCode 不够 ✗ —— 它**首次出现**的那一期（160644 → 09-07）
+             并不在矩阵里（矩阵只列「有上一期可相减」的期，首期被排除 ✓）→ 行点不中 ✗ →
+             后续就退到别的视图里找成员行 → 报「没找到」✗。
+             改为把 closedD 重定位到「**含这只、且矩阵里确实有那一期**」的最近一期 ✓
+             （160644 最近一次是 09-30 ✓）—— 断言本意（清仓的那只在整期视图里仍可点 ✓）不变 ✓。 */
+          {
+            const rowDs = [...mx.querySelectorAll("tbody tr[data-i] .mx-d")].map((x) => x.textContent.replace(/\s+/g, ""));
+            const inMatrix = (iso) => { const md = iso.slice(5);
+              return rowDs.some((t) => t.indexOf(md) >= 0 || t.indexOf(md.replace("-", ".")) >= 0); };
+            for (let i = snaps2.length - 1; i >= 0; i--) {
+              const s2 = snaps2[i];
+              if (s2.items && s2.items[closedCode] && inMatrix(s2.d)) { closedD = s2.d; break; }
+            }
+          }
           if (!closedCode) {
             check("归因下钻：快照里存在「曾出现但已清仓」的标的（供覆盖 closeReal 路径 ✓）", false, "找不到这样的标的");
           } else {
+            /* ⚠ 日期判据不分隔符（页面 2026-10-12 起统一点号 09.03 ✓，原写死 09-03 → 点不中那一格 ✗） */
+            const cd2 = closedD.slice(5), cd2Dot = cd2.replace("-", ".");
             const tr2 = [...mx.querySelectorAll("tbody tr[data-i]")]
-              .find((tr) => ((tr.querySelector(".mx-d") || {}).textContent || "").indexOf(closedD.slice(5)) >= 0);
+              .find((tr) => { const t = ((tr.querySelector(".mx-d") || {}).textContent || "");
+                return t.indexOf(cd2Dot) >= 0 || t.indexOf(cd2) >= 0; });
             if (tr2) tr2.click();
             const hr2 = mx.querySelector('.sa-detail-box [data-hold="' + closedCode + '"]');
             if (!hr2) {
@@ -1638,9 +1671,18 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
        ⚠ 判据不分隔符（2026-10-12 页面统一点号后，页面写 10.09 而这里原写死 10-09 曾误报 ✗） */
     const chips = rowsE2.map((tr) => ((tr.querySelector(".chip") || {}).textContent || "").trim());
     const badG = [];
-    gapWant.forEach((g) => {
-      const md = g.app.slice(5), mdDot = md.replace("-", ".");
-      if (chips.filter((c) => c.indexOf(mdDot) >= 0 || c.indexOf(md) >= 0).length !== 1) badG.push(g.name + " 两源不同（序列 " + g.ser + " / App " + g.app + "），但行里没标出 App " + mdDot + " ✗");
+    /* ⚠ 2026-10-12 修：原判据是「**全局**恰好 1 个含该日期的 chip」✗ —— 隐含「同一个 App 日期只会出现在一只上」✗。
+       10-12 期两源不同有 7 只、其中 **5 只 App 日期同为 10.09** → 全局计数必然 ≠ 1 ✗（而页面其实标对了 ✓，
+       属判据太窄的误报 ✗）。改为**按日期计数**：某 App 日期的 chip 个数 ＝ gapWant 里该日期的只数 ✓
+       —— 仍然抓得住「漏标 / 多标」✗（原先想守的契约一条没丢 ✓）。 */
+    const wantByDate = {};
+    gapWant.forEach((g) => { const k = g.app.slice(5); wantByDate[k] = (wantByDate[k] || 0) + 1; });
+    Object.keys(wantByDate).forEach((md) => {
+      const mdDot = md.replace("-", ".");
+      const n = chips.filter((c) => c.indexOf(mdDot) >= 0 || c.indexOf(md) >= 0).length;
+      if (n !== wantByDate[md])
+        badG.push("App " + mdDot + " 的 chip 有 " + n + " 个、应为 " + wantByDate[md] + " 个 ✗（该日期两源不同 "
+          + wantByDate[md] + " 只）");
     });
     /* 反向：两源一致的行不该带 App chip ✓（不许制造噪音 ✗） */
     const okCodes = (OTC2.funds || []).filter((f) => {
