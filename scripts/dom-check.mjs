@@ -737,6 +737,20 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   check("深链 #sec-attr：hash 一变就进归因视图（可单独分享 ✓）",
     deep.card === false && deep.attrTitle === false && deep.snapTitle === true,
     JSON.stringify(deep));
+  /* ⑧-e 区块名**只印一遍**（2026-10-12，用户当天截图指出：切换器下面「🎯 盈亏归因」，
+     紧接着卡里又是「盈亏归因」—— 一块地方两行同名标题 ✗）。
+     契约：区块名由 `#sec-attr` 那个 sec-title 独家承担 ✓，卡内 .sa-head 只留**随维度变化**的说明 ✓。
+     ▸ 区块名从 sec-title 现取（去掉装饰性 emoji）✓ —— 将来改名这条断言也照样成立 ✓，不写死字符串 ✗。 */
+  {
+    const nameEl = tAttr.cloneNode(true);
+    [...nameEl.querySelectorAll('[aria-hidden="true"]')].forEach((x) => x.remove());
+    const secName = (nameEl.textContent || "").replace(/\s+/g, "");
+    const headB = [...d.querySelectorAll("#snap-attr .sa-head b")].map((x) => x.textContent.replace(/\s+/g, ""));
+    check("归因区块名只印一遍：卡内 .sa-head 不再重复「" + secName + "」✗ 但卡内说明句必须还在 ✓",
+      secName.length > 0 && !headB.includes(secName) && !!d.querySelector("#snap-attr .sa-head span"),
+      (headB.length ? "卡内还印着「" + headB.join("」「") + "」" : "卡内没有重复标题 ✓")
+        + (d.querySelector("#snap-attr .sa-head span") ? "" : " ✗ 但卡内的维度说明句也没了 ✗"));
+  }
   win.location.hash = "#sec-snap";           // 还原（后面还有一大堆断言，别留个半开的视图 ✗）
   win.dispatchEvent(new win.Event("hashchange"));
 }

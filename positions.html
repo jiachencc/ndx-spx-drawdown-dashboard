@@ -123,7 +123,10 @@ try {
        ⚠ 两个视图**同一时刻只显示一个（连标题一起切）** ✓ —— 切换的唯一实现在 setSnapView() ✓，
          否则另一节就只剩个孤零零的标题 ✗。隐藏必须显式 display:none（.sec-title 是 display:flex ✗
          会盖掉 hidden 属性 ✓，见 CSS 那两条同款先例）。
-       ⚠ 视图切换器 `#snap-switch` 留在原位（快照对比标题之下）✓：它管的是这两节 ✓，不是快照对比自己的零件。 -->
+       ⚠ 视图切换器 `#snap-switch` 留在原位（快照对比标题之下）✓：它管的是这两节 ✓，不是快照对比自己的零件。
+       ⚠ 区块名**只印这一遍** ✓：卡内原来那行 `<b>盈亏归因</b>` 已去掉 ✗ —— 用户当天截图指出
+         「切换器下面 🎯 盈亏归因，紧接着卡里又是 盈亏归因」，一块地方两行同名标题 ✗；
+         卡内 sa-head 从此只留**随维度变化**的说明（那句才是独有信息 ✓）。门禁 ⑧ 盯着这条 ✓。 -->
   <h2 class="sec-title" id="sec-attr" hidden><span aria-hidden="true">🎯</span> 盈亏归因</h2>
   <div class="card tight" id="snap-attr" hidden></div>
 
@@ -1675,7 +1678,12 @@ function saMatrixHtml(C) {
   /* 维度切换器（2026-10-09 加，B）——沿用主视图那个 .vs-btn 的控件语言 ✓ */
   let h = '<div class="sa-dims">' + Object.keys(DIMS).map((k) =>
     '<button type="button" class="vs-btn' + (k === saDim ? " on" : "") + '" data-dim="' + k + '">' + DIMS[k] + "</button>").join("") + "</div>";
-  h += '<div class="sa-head"><b>盈亏归因</b><span>'
+  /* ⚠ 卡内**不再印区块名**（2026-10-12 升格为一级区块后去掉的那个 <b>盈亏归因</b> ✗）——
+     用户当天截图指出来：切换器下面「🎯 盈亏归因」紧接着卡里又是「盈亏归因」，
+     一块地方两行同名标题 ✗。区块名从此由 `#sec-attr` 那个 sec-title **独家承担** ✓，
+     本行只留「随维度变化」的说明（行=期 · 列=… · 点行/格怎么用 ✓）—— 那句才是这里的独有信息 ✓。
+     门禁 ⑧ 盯着这条（卡内 .sa-head 里若再出现区块名 → 当场报红 ✗）。 */
+  h += '<div class="sa-head"><span>'
     + (saDim === "theme" ? "行=期 · 列=主题（13 只 → " + C.cols.length + " 族）"
       : saDim === "plat" ? "行=期 · 列=平台（券商 ／ 各基金公司与第三方）"
         : "行=期 · 列=场内 / 场外")
