@@ -10,18 +10,14 @@
  */
   /* 配色/字号沿用持仓看板的令牌体系，两处看板观感一致 */
   :root {
-    --bg:#0a0d13; --bg-grad:#0e1526; --card:#121826; --card2:#1a2234;
-    --line:#232e44; --line-soft:#1c2538;
-    --tx:#e2e9f5; --tx2:#8fa0ba;
     /* --tx3 原来 #6f7f99，在深底上只有 4.37:1，低于 WCAG AA 的 4.5 —— 而所有小字都用它。
        提到 #7e8ea9 → 5.34:1 达标，同时仍比 --tx2 低 20%，层级没被抹平。 */
     --tx3:#7e8ea9;
-    --up:#2dd4a7; --down:#f26d7d; --warn:#f7c14e;
-    --spx:#5ba3ff; --ndx:#46c9f0; --sox:#ba8fff;
+    /* 语义映射（语义名 → 原始色板 ✓）；原始色板本身在 ../tokens.css（2026-10-12 第三批搬出 ✓） */
+    --up:var(--green); --down:var(--red); --warn:var(--yellow);
+    --spx:var(--blue); --ndx:var(--cyan); --sox:#ba8fff;   /* --sox 用紫色：各页取值不同，暂不统一 ✗ */
     --up-bg:rgba(45,212,167,.12); --down-bg:rgba(242,109,125,.12);
     --warn-bg:rgba(247,193,78,.10); --blue-bg:rgba(91,163,255,.12);
-    --mono:"JetBrains Mono","SF Mono","Cascadia Code",Consolas,"Courier New",monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei","Noto Sans SC",sans-serif;
     /* 字号：按手机重排，六档分别对应 Android Material 的 caption / label / body 层级。
        换算依据：本机（iQOO 15，1440×3168，屏宽约 72mm）在常见 DPR 下，
        1 个 CSS 像素 ≈ 0.15~0.18mm，故 11px 只有约 1.9mm —— 中文偏小，

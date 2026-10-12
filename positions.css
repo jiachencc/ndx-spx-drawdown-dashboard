@@ -17,21 +17,10 @@
  */
 
   :root {
-    --bg: #0a0d13;
-    --bg-grad-1: #0e1526;
-    --card: #121826;
-    --card2: #1a2234;
-    --line: #232e44;
-    --line-soft: #1c2538;
-    --tx: #e2e9f5;
-    --tx2: #8fa0ba;
     --tx3: #6f7f99;      /* 三级文字：原 #8294af 与 --tx2 只差 5%，肉眼分不出来，等于白设一档 */
-    /* ---- 原始色板：只在这里定义，其余地方一律用下面的语义名 ---- */
-    --green: #2dd4a7;
-    --red: #f26d7d;
-    --yellow: #f7c14e;
-    --blue: #5ba3ff;
-    --cyan: #46c9f0;
+    /* ---- 原始色板（--green / --red / --yellow / --blue / --cyan）与 --bg/--card/--tx/字体栈
+     * 已搬到 ../tokens.css（2026-10-12 第三批：四页共用一份 ✓）。
+     * 这里只留**本页独有**的 --purple ✗（决策页取值不同，暂不统一）与下面的语义映射 ✓ ---- */
     --purple: #ba8fff;
     /* ---- 语义色：涨 / 跌 / 提醒 / 信息 ----
      * 页面上一律写 var(--up) / var(--down)，不再直接写绿、红。
@@ -87,8 +76,6 @@
          两处同值但不同源 → 改一处必漂 ✗。现在一处定义、多处引用 ✓ */
     --chk-fs: 10px;
     --chk-fs-mini: 9px;
-    --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     /* 圆角分档：主容器 / 内嵌卡 / 浮层 / chip —— 原来 .card / .kpi / .idx-pop / .snap-tag
      * 各自凭直觉写 14/12/10/8/6/5/4/2px 八种值，同一视觉层级里能找出三种圆角。
      * --radius 保持 14 不动以兼容既有引用；新增三档用于分角色落地。 */

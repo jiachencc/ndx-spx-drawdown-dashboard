@@ -8,19 +8,7 @@
  *   本页内部一律写 var(--up) / var(--down)，不直接写绿红 ✓ —— 语义只有一处定义 ✓。
  * ⚠ 移动端优先：矩阵 11 列放不下 → 外层横向滚动 + 首列 sticky（见 .mxwrap）。 */
 :root {
-  --bg: #0a0d13;
-  --card: #121826;
-  --card2: #1a2234;
-  --line: #232e44;
-  --line-soft: #1c2538;
-  --tx: #e2e9f5;
-  --tx2: #8fa0ba;
   --tx3: #6f7f99;
-  --green: #2dd4a7;
-  --red: #f26d7d;
-  --yellow: #f7c14e;
-  --blue: #5ba3ff;
-  --cyan: #46c9f0;
   --up: var(--red);        /* 涨 / 正收益 —— 2026-10-10 起本页用 A 股习惯「红涨绿跌」（与截图一致 ✓） */
   --down: var(--green);    /* 跌 / 负收益 */
   --warn: var(--yellow);
@@ -34,7 +22,6 @@
      于是本页所有等宽数字一直是 SF Mono，**不是 JetBrains** ✗（最靠前的可用字体胜出，故必须放第一）
      ⚠ 这一条必须与 <link rel="stylesheet" href="../font.css"> 同时存在才生效：
        font.css 提供 'JetBrains Mono' 的 @font-face，这里只是把它排到栈首 ✓ */
-  --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
   --fs-xs: 12px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 20px;
 }
 * { box-sizing: border-box; }
