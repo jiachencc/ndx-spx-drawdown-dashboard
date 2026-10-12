@@ -1664,6 +1664,16 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   fdom.window.close();
 }
 
+/* ⑤a-2 宽表「窄屏自动收起」（2026-10-12 加）：体检表 13 行 × 5 列，380px 下默认展开会把首屏拉长 ✗
+   本判据在 jsdom 里跑：matchMedia 被桩成 matches=false（＝窄屏 ✓）→ 该 details 必须**收起** ✓，
+   而内容仍须在 DOM 里（收起不等于不渲染 —— 门禁要照样读得到每一格 ✓）。 */
+{
+  const chkFold = win.document.querySelector("#checkup-card details.chk-fold");
+  check("体检表：窄屏默认收起（宽屏才默认展开 ✓），且内容仍渲染在 DOM 里",
+    !!chkFold && !chkFold.open && /chk-tbl/.test(chkFold.innerHTML) && chkFold.querySelectorAll("tbody tr").length > 0,
+    chkFold ? "open=" + chkFold.open + " · 行数 " + chkFold.querySelectorAll("tbody tr").length : "体检表没有包成 details.chk-fold ✗");
+}
+
 /* ⑤b 场外明细的「备注 / 限购退回」（2026-10-12 加）────────────────────────────────
    数据早就有（OTC_LOG 的 note / req / refund ✓），此前页面上看不见 ✗ —— 于是两件最常被追问的
    事答不上来：「这笔几点成交 / 走哪家银行 / 为什么失败」「限购下计划投 1,000、实际成交 100、退回 900」。

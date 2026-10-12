@@ -117,10 +117,16 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
   const total = invTotal + cashTotal;
   const cashUnknown = A.filter((a) => gv(CASH, a.id) === null).map((a) => a.name);
   /* ② KPI 三格 */
-  const kc = (label, v, sub) => '<div class="kpi"><div class="k-label">' + label + '</div><div class="k-val">' + y(v) +
+  const kc = (label, v, sub, tip) => '<div class="kpi"><div class="k-label"' + (tip ? ' title="' + tip + '"' : "") + ">" + label + '</div><div class="k-val">' + y(v) +
     '</div><div class="k-sub">' + sub + '</div></div>';
+  /* ⚠ 范围脚注（2026-10-12 补）：本页「总资产」与持仓页那格**同名不同范围** ✗ ——
+     那边是「场内 5 只 ETF ＋ 场外 8 只基金 ＋ 券商可用现金」（持仓级、日频快照），
+     这边是「7 个账户含招行理财 / 卡内活钱」（账户级、月频账单）→ 两个数都对外链了对方，别互相核对 ✗ */
+  const TOTAL_TIP = "范围：本页 7 个账户（含招行理财与卡内活钱、月频账户级账单）。"
+    + "⚠ 与持仓页的「总资产」**不是同一范围** ✗：那边只算场内 5 只 ETF ＋ 场外 8 只基金 ＋ 券商可用现金（≈53 万，日频持仓级）。"
+    + "两页粒度与范围都不同，别互相核对；各自页脚都有对方的链接 ✓";
   document.getElementById("asset-kpis").innerHTML =
-      kc("总资产", total, A.length + " 账户 · 截至 " + FIN_ASOF + (cashUnknown.length ? "（" + cashUnknown.join(" / ") + " 活钱未确认，按 0 计）" : ""))
+      kc("总资产", total, A.length + " 账户 · 截至 " + FIN_ASOF + (cashUnknown.length ? "（" + cashUnknown.join(" / ") + " 活钱未确认，按 0 计）" : ""), TOTAL_TIP)
     + kc("投资", invTotal, "占" + share(invTotal, total) + " · 银行 / 券商 / 基金 三分见下")
     + kc("活钱", cashTotal, "招行（活期 ＋ 朝朝宝）· 其余 4 账户 App 显示 0.00");
   /* ③ 堆叠条（宽度 ∝ 金额，合计 ＝ 投资）＋ 图例 */
