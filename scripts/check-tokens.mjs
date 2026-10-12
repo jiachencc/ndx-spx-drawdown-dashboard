@@ -24,12 +24,15 @@ const TOKENS = "tokens.css";
 const SHARED = ["--bg", "--card", "--card2", "--line", "--line-soft", "--tx", "--tx2",
   "--green", "--red", "--yellow", "--blue", "--cyan", "--mono", "--sans"];
 
+/* 每页引用的令牌文件：子目录页用**同级副本** ✗→✓（2026-10-12 修背景丢失 —— 见 tokens.css 头注释 ✓） */
 const pages = [
-  { html: "index.html", css: [] },
-  { html: "positions.html", css: ["positions.css"] },
-  { html: "finance/index.html", css: ["finance/finance.css"] },
-  { html: "fed-cycle/index.html", css: ["fed-cycle/fed-cycle.css"] },
+  { html: "index.html", css: [], link: "tokens.css" },
+  { html: "positions.html", css: ["positions.css"], link: "tokens.css" },
+  { html: "finance/index.html", css: ["finance/finance.css"], link: "tokens.css" },
+  { html: "fed-cycle/index.html", css: ["fed-cycle/fed-cycle.css"], link: "tokens.css" },
 ];
+/* 子目录副本：与根目录那份**逐字节**相同（由 scripts/sync-tokens.mjs 生成 ✓） */
+const MIRRORS = ["finance/tokens.css", "fed-cycle/tokens.css"];
 
 const checks = [];
 const check = (name, ok, detail) => checks.push({ name, ok: !!ok, detail: detail || "" });
@@ -44,15 +47,33 @@ const tokNames = declared(tokSrc);
 const missSelf = SHARED.filter((n) => tokNames.indexOf(n) < 0);
 check("tokens.css 定义齐共享令牌（" + SHARED.length + " 个）", missSelf.length === 0, missSelf.length ? "缺：" + missSelf.join(" ") : tokNames.length + " 个令牌 ✓");
 
+/* ③′ 子目录副本必须与根目录那份**逐字节相同** ✓（单一真源 = 根目录 tokens.css ✓；
+   手改副本、或改了根目录却忘了同步 → 当场报红 ✗；修法：node scripts/sync-tokens.mjs） */
+MIRRORS.forEach((m) => {
+  let ok = false, detail = "";
+  try {
+    const s = readFileSync(path.join(root, m), "utf8");
+    ok = s === tokSrc;
+    detail = ok ? "逐字节相同 ✓（" + s.length + " 字节）" : "与根目录那份**不同** ✗ → 跑 node scripts/sync-tokens.mjs";
+  } catch (e) { detail = "不存在 ✗ → 跑 node scripts/sync-tokens.mjs"; }
+  check(m + " 与根目录 tokens.css 逐字节相同", ok, detail);
+});
+
 /* ①② 每页 */
 pages.forEach((p) => {
   const html = read(p.html);
   const linkIdx = html.indexOf(TOKENS);
   const mainCss = p.css[0] ? html.indexOf(p.css[0]) : html.indexOf("</head>");
-  const linkTag = new RegExp('<link[^>]+href="[^"]*' + TOKENS.replace(".", "\\.") + '"');
+  const linkTag = new RegExp('<link[^>]+href="' + p.link.replace(".", "\\.") + '"');
   check(p.html + " 引了 tokens.css 且在它自己的样式表之前",
     linkIdx >= 0 && linkTag.test(html) && (mainCss < 0 || linkIdx < mainCss),
-    linkIdx < 0 ? "没有 <link … tokens.css>" : "tokens 位置 " + linkIdx + " vs 主样式表 " + mainCss);
+    linkIdx < 0 ? "没有 <link … " + p.link + ">" : "tokens 位置 " + linkIdx + " vs 主样式表 " + mainCss);
+  /* ⚠ 子目录页**不许**写 ../tokens.css ✗ —— 2026-10-12 背景丢失就出在这里：
+     "服务根不是仓库根 / 部署漏拷上级文件"时 `../` 取不到 → --bg 失效 → body 整条 background 作废 ✗ */
+  if (p.html.indexOf("/") >= 0) {
+    check(p.html + " 用**同级**副本（未写 ../tokens.css ✗）",
+      !/href="[^"]*\.\.\/tokens\.css"/.test(html), /href="[^"]*\.\.\/tokens\.css"/.test(html) ? "写成了 ../tokens.css ✗（改同级 + 跑 sync-tokens.mjs ✓）" : "同级引用 ✓");
+  }
   const srcs = [{ f: p.html + "（内联 <style>）", s: styleBlocks(html) }].concat(p.css.map((c) => ({ f: c, s: read(c) })));
   const dup = [];
   srcs.forEach(({ f, s }) => { declared(s).filter((n) => tokNames.indexOf(n) >= 0).forEach((n) => dup.push(f + " 重复声明 " + n)); });

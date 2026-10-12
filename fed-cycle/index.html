@@ -7,8 +7,11 @@
 <!-- 与持仓看板共用同一份内嵌字体（JetBrains Mono，base64 零外链），保证两处数字字形一致 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%230a0d13%27/%3E%3Cpath d=%27M10 48 h12 v-11 h10 v-11 h10 v-9 h12%27 stroke=%27%232dd4a7%27 stroke-width=%276%27 fill=%27none%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../font.css">
-<!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式表 -->
-<link rel="stylesheet" href="../tokens.css">
+<!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式表
+     ⚠ 用**同级副本** tokens.css（不是 ../）✗→✓：`../` 在"服务根不等于仓库根 / 部署漏拷上级文件"时取不到，
+       而 --bg 一失效 body 的整条 background 就作废 → **背景全没** ✗（2026-10-12 实际踩到）。
+       副本逐字节同根目录那份 ✓，由 scripts/sync-tokens.mjs 同步、check-tokens 把关 ✓ -->
+<link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="fed-cycle.css">
 </head>
 <body>
