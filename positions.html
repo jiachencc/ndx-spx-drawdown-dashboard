@@ -366,6 +366,15 @@ function logFee(e) {
   const m = String(e.note || "").match(/费\s*([\d.]+)/);
   return m ? parseFloat(m[1]) : null;
 }
+/* 单边费用：流水 note 里记了「费 X」就用记录值，否则用配置默认值 ——
+   2026-10-12 收拢（此前这份「?? 默认值」在 3 处各写一遍：closedEtfRows 的卖出行、
+   操作体检里的局部 feeOfEtf、持仓卡的 fee 行 ✗ —— 三处一起漂才会被发现 ✗）。 */
+const feeOf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
+/* 卖出净回款 ＝ 份数 × 成交价 − 单边费 —— 这个**原子量**只留这一处 ✓（此前散在 3 处 ✗）。
+   ⚠ 另有两个「不含费的毛额」用法是**另一种口径**、刻意不并入 ✗：
+     · 周小计（weekRowHtml）报的是成交毛额（含费与否不含信息量）
+     · TWR 资金流（perFundCalcBase 的 etfFlow）沿用历史口径，改了会让 TWR 数变 ✗（见其注释） */
+const netProceedsOf = (e) => (e.qty || 0) * (e.cost || 0) - feeOf(e);
 /* 卖出判定：收「流水对象」或「动作字符串」均可（2026-10-12 收拢 —— ?debug 自检块此前又定义了一份只收字符串的 ✗） */
 const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e && typeof e === "object" ? e.act : e || ""));
 /* resize 防抖统一收口（2026-10-12）：窗口拖动高频触发 resize，按真实像素宽重绘 SVG 必须防抖 ✓。
@@ -971,7 +980,17 @@ function renderOtcLog() {
         + '<span class="d-nav">' + (t.status === "成功" && r.bnav[t.d] ? r.bnav[t.d] : "—") + "</span>"
         + (r.px && t.status === "成功" && r.bnav[t.d] ? '<span class="d-pl ' + cls(t.amt / r.bnav[t.d] * r.px - t.amt) + '">'
           + fmtAmt2(t.amt / r.bnav[t.d] * r.px - t.amt) + "</span>" : "")
-        + (t.status === "成功" ? "" : '<span class="d-s">' + esc(t.status) + "</span>") + "</li>").join("")
+        + (t.status === "成功" ? "" : '<span class="d-s">' + esc(t.status) + "</span>")
+        /* 对账单的「备注」与「限购退回」（2026-10-12 补）：数据一直都在（OTC_LOG 的 note / req / refund ✓），
+           只是此前只输出日期/类型/金额/净值/盈亏/状态 ✗ —— 于是两件最常被追问的事看不见：
+             · 这笔**几点成交、走哪家银行、为什么失败**（note，如「14:13 银行卡限额失败」「截图：14:51:48 招商银行」）
+             · 限购下**计划投多少、实际成交多少、退回多少**（req / refund，如 计划 1,000 → 成交 100 → 退回 900）
+           备注挂在 title 上给全文，行内按 380px 排版另起一行（见 .dca-list li .d-note ✓） */
+        + (Number.isFinite(t.req) ? '<span class="d-req" title="限购：计划投入 ' + fmtAbs2(t.req) + " 元 · 实际成交 " + fmtAbs2(t.amt)
+          + " 元" + (Number.isFinite(t.refund) ? " · 退回 " + fmtAbs2(t.refund) + " 元" : "") + '">计划 ' + fmtAbs2(t.req)
+          + (Number.isFinite(t.refund) ? " · 退回 " + fmtAbs2(t.refund) : "") + "</span>" : "")
+        + (t.note ? '<span class="d-note" title="对账单备注：' + esc(t.note) + '">' + esc(t.note) + "</span>" : "")
+        + "</li>").join("")
       + "</ol></details>";
   });
   h += "</div></details>";
@@ -4364,16 +4383,14 @@ function closedEtfRows() {
     if (isSellAct(e)) {
       o.qty -= (e.qty || 0);
       o.realized += (typeof e.realized === "number" ? e.realized : 0);
-      const sf = logFee(e);
-      o.cash += (e.qty || 0) * (e.cost || 0) - (sf === null ? CONFIG.FEE_PER_SIDE : sf);   // 卖出净回款 ✓
+      o.cash += netProceedsOf(e);                                   // 卖出净回款 ✓（原子量见 netProceedsOf）
       /* ⚠ 必须取**最新**那笔卖出日：流水是"新在上"（log 新的在前），直接赋值会取到**最早**那笔 ✗
          —— 2026-10-09 实测：中韩显示 09-16、港美显示 08-13，而两者的清仓日都是 10-09 ✗。
          （当天新加的门禁只校验了只数与金额，没盯日期，所以是我自己复核时发现的 ✗ → 现已补断言 ✓） */
       if (!o.last || e.d > o.last) o.last = e.d;
     } else {
       o.qty += (e.qty || 0);
-      const fee = logFee(e);
-      o.buyAmt += (e.qty || 0) * (e.cost || 0) + (fee === null ? CONFIG.FEE_PER_SIDE : fee);
+      o.buyAmt += (e.qty || 0) * (e.cost || 0) + feeOf(e);
       if (!o.first || e.d < o.first) o.first = e.d;
     }
   });
@@ -4504,6 +4521,25 @@ function renderClosed() {
         + fmt2(bt.total - sIn) + "（港美卖出成交价取整尾差 ✓）</span></span>" : "") +
       '<span class="b-k">投入 ≈ / 加权</span><span class="b-v">' + fmtYuan(cAll) + " 元 → <b class=\"" + cls(sAll) + '">' + pct(cAll ? sAll / cAll * 100 : 0) + "</b>（场外投入由「盈亏 ÷ 收益率」反推 ≈）</span>" +
       '<span class="b-k">笔数</span><span class="b-v">场外 ' + otR.length + " 笔 ＋ 场内 " + inR.length + " 只 ＝ " + rows.length + " 笔（明细见下，按清仓日倒序）</span>" +
+      /* 两份**聚合读数**（2026-10-12 补）：数据早就在（data.js 的 CLOSED.winRate/avgHoldDays、
+         CLOSED_ETF 的 winRate/avgHoldDays/avgWin/avgLoss/maxLoss/dividend ✓），此前只显示了合计 ✗ ——
+         有了这两行才回答得上「胜率多少 / 平均持有多久 / 最惨一笔亏多少」 ✓。
+         ⚠ 两份口径不同（场外＝支付宝清仓分析原读数 ｜ 场内＝平安「已清仓股票」摊薄口径 ✓）→ 分行显示、不合并 ✗ */
+      (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)
+        ? '<span class="b-k">场外 · 胜率 / 持有</span><span class="b-v" id="closed-otc-agg" data-winrate="' + CLOSED.winRate
+          + '" data-hold="' + CLOSED.avgHoldDays + '" data-n="' + CLOSED.count + '">胜率 <b>' + CLOSED.winRate + "%</b>（" + CLOSED.count
+          + " 笔）· 平均持有 <b>" + CLOSED.avgHoldDays + "</b> 天 · 单笔最大盈利 <b class=\"up\">"
+          + fmt2(Math.max.apply(null, CLOSED.items.map((x) => x.pnl))) + "</b> · 最惨 <b class=\"down\">"
+          + fmt2(Math.min.apply(null, CLOSED.items.map((x) => x.pnl))) + "</b>"
+          + '<span class="snap-sub">支付宝「清仓分析」原读数 ✓（区分：这是 App 口径，本页推导那份见上一行 ✓）</span></span>' : "") +
+      (bt
+        ? '<span class="b-k">场内 · 胜率 / 持有</span><span class="b-v" id="closed-etf-agg" data-winrate="' + bt.winRate
+          + '" data-hold="' + bt.avgHoldDays + '" data-maxloss="' + bt.maxLoss + '" data-avgwin="' + bt.avgWin + '">胜率 <b>'
+          + bt.winRate + "%</b>（" + (bt.winRate ? Math.round(bt.count * bt.winRate / 100) : 0) + "/" + bt.count + " 笔）· 平均持有 <b>"
+          + bt.avgHoldDays + "</b> 天 · 平均盈利 " + (bt.avgWin ? "<b class=\"up\">" + fmt2(bt.avgWin) + "</b>" : "<b>—</b>（无盈利笔）")
+          + " · 平均亏损 <b class=\"down\">" + fmt2(bt.avgLoss) + "</b> · 单笔最大亏损 <b class=\"down\">" + fmt2(bt.maxLoss) + "</b>"
+          + (bt.dividend ? " · 分红 " + fmt2(bt.dividend) : "")
+          + '<span class="snap-sub">平安「已清仓股票 · 近三月」原读数 ✓（' + bt.source + "）</span></span>" : "") +
     "</div>" +
     '<div class="closed-row" style="margin-top:6px"><span class="c-nm"><b>按平台汇总</b><span class="c-code">' + plats.length + ' 个账户</span>' +
       '<div class="c-meta">每个账户 App 上的清仓盈亏；两半来源不同（App 原读数 / 本页推导），故分平台列、不合并</div></span><span class="c-v"></span></div>' +
@@ -4823,7 +4859,7 @@ function prPerFund(C) {
     const etfRows = [];
     if (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold) && Object.keys(lastItems).length) {
       const isSellAct = (e) => /卖出|减仓|清仓/.test(String(e.act));
-      const feeOfEtf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
+      const feeOfEtf = feeOf;   // 与全局同一实现（2026-10-12 收拢；此前本函数内又写了一份 ✗）
       POSITIONS.hold.forEach((h) => {
         const code = String(h.code);
         const it = lastItems[code];
@@ -6243,7 +6279,10 @@ function costTrace() {
     const qtyBefore = s.qty;                       // 操作前份数（卖出行算「减仓幅度」用；2026-09-25 方案 B）
     const before = s.qty > 0 ? s.basis / s.qty : null;
     const gross = (e.qty || 0) * (e.cost || 0);
-    const rec = logFee(e), fee = rec === null ? CONFIG.FEE_PER_SIDE : rec;
+    /* rec 只用来标记「这笔费是记录值还是估算值」（est 字段 ✓）；fee 的取值走全局 feeOf ✓
+       （2026-10-12 收拢时曾在只改两行的情况下删掉 rec ✗ → 页面 ReferenceError：拆闭包 / 收拢前
+         必须把该变量的**全部**使用点 grep 干净 —— 与本轮 ② 的 benchKeys 是同一个坑 ✓） */
+    const rec = logFee(e), fee = feeOf(e);
     if (isSellAct(e)) { s.qty -= (e.qty || 0); s.basis -= gross - fee; }
     else { s.qty += (e.qty || 0); s.basis += gross + fee; }
     map.set(e, { before, after: s.qty > 0 ? s.basis / s.qty : null, qtyBefore: qtyBefore, qtyAfter: s.qty, est: rec === null });

@@ -945,7 +945,11 @@
   .dca-funds > details > summary::before { content: "▸ "; color: var(--tx3); }
   .dca-funds > details[open] > summary::before { content: "▾ "; }
   .dca-list { margin: 2px 0 6px; padding: 0; }
-  .dca-list li { list-style: none; display: flex; gap: 8px; font-family: var(--mono); font-size: 10px; padding: 2px 0 2px 12px; color: var(--tx3); }
+  .dca-list li { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 10px; padding: 2px 0 2px 12px; color: var(--tx3); }
+  /* 备注与限购退回（2026-10-12 加）：这一行本来就有 6 列，再塞两列在 380px 下必然挤成一团 ✗
+     → 让它们**换行**到第二行（flex-wrap ✓）；备注给整行宽、限购信息留在首行末尾 ✓ */
+  .dca-list li .d-req { color: var(--warn); white-space: nowrap; }
+  .dca-list li .d-note { flex: 1 0 100%; color: var(--tx3); font-style: italic; }
   .dca-list li .d-a { flex: 1; color: var(--tx2); }
   .dca-list li .d-m { color: var(--tx2); }
   .dca-list li .d-s { color: var(--warn); }
