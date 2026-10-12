@@ -1264,6 +1264,41 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   });
   check("归因列图：累计折线**整条**落在声明的值域内（值域不再只取端点 ✗）" + (colKeys.length ? "（" + colKeys.length + " 列逐列验）" : ""),
     colKeys.length > 0 && bad1.length === 0, bad1.join("；") || nCols.join(" "));
+  /* ④l-4 「合计」列头（整表累计曲线）：**三种维度**下所有折线（含总累计那条）都必须落在画布内 ✓
+     （2026-10-12 修：用户报「按平台 / 场内·场外 下合计折线展示有问题」——
+       根因是 y 值域只按**各列**算 ✗，而总累计是各列逐期之和、天然更大 → 整段跑出画布外 ✗；
+       主题维度只是**碰巧**没越界，所以这个坑一直没暴露 ✗ → 本断言逐维度盯着 ✓） */
+  {
+    const badA = [];
+    ["theme", "plat", "acct"].forEach((dm) => {
+      const btn = [...win.document.querySelectorAll("#snap-attr [data-dim]")].find((b) => b.dataset.dim === dm);
+      if (!btn) { badA.push(dm + "：没有维度按钮"); return; }
+      btn.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+      const thA = [...win.document.querySelectorAll("#snap-attr th")].find((t) => t.textContent.indexOf("合计") >= 0);
+      if (!thA) { badA.push(dm + "：没有「合计」列头"); return; }
+      thA.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+      const boxA = win.document.querySelector("#snap-attr .sa-chart");
+      const svgA = boxA ? boxA.querySelector("svg") : null;
+      if (!boxA || !svgA) { badA.push(dm + "：没出图"); return; }
+      const HA = +svgA.getAttribute("height");
+      const linesA = [...svgA.querySelectorAll("polyline")];
+      const nColA = +boxA.getAttribute("data-all-n");
+      if (linesA.length !== nColA + 1) badA.push(dm + "：折线数 " + linesA.length + " ≠ 列数＋1（" + (nColA + 1) + "）");
+      linesA.forEach((el, i) => {
+        const ys = el.getAttribute("points").split(" ").map((s) => +s.split(",")[1]);
+        const mn = Math.min.apply(null, ys), mx = Math.max.apply(null, ys);
+        /* 画布内可用纵向范围 = [mT=12, H − mB=22] ✓（容差 0.6px 抗取整） */
+        if (!(mn >= 12 - 0.6 && mx <= HA - 22 + 0.6)) {
+          badA.push(dm + "：" + (i === linesA.length - 1 ? "总累计（合计）" : "第 " + (i + 1) + " 列") + " 出界 y∈[" + mn.toFixed(1) + "," + mx.toFixed(1) + "]（可用到 " + (HA - 22) + "）");
+        }
+      });
+    });
+    check("归因「合计」列头（整表累计曲线）：三种维度下所有折线都在画布内", badA.length === 0,
+      badA.slice(0, 4).join("；") || "theme / plat / acct 逐维度验过：无出界 ✓");
+    const backA = [...win.document.querySelectorAll("#snap-attr [data-dim]")].find((b) => b.dataset.dim === "theme");
+    if (backA) backA.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));   // 复位，别把状态留给后面的断言 ✗
+  }
+
   check("归因列图：折线与顶点圆点都画在累计面板内（点标普不再「不完整」✓）",
     colKeys.length > 0 && bad2.length === 0, bad2.join("；") || (colKeys.length + " 列 · 全部点都在面板内 ✓"));
 }

@@ -2065,7 +2065,14 @@ function saDetailView(C) {
     const H = 200, mL = 62, mR = 14, mT = 12, mB = 22;
     const t0 = Date.parse(C.baseD), t1 = Date.parse(C.lastD), span = t1 - t0 || 1;
     const X = (d) => mL + (Date.parse(d) - t0) / span * (W - mL - mR);
-    const allV = series.reduce((a, s2) => a.concat(s2.cum), []);
+    /* ⚠ 总累计（＝「合计」那条线）必须**一起**参与值域计算 ✗→✓（2026-10-12 修：用户报「按平台 / 场内·场外
+       下合计折线展示有问题」）——原先 allV 只收各列的 cum ✗，而总累计是**逐期各列之和**，天然比任何单列
+       更大（或更负）→ 在列数少的维度下会**整段跑到画布外**（实测「场内·场外」两列时 y 到 213.6，
+       而画布内的可用高度只有 178 ✗）。主题维度只是碰巧没越界 ✗，所以这个坑一直没被看见。
+       → 现在先把总累计逐期算出来（tCum），它与各列一起定值域 ✓；下面画线直接复用 tCum（不重算 ✓）。 */
+    const tCum = [];
+    for (let i = 0; i <= C.live.length; i++) { let acc2 = 0; series.forEach((s2) => { acc2 += s2.cum[i]; }); tCum.push(acc2); }
+    const allV = series.reduce((a, s2) => a.concat(s2.cum), []).concat(tCum);
     const lo = Math.min.apply(null, allV), hi = Math.max.apply(null, allV);
     const pad = (hi - lo || Math.abs(hi) || 1) * 0.12;
     const Y = (v) => mT + (H - mT - mB) - ((v - (lo - pad)) / ((hi + pad) - (lo - pad) || 1)) * (H - mT - mB);
@@ -2079,12 +2086,7 @@ function saDetailView(C) {
         + ' points="' + s2.cum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ") + '"'
         + ' fill="none" stroke="' + s2.col + '" stroke-width="1.4" opacity=".85"/>';
     });
-    const tPts = [];
-    for (let i = 0; i <= C.live.length; i++) {
-      let acc2 = 0;
-      series.forEach((s2) => { acc2 += s2.cum[i]; });
-      tPts.push(xAt(i).toFixed(1) + "," + Y(acc2).toFixed(1));
-    }
+    const tPts = tCum.map((v, i) => xAt(i).toFixed(1) + "," + Y(v).toFixed(1));   // 复用上面算好的总累计 ✓
     g += '<polyline class="sa-line" points="' + tPts.join(" ") + '" fill="none" style="stroke:var(--tx);stroke-width:2.2"/>';   // 总累计：粗 ＋ 中性色 ✓（var(--tx) 跟主题走；⚠ #snap-attr 内 --tx 被锁定（见 css），故浅色下仍解析为深色主题值——与改前一致，语义先正确化）
     const lab2 = (x, y, s3, anchor) => '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || "end") + '">' + esc(s3) + "</text>";
     g += lab2(mL - 5, Y(hi) + 6, fmtAmt(Math.round(hi)));
