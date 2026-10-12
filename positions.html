@@ -172,7 +172,8 @@ try {
 </main>
 
 <footer class="footer">
-  场内市值（估）= ETF 场内报价 × 当前份数；来源未核验时仅为沿用读数｜场外市值与盈亏为 App 快照口径<br>
+  <b>信息三态（全页用词定死，别再混 ✗）</b>：<b>估算</b>＝尚未公布的行情推算（未收盘 / 净值日未追上，<b>不是读数</b>）｜<b>快照</b>＝收盘或 App 截图的读数｜<b>读数</b>＝App 原始数（本站不换算、不改写）。三者互不叠加 ✓<br>
+  场内市值（估算）= ETF 场内报价 × 当前份数；来源未核验时仅为沿用读数｜场外市值与盈亏为 App 快照口径<br>
   各模块标题与卡片头部标注<b>口径日期</b>：<b>场内</b>＝该份报价的成交日（五只若不同则显示区间）｜<b>场外</b>＝App 截图快照日（净值日通常再早一天，逐只见「盈亏总览」行）<br>
   场外成本净值 = 最新净值 ÷（1 + 持有收益率）；场外按净值申赎、无溢价；场外明细卡已并入「盈亏总览」，仅保留逐只盈亏与同步徽章<br>
   本页为个人记录工具，不构成投资建议<br>
@@ -331,6 +332,9 @@ let symIdx = {};     // sym → idx（场内日志筛选）
  * 取不到日期时返回 null，由调用方显示「未记录」——不拿渲染时刻或今天冒充数据日期。 */
 const QUOTE_KEY = { ndx: "etfNdx", spx: "etfSpx", kr: "kr", n225: "n225", hkus: "hkus" };   // 持仓 idx → data.js 报价字段（模块级：卡片与总览行都要用）
 function mdOf(d) { return d ? String(d).slice(5, 10).replace("-", ".") : null; }
+/* 整串日期的点号版（2026-09-30 → 2026.09.30）—— 与 mdOf（09.30）同一套「日期不用连字符」的约定 ✓
+   ⚠ 连字符为什么也要禁：本页满屏盈亏数字，等宽字体下 - 与负号 − 几乎分不清 ✗（同 fmtPct 的负号约定）。 */
+function mdFull(d) { return d ? String(d).replace(/-/g, ".") : d; }
 /* 最新一期快照日期（走势图/快照对比标题标注用） */
 function snapAsOf() { return (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS[SNAPSHOTS.length - 1].d : null; }
 
@@ -565,7 +569,7 @@ function etfRowTag(row) {
     : '<span class="date-chip stale" title="该只报价日缺失，未做猜测">⚠ 场内 未记录</span>';
 }
 
-/* 组合占比：按市场聚合（场内估值 + 场外快照 + 现金），瘦条只显示短名 + 百分比，明细进 aria-label。
+/* 组合占比：按市场聚合（场内估算 + 场外快照 + 现金），瘦条只显示短名 + 百分比，明细进 aria-label。
    2026-09-27 从 renderImpl 提出 —— 输入只有 rows / otcRows（两个纯计算函数的结果），
    产出只写进 #alloc-bar / #alloc-legend，与 renderImpl 的其它部分零耦合，所以整段搬出来最清楚。
    （验收标准同前：页面渲染 DOM 逐字节不变。） */
@@ -657,7 +661,7 @@ function renderOtcEst(nc) {
     return;
   }
   const pc = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
-  const d2 = (s) => String(s || "—").slice(5);              // 2026-09-29 → 09-29（年份在块头统一交代）
+  const d2 = (s) => String(s || "—").slice(5).replace("-", ".");              // 2026-09-29 → 09-29（年份在块头统一交代）
   const est = nc.rows.filter((r) => r.src === "est").sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
   const app = nc.rows.filter((r) => r.src === "app");
   /* ── 两个「净值日」不是同一个源（2026-10-12 加；用户：「因为场外前后有1-2天的延迟，所以呈现要符合逻辑
@@ -723,7 +727,7 @@ function renderOtcEst(nc) {
     + "悬停某一行可看那几天<b>分别</b>是什么行情。"
     + '<br><b>★参考</b>＝该代理跟踪不紧（日经只有 A股ETF、全球精选用纳指代）→ 数字只看量级；'
     + "<b>不计入</b>＝跟踪太弱（港股那只 r 0.38）→ 只给方向、不进合计，免得以精确到元的样式假精确。"
-    + "<br>估值不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。"
+    + "<br>估算不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。"
     /* 两个「净值日」的两源说明（见 navGapOf 注释 ✓）——只在真有差异时追加 ✓，一致的就不吵 ✓ */
     + "<br><b>⚠ 两个「净值日」来自两个源</b>：本表的净值日取自<b>东财净值序列</b>（拟合与对账都用它 ✓，"
     + "所以 est 与 act 的日期成对 ✓）；App 快照另有一个「净值日」（QDII 确认慢约 1 天 ✓）。"
@@ -739,7 +743,7 @@ function renderOtcEst(nc) {
      判据：**只认日期对得上的那一条** ✓ —— 台账里 d ＝ 该只当前净值日 的那条 ✓：
        预估 est ＝ 当时按 α+β×指数日涨跌逐日累乘出来的（% ✓）
        实际 act ＝ nav / 那条的 nav0 − 1（% ✓）← 两边锚在同一对日期（navDate0 → d）上 ✓ → 可比 ✓
-       差 ＝ act − est（pp ✓）· 金额差 ＝ 差 × 当前市值 ✓（"这个预估值多少钱的偏差" ✓）
+       差 ＝ act − est（pp ✓）· 金额差 ＝ 差 × 当前市值 ✓（"这个估算值多少钱的偏差" ✓）
      ⚠ 对不上（净值日还没推进 / 台账没记过那天）→ **不出数** ✗，只说明"等下次截图" ✓ ——
        拿上一条预估硬凑＝把两个不同的日期窗口对比（看着有数、其实没意思 ✓）。
      ▸ 门禁 dom-check ④q 会独立复算每一行（est/act/差/金额 ✓）并断言"对不上的日子不出数"✓。 */
@@ -830,7 +834,7 @@ function renderOtcLog() {
     return;
   }
   const asOf = OTC.updated;                                          // 基准日＝场外快照日
-  const d5 = (d) => String(d || "").slice(5);                        // 2026-09-29 → 09-29
+  const d5 = (d) => String(d || "").slice(5).replace("-", ".");                        // 2026-09-29 → 09-29
   const daysTo = (d) => (d ? Math.round((Date.parse(asOf) - Date.parse(d)) / 864e5) : null);
   /* 逐笔盈亏（2026-10-04）要用的两份输入：① 现价按 **App 口径**（市值 ÷ 份额）—— 这样逐笔盈亏之和
      才能与 App 的「持仓收益」对照；② OTC_BUYNAV（净值为生成物，由 refresh-otc.mjs 写）。 */
@@ -1036,7 +1040,7 @@ function renderOtcLevel() {
       + '<div class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</div>"
       + '<div class="lvl-meta">' + (r.costNav ? "成本 " + r.costNav.toFixed(4) + " → 现价 " + r.n.close : "成本净值不可得（快照缺份额）")
       + " · 52 周 " + r.n.lo + "~" + r.n.hi + " · 距高 " + fmtPct(r.dist / 100, 1)
-      + (r.f.nav.closeDate ? " · 净值日 " + String(r.f.nav.closeDate).slice(5) : "") + "</div>"
+      + (r.f.nav.closeDate ? " · 净值日 " + String(r.f.nav.closeDate).slice(5).replace("-", ".") : "") + "</div>"
       + '<div class="lvl-track" title="52 周区间 ' + r.n.lo + " ~ " + r.n.hi
       + (r.over ? "（" + r.over + "）" : "") + "\n现价 " + r.n.close + " 在 " + (r.pos * 100).toFixed(1) + "% 处"
       + (r.cpos !== null ? "；成本净值 " + r.costNav.toFixed(4) + " 在 " + (r.cpos * 100).toFixed(1) + "% 处" : "")
@@ -1056,7 +1060,7 @@ function renderOtcLevel() {
   box.innerHTML = h;
   /* 净值日是**逐只**的（QDII 各渠道公布快慢不同，本期实测 09-28 ~ 09-30）→ 报区间，不写死某一天 */
   const nds = OTC.funds.map((f) => String(f.nav.closeDate || "")).filter(Boolean).sort();
-  const nd = nds.length ? (nds[0] === nds[nds.length - 1] ? nds[0].slice(5) : nds[0].slice(5) + "~" + nds[nds.length - 1].slice(5)) : "—";
+  const nd = nds.length ? (nds[0] === nds[nds.length - 1] ? nds[0].slice(5).replace("-", ".") : nds[0].slice(5).replace("-", ".") + "~" + nds[nds.length - 1].slice(5).replace("-", ".")) : "—";
   if (cnt) cnt.textContent = "（" + rows.length + " 只 · 52 周区间 · 净值日 " + nd + "）";
 }
 
@@ -1264,12 +1268,12 @@ function renderImpl() {
     otcA: "场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ",
     otcB: "（2026-10-09 补录 10 月定投后的构成：南方 600 ＝ 09-30 ＋ 10-08 ＋ 10-09 三笔 ✓（10-08 / 10-09 App 仍显示「支付成功 / 确认中」✓，公司 QDII 确认慢于扣款 ✓）；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平 ✓；华安 A/C 与其余五只逐分为 0 ✓）。⚠ 市值里另有在途 ",
     otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
-    day: "口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（预估）。",
+    day: "口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估算，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（估算）。",
   };
   $("sum-grid").innerHTML =
     /* 4 格（2026-09-30 二次排版，按用户口径「这些就够了」）：
        · 日期胶囊**只在「总资产」里出现**一次 —— 它的 mixTag 本来就同时含场内报价日与场外快照日，
-         其余格子不再重复日期戳（口径靠副标的文字说，例如「场内估值 ＋ 场外快照」）。
+         其余格子不再重复日期戳（口径靠副标的文字说，例如「场内估算 ＋ 场外快照」）。
        · 「本金 ＋ 收益」按**场内 / 场外各一格**：主数＝该通道累计**收益金额**（不带单位，与总资产格同规），
          副标＝本金 ／ 收益率（2026-09-30 按用户口径对调：金额比收益率更想看）。
          场外那格多一行「已扣款未入账 +500」——它是场外本金的**对账残差**（已扣款、尚未并入 App 成本），
@@ -1277,12 +1281,12 @@ function renderImpl() {
        · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
        · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
        末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。 */
-    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益 <span class="' + cls(totalAll) + '" id="sum-pl">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（快照口径）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 ✗ —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
     '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
       /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 按用户口径）：分量在前、合计在后，
-         盘中看到大数字时不会把「盘中估值 ＋ 隔日快照」当成一个同口径的精确值。
+         盘中看到大数字时不会把「盘中估算 ＋ 隔日快照」当成一个同口径的精确值。
          （2026-10-03：场外那一半从「App 快照」换成「预估补齐」—— App 快照降为副标里的对照值。） */
       '<div class="s-split">' +
         '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v ' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + '</div></div>' +
@@ -1291,8 +1295,8 @@ function renderImpl() {
         '<div class="s-split-plus">=</div>' +
         '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>' +
       '</div>' +
-      '<div class="s-sub src-muted">场内为当日估值（涨跌幅 × 持仓）· ' +
-        (nc.est ? '场外＝指数×仓位 补齐 ' + nc.est + ' 只 × ' + (() => { const d = nc.rows.filter((r) => r.src === "est").map((r) => r.days); const a = Math.min.apply(null, d), b = Math.max.apply(null, d); return a === b ? a : a + "~" + b; })() + ' 天（指数到 ' + (nc.upd ? nc.upd.slice(5) : "—") + ' · App 快照 ' + fmtAmt2(dayOtc) + '）' : '场外为 App 快照读数') +
+      '<div class="s-sub src-muted">场内为当日估算（涨跌幅 × 持仓）· ' +
+        (nc.est ? '场外＝指数×仓位 补齐 ' + nc.est + ' 只 × ' + (() => { const d = nc.rows.filter((r) => r.src === "est").map((r) => r.days); const a = Math.min.apply(null, d), b = Math.max.apply(null, d); return a === b ? a : a + "~" + b; })() + ' 天（指数到 ' + (nc.upd ? nc.upd.slice(5).replace("-", ".") : "—") + ' · App 快照 ' + fmtAmt2(dayOtc) + '）' : '场外为 App 快照读数') +
         (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + (nc.dir.length ? ' · ' + nc.dir.length + ' 只跟踪弱未计入' : '') + '</div></div>';
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
@@ -1330,10 +1334,10 @@ function renderImpl() {
   const clearedEtfPl = clearedEtf.reduce((a, r) => a + (r.pnl || 0), 0);
   const clearedPl = clearedOtPl + clearedEtfPl;
   const clearedHtml = clearedN
-    ? '<div class="pl-sec"><span>已清仓 · 已兑现</span><span class="pl-sec-h">另一种口径，不计入上面的浮盈亏</span></div>' +
+    ? '<div class="pl-sec"><span>已清仓 · 已实现</span><span class="pl-sec-h">另一种口径，不计入上面的浮盈亏</span></div>' +
       '<button type="button" class="pl-row pl-row-cleared" data-sel="#closed-card" aria-label="定位「清仓历史」卡看逐只明细">' +
         '<span class="pl-top">' +
-          '<span class="pl-nm">清仓累计已兑现</span>' +
+          '<span class="pl-nm">清仓累计已实现</span>' +
           /* data-pl 给门禁用的**精确值**：显示值按整元取整（fmtAmt ✗），0.01 容差的断言在显示值上
              分辨不出漂移 ✗；dom-check ④c 拿它比对**独立复算**的结果（场外 CLOSED ＋ 场内流水推导）✓ */
           '<b class="pl-amt ' + cls(clearedPl) + '" id="pl-cleared-total" data-pl="' + clearedPl.toFixed(2) + '">' + fmtAmt(clearedPl) + '</b>' +
@@ -1490,7 +1494,7 @@ function saCtx() {
   let baseD = null, basePl = 0, lastD = null, lastPl = 0;
   for (let i = 1; i < S.length; i++) {
     const a = S[i - 1], b = S[i];
-    if (!a.items || !b.items) { hidden.push(b.d.slice(5)); hiddenFull.push(b.d); continue; }
+    if (!a.items || !b.items) { hidden.push(b.d.slice(5).replace("-", ".")); hiddenFull.push(b.d); continue; }
     if (!baseD) { baseD = a.d; basePl = snapPl(a); }
     lastD = b.d; lastPl = snapPl(b);
     /* ★ 2026-10-09 改：取值改调 periodContrib()（★ 唯一实现 ★）——
@@ -1612,7 +1616,7 @@ function saMatrixHtml(C) {
   const cellOf = (p, t) => {
     const s = p.seg.find((x) => x.k === t);
     if (!s) {
-      return '<td class="mx-c mx-na" title="' + esc(p.d + "：" + C.colNameOf(t) + " 这一期没有可归因的标的（当时尚未持有，不是「变动为 0」）") + '">·</td>';
+      return '<td class="mx-c mx-na" title="' + esc(mdFull(p.d) + "：" + C.colNameOf(t) + " 这一期没有可归因的标的（当时尚未持有，不是「变动为 0」）") + '">·</td>';
     }
     /* 成员明细（A：2026-10-09 加**渠道** ✓）—— 用户问"这数是谁的 App 给的、去哪核对"时，悬停即得 ✓。
        ⚠ 平台维度下"渠道"就是列名本身 → 逐只再写一遍是重复 ✗，那一种不标 ✓。 */
@@ -1629,9 +1633,9 @@ function saMatrixHtml(C) {
        原来每格都是 0 ✗ → 5 列 × 16 行 ＝ 80 个 Tab 位 ✗，Tab 键直接变迷宫 ✓。 */
     return '<td class="mx-c mx-click' + (C.selIsCell(p.d, t) ? " mx-sel" : "") + '" data-cell="1"'
       + ' data-d="' + esc(p.d) + '" data-col="' + esc(t) + '" data-v="' + s.v.toFixed(2) + '"'
-      + ' tabindex="-1" role="button" aria-label="' + esc("看 " + p.d + " 这一期「" + C.colNameOf(t) + "」的成员，合计 " + fmtAmt(s.v) + " 元") + '"'
+      + ' tabindex="-1" role="button" aria-label="' + esc("看 " + mdFull(p.d) + " 这一期「" + C.colNameOf(t) + "」的成员，合计 " + fmtAmt(s.v) + " 元") + '"'
       + ' style="background:' + C.cellBg(s.v) + '" title="'
-      + esc(C.colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + p.d + " 这一期）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(s.v) + "</td>";
+      + esc(C.colNameOf(t) + "　" + fmtAmt(s.v) + " 元（" + mdFull(p.d) + " 这一期）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(s.v) + "</td>";
   };
   /* 维度切换器（2026-10-09 加，B）——沿用主视图那个 .vs-btn 的控件语言 ✓ */
   let h = '<div class="sa-dims">' + Object.keys(DIMS).map((k) =>
@@ -1652,13 +1656,13 @@ function saMatrixHtml(C) {
      排版取舍照旧：一行小字、不占格子 ✓；颜色走 up/down 绿红，不涂灰 ✗（灰在本页＝未更新 / 无数据 ✓）。 */
   h += '<div class="sa-base" title="' + esc("累计收益 ＝ 总资产 − 外部净转入（本金）✓，既含已卖出的兑现盈亏、也含尚未卖出的浮动盈亏 ✓。"
     + "自**账户起点**算起 ✓：场内自 2026-06-01 起（流水完整 ✓）、场外自 2026-03-03 起（在持 8 只 ✓）。"
-    + "下面「期初结转」行 ＝ 账户起点 → " + C.baseD + " 的累计结果（" + fmtAmt(C.carryTotal) + " ✓），"
-    + "逐期行 ＝ " + C.baseD + " → " + C.lastD + " ✓ —— 两者相加就是「全期」✓，与这里的累计收益是同一个数 ✓。"
+    + "下面「期初结转」行 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + " ✓），"
+    + "逐期行 ＝ " + mdFull(C.baseD) + " → " + mdFull(C.lastD) + " ✓ —— 两者相加就是「全期」✓，与这里的累计收益是同一个数 ✓。"
     + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(C.closedOtcSum) + " ✓）")
     + "：它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 ✗ → 无法归入本金 ✓，请去「清仓历史」卡看 ✓。")
     + '">累计收益（自账户起点）<b class="' + cls(C.lastPl) + '">' + fmtAmt(C.lastPl) + "</b>"
     + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(C.allSum) + ' ✓（同一口径、同一个数 ✓；'
-    + C.baseD.slice(5) + " 之前的账在「期初结转」行里 ✓）</span></div>";
+    + C.baseD.slice(5).replace("-", ".") + " 之前的账在「期初结转」行里 ✓）</span></div>";
   /* 列头**可点**（2026-10-09 第四步 ✓）：点它 → 该列的「逐期贡献 ＋ 累计」图（在矩阵下方 ✓）。
      这是用户那句「点击表头 是不是也可以按日来做图？」的落点 ✓ —— x 轴铺成**真实日期间距** ✓
      （真·日频数据仓库里没有 ✗，见 viewColChart 的注释 ✓）。 */
@@ -1687,7 +1691,7 @@ function saMatrixHtml(C) {
     const isCurRow = (C.cur !== "carry" && C.live[C.cur] === p);
     h += '<tr data-i="' + i + '"' + (isCurRow || (saSel && saSel.k === "cell" && saSel.d === p.d) ? ' class="mx-hlr"' : "") + '>'
       /* 日期格可点（2026-10-10）：点它 → 下方切到这一期 ✓（整行也可点 ✓，但数据格优先走"点格子"✓） */
-      + '<td class="mx-d mx-dpick" title="' + esc(p.d + "：点一下 → 下方看这一期的逐只明细（" + fmtAmt(p.net) + " 元）") + '">' + p.d.slice(5) + mark + "</td>"
+      + '<td class="mx-d mx-dpick" title="' + esc(mdFull(p.d) + "：点一下 → 下方看这一期的逐只明细（" + fmtAmt(p.net) + " 元）") + '">' + p.d.slice(5).replace("-", ".") + mark + "</td>"
       + C.cols.map((t) => cellOf(p, t)).join("")
       + '<td class="mx-c mx-sum ' + cls(p.net) + '">' + fmtAmt(p.net) + "</td></tr>";
   });
@@ -1700,7 +1704,7 @@ function saMatrixHtml(C) {
   const carryCell = (t) => {
     const v = C.carryByCol[t];
     if (v === undefined) {
-      return '<td class="mx-c mx-na" title="' + esc(C.baseD + "：" + C.colNameOf(t) + " 在基准期没有在持标的（该主题在 09-07 之前就未持有）") + '">·</td>';
+      return '<td class="mx-c mx-na" title="' + esc(mdFull(C.baseD) + "：" + C.colNameOf(t) + " 在基准期没有在持标的（该主题在 09-07 之前就未持有）") + '">·</td>';
     }
     const mem = Object.entries(C.carryItems)
       .filter(([c]) => C.colKeyOf(c) === t)
@@ -1712,12 +1716,12 @@ function saMatrixHtml(C) {
       + ' data-d="__carry" data-col="' + esc(t) + '" data-v="' + v.toFixed(2) + '"'
       + ' tabindex="-1" role="button" aria-label="' + esc("看期初结转「" + C.colNameOf(t) + "」的成员，合计 " + fmtAmt(v) + " 元") + '"'
       + ' style="background:' + C.cellBg(v) + '" title="'
-      + esc(C.colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + C.baseD + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(v) + "</td>";
+      + esc(C.colNameOf(t) + "　" + fmtAmt(v) + " 元（账户起点 → " + mdFull(C.baseD) + " 的累计结果）\n" + (mem || "（无成员明细）") + "\n点一下 → 下方只看这一格 ✓") + '">' + fmtAmt(v) + "</td>";
   };
   const carryIn = Object.entries(C.carryItems).filter(([c]) => isOnExchange(c)).reduce((a, x) => a + x[1], 0);
   h += '<tr class="mx-carry' + ((C.cur === "carry" || (saSel && saSel.k === "cell" && saSel.d === "__carry")) ? " mx-hlr" : "") + '"'
     + ' data-carry="' + C.carryTotal.toFixed(2) + '" data-carry-d="' + C.baseD + '" title="' + esc(
-      "期初结转 ＝ 账户起点 → " + C.baseD + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(C.carryTotal) + " 元\n"
+      "期初结转 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(C.carryTotal) + " 元\n"
       + "场内 " + fmtAmt(carryIn) + " ＋ 场外 " + fmtAmt(C.carryTotal - carryIn)
       + "（场内自 2026-06-01 起、流水完整 ✓；场外＝在持 8 只自 2026-03-03 起 ✓）\n"
       + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(C.closedOtcSum) + " ✓）")
@@ -1726,7 +1730,7 @@ function saMatrixHtml(C) {
     /* 副标签从「账户起点 → 09-07」缩成「起点 → 09-07」（2026-10-10 用户：「期 这列太宽了」✓）——
        它是**期列最宽的一格** ✗，宽度由它决定 ✓（实测 156.5px → 缩后见提交里的实测 ✓）。
        语义没丢：表上方对照行写「累计收益（自账户起点）」✓、这一行的 title 也写全 ✓。 */
-    + '<td class="mx-d mx-dpick" title="' + esc("期初结转：账户起点 → " + C.baseD + " 的累计结果（" + fmtAmt(C.carryTotal) + " 元）—— 点一下看它是哪些标的 ✓") + '">期初<i class="mx-since">起点 → ' + C.baseD.slice(5) + "</i></td>"
+    + '<td class="mx-d mx-dpick" title="' + esc("期初结转：账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + " 元）—— 点一下看它是哪些标的 ✓") + '">期初<i class="mx-since">起点 → ' + C.baseD.slice(5).replace("-", ".") + "</i></td>"
     + C.cols.map(carryCell).join("")
     + '<td class="mx-c mx-sum ' + cls(C.carryTotal) + '">' + fmtAmt(C.carryTotal) + "</td></tr>";
   /* 「全期」＝ ①逐期行 ＋ ②期初结转 ✓ —— 也就是**累计收益本身** ✓（不再是"窗口内的变化量" ✗）。
@@ -1774,7 +1778,7 @@ function saDetailView(C) {
       const nm = C.nameOf(code);
       (((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])).forEach((e) => {
         if (!(e.d > prevD && e.d <= d) || (e.sym !== nm && e.sym !== code)) return;
-        out.push(e.d.slice(5) + " " + (e.act || "成交") + (e.qty ? " " + fmtQty(e.qty) + " 份" : "")
+        out.push(e.d.slice(5).replace("-", ".") + " " + (e.act || "成交") + (e.qty ? " " + fmtQty(e.qty) + " 份" : "")
           + (Number.isFinite(e.realized) ? "（已实现 " + fmtAmt(e.realized) + "）" : "")
           + (e.note ? " · " + e.note : ""));
       });
@@ -1802,8 +1806,8 @@ function saDetailView(C) {
     const list = Object.entries(p.items).map(([c, v]) => ({ c: c, v: v })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     return '<div class="sa-detail"><div class="sd-head">'
-      + (isCarry ? "期初结转 · 账户起点 → " + C.baseD + " 的逐只累计结果（合计 " + fmtAmt(C.carryTotal) + " 元）"
-        : p.d + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）")
+      + (isCarry ? "期初结转 · 账户起点 → " + mdFull(C.baseD) + " 的逐只累计结果（合计 " + fmtAmt(C.carryTotal) + " 元）"
+        : mdFull(p.d) + " 这一期 · 逐只明细（合计 " + fmtAmt(p.net) + " 元）")
       + '<span class="sd-hint">点上方任一行切换期 · 点<b>格子</b>只看该格 · 点<b>标的</b>看它的逐期轨迹</span></div>'
       + list.map((x) => rowHtml(esc(C.nameOf(x.c)), x.v, top, pctTxt(x.v, p.net), kindMark((p.kinds || {})[x.c]), x.c)).join("")
       + "</div>";
@@ -1823,7 +1827,7 @@ function saDetailView(C) {
     return '<div class="sa-detail" data-cell-sum="' + sum.toFixed(2) + '"><div class="sd-head">'
       + '<button type="button" class="sa-back" data-nav="' + (backToChart ? "back" : "period") + '">'
       + (backToChart ? "← 回到该列的图" : "← 回到整期") + "</button>"
-      + (isCarry ? "期初结转（账户起点 → " + C.baseD + "）" : d) + " · <b>" + esc(C.colNameOf(col)) + "</b>这一格"
+      + (isCarry ? "期初结转（账户起点 → " + mdFull(C.baseD) + "）" : mdFull(d)) + " · <b>" + esc(C.colNameOf(col)) + "</b>这一格"
       + "（合计 " + fmtAmt(sum) + " 元 · " + list.length + " 只）"
       + '<span class="sd-hint">点标的看它的逐期轨迹 ✓</span></div>'
       + (list.length
@@ -1840,7 +1844,7 @@ function saDetailView(C) {
     const back = (saSel && saSel.k === "hold" && saSel.back) ? saSel.back : null;
     const out = [];
     if (C.carryItems[code] !== undefined) {
-      out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + C.baseD.slice(5) + "</i></div>"
+      out.push('<div class="sd-hrow"><div class="sd-hd"><b>期初结转</b><i>账户起点 → ' + C.baseD.slice(5).replace("-", ".") + "</i></div>"
         + '<div class="sd-row"><span class="sd-nm">起点之前的累计结果</span>'
         + '<span class="sd-bar"><i style="width:' + (Math.abs(carryV) / top * 100).toFixed(1) + "%;background:"
         + (carryV >= 0 ? "var(--up)" : "var(--down)") + '"></i></span>'
@@ -1860,7 +1864,7 @@ function saDetailView(C) {
         if (px(B) !== null) seg.push("单价 " + (A && px(A) !== null ? fmtPx(px(A)) + " → " : "") + fmtPx(px(B)));
         if (A) seg.push("市值 " + fmtYuan(A.val) + " → " + fmtYuan(B.val) + " · 摊薄成本 " + fmtYuan(A.cost) + " → " + fmtYuan(B.cost));
       }
-      out.push('<div class="sd-hrow"><div class="sd-hd"><b>' + h2.d.slice(5) + "</b>"
+      out.push('<div class="sd-hrow"><div class="sd-hd"><b>' + h2.d.slice(5).replace("-", ".") + "</b>"
         + (ev.length ? '<i class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(ev.join(" ／ ")) + "</i>" : "")
         + "</div>" + rowHtml("本期贡献", h2.v, top, pctTxt(h2.v, p ? p.net : 0), kindMark(h2.kind), null)
         + (seg.length ? '<div class="sd-cmp">' + esc(seg.join(" · ")) + "</div>" : "")
@@ -1973,7 +1977,7 @@ function saDetailView(C) {
     const midI = Math.floor((ser.length - 1) / 2);
     [0, midI, ser.length - 1].forEach((i, k2) => {
       if (i < 0 || !ser[i]) return;
-      g += lab(X(ser[i].d), H - 8, ser[i].d.slice(5), k2 === 0 ? "start" : (k2 === 2 ? "end" : "middle"));
+      g += lab(X(ser[i].d), H - 8, ser[i].d.slice(5).replace("-", "."), k2 === 0 ? "start" : (k2 === 2 ? "end" : "middle"));
     });
     /* ── 命中带（**每个"期"一整列** ✓，从柱面板顶到累计面板底 ✓，最后画＝在最上层 ✓）──
        为什么要它 ✗：让"拐点可点"落成**整列可点** ✓ —— 手指 45px 对 2px 的圆点根本点不中 ✗，
@@ -2020,7 +2024,7 @@ function saDetailView(C) {
     const top = Math.max.apply(null, list.map((x) => Math.abs(x.v)).concat([1]));
     return '<div class="sa-detail" data-cols-sum="' + sum.toFixed(2) + '" data-cols-n="' + list.length + '"><div class="sd-head">'
       + '<button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
-      + "<b>各列生涯贡献</b>（账户起点 → " + C.lastD.slice(5) + " ✓ · 合计 " + fmtAmt(sum) + "）"
+      + "<b>各列生涯贡献</b>（账户起点 → " + C.lastD.slice(5).replace("-", ".") + " ✓ · 合计 " + fmtAmt(sum) + "）"
       + '<span class="sd-hint">点一行 → 看该列的逐期图 ✓（＝「全期」行各列 ✓，同一个数 ✓）</span></div>'
       + list.map((x) => '<div class="sd-row sd-click" data-colrow="' + esc(x.k) + '" data-v="' + x.v.toFixed(2) + '"'
         + ' tabindex="0" role="button" aria-label="' + esc("看「" + C.colNameOf(x.k) + "」的逐期图，生涯贡献 " + fmtAmt(x.v) + " 元") + '">'
@@ -2076,7 +2080,7 @@ function saDetailView(C) {
     const midI = Math.floor((C.live.length - 1) / 2);
     [0, midI, C.live.length - 1].forEach((i, k3) => {
       if (!C.live[i]) return;
-      g += lab2(X(C.live[i].d), H - 6, C.live[i].d.slice(5), k3 === 0 ? "start" : (k3 === 2 ? "end" : "middle"));
+      g += lab2(X(C.live[i].d), H - 6, C.live[i].d.slice(5).replace("-", "."), k3 === 0 ? "start" : (k3 === 2 ? "end" : "middle"));
     });
     const legend = series.slice().sort((a, b) => Math.abs(b.end) - Math.abs(a.end))
       .map((s2) => '<span class="sa-all-k" data-legend="' + esc(s2.k) + '" tabindex="0" role="button"'
@@ -2085,7 +2089,7 @@ function saDetailView(C) {
         + ' <b class="' + cls(s2.end) + '">' + fmtAmt(s2.end) + "</b></span>").join("");
     return '<div class="sa-detail sa-chart" data-all-end="' + total2.toFixed(2) + '" data-all-n="' + series.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="period">← 回到整期</button>'
-      + "<b>整表累计曲线</b>（" + series.length + " 列 ＋ 总累计 ✓ · 账户起点 → " + C.lastD.slice(5) + " · <b>合计 " + fmtAmt(total2) + "</b>）"
+      + "<b>整表累计曲线</b>（" + series.length + " 列 ＋ 总累计 ✓ · 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " · <b>合计 " + fmtAmt(total2) + "</b>）"
       + '<span class="sd-hint">粗白＝总累计 ✓ 细彩＝各列 ✓（终值见图例 ✓；逐期细看请点某个列头 ✓）</span></div>'
       + '<svg class="sa-chart-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="'
       + esc("整表累计曲线：各列终值合计 " + fmtAmt(total2) + " 元") + '">' + g + "</svg>"
@@ -2124,8 +2128,8 @@ function saNotesHtml(C) {
     + "（场内取流水 realized ＋ 期初成本 ✓；场外取 OTC_LOG 的赎回笔 ✓）；三分支同源（periodContrib ✓），"
     + "故<b>每行合计 ≡ 卡头那期的「本期盈亏」</b> ✓。格里的「·」＝该期该列<b>没有可归因的标的</b> ✓（不是「变动为 0」✗）；"
     + "底色＝<b>对数</b>尺度（跨两个数量级都能分辨 ✓）。"
-    + "<br><b>「全期」＝ 账户起点 → " + C.lastD.slice(5) + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(C.lastPl) + " ✓）；"
-    + "<b>「期初结转」行 ＝ 账户起点 → " + C.baseD.slice(5) + "</b>（该期 Σ逐只 pl ＝ " + fmtAmt(C.carryTotal) + " ✓；"
+    + "<br><b>「全期」＝ 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " 的累计结果</b> ✓ —— 它<b>就是</b>累计收益（" + fmtAmt(C.lastPl) + " ✓）；"
+    + "<b>「期初结转」行 ＝ 账户起点 → " + C.baseD.slice(5).replace("-", ".") + "</b>（该期 Σ逐只 pl ＝ " + fmtAmt(C.carryTotal) + " ✓；"
     + "场内自 06-01 起、场外自 03-03 起 ✓）。⚠ 期初结转<b>不含场外那 17 笔已清仓</b>"
     + (C.closedOtcSum === null ? " ✗" : "（Σ " + fmtAmt(C.closedOtcSum) + " ✓）")
     + "：那批只有 App 的 pnl、没有成本与赎回去向 ✗ → 归不进本金 ✓，只在「清仓历史」卡 ✓；"
@@ -2884,7 +2888,7 @@ function buildTrendPts(todayVal, todayCost) {
     .filter((p) => Number.isFinite(p.val) && Number.isFinite(p.cost) && Number.isFinite(Date.parse(p.d)));
   const seen = {};
   for (let i = pts.length - 1; i >= 0; i--) { if (seen[pts[i].d]) pts.splice(i, 1); else seen[pts[i].d] = true; }
-  /* 今日估算：场内最新场内价估值 + 场外 OTC 快照 + 现金；与最后一期快照同日时省略 */
+  /* 今日估算：场内最新场内价估算 + 场外 OTC 快照 + 现金；与最后一期快照同日时省略 */
   const n = new Date();
   const td = n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0");
   if (Number.isFinite(todayVal) && (!pts.length || pts[pts.length - 1].d < td))
@@ -3137,7 +3141,7 @@ function renderDdView(box, pts) {
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="fill:var(--down);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
-      p.d + " 回撤 " + fmtPct(dd[i], 2) + '"/>';
+      mdFull(p.d) + " 回撤 " + fmtPct(dd[i], 2) + '"/>';
   });
   /* 最深点标注：文字宽度限制在绘图区内，避免贴边被裁 */
   const lbl = "最深 " + fmtPct(dd[deepI], 2), lw = [...lbl].length * 6.2 + 6;
@@ -3308,7 +3312,7 @@ function renderTrend(todayVal, todayCost) {
     const flowSum = pts.reduce((a, p) => a + (typeof p.flow === "number" ? p.flow : 0), 0);
     const pl0 = pts[0].val - pts[0].cost, pl1 = pts[pts.length - 1].val - pts[pts.length - 1].cost, dPl = pl1 - pl0;
     setTrendSum("区间投入 <b class=\"" + (flowSum >= 0 ? "info" : "warn") + "\">" + fmtAmt(flowSum) + "</b> 元 · 累计收益 " + fmtAmt(pl0) + " → <b>" + fmtAmt(pl1) + "</b>（" + (dPl >= 0 ? "改善 " : "恶化 ") + "<b>" + fmtAbs2(dPl) + "</b> 元）",
-      "口径：全账户（场内券商 + 场外基金 + 现金）。总资产为各期快照读数，今日为盘中估值、尚未收盘。" +
+      "口径：全账户（场内券商 + 场外基金 + 现金）。总资产为各期快照读数，今日为盘中估算、尚未收盘。" +
       "累计投入 ＝ 外部净转入（＝持仓成本 + 现金 + 全额清仓加回 ✓）；累计收益 ＝ 总资产 − 累计投入，**含已卖出的兑现盈亏** ✓。" +
       "区间投入由逐期 Δ累计投入推导（人工记录的 flow 优先），正为净转入、负为净转出。" +
       "区间随上方「时间范围」变化；完整逐期归因见下方「快照对比」。");
@@ -3381,7 +3385,7 @@ function renderPnlView(box) {
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="fill:var(--' + col(p.pl) + ');stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
-      p.d + " 账户累计盈亏 " + fmtAmt(p.pl) + ' 元"/>';
+      mdFull(p.d) + " 账户累计盈亏 " + fmtAmt(p.pl) + ' 元"/>';
     if (i === 0 || i === pts.length - 1 || i === deepI)
       svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + col(p.pl) + ');font:700 var(--fs-xxs) var(--mono)">' + fmtAmt(p.pl) + "</text>";
   });
@@ -3454,7 +3458,7 @@ function renderRateView(box, pts) {
     const r = ser[i];
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + TREND_GEO.dot + '"' +
       ' style="fill:var(--blue);stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
-      p.d + " 净值口径收益率 " + fmtPct(r, 2) + '"/>';
+      mdFull(p.d) + " 净值口径收益率 " + fmtPct(r, 2) + '"/>';
     if (i === 0 || i === pts.length - 1)
       svg += '<text x="' + P(px[i]) + '" y="' + P(Math.max(11, py[i] - 8)) + '" text-anchor="middle" style="fill:var(--' + (r >= 0 ? "up" : "down") + ');font:700 var(--fs-xxs) var(--mono)">' + fmtPct(r, 2) + "</text>";
   });
@@ -3588,7 +3592,7 @@ function showXhair(i) {
     ro.innerHTML =
       '<div class="ro-head"><span class="ro-date">' + (p.isToday ? "今日" : dt) + "</span>" +
         (p.isToday
-          ? '<span class="ro-badge est" title="盘中估值、尚未收盘：场内按最新场内价、场外按各基金 App 最新净值，再加现金。与最后一期快照同日时自动省略。">盘中估 · 未收盘</span>'
+          ? '<span class="ro-badge est" title="盘中估算、尚未收盘：场内按最新场内价、场外按各基金 App 最新净值，再加现金。与最后一期快照同日时自动省略。">盘中估 · 未收盘</span>'
           : '<span class="ro-badge snap" title="收盘快照：券商与各基金 App 的当日读数，可与「快照对比」逐项核对">收盘快照</span>') +
         /* 事件词从图上挪到这里：图上只留一个小三角，滑到该期即可看到是什么事 */
         (p.tag ? '<span class="ro-badge evt" title="该期快照记录的事件（图上对应位置的 ▲ / ▼ 标记）">' + esc(p.tag) + "</span>" : "") +
@@ -4085,7 +4089,7 @@ function snapActions(prev, cur) {
     const inn = f.amt >= 0;
     bankParts.push('<span class="snap-tag ' + (inn ? "add" : "cut") + '" title="' +
       esc("银证转账 " + (inn ? "转入" : "转出") + " " + Math.abs(f.amt) + " 元 · " + f.d + (f.note ? " · " + f.note : "")) + '">' +
-      (inn ? "银行转入 " : "银行转出 ") + esc(fmtYuan(Math.abs(f.amt))) + " 元 · " + esc(f.d.slice(5)) + "</span>");
+      (inn ? "银行转入 " : "银行转出 ") + esc(fmtYuan(Math.abs(f.amt))) + " 元 · " + esc(f.d.slice(5).replace("-", ".")) + "</span>");
   });
   if (!acts.length && !Object.keys(otcAgg).length && !bankParts.length) return "";
   const buy = {}, sell = [];
@@ -4335,7 +4339,7 @@ function snapPairHtml(prev, cur) {
  * 这些盈亏发生在首份快照（2026-08-28）之前，所以上方「本金与收益」里看不到它们——
  * 不单列出来，以后翻旧账会以为这些从没买过。⚠ 不计入本金 / 累计收益 / 走势归因。
  * 呈现：按类别汇总（低风险债基 vs 权益）+ 全部明细可展开；留档数字精确到分，便于与 App 对账。 */
-/* ---- 场内「已了结」标的（2026-10-09 加，B 方案：清仓历史要能一起回看）-------------------
+/* ---- 场内「已清仓」标的（2026-10-09 加，B 方案：清仓历史要能一起回看）-------------------
  * 数据来源：POSITIONS.log **现算**，不手抄 ✗。
  *   为什么这么做：场内**没有**「清仓分析」这种 App 页（那是支付宝侧的 ✓），而流水本身完整、
  *   且 data-quality 门禁**强制卖出行必须带 realized** ✓ → 回放即可推出。
@@ -4473,7 +4477,7 @@ function renderClosed() {
     "</div>";
   const rowHtml = (r) => {
     const meta = [];
-    if (r.buy && r.sell) meta.push(r.buy.slice(5) + "→" + r.sell.slice(5) + (r.days === null ? "" : " · " + r.days + " 天"));
+    if (r.buy && r.sell) meta.push(r.buy.slice(5).replace("-", ".") + "→" + r.sell.slice(5).replace("-", ".") + (r.days === null ? "" : " · " + r.days + " 天"));
     if (typeof r.rate === "number") meta.push("收益率 " + pct(r.rate));
     if (r.cost !== null) meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US") + (r.kind === "场内" ? " ✓" : ""));
     if (r.kind === "场内" && Number.isFinite(r.cash)) meta.push("回款 " + Math.round(r.cash).toLocaleString("en-US") + " ✓");
@@ -5174,7 +5178,7 @@ function prKpisHtml(C) {
       '<div class="pk"><div class="pk-k">本金</div><div class="pk-v">' + fmtYuan(C.principal) + "</div>" +
         '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(C.cash) + '。">外部净转入</div></div>' +
       '<div class="pk-op" aria-hidden="true">＋</div>' +
-      '<div class="pk"><div class="pk-k">累计收益</div><div class="pk-v ' + cls(C.pnl) + '">' + fmtAmt2(C.pnl) + "</div>" +
+      '<div class="pk"><div class="pk-k" title="快照口径：＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。与「账户累计盈亏」（券商 / 月度账单口径）不是同一个数 ✗">累计收益（快照口径）</div><div class="pk-v ' + cls(C.pnl) + '">' + fmtAmt2(C.pnl) + "</div>" +
         '<div class="pk-n">' + fmtPct(C.rate / 100, 2) + C.qBtn + "</div></div>" +
       '<div class="pk-op" aria-hidden="true">＝</div>' +
       '<div class="pk"><div class="pk-k">总资产</div><div class="pk-v">' + fmtYuan(C.total) + "</div>" +
@@ -5193,7 +5197,7 @@ function prMixHtml(C) {
       '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(C.cashed) + '">' + fmtAmt2(C.cashed) +
         '</b><span class="snap-sub">' + (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计 ✓）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里 ✓）") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(C.held) + '">' + fmtAmt2(C.held) +
-        '</b><span class="snap-sub">' + (C.held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + C.cashNote + "</span></span></div>" +
+        '</b><span class="snap-sub">' + (C.held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动（＝ Σ 逐只在持浮动盈亏）" + C.cashNote + "</span></span></div>" +
       /* 按账户拆解（2026-10-09 加）：回答「累计收益包含场内场外对吗」= 包含 ✓，
          ⚠ 但**不是**汇总卡那两格相加 ✗ —— 场内还差一个「已兑现」（那两格是在持口径 ✓）。 */
       '<div class="snap-part"><span class="pn">按账户</span><span class="pv">' +
@@ -5483,7 +5487,7 @@ function renderOtcAcctStats() {
   /* ── ③ 三个 KPI（与场内那张同一套 .kpi 语言 ✓）── */
   const best = rows[0], worst = rows[rows.length - 1];
   el.innerHTML = '<div class="acct-stats acct3">'
-    + '<div class="kpi"><div class="k-label">场外累计收益</div><div class="k-val ' + cls(total) + '">' + fmtAmt2(total) + "</div>"
+    + '<div class="kpi"><div class="k-label" title="月度账单口径（平台 App 各月读数之和），与页首「累计收益（快照口径）」**不是同一个数** ✗：那一格 ＝ 总资产 − 外部净转入（含已实现），这一格只认各平台月度账单。">场外累计盈亏（月度口径）</div><div class="k-val ' + cls(total) + '">' + fmtAmt2(total) + "</div>"
     + '<div class="k-sub ' + cls(total) + '">' + funds.length + " 个渠道 · 自 " + (rows.filter((r) => r.since).map((r) => r.since).sort()[0] ? monthNum(rows.filter((r) => r.since).map((r) => r.since).sort()[0]) : "—") + " 起 · App 月度账单</div></div>"
     /* ⚠ 这一格的口径要写明 ✓（2026-10-10 我先按记忆写成"场内 App 累计是 +158"✗ —— 实测 ACCT_STATS.pnl
        ＝ **+3,166.40** ＝ Σmonthly ✓，与月度行之和**一致** ✓，压根没有第二个数 ✗ → 那句话删掉 ✓）。
@@ -5501,7 +5505,7 @@ function renderOtcAcctStats() {
     /* 10 月进行中（只有部分渠道有读数 ✓）—— 与财务页同一条纪律：**不入任何合计** ✓ */
     + (mtdOn.length
       ? '<div class="otc-mtd" data-mtd-sum="' + mtdSum.toFixed(2) + '" data-mtd-n="' + mtdOn.length + '">10 月<b>进行中</b>（'
-        + mtdOn.length + "/" + funds.length + " 个渠道有读数：" + mtdOn.map((x) => esc(x.name) + " " + otcFmt(x.v) + "（截至 " + x.asof.slice(5) + " ✓）").join(" · ")
+        + mtdOn.length + "/" + funds.length + " 个渠道有读数：" + mtdOn.map((x) => esc(x.name) + " " + otcFmt(x.v) + "（截至 " + x.asof.slice(5).replace("-", ".") + " ✓）").join(" · ")
         + "）→ 部分合计 <b>" + otcFmt(mtdSum) + "</b> ✗ <b>不计入</b>上面的全年（月频口径要整月 ✓；其余渠道这次没读数 = 未提供，不是 0 ✗）</div>"
       : "")
     + '<div class="otc-note"><b>口径</b>：月频 · <b>账户级</b>（各平台 App 的「月度账单」，含已实现 ✓；招行理财 / 平安证券<b>不计入</b> ✓'
@@ -5833,7 +5837,7 @@ function renderAlt() {
       }
       return '<div class="alt-grp">' +
         '<div class="alt-grp-head"><b>' + esc(g.label) + "</b><span>你的 " + esc(g.mine) + " · " + g.trades + " 笔" +
-          (g.sells ? " + " + g.sells + " 笔卖出" : "") + " · " + esc(g.first.slice(5)) + "→" + esc(g.to.slice(5)) +
+          (g.sells ? " + " + g.sells + " 笔卖出" : "") + " · " + esc(g.first.slice(5).replace("-", ".")) + "→" + esc(g.to.slice(5).replace("-", ".")) +
           " · " + num(g.total) + " 元</span></div>" +
         '<div class="alt-col"><span>标的</span><span>期末市值</span><span>与你的差</span></div>' +
         rows.map((r) => '<div class="alt-row' + (r.mine ? " mine" : "") + '">' +
@@ -6078,7 +6082,7 @@ function holdCardHtml(row, i, ctx) {
     kpiThird =       '<div class="kpi"><div class="k-label" title="这只券商流水逐笔「实现盈亏」之和 − 卖出费（费用已含在净回款里的那几笔不再另减）。' +
       '⚠ 这不是额外一笔：券商用摊薄成本，卖出的净回款已冲减剩余仓位成本，所以它已经包含在左边的「浮盈（估）」里，两者不能相加。' +
       '（「本金与收益」卡的「已实现」只认**全额清仓**那几笔 ✓ —— 在持标的的部分卖出已折进剩余仓位成本，故两边不该相加 ✗。）">' +
-      '其中已落袋</div><div class="k-val ' + cls(cashed) + '">' + fmtAmt(cashed) + ' 元</div>' +
+      '其中已实现</div><div class="k-val ' + cls(cashed) + '">' + fmtAmt(cashed) + ' 元</div>' +
       '<div class="k-sub" style="color:var(--tx3)">卖出 ' + sellsOf.length + ' 笔 · 已在浮盈里</div></div>';
   }
   /* 两格还是三格由内容决定（不再硬写 kpi3 让空位悬着）：没卖出的标的只排「浮盈 ＋ 距成本位」 */
@@ -7135,7 +7139,7 @@ bindTrendCrosshair();
       const dPl = c.pl - p.pl;
       const flow = snapFlow(p, c);
       if (Math.abs(dTot - dPl - flow) > 1)
-        bad.push(p.d.slice(5) + "→" + c.d.slice(5) + "：Δ总资产 " + fmtAbs2(dTot) + " ≠ Δ浮盈亏 " + fmtAbs2(dPl) + " + 资金进出 " + fmtAbs2(flow) + "（检查 flow 记录值）");
+        bad.push(p.d.slice(5).replace("-", ".") + "→" + c.d.slice(5).replace("-", ".") + "：Δ总资产 " + fmtAbs2(dTot) + " ≠ Δ浮盈亏 " + fmtAbs2(dPl) + " + 资金进出 " + fmtAbs2(flow) + "（检查 flow 记录值）");
     }
     return bad.length ? bad.join("；") : true;
   });
@@ -7151,7 +7155,7 @@ bindTrendCrosshair();
         dPl += ((c.items[k] && c.items[k].pl) || 0) - ((p.items[k] && p.items[k].pl) || 0);
       });
       if (Math.abs((dTot - flow) - dPl) > 1)
-        bad.push(p.d.slice(5) + "→" + c.d.slice(5) + "：市值变化 " + fmtAbs2(dTot - flow) + " ≠ Σ盈亏变化 " + fmtAbs2(dPl));
+        bad.push(p.d.slice(5).replace("-", ".") + "→" + c.d.slice(5).replace("-", ".") + "：市值变化 " + fmtAbs2(dTot - flow) + " ≠ Σ盈亏变化 " + fmtAbs2(dPl));
     }
     return bad.length ? bad.join("；") : true;
   });

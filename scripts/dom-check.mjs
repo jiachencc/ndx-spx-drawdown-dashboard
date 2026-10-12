@@ -398,7 +398,11 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     /按平台汇总/.test(cardTxt) && near(cardTxt, sEtf, 0.01) && near(cardTxt, sOtc, 0.01), cardTxt.slice(0, 130));
   const badD = etfClosed.filter((o) => {
     const row = cardEl ? cardEl.querySelector('[data-sym="' + o.k + '"]') : null;
-    return !row || row.textContent.replace(/\s+/g, "").indexOf(lastSell[o.k].slice(5)) < 0;
+    /* ⚠ 判据只认「日期本身」，**不认分隔符**（2026-10-12 页面统一为点号 09.30 ✗→✓ 后本断言曾误报）：
+       页面把月日显示成 09.30，这里就两种写法都收 —— 断言要的是"这一期出现了"，不是"用了哪个杠" ✓ */
+    const md = lastSell[o.k].slice(5), mdDot = md.replace("-", ".");
+    const txt = row ? row.textContent.replace(/\s+/g, "") : "";
+    return !row || (txt.indexOf(mdDot) < 0 && txt.indexOf(md) < 0);
   }).map((o) => o.k + "（应为 " + lastSell[o.k] + "）");
   check("清仓历史明细：场内每只「清仓日」= 该标的最后一笔卖出日（" + etfClosed.length + " 只）",
     badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
@@ -1180,11 +1184,14 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   const jBox = attrEl ? attrEl.querySelector(".sa-detail[data-hold-total]") : null;
   const jTot = jBox ? Number(jBox.getAttribute("data-hold-total")) : NaN;
   const jHead = jBox ? jBox.textContent.replace(/\s+/g, " ") : "";
+  /* ⚠ 同上一处：日期判据不分隔符（页面 2026-10-12 起统一点号 10.09 ✓） */
+  const jMd = jD.slice(5), jMdDot = jMd.replace("-", ".");
+  const jHasD = jHead.indexOf(jMdDot) >= 0 || jHead.indexOf(jMd) >= 0;
   check("逐期明细：点持仓变化行（" + jName + "）→ 直达该只的归因轨迹",
     !!rowJ && !!attrEl && !attrEl.hidden && !!jBox && Number.isFinite(jTot)
-      && (jHead.indexOf(jName) >= 0 || jHead.indexOf(jCode) >= 0) && jHead.indexOf(jD.slice(5)) >= 0,
+      && (jHead.indexOf(jName) >= 0 || jHead.indexOf(jCode) >= 0) && jHasD,
     rowJ ? "归因视图 hidden=" + (attrEl && attrEl.hidden) + " · data-hold-total=" + (Number.isFinite(jTot) ? jTot : "—")
-      + " · 含该期 " + jD.slice(5) + "：" + (jHead.indexOf(jD.slice(5)) >= 0) + " · 含该只名：" + (jHead.indexOf(jName) >= 0)
+      + " · 含该期 " + jMd + "：" + jHasD + " · 含该只名：" + (jHead.indexOf(jName) >= 0)
       : "#snap-list 里没有 [data-attr] 行 ✗（逐期明细行没做成可点）");
   if (tagBtn) tagBtn.click();      // 复位到逐期明细 ✓（别把状态留给后面的断言 ✗）
 }
@@ -1538,12 +1545,13 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       const appD = (f.nav && f.nav.closeDate) || "";
       if (serD && appD && serD !== appD) gapWant.push({ code: f.code, name: f.name, ser: serD, app: appD });
     });
-    /* 行里没有 code 属性 → 用"该行是否带 App 日期 chip"来判 ✓（chip 文本形如 "App 10-09" ✓） */
+    /* 行里没有 code 属性 → 用"该行是否带 App 日期 chip"来判 ✓（chip 文本形如 "App 10.09" ✓）
+       ⚠ 判据不分隔符（2026-10-12 页面统一点号后，页面写 10.09 而这里原写死 10-09 曾误报 ✗） */
     const chips = rowsE2.map((tr) => ((tr.querySelector(".chip") || {}).textContent || "").trim());
     const badG = [];
     gapWant.forEach((g) => {
-      const md = g.app.slice(5);
-      if (chips.filter((c) => c.indexOf(md) >= 0).length !== 1) badG.push(g.name + " 两源不同（序列 " + g.ser + " / App " + g.app + "），但行里没标出 App " + md + " ✗");
+      const md = g.app.slice(5), mdDot = md.replace("-", ".");
+      if (chips.filter((c) => c.indexOf(mdDot) >= 0 || c.indexOf(md) >= 0).length !== 1) badG.push(g.name + " 两源不同（序列 " + g.ser + " / App " + g.app + "），但行里没标出 App " + mdDot + " ✗");
     });
     /* 反向：两源一致的行不该带 App chip ✓（不许制造噪音 ✗） */
     const okCodes = (OTC2.funds || []).filter((f) => {
