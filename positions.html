@@ -190,7 +190,7 @@ try {
 const $ = (id) => document.getElementById(id);
 
 /* ================= 导航：改什么 → 看哪个函数 =================
- * 2026-09-27 加。这不是文档，是**索引** —— 本文件 4,300 行、103 个函数平铺无分区；
+ * 2026-09-27 加。这不是文档，是**索引** —— 本文件 7,200+ 行、160+ 个函数平铺无分区（2026-10-12 更新；行数仍在长，别迷信具体数字）；
  * 想改某处时先看这里，比 grep 猜关键词快。（MANUAL 数据在 positions-data.js、样式在 positions.css、
  * 行情与经济数据在 data.js —— 本文件只剩结构与渲染逻辑。）
  *
@@ -1255,6 +1255,17 @@ function renderImpl() {
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
+  /* 口径散文收拢（2026-10-12 第二批 ⑤）：四格 title 的长文从字符串拼接里搬进常量表 ——
+     改口径不用再在拼接串里找作文 ✓。含动态数字的两格保留拼接（静态段进表 ✓）；
+     纯文本搬家，DOM 输出逐字节不变 ✓（有 sha256 基线背书）。 */
+  const SUM_TIPS = {
+    total: "本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它 ✓。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径 ✓。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现 ✗），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492 ✓）。",
+    etf: "场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
+    otcA: "场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ",
+    otcB: "（2026-10-09 补录 10 月定投后的构成：南方 600 ＝ 09-30 ＋ 10-08 ＋ 10-09 三笔 ✓（10-08 / 10-09 App 仍显示「支付成功 / 确认中」✓，公司 QDII 确认慢于扣款 ✓）；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平 ✓；华安 A/C 与其余五只逐分为 0 ✓）。⚠ 市值里另有在途 ",
+    otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
+    day: "口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（预估）。",
+  };
   $("sum-grid").innerHTML =
     /* 4 格（2026-09-30 二次排版，按用户口径「这些就够了」）：
        · 日期胶囊**只在「总资产」里出现**一次 —— 它的 mixTag 本来就同时含场内报价日与场外快照日，
@@ -1266,10 +1277,10 @@ function renderImpl() {
        · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
        · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
        末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。 */
-    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="本金 ＝ 外部净转入（真从银行 / 支付宝转进来的钱）：买入卖出、申购赎回、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；但**全额清仓**时摊薄口径会漏掉已兑现那一块（见注释），故本金里显式加回它 ✓。总资产 ＝ 本金 ＋ 累计收益（含已实现）—— 与「本金与收益」卡同一口径 ✓。⚠ 右侧「累计浮盈亏 · 场内 / 场外」两格是**在持**口径（券商与基金 App 的「浮动盈亏」，不含已兑现 ✗），故两格之和 ≠ 这里的累计收益（差的就是场内已兑现那 18,492 ✓）。"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益 <span class="' + cls(totalAll) + '" id="sum-pl">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金），快照摊薄口径。本金 ＝ Σ五只摊薄成本 ＋ 可用现金，券商摊薄成本已含已实现盈亏，故它天然等于银证净转入 —— 2026-09-30 与平安 App「银证转账」核对差 1.66 元（0.0004%）✓。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
-    '<div class="sum-cell" title="场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台 screenshot 读数，非估算）：**八只全部有逐笔流水可对平**（2026-09-30 补齐支付宝两只）—— Σ(OTC_LOG 成功笔) 与成本的差共 ' + fmtAmt2(otcLogGap) + '（2026-10-09 补录 10 月定投后的构成：南方 600 ＝ 09-30 ＋ 10-08 ＋ 10-09 三笔 ✓（10-08 / 10-09 App 仍显示「支付成功 / 确认中」✓，公司 QDII 确认慢于扣款 ✓）；中欧 100 ＝ 逐笔反推指向一笔 100 元疑似未成交，待核 → 确认后改一个 status 即对平 ✓；华安 A/C 与其余五只逐分为 0 ✓）。⚠ 市值里另有在途 ' + fmtAmt2(inTransit) + '（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label" title="口径是【两半拼接】、可靠性不同，故分栏显示、不合成一个精确值：场内＝当日涨跌幅 × 当前持仓推算（估值，当日盘中若有买卖与券商 App 会略有差异）；场外＝用代理指数把【尚未公布】的那几天补齐（预估）。' + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
+    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益 <span class="' + cls(totalAll) + '" id="sum-pl">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
+    '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
       /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 按用户口径）：分量在前、合计在后，
          盘中看到大数字时不会把「盘中估值 ＋ 隔日快照」当成一个同口径的精确值。
          （2026-10-03：场外那一半从「App 快照」换成「预估补齐」—— App 快照降为副标里的对照值。） */
@@ -1521,7 +1532,6 @@ function saCtx() {
   /* 该格 / 该只 是否当前选中（2026-10-09 第三步的下钻高亮 ✓）。
      写成**函数声明**：cellOf / carryCell 在下面几行就要调它 ✓（const 箭头会撞 TDZ ✗）。 */
   function selIsCell(d, col) { return !!(saSel && saSel.k === "cell" && saSel.d === d && saSel.col === col); }
-  /* （拆分时删掉了 selIsHold：全文件只有定义、零调用 ✓ —— 拆前 grep 实锤，死码不留 ✓）。 */
   /* ── 归因维度（2026-10-09 加，用户要求 A ＋ B）───────────────────────────────────────
      默认**主题** ✓；另两种是"要查时切一下"的补充 ✓（顶部小切换器 ✓，选择记 localStorage ✓）。
      为什么不默认平台（实测两者都 6 列，但平台维度在这套账户上会**塌缩** ✗）：
@@ -2129,14 +2139,12 @@ function saNotesHtml(C) {
     + "缺口处<b>断开折线</b>、不插值 ✓；真·日频数据本仓库没有 ✓（持仓只有快照时点 ✓）。"
     + "</div></details>";
   return h;
-  /* （拆分时删掉了紧随其后的一行残句 `+ "</div>";`：它是一条**独立表达式语句** ——
-     语义上等于 `+("</div>")` → NaN，求值后即丢弃，对 h 与 DOM 均无影响 ✓；
-     属此前某次编辑的遗留 ✗，sha256 基线不含它 ✓，删除安全 ✓。） */
+  /* 注：此处曾有某次编辑遗留的残句 `+ "</div>";`（独立表达式语句 ＝ NaN、对 h 与 DOM 均无影响），拆分时已删 ✓。 */
 }
 
 /* ── ⑤ 交互（原单体函数尾部的全部事件绑定**原样移入** ✓ —— 只做两件事：
       ① 闭包变量显式化（el → C.el、live → C.live、colSeries → C.colSeries …，下游读 C ✓）；
-      ② 删掉 `el.innerHTML = h;`（h 已在 saMatrixHtml ✓，注入挪去薄装配函数 ✓，见 ⑥）。
+      ② 注入不在这里做：h 已在 saMatrixHtml ✓，innerHTML 由薄装配函数 renderSnapAttr 统一负责 ✓（见 ⑥）。
       绑定顺序与拆前一致 ✓：列图 → roving → 整表图例 → 容器委托点击/键盘 ✓。
       setSel 递归调 renderSnapAttr()（顶层函数声明、提升 ✓）；wireColChart 的 svg.onkeydown
       引用 actOn 是事件时求值（const TDZ 安全 ✓）。 ── */
@@ -2283,8 +2291,7 @@ function saWire(C) {
       setOn(c2.classList.contains("on") ? null : k2);
     };
   };
-  /* （拆分时删掉了这里的 `el.innerHTML = h;`：h 已随装配移入 saMatrixHtml ✓，
-     注入改由薄装配函数 renderSnapAttr 负责 ✓ —— 见下方 ⑥。） */
+  /* 表格注入不在这里做：h 在 saMatrixHtml，innerHTML 由薄装配函数 renderSnapAttr 统一负责 ✓。 */
   wireColChart();
   wireRoving();
   wireAllChart();
@@ -4540,8 +4547,7 @@ function prCtx() {
      正确口径恒为「总资产 − 本金」✓（本金里已加回清仓漏出的已实现 ✓）：
      10-09 实测 pl 19,988.31 ✗ → 累计收益 **+1,496.31** ✓（＝ 19,988.31 − 18,492.00 ✓）。 */
   const pnl = total - principal;
-  /* （拆分时删掉了原这里的 `const sells = POSITIONS.log…filter(isSellAct);`：全函数只有定义、零消费 ✓
-     —— 逐只表 / 历史极值段里也各有一个 sells，但都是它们**内层的局部变量** ✗ 与本行无关（拆前 grep 实锤），死码不留 ✓。） */
+  /* （此处原有的死码 `const sells = …filter(isSellAct)` 已删：零消费 ✓；别与逐只表 / 历史极值段里各自内层的 sells 混淆。） */
   const gap = closedCostGap(cur.d);
   /* 已实现（已离场）＝ 只有「使某标的累计份数归零」的那笔才算 ✓。
      ⚠ 2026-10-09 改（原来取「Σ全部卖出的 realized − 卖出费」✗）：摊薄成本额本身就是
@@ -4675,6 +4681,64 @@ function prRateSec() {
   return { sec: rateSec, concl: conclLine };
 }
 
+/* ── ②′ 逐只 TWR / XIRR 的**纯计算底座**（2026-10-12 第二批 ④：从 prPerFund 拆出）──
+   只消费全局数据（SNAPSHOTS / POSITIONS / OTC_LOG / BENCH）与窗口参数，**不碰 DOM** ✓
+   —— prPerFund 此前 460+ 行里混着这 40 行闭包工具，违反文件头「纯计算函数不碰 DOM」的分区规矩 ✗。
+   每次调用现算（prPerFund 一个渲染周期只调一次 ✓）；不做缓存 —— 数据一变就得失效，缓存收益≈0 ✗。 */
+function perFundCalcBase() {
+  /* 逐只 TWR（时间加权）：窗口固定为「首个含持仓明细的快照 → 最新」，按快照期切段、
+     每段剔除该只自己的资金流后连乘 —— 它衡量【标的本身】，与进出金时点无关。
+     该只的资金流 = 场外 OTC_LOG（申赎/定投）＋ 场内 POSITIONS.log（买卖，sym→code 用 POSITIONS.hold 的映射），
+     因为买/卖一只 ETF 同样是在「往这只基金里加钱 / 取钱」。
+     ⚠ 两处口径限制：① 窗口由快照决定（＝第一份**含持仓明细**的快照 → 最新；SNAPSHOTS 有 18 期，
+      但带 items 的 14 期从 09-07 起，故当前窗口 09.07→09.29 共 22 天），与逐只 XIRR 的全史窗口不同，不可直接相减；
+                     ② 期内现金流按「期末发生」计入（与页面既有 calcTWR 同一约定），
+                        快照期很密时误差极小，但不能当逐日精度用。 */
+  const full = (typeof SNAPSHOTS !== "undefined" ? SNAPSHOTS : [])
+    .filter((x) => x.items && Object.keys(x.items).length).sort((a, b) => (a.d < b.d ? -1 : 1));
+  const etfFlow = {};
+  if (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) {
+    const symMap = {}; POSITIONS.hold.forEach((h) => { symMap[h.sym] = h.code; });
+    (POSITIONS.log || []).forEach((e) => { const c = symMap[e.sym]; if (!c) return;
+      /* 卖出判定用全局 isSellAct（2026-10-12 统一；此前散写 /卖出/ —— 数据里 act 只有建仓/买入/卖出 ✓
+         两者当前等价；未来若出现「减仓 / 清仓」，现金流记负号本就**应该** ✓） */
+      (etfFlow[c] = etfFlow[c] || []).push({ d: e.d, amt: (isSellAct(e.act) ? -1 : 1) * (e.qty || 0) * (e.cost || 0) }); });
+  }
+  const flowIn = (code, d0, d1) => (OTC_LOG[code] || []).filter((t) => t.status === "成功")
+    .map((t) => ({ d: t.d, amt: t.act === "赎回" ? -t.amt : t.amt })).concat(etfFlow[code] || [])
+    .filter((x) => x.d > d0 && x.d <= d1).reduce((t, x) => t + x.amt, 0);
+  /* 任意窗口的 TWR（体检第①项要与基准取交集窗口，不能直接用全窗口） */
+  const twrRange = (code, d0, d1) => { const seg = full.filter((x) => x.d >= d0 && x.d <= d1);
+    if (seg.length < 2) return null;
+    let acc = 1;
+    for (let k = 1; k < seg.length; k++) {
+      const a = seg[k - 1].items[code], b = seg[k].items[code];
+      if (!a || !b || !(a.val > 0)) continue;
+      acc *= (b.val - flowIn(code, seg[k - 1].d, seg[k].d)) / a.val;
+    } return acc - 1; };
+  const twrOf = (code) => (full.length >= 2 ? twrRange(code, full[0].d, full[full.length - 1].d) : null);
+  /* 同窗口 XIRR：与 TWR 用同一窗口，这样「时点 ＝ XIRR − TWR」才是同口径相减（全史 XIRR 与它不可减） */
+  const xirrRange = (code, d0, d1, v0, vN) => {
+    const t0 = Date.parse(d0), tN = Date.parse(d1);
+    if (!Number.isFinite(v0) || !Number.isFinite(vN) || !(v0 > 0) || tN <= t0) return null;
+    const fl = (OTC_LOG[code] || []).filter((t) => t.status === "成功")
+      .map((t) => ({ d: t.d, amt: t.act === "赎回" ? t.amt : -t.amt }))
+      .concat((etfFlow[code] || []).map((x) => ({ d: x.d, amt: -x.amt })))
+      .filter((x) => x.d > d0 && x.d <= d1);
+    const cfs = [{ t: 0, amt: -v0 }].concat(fl.map((x) => ({ t: (Date.parse(x.d) - t0) / 86400000, amt: x.amt })));
+    cfs.push({ t: (tN - t0) / 86400000, amt: vN });
+    return calcXIRR(cfs);
+  };
+  const twrWin = full.length >= 2 ? mdOf(full[0].d) + "→" + mdOf(full[full.length - 1].d) : "";
+  /* 基准：BENCH 只有纳指一条线，且由 CI 每晚更新（比快照晚一期）→ 只能与纳指类 theme 比，且要取交集窗口 */
+  const benchKeys = (typeof BENCH !== "undefined" ? Object.keys(BENCH) : []).sort();
+  const bStart = full.length ? (benchKeys.find((d) => d >= full[0].d) || null) : null;
+  const bEnd = full.length ? (benchKeys.filter((d) => d <= full[full.length - 1].d).pop() || null) : null;
+  const benchRet = (bStart && bEnd && bEnd > bStart) ? BENCH[bEnd] / BENCH[bStart] - 1 : null;
+  const benchWin = (bStart && bEnd && bEnd > bStart) ? mdOf(bStart) + "→" + mdOf(bEnd) : "";
+  return { full, flowIn, twrRange, twrOf, xirrRange, twrWin, benchRet, benchWin, bStart, bEnd, benchKeys };
+}
+
 /* ── ③ 逐只 XIRR＋TWR ＋ 逐只体检（原单体函数尾段整块**原样移入** ✓）──
    只消费末期快照（lastD / lastItems / extOf 里的 cur.d ✓）→ 入参取 C.cur ✓；
    其余依赖（SNAPSHOTS / OTC_LOG / OTC / POSITIONS / BENCH / DEFAULT / calcXIRR …）全是全局 ✓。 */
@@ -4697,54 +4761,9 @@ function prPerFund(C) {
     const lastD = cur.d;
     const lastItems = cur.items || {};
     const rows = [];
-    /* 逐只 TWR（时间加权）：窗口固定为「首个含持仓明细的快照 → 最新」，按快照期切段、
-       每段剔除该只自己的资金流后连乘 —— 它衡量【标的本身】，与进出金时点无关。
-       该只的资金流 = 场外 OTC_LOG（申赎/定投）＋ 场内 POSITIONS.log（买卖，sym→code 用 POSITIONS.hold 的映射），
-       因为买/卖一只 ETF 同样是在「往这只基金里加钱 / 取钱」。
-       ⚠ 两处口径限制：① 窗口由快照决定（＝第一份**含持仓明细**的快照 → 最新；SNAPSHOTS 有 18 期，
-        但带 items 的 14 期从 09-07 起，故当前窗口 09.07→09.29 共 22 天），与逐只 XIRR 的全史窗口不同，不可直接相减；
-                       ② 期内现金流按「期末发生」计入（与页面既有 calcTWR 同一约定），
-                          快照期很密时误差极小，但不能当逐日精度用。 */
-    const full = (typeof SNAPSHOTS !== "undefined" ? SNAPSHOTS : [])
-      .filter((x) => x.items && Object.keys(x.items).length).sort((a, b) => (a.d < b.d ? -1 : 1));
-    const etfFlow = {};
-    if (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) {
-      const symMap = {}; POSITIONS.hold.forEach((h) => { symMap[h.sym] = h.code; });
-      (POSITIONS.log || []).forEach((e) => { const c = symMap[e.sym]; if (!c) return;
-        (etfFlow[c] = etfFlow[c] || []).push({ d: e.d, amt: (/卖出/.test(e.act) ? -1 : 1) * (e.qty || 0) * (e.cost || 0) }); });
-    }
-    const flowIn = (code, d0, d1) => (OTC_LOG[code] || []).filter((t) => t.status === "成功")
-      .map((t) => ({ d: t.d, amt: t.act === "赎回" ? -t.amt : t.amt })).concat(etfFlow[code] || [])
-      .filter((x) => x.d > d0 && x.d <= d1).reduce((t, x) => t + x.amt, 0);
-    /* 任意窗口的 TWR（体检第①项要与基准取交集窗口，不能直接用全窗口） */
-    const twrRange = (code, d0, d1) => { const seg = full.filter((x) => x.d >= d0 && x.d <= d1);
-      if (seg.length < 2) return null;
-      let acc = 1;
-      for (let k = 1; k < seg.length; k++) {
-        const a = seg[k - 1].items[code], b = seg[k].items[code];
-        if (!a || !b || !(a.val > 0)) continue;
-        acc *= (b.val - flowIn(code, seg[k - 1].d, seg[k].d)) / a.val;
-      } return acc - 1; };
-    const twrOf = (code) => (full.length >= 2 ? twrRange(code, full[0].d, full[full.length - 1].d) : null);
-    /* 同窗口 XIRR：与 TWR 用同一窗口，这样「时点 ＝ XIRR − TWR」才是同口径相减（全史 XIRR 与它不可减） */
-    const xirrRange = (code, d0, d1, v0, vN) => {
-      const t0 = Date.parse(d0), tN = Date.parse(d1);
-      if (!Number.isFinite(v0) || !Number.isFinite(vN) || !(v0 > 0) || tN <= t0) return null;
-      const fl = (OTC_LOG[code] || []).filter((t) => t.status === "成功")
-        .map((t) => ({ d: t.d, amt: t.act === "赎回" ? t.amt : -t.amt }))
-        .concat((etfFlow[code] || []).map((x) => ({ d: x.d, amt: -x.amt })))
-        .filter((x) => x.d > d0 && x.d <= d1);
-      const cfs = [{ t: 0, amt: -v0 }].concat(fl.map((x) => ({ t: (Date.parse(x.d) - t0) / 86400000, amt: x.amt })));
-      cfs.push({ t: (tN - t0) / 86400000, amt: vN });
-      return calcXIRR(cfs);
-    };
-    const twrWin = full.length >= 2 ? mdOf(full[0].d) + "→" + mdOf(full[full.length - 1].d) : "";
-    /* 基准：BENCH 只有纳指一条线，且由 CI 每晚更新（比快照晚一期）→ 只能与纳指类 theme 比，且要取交集窗口 */
-    const benchKeys = (typeof BENCH !== "undefined" ? Object.keys(BENCH) : []).sort();
-    const bStart = full.length ? (benchKeys.find((d) => d >= full[0].d) || null) : null;
-    const bEnd = full.length ? (benchKeys.filter((d) => d <= full[full.length - 1].d).pop() || null) : null;
-    const benchRet = (bStart && bEnd && bEnd > bStart) ? BENCH[bEnd] / BENCH[bStart] - 1 : null;
-    const benchWin = (bStart && bEnd && bEnd > bStart) ? mdOf(bStart) + "→" + mdOf(bEnd) : "";
+    /* 逐只 TWR / XIRR 的计算底座已拆到上方 perFundCalcBase()（2026-10-12 第二批 ④ ✓）——
+       解构出 full（快照窗口）/ flowIn / twrRange / twrOf / xirrRange / twrWin / benchRet / benchWin / bStart / bEnd */
+    const { full, flowIn, twrRange, twrOf, xirrRange, twrWin, benchRet, benchWin, bStart, bEnd, benchKeys } = perFundCalcBase();
     OTC.funds.forEach((f) => {
       const log = (OTC_LOG[f.code] || []).filter((t) => t.status === "成功");
       const has = lastItems[f.code] && typeof lastItems[f.code].val === "number";
