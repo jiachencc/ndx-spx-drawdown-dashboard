@@ -661,7 +661,10 @@ function renderOtcEst(nc) {
       + '</td><td class="e-mid"><i class="c-lb">预估幅度</i>' + mid + '</td><td class="e-amt"><i class="c-lb">预估金额</i>'
       + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
   };
-  let h = '<table class="est-tbl"><thead><tr><th class="e-nm">基金 <span class="e-th2">· 净值日 → 指数日</span></th>'
+  /* ⚠ 这张表要有个锚点 `id="est-now"` ✓（2026-10-12 加）—— 本块里现在**有两张表**了 ✓
+     （下面还挂了一张「预估 vs 实际」✓），门禁按 #otc-est 取 tbody tr 会把两张一起数 ✓ →
+     给它一个 id ✓，断言按 id 取 ✓（不是把断言放宽 ✗ —— 那会掩盖"渲染漏行"这类错 ✓）。 */
+  let h = '<table class="est-tbl" id="est-now"><thead><tr><th class="e-nm">基金 <span class="e-th2">· 净值日 → 指数日</span></th>'
     + '<th class="e-mid">预估幅度</th><th class="e-amt">预估金额</th></tr></thead><tbody>';
   est.forEach((r) => {
     /* 只写两个日期＋天数：表头已经写了「净值日 → 指数日」，行内再重复一次就会在 390px 折成两行 */
@@ -690,9 +693,72 @@ function renderOtcEst(nc) {
     + '<br><b>★参考</b>＝该代理跟踪不紧（日经只有 A股ETF、全球精选用纳指代）→ 数字只看量级；'
     + "<b>不计入</b>＝跟踪太弱（港股那只 r 0.38）→ 只给方向、不进合计，免得以精确到元的样式假精确。"
     + "<br>估值不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。</div>";
+  /* ── 预估 vs 实际（2026-10-12 加；用户：「我每天更新截图后 你能有个结论 让我看到实际和预估的差异吗？
+        就在场外当日预估这里」✓）────────────────────────────────────────────────
+     数据：台账 NOWCAST_LOG（**日更时自动写** ✓，见 scripts/fetch-nowcast.mjs ✓）＋ App 最新已公布净值 ✓。
+     判据：**只认日期对得上的那一条** ✓ —— 台账里 d ＝ 该只当前净值日 的那条 ✓：
+       预估 est ＝ 当时按 α+β×指数日涨跌逐日累乘出来的（% ✓）
+       实际 act ＝ nav / 那条的 nav0 − 1（% ✓）← 两边锚在同一对日期（navDate0 → d）上 ✓ → 可比 ✓
+       差 ＝ act − est（pp ✓）· 金额差 ＝ 差 × 当前市值 ✓（"这个预估值多少钱的偏差" ✓）
+     ⚠ 对不上（净值日还没推进 / 台账没记过那天）→ **不出数** ✗，只说明"等下次截图" ✓ ——
+       拿上一条预估硬凑＝把两个不同的日期窗口对比（看着有数、其实没意思 ✓）。
+     ▸ 门禁 dom-check ④q 会独立复算每一行（est/act/差/金额 ✓）并断言"对不上的日子不出数"✓。 */
+  const LOG = (typeof NOWCAST_LOG !== "undefined" && NOWCAST_LOG && NOWCAST_LOG.entries) ? NOWCAST_LOG.entries : null;
+  const otcVal = OTC.funds.reduce((a, f) => a + (f.value || 0), 0);
+  const cmp = [];
+  let pend = 0;
+  /* ⚠ 这里**只读台账** ✓ —— 不在页面里拿 App 读数去算"实际" ✗：
+     2026-10-12 首版就这么干过 ✓ → App 净值日与东财净值序列差一天 ✓ →
+     出现 est +0.499% vs act 0.000%（−125 元）这种**假差异** ✗✗（拿 App 的 10-09 除东财的 10-08 ✓）。
+     "实际"必须与 est **同源**（东财净值序列 ✓）→ 由脚本回填 act ✓（见 fetch-nowcast.mjs 的台账注释 ✓）。 */
+  if (LOG) OTC.funds.forEach((f) => {
+    (LOG[f.code] || []).forEach((e) => {
+      if (typeof e.act !== "number" || !Number.isFinite(e.act)) { pend++; return; }
+      cmp.push({ f: f, d: e.d, from: e.navDate0, est: e.est, act: e.act, diff: e.act - e.est, amt: (e.act - e.est) / 100 * (f.value || 0) });
+    });
+  });
+  cmp.sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
+  const logN = LOG ? Object.keys(LOG).reduce((a, k) => a + (LOG[k] || []).length, 0) : 0;
+  const logFunds = LOG ? Object.keys(LOG).filter((k) => (LOG[k] || []).length).length : 0;
+  const pctS = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  const ppS = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(3) + "pp";
+  if (!cmp.length) {
+    h += '<div class="est-cmp wait" data-cmp-n="0" data-log-n="' + logN + '">'
+      + "<b>预估 vs 实际</b>：暂无已对账的那一天 ✓ —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只 ✓）。"
+      + "你下次发场外截图、某只的净值日推进到台账记过的那天 ✓，这一栏会<b>自动</b>出现「预估 / 实际 / 差多少」✓"
+      + "（两边锁在同一对日期上 ✓，差 ＝ 实际 − 预估 ✓；出结果前不写任何数字 ✗）。</div>";
+  } else {
+    const sumDiff = cmp.reduce((a, x) => a + x.amt, 0);
+    const avgE = cmp.reduce((a, x) => a + x.est, 0) / cmp.length;
+    const avgA = cmp.reduce((a, x) => a + x.act, 0) / cmp.length;
+    const hitDir = cmp.filter((x) => Math.sign(x.est) === Math.sign(x.act)).length;
+    const dList = [...new Set(cmp.map((x) => x.d))].map((x) => d2(x)).join(" / ");
+    h += '<div class="est-cmp" data-cmp-n="' + cmp.length + '" data-cmp-sum="' + sumDiff.toFixed(2) + '" data-log-n="' + logN + '">'
+      + '<div class="ec-head"><b>预估 vs 实际</b> · 已对账 <b>' + cmp.length + "</b> 只（目标日 " + dList + " ✓）"
+      + '<span class="ec-hint">预估＝台账里当时记下的 ✓ ｜ 实际＝App 刚公布的净值 ✓ ｜ 差 ＝ 实际 − 预估 ✓</span></div>'
+      + '<table class="est-tbl ec-tbl"><thead><tr><th class="e-nm">基金</th><th class="e-mid">预估</th><th class="e-mid">实际</th>'
+      + '<th class="e-mid">差</th><th class="e-amt">金额差</th></tr></thead><tbody>'
+      + cmp.map((x) => '<tr data-cmp-code="' + esc(x.f.code) + '" data-cmp-d="' + x.d + '" data-cmp-from="' + x.from + '"'
+          + ' data-cmp-est="' + x.est.toFixed(4) + '" data-cmp-act="' + x.act.toFixed(4) + '"'
+          + ' data-cmp-diff="' + x.diff.toFixed(4) + '" data-cmp-amt="' + x.amt.toFixed(2) + '">'
+          + '<td class="e-nm">' + esc(plDisplayName(x.f.name)) + '<span class="e-date">' + d2(x.from) + " → " + d2(x.d) + "</span></td>"
+          + '<td class="e-mid">' + pctS(x.est) + '</td><td class="e-mid">' + pctS(x.act) + "</td>"
+          + '<td class="e-mid ' + cls(x.diff) + '">' + ppS(x.diff) + "</td>"
+          + '<td class="e-amt ' + cls(x.amt) + '">' + fmtAmt2(x.amt) + "</td></tr>").join("")
+      + '<tr class="sum" data-cmp-total="' + sumDiff.toFixed(2) + '"><td class="e-nm">合计（' + cmp.length + ' 只）</td>'
+      + '<td class="e-mid">' + pctS(avgE) + '</td><td class="e-mid">' + pctS(avgA) + "</td>"
+      + '<td class="e-mid ' + cls(avgA - avgE) + '">' + ppS(avgA - avgE) + "</td>"
+      + '<td class="e-amt ' + cls(sumDiff) + '">' + fmtAmt2(sumDiff) + "</td></tr></tbody></table>"
+      + '<div class="otc-note"><b>结论</b>：这一批预估<b>' + (avgE >= avgA ? "偏乐观" : "偏保守") + "</b> " + Math.abs(avgE - avgA).toFixed(3)
+      + "pp（预估均值 " + pctS(avgE) + " vs 实际均值 " + pctS(avgA) + "）；折成钱 ≈ <b>" + fmtAmt2(sumDiff) + " 元</b>"
+      + (otcVal ? "（占场外市值 " + (Math.abs(sumDiff) / otcVal * 100).toFixed(2) + "%）" : "") + " · 方向命中 " + hitDir + "/" + cmp.length + " ✓。"
+      + "<br>⚠ 单次差异里既有模型误差、也有「App 净值日 ↔ 代理指数日」的错位 ✓ —— 攒几天（台账会一直记 ✓）"
+      + "才看得出是<b>系统性</b>偏高还是偏低 ✓，别拿一次就下结论 ✓。</div></div>";
+  }
   box.innerHTML = h;
   if (cnt) cnt.textContent = "（计入 " + (est.length + app.length) + " 只 · 合计 " + fmtAmt2(sum) + " 元 · 指数数据到 " + (upd ? d2(upd) : "—")
-    + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "") + "）";
+    + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "")
+    + (cmp.length ? " · 已对账 " + cmp.length + " 只 ✓" : (logN ? " · 台账待对账 " + logN + " 条" : "")) + "）";
 }
 
 /* ---- 场外定投 · 操作记录（2026-10-04 加）--------------------------------------------

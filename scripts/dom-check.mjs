@@ -207,7 +207,10 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
    ② 8 只场外基金一只不落（少一行就是渲染漏了，这种错肉眼很难发现） */
 {
   const box = win.document.querySelector("#otc-est");
-  const rows = box ? [...box.querySelectorAll("tbody tr")] : [];
+  /* ⚠ 只数**预估表**（#est-now ✓）：本块 2026-10-12 起还挂了一张「预估 vs 实际」对账表 ✗ ——
+     按 #otc-est 全取 tbody tr 会把两张一起数 ✓（当时实测 11 行 vs 期望 9 ✓，当场报红 ✓）。
+     给它锚点按 id 取 ✓，而不是放宽断言 ✗（"渲染漏一行"正是这条要拦的 ✓）。 */
+  const rows = box ? [...box.querySelectorAll("#est-now tbody tr")] : [];
   const sumRow = rows.find((tr) => tr.classList.contains("sum"));
   /* ⚠ 只取金额那一格：整行 textContent 里还有「计入金额的 7 只」，numsOf 会先抓到那个 7 */
   const sumCell = sumRow ? sumRow.querySelector(".e-amt") : null;
@@ -1453,6 +1456,63 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     unscoped && !scoped,
     scoped ? "仍有作用域内的 .sa-back 定义 ✗（换个容器就会失效 ✓ —— 这正是那次的 bug ✓）"
       : (unscoped ? "页面级规则在 ✓" : "找不到页面级 .sa-back ✗"));
+}
+
+/* ④q 「预估 vs 实际」对账区（2026-10-12 加，用户：「我每天更新截图后 你能有个结论 让我看到实际和预估
+   的差异吗？就在场外当日预估这里」）────────────────────────────────────────────────────
+   台账 NOWCAST_LOG ＝ **当时记下的预估**（脚本写 ✓）；App 新净值 ＝ **实际** ✓。本块独立复算每条并盯两件事 ✗：
+     ① 参与对账的每一行，目标日 d 必须 ≡ 该只 App 的净值日 ✓（对不上就不许出数 ✗）
+     ② 没有可对账的那天 → 页面**一个数字都不许编** ✗（只提示"等下次截图" ✓）
+        —— 总比"拿上一条预估硬凑"好 ✓（那会把两个不同的日期窗口对比 ✓）。
+   ▸ 台账 2026-10-12 刚播种 ✓ → 此刻必然走"暂无对账"分支 ✓；等你发新截图、某只净值日推进之后 ✓，
+     同一段代码会自动开始逐行验 ✓（判据不依赖"今天有没有对比"✓）。 */
+{
+  const log2 = (() => {
+    try {
+      const s = readFileSync(path.join(root, "data.js"), "utf8");
+      const m = s.match(/^const NOWCAST_LOG = (\{[\s\S]*?^\});/m);
+      return m ? JSON.parse(m[1]).entries : null;
+    } catch (e) { return null; }
+  })();
+  const OTC2 = (() => {
+    try {
+      const s = readFileSync(path.join(root, "positions-data.js"), "utf8");
+      const c = vm.createContext({});
+      vm.runInContext(s.match(/^const OTC = \{[\s\S]*?\n\};/m)[0] + "\nthis.o = OTC;", c, { timeout: 500 });
+      return c.o;
+    } catch (e) { return null; }
+  })();
+  const boxE = win.document.getElementById("otc-est");
+  const waitE = boxE ? boxE.querySelector(".est-cmp.wait") : null;
+  const rowsE = boxE ? [...boxE.querySelectorAll(".ec-tbl tbody tr[data-cmp-code]")] : [];
+  const logN = log2 ? Object.keys(log2).reduce((a, k) => a + (log2[k] || []).length, 0) : 0;
+  if (!log2 || !OTC2) {
+    check("预估对账：台账 NOWCAST_LOG 与 OTC 都能读到（对账的数据底座）", false,
+      (!log2 ? "data.js 里没有 NOWCAST_LOG ✗" : "") + (!OTC2 ? " 读不到 positions-data.js 的 OTC ✗" : ""));
+  } else if (!rowsE.length) {
+    check("预估对账：台账已就绪（" + logN + " 条待公布）但尚无已对账的那天 → 页面**不编数**、只提示等下次截图 ✓",
+      !!waitE && Number(waitE.getAttribute("data-cmp-n")) === 0 && logN > 0,
+      waitE ? "data-cmp-n=0 ✓ · 文案：" + waitE.textContent.replace(/\s+/g, " ").trim().slice(0, 64)
+        : "既没有对账行、也没有 .est-cmp.wait 提示 ✗（用户会以为这功能没做 ✓）");
+  } else {
+    const badE = [];
+    rowsE.forEach((tr) => {
+      const code = tr.getAttribute("data-cmp-code"), d = tr.getAttribute("data-cmp-d");
+      const f = (OTC2.funds || []).filter((x) => x.code === code)[0];
+      const hit = ((log2[code] || []).filter((x) => x.d === d)[0]) || null;
+      if (!f || !hit) { badE.push(code + " 在台账/OTC 里找不到目标日 " + d); return; }
+      const act = (f.nav.close / hit.nav0 - 1) * 100;
+      const diff = act - hit.est, amt = diff / 100 * f.value;
+      const g = (k) => Number(tr.getAttribute(k));
+      if (d !== (f.nav && f.nav.closeDate)) badE.push(code + " 目标日 " + d + " ≠ App 净值日 " + (f.nav && f.nav.closeDate));
+      if (Math.abs(g("data-cmp-est") - hit.est) > 1e-4) badE.push(code + " est " + g("data-cmp-est") + " vs " + hit.est);
+      if (Math.abs(g("data-cmp-act") - act) > 1e-4) badE.push(code + " act " + g("data-cmp-act") + " vs " + act.toFixed(4));
+      if (Math.abs(g("data-cmp-diff") - diff) > 1e-4) badE.push(code + " 差 " + g("data-cmp-diff") + " vs " + diff.toFixed(4));
+      if (Math.abs(g("data-cmp-amt") - amt) > 0.51) badE.push(code + " 金额差 " + g("data-cmp-amt") + " vs " + amt.toFixed(2));
+    });
+    check("预估对账：逐行 est / act / 差 / 金额差 ≡ 独立复算（" + rowsE.length + " 只），且目标日 ＝ App 净值日 ✓",
+      badE.length === 0, badE.join("；") || "全部对上 ✓");
+  }
 }
 
 /* ⑥ 个人财务看板（2026-10-10 加 —— 本次动了它两处 UI：加「本月 · 进行中」列、两个图去掉中轴）──────

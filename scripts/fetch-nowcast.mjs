@@ -124,11 +124,13 @@ for (const [k, a] of Object.entries(idxFull)) {
 
 /* ── 逐只拟合 ───────────────────────────────────────────────────────────── */
 const fits = {};
+const navSeries = {};                                    // code → 净值序列（**与拟合同源** ✓，台账回填"实际"要用同一个源 ✓）
 console.log("\n  基金            代理      净值日       β      α(%)     r     MAE(pp)  分档");
 for (const f of funds) {
   const p = PROX[f.theme];
   if (!p || !ret[p.key]) { console.log("  " + f.code + " 无代理（theme=" + f.theme + "）→ 跳过"); continue; }
   const nav = await navHistory(f.code);
+  navSeries[f.code] = nav;
   /* ⚠ 必须用 Number.isFinite 过滤：缺少对应指数日的净值日（美股假期 07-03 / 09-07 那两天，国内照发净值、
      净值涨跌 0）会让 px 变成 NaN —— 而 `undefined / 100 === NaN`，用 `!== undefined` 会把它放进来，
      一个 NaN 就能把整条最小二乘带成 α = NaN（2026-10-03 实测踩到）。 */
@@ -161,9 +163,62 @@ const block = "const NOWCAST = " + JSON.stringify({
 }, null, 2) + ";";
 const src = readFileSync(DATA, "utf8");
 const old = src.match(/^const NOWCAST = \{[\s\S]*?^\};/m);
-const next = old ? src.replace(old[0], block) : src.replace(/\n*$/, "\n\n") + block + "\n";
+let next = old ? src.replace(old[0], block) : src.replace(/\n*$/, "\n\n") + block + "\n";
+
+/* ── 预估台账 NOWCAST_LOG（2026-10-12 加；用户：「我每天更新截图后 你能有个结论 让我看到
+      实际和预估的差异吗？就在场外当日预估这里」✓）────────────────────────────
+   为什么必须**记下来** ✗：页面上的预估是**现算**的 ✓ —— 今天算出的那个数，等 App 把净值公布出来
+     （净值日推进 ✓、输入变了 ✓）就再也复现不出来 ✓ → "实际 vs 预估"根本无从谈起 ✓。
+   记什么：每只「当前已公布净值日 navDate0」之后、**代理指数已经走到**的每个交易日各一条 ✓：
+       { d: 目标日（代理指数日 ✓）, est: 从 navDate0 累乘到该日的预估涨跌 %, nav0, navDate0 }
+     等 App 把 d 那天的净值公布出来 ✓，页面就能拿 actual = nav/ nav0 − 1 与 est 对账 ✓
+     （两边锚在同一对日期上 ✓ = 可比 ✓）。
+   ⚠ 同一 (code, d) 已存在 → **保留最早那条** ✓ 不覆盖 ✗：覆盖会把"当时预估"改成"事后重算"✓，
+     那正好是对账最没意义的东西 ✓（历史条目就是它的价值所在 ✓）。
+   ⚠ 台账簿会随时间长大 → 每只只留最近 LOG_KEEP 条 ✓（够看趋势 ✓，也不会把 data.js 撑爆 ✓）。 */
+const LOG_KEEP = 40;
+const logPrev = (() => {
+  const m = src.match(/^const NOWCAST_LOG = \{[\s\S]*?^\};/m);
+  if (!m) return {};
+  try { return JSON.parse(m[0].replace(/^const NOWCAST_LOG = /, "").replace(/;\s*$/, "")).entries || {}; }
+  catch (e) { return {}; }
+})();
+const entries = {};
+Object.keys(fits).forEach((code) => {
+  const ft = fits[code];
+  const m = ret[ft.prox] || {};
+  const kept = (logPrev[code] || []).slice();                       // 继承历史 ✓（保留最早那条 ✓）
+  const have = new Set(kept.map((x) => x.d));
+  let cum = 1;
+  Object.keys(m).filter((d) => d > ft.navDate).sort().forEach((d) => {
+    cum *= 1 + (ft.alpha + ft.beta * m[d]) / 100;                   // 与页面同式：α(%) + β×指数日涨跌(%)
+    if (have.has(d)) return;                                        // 已有那天的记录 → 不动它 ✓
+    kept.push({ d: d, est: +((cum - 1) * 100).toFixed(4), nav0: ft.nav, navDate0: ft.navDate });
+  });
+  /* ── 回填「实际」（★ 必须与 est 同源 ★，2026-10-12 自己踩过 ✗）──────────────────────
+     首版把"实际"取成 **App 读数** ✗：App 的净值日与东财序列差一天 ✓ →
+     于是出现 est +0.499% vs act 0.000%（−125 元）这种**假差异** ✗✗
+     （拿 App 的 10-09 除以东财的 10-08 ✓，比值当然是 1 ✓）。
+     → 改成：等**东财序列**（＝拟合用的那个源 ✓）走到该日 d 时，由本脚本回填
+        act ＝ nav(d) / nav0 − 1 ✓ —— 两边同源 ✓、日期成对 ✓，差才有意义 ✓。
+     ▸ 好处：对账**不再依赖你哪天发截图** ✓ —— 净值序列一公布 ✓，那次预估自己就有了"实际" ✓。 */
+  const navAt = {};
+  (navSeries[code] || []).forEach((x) => { navAt[x.d] = x.nav; });
+  kept.forEach((e) => {
+    if (e.act === undefined && e.nav0 && navAt[e.d] !== undefined) e.act = +((navAt[e.d] / e.nav0 - 1) * 100).toFixed(4);
+  });
+  entries[code] = kept.slice(-LOG_KEEP);
+});
+const logBlock = "const NOWCAST_LOG = " + JSON.stringify({
+  note: "AUTO（scripts/fetch-nowcast.mjs 写）：预估台账 —— 每只在「已公布净值日 navDate0」之后、当时**尚未公布**的每个代理指数日 d 各记一条：est ＝ 从 navDate0 累乘到 d 的预估涨跌 %（记下时的那一刻 ✓）。等**同一个净值序列**（东财 ✓，与拟合同源）走到 d 之后，本脚本再回填 act ＝ nav(d)/nav0 − 1（% ✓）—— 两边同源、日期成对 ✓，差（act − est）才有意义 ✓。⚠ 同一条 (code, d) 只保留最早一次 ✓（覆盖就失去对账意义）；⚠ act 由脚本回填，页面只负责显示 ✓（别在页面里拿 App 读数去算 ✗ —— 两源差一天会造出假差异 ✓）。",
+  entries,
+}, null, 2) + ";";
+const oldLog = next.match(/^const NOWCAST_LOG = \{[\s\S]*?^\};/m);
+next = oldLog ? next.replace(oldLog[0], logBlock) : next.replace(/\n*$/, "\n\n") + "\n" + logBlock + "\n";
+
 const model = readModel(next), errs = validateModel(model);
 if (errs.length) { console.error("\n候选数据未通过校验，未写入：\n  " + errs.join("\n  ")); process.exit(1); }
-if (next === src) { console.log("\nNO_WRITE：NOWCAST 无变化"); process.exit(0); }
+if (next === src) { console.log("\nNO_WRITE：NOWCAST 与台账都无变化"); process.exit(0); }
 writeFileSync(DATA, next);
 console.log("\n已写入 data.js 的 NOWCAST（updated " + allDates[allDates.length - 1] + " · " + Object.keys(fits).length + " 只拟合 · 指数 " + Object.keys(idxFull).join("/") + "）");
+console.log("已写入预估台账 NOWCAST_LOG：每只 " + Object.keys(entries).map((k) => entries[k].length).join("/") + " 条（保留上限 " + LOG_KEEP + "）");
