@@ -26,6 +26,8 @@ const steps = [
   ["check-data（schema ＋ 全部历史快照）", ["node", ["scripts/check-data.mjs"]]],
   ["check-finance（财务矩阵四条恒等式）", ["node", ["scripts/check-finance.mjs"]]],
   ["check-fed（加息周期看板数据）", ["node", ["scripts/check-fed.mjs"]]],
+  /* 2026-10-12 第三批加：色板/字体栈收进 tokens.css 后，防止有人（或复制粘贴）又抄回各页 ✗ */
+  ["check-tokens（跨页令牌唯一出处）", ["node", ["scripts/check-tokens.mjs"]]],
   ["cross-check（跨文件一致性）", ["node", ["scripts/cross-check.mjs"]]],
   ["regression（回归测试）", ["node", ["--test", "scripts/test-dashboard.mjs"]]],
   ["inline-compile（页面内联脚本可编译）", ["node", ["--input-type=module", "-e",

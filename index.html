@@ -6,27 +6,17 @@
 <title>美股指数回撤决策看板 · NDX / SPX</title>
 <meta name="description" content="美股指数回撤水位决策看板：NDX / SPX 回撤深度、四档加仓触发线、止盈矩阵与定投回测，个人投资决策辅助。">
 <link rel="stylesheet" href="font.css">
+<!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式 -->
+<link rel="stylesheet" href="tokens.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 
   :root {
-    --bg: #0a0d13;
-    --bg-grad-1: #0e1526;
-    --card: #121826;
-    --card2: #1a2234;
-    --line: #232e44;
-    --line-soft: #1c2538;
-    --tx: #e2e9f5;
-    --tx2: #8fa0ba;
-    --tx3: #8294af;   /* 提亮一档（原 #6f7f9a 在暗色卡片上约 3.4:1，不达 WCAG AA；与持仓页保持一致） */
-    --green: #2dd4a7;
-    --red: #f26d7d;
-    --yellow: #f7c14e;
-    --blue: #5ba3ff;
+    --tx3: #8294af;   /* 提亮一档（原 #6f7f9a 在暗色卡片上约 3.4:1，不达 WCAG AA）
+                         ⚠ 2026-10-12 复核：本注释原写「与持仓页保持一致」，实测**并不一致** ✗ ——
+                         本页 #8294af / 持仓页 #6f7f99 / 加息页 #7e8ea9，三页三个值。未动值（改色要拍板），
+                         只把话说实；要统一就先在这里定一个，再改另两页 ✓ */
     --purple: #b195fb;
-    --cyan: #46c9f0;
-    --mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     --radius: 14px;
   }
   /* ===== 浅色主题（点击右上角按钮切换） ===== */
