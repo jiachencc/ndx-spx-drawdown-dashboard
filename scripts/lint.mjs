@@ -36,7 +36,11 @@ const financeDataJs = readFileSync(path.join(root, "finance", "finance-data.js")
 const fedDataJs = readFileSync(path.join(root, "fed-cycle", "fed-data.js"), "utf8");
 const units = [
   ["data.js", dataJs],
-  ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + inlineOf("positions.html")],
+  /* ⚠ 2026-10-12 补 finance-data.js：positions.html 的**运行时组合**是
+     data.js → positions-data.js → finance/finance-data.js → 内联（见其 <script> 顺序 ✓），
+     此前这一单元漏拼了 finance-data ✗ → 顶层 const 撞名 / 解析失败**只会在浏览器里暴露** ✗，
+     eslint 的 no-redeclare 抓不到（典型的"门禁以为守住了、其实没拼"）。 */
+  ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + financeDataJs + "\n;\n" + inlineOf("positions.html")],
   ["index.inline.js", dataJs + "\n;\n" + inlineOf("index.html")],
   ["finance-data.js", financeDataJs],
   ["finance.inline.js", financeDataJs + "\n;\n" + inlineOf("finance/index.html")],

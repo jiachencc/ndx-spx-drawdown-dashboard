@@ -19,6 +19,8 @@ import { existsSync } from "node:fs";
 const DEEP = process.argv.includes("--deep");
 const has = (cmd) => { try { execFileSync("sh", ["-c", "command -v " + cmd], { stdio: "ignore" }); return true; } catch (e) { return false; } };
 const hasPlaywright = () => { try { const gp = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim(); return existsSync(gp + "/playwright"); } catch (e) { return false; } };
+/* jsdom：dom-check 的真依赖（2026-10-12 加 —— 见下面 dom-check 那一步的注释 ✓） */
+const hasJsdom = () => { try { const gp = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim(); return existsSync(gp + "/jsdom") || existsSync("node_modules/jsdom"); } catch (e) { return false; } };
 
 const steps = [
   ["check-data（schema ＋ 全部历史快照）", ["node", ["scripts/check-data.mjs"]]],
@@ -30,8 +32,11 @@ const steps = [
     "import{readFileSync}from\x27node:fs\x27;for(const f of [\x27index.html\x27,\x27positions.html\x27,\x27finance/index.html\x27,\x27fed-cycle/index.html\x27]){const h=readFileSync(f,\x27utf8\x27);const m=[...h.matchAll(/<script\\b(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(x=>x[1]).join(String.fromCharCode(10)+\x27;\x27+String.fromCharCode(10));new Function(m);}"]]],
   has("eslint") ? ["eslint（7 个检查单元）", ["node", ["scripts/lint.mjs", "--quiet"]]]
     : ["eslint", null, "跳过：未安装 eslint（本地工具，CI 与门禁不依赖）"],
-  hasPlaywright() ? ["dom-check（页面 DOM 断言）", ["node", ["scripts/dom-check.mjs"]]]
-    : ["dom-check", null, "跳过：未找到全局 playwright"],
+  /* ⚠ 2026-10-12 纠偏：dom-check 跑在 **jsdom** 里（见其头注释"依赖：jsdom"✓），
+     此前却用 hasPlaywright() 判它 ✗ —— 只装 jsdom 没装 playwright 时它会被**静默跳过** ✗
+     （"门禁假绿"：看着跑了，其实没跑）。判据与依赖对齐：谁被用，就判谁 ✓ */
+  hasJsdom() ? ["dom-check（页面 DOM 断言）", ["node", ["scripts/dom-check.mjs"]]]
+    : ["dom-check", null, "跳过：未找到 jsdom（npm i -g jsdom）"],
   /* 2026-10-09 加：dom-check 跑在 jsdom 里（没有布局 ✗），
      "元素撑破容器 / 页面横向溢出"这类**真实版面**问题它抓不到 ✗ —— 见 layout-check.mjs 头的由来 ✓ */
   hasPlaywright() ? ["layout-check（真实版面 · 无横向溢出）", ["node", ["scripts/layout-check.mjs"]]]

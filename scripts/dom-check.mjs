@@ -1639,6 +1639,56 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   fdom.window.close();
 }
 
+/* ⑥ 决策看板 index.html（2026-10-12 第二批加）─────────────────────────────────────
+   为什么现在补：它是**主决策出口** ✓，此前却是四页里唯一**零渲染断言**的一页 ✗ ——
+   check-data 只验文件里的数据自洽、cross-check 只验跨文件同源，都看不见「渲染出来的数」✗
+   （positions 有 ④ 族、finance 有 ⑤ 族，就差它）。四条断言全做**独立复算**：
+     ① 无 JS 报错
+     ② NDX / SPX 卡「回撤」≡ (close / ath − 1)
+     ③ ATH 与「涨回新高需」≡ 复算
+     ④ 横幅「NDX 回撤」≡ 卡内回撤（同一个数的两处显示，防漂移 —— 与 ④c 同一手法 ✓）
+     ⑤ 「距 15% 档」≡ 回撤 − thresholds.t2（阈值口径独立复算 ✓）
+   ⚠ 真值读 **data.js 文件**（不是页面里的 D）：页面若漏写 / 改错字段，断言才抓得到 ✓ */
+{
+  const ierr = [];
+  const idom = await JSDOM.fromFile(path.join(root, "index.html"), {
+    runScripts: "dangerously",
+    resources: "usable",
+    pretendToBeVisual: true,
+    beforeParse(w) {
+      w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+      if (!w.matchMedia) w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+      w.addEventListener("error", (e) => ierr.push("error: " + (e.message || e.error)));
+    },
+  });
+  const iw = idom.window;
+  await new Promise((r) => iw.setTimeout(r, 400));
+  const idoc = iw.document;
+  const ictx = vm.createContext({});
+  vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8").match(/^const DEFAULT = \{[\s\S]*?^\};/m)[0] + "\nthis.D = DEFAULT;", ictx, { timeout: 500 });
+  const Dv = ictx.D;
+  const txtOf = (id) => (((idoc.getElementById(id) || {}).textContent) || "").trim();
+  const numOf = (id) => { const m = txtOf(id).replace(/−/g, "-").match(/-?\d[\d,]*(?:\.\d+)?/); return m ? +m[0].replace(/,/g, "") : NaN; };
+  const near2 = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.011;   // 页面显示两位小数 → 容差 0.011 ✓
+  const ddOfP = (p) => (Dv[p].close / Dv[p].ath - 1) * 100;
+  const badDD = ["ndx", "spx"].filter((p) => !near2(numOf(p + "-dd"), ddOfP(p)))
+    .map((p) => p.toUpperCase() + " 页面 " + txtOf(p + "-dd") + " vs 复算 " + ddOfP(p).toFixed(2) + "%");
+  check("决策看板：NDX / SPX 卡「回撤」= 独立复算 (close / ath − 1)（2 档）",
+    badDD.length === 0, badDD.join("；") || "逐档一致 ✓");
+  const badAth = ["ndx", "spx"].filter((p) => Math.round(numOf(p + "-ath")) !== Math.round(Dv[p].ath)
+    || !near2(numOf(p + "-toath"), (Dv[p].ath / Dv[p].close - 1) * 100))
+    .map((p) => p.toUpperCase() + " ATH 页面 " + txtOf(p + "-ath") + " vs " + Dv[p].ath + " · 涨回新高 " + txtOf(p + "-toath"));
+  check("决策看板：NDX / SPX 卡「ATH / 涨回新高需」= 独立复算", badAth.length === 0, badAth.join("；") || "逐档一致 ✓");
+  check("决策看板：横幅「NDX 回撤」= 指数卡内回撤（同一个数两处显示，不许漂 ✗）",
+    txtOf("sk-dd") !== "--" && numOf("sk-dd") === numOf("ndx-dd"), "横幅 " + txtOf("sk-dd") + " vs 卡内 " + txtOf("ndx-dd"));
+  const to15 = ddOfP("ndx") - Dv.thresholds.t2, t15 = txtOf("ndx-to15");
+  check("决策看板：「距 15% 档」= 回撤 − thresholds.t2（阈值口径独立复算）",
+    to15 <= 1e-9 ? /已到档/.test(t15) : near2(numOf("ndx-to15"), to15),
+    "页面「" + t15 + "」vs 复算 " + to15.toFixed(2) + "pp");
+  check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
+  idom.window.close();
+}
+
 let failed = 0;
 for (const c of checks) {
   if (!c.ok) failed++;
