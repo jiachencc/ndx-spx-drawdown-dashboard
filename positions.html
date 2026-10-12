@@ -4451,7 +4451,21 @@ function renderClosed() {
  * 累计收益 ＝ 当前总资产 − 本金，含「已卖出的兑现盈亏」与「还没卖的账面浮动」，
  *   与走势图上两条线之间的竖直间距是同一个数（快照的 pl 字段）。
  * 已卖出 ＝ 券商流水逐笔「实现盈亏」之和 − 卖出费；余额归入「未卖出」（含买入费与摊薄口径微差）。 */
-function renderPrincipal() {
+/* ── 本金与收益卡 · 拆分说明（2026-10-12，P1-b）────────────────────────────────────────────
+   原来是一个 ~635 行的单体函数 ✗ —— 数据准备、KPI 三格、收益率口径、逐只 XIRR 表、
+   逐只体检表、收益构成全挤在一起 ✗。现按「准备 → 视图 → 装配」拆成六段，
+   **纯代码搬移** ✓（不改任何一行输出逻辑 ✓）：
+     · prCtx()           —— ① 数据准备（快照推导的本金 / 收益 / 拆解 ＋ 口径浮层文案）
+     · prRateSec()       —— ② 收益率口径（TWR / XIRR / 同节奏基准 ＋ 卡顶一句话结论）
+     · prPerFund(C)      —— ③ 逐只 XIRR＋TWR 表 ＋ 逐只体检表（只要末期快照 → C.cur）
+     · prKpisHtml(C)     —— ④ 本金＋累计收益＝总资产 三格
+     · prMixHtml(C)      —— ⑤ 收益构成（已实现 / 未实现 / 按账户）
+     · renderPrincipal() —— ⑥ 只剩装配（拼段 → 注入 box，顺序与拆前一致 ✓）
+   段间状态一律走上下文对象 C（原来靠闭包共享 ✗，拆开后必须显式传递 ✓）。
+   铁律：DOM 输出逐字节不变 ✓ —— 与 P1-a 共用同一套 9 状态 sha256 基线
+   （/tmp/p1a-domsha.js；A~I 每个状态的整棵 DOM 都含本卡输出 ✓，
+   本卡无交互态、details 默认全收 ✓，故 9 状态足够覆盖）。 */
+function prCtx() {
   const box = $("principal-card");
   if (!box) return;
   const snaps = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS : [];
@@ -4467,7 +4481,8 @@ function renderPrincipal() {
      正确口径恒为「总资产 − 本金」✓（本金里已加回清仓漏出的已实现 ✓）：
      10-09 实测 pl 19,988.31 ✗ → 累计收益 **+1,496.31** ✓（＝ 19,988.31 − 18,492.00 ✓）。 */
   const pnl = total - principal;
-  const sells = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || []).filter(isSellAct);
+  /* （拆分时删掉了原这里的 `const sells = POSITIONS.log…filter(isSellAct);`：全函数只有定义、零消费 ✓
+     —— 逐只表 / 历史极值段里也各有一个 sells，但都是它们**内层的局部变量** ✗ 与本行无关（拆前 grep 实锤），死码不留 ✓。） */
   const gap = closedCostGap(cur.d);
   /* 已实现（已离场）＝ 只有「使某标的累计份数归零」的那笔才算 ✓。
      ⚠ 2026-10-09 改（原来取「Σ全部卖出的 realized − 卖出费」✗）：摊薄成本额本身就是
@@ -4519,6 +4534,17 @@ function renderPrincipal() {
     + "<b>收益构成</b>按「离没离场」分两种：<b>已实现</b>＝**全额清仓**那些标的的兑现盈亏（费用含在净回款里 ✓；"
     + "部分卖出不加单 ✗ —— 摊薄成本额已把它的效应折进剩余仓位成本 ✓）；"
     + "<b>未实现</b> ＝ 累计收益 − 已实现，就是还拿在手里的账面浮动，再按市场拆成场外 / 场内 ✓。</div>";
+  /* ── 上下文打包（一次准备、下游各段全从 C 取 ✓，不再共享闭包 ✗）──
+     gap / holdCost / items / hasItems / unrealOtc / unrealEtf 只被本段的口径文案就地消费 ✓
+     （qNote ／ cashNote ／ contribOtc ＝ unrealOtc），下游用不到 → 不导出 ✓。 */
+  return { box, cur, total, principal, pnl, cashed, held, rate, cash, qBtn,
+    contribEtf, contribOtc, cashNote, qNote };
+}
+
+/* ── ② 收益率口径（原单体函数中段整块**原样移入** ✓；只依赖全局 trendCtx / BENCH 等 ✓）──
+   产出两块：折叠块 rateSec ＋ 卡顶一句话结论 conclLine —— 两者共用同一批中间量
+   （twr / bTwr / ann / days ✓），若拆成两个函数就得算两遍 ✗，故合并返回 ✓。 */
+function prRateSec() {
   /* ===== 两种收益率口径（借鉴 Portfolio Performance 的账目学）=====================
      TWR（时间加权）＝按快照末端资金流逐期剔除转入/转出 → 衡量"标的与持有本身"
      XIRR（资金加权）＝计入每一笔出入金的日期与金额      → 衡量"你的钱实际赚了多少"
@@ -4587,6 +4613,14 @@ function renderPrincipal() {
         " → 你" + (twr >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twr - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
       "</div></details>";
   }
+  return { sec: rateSec, concl: conclLine };
+}
+
+/* ── ③ 逐只 XIRR＋TWR ＋ 逐只体检（原单体函数尾段整块**原样移入** ✓）──
+   只消费末期快照（lastD / lastItems / extOf 里的 cur.d ✓）→ 入参取 C.cur ✓；
+   其余依赖（SNAPSHOTS / OTC_LOG / OTC / POSITIONS / BENCH / DEFAULT / calcXIRR …）全是全局 ✓。 */
+function prPerFund(C) {
+  const cur = C.cur;
   /* ===== 逐只资金加权（XIRR）===================================================
      数据源：OTC_LOG（逐只真实申赎日期与金额，MANUAL 录入）＋ 末期快照市值。
      与上面「组合级 XIRR」的区别：这里的现金流是**逐笔成交**，不是按快照期推算 ——
@@ -5048,43 +5082,60 @@ function renderPrincipal() {
         }).join("")).join("") + "</tbody></table></details>";
     }
   }
-  box.innerHTML =
+  return perFundSec;
+}
+
+/* ── ④ KPI 三格（原 box.innerHTML 的第一段**原样移入** ✓）── */
+function prKpisHtml(C) {
+  return (
     /* ① 钱的来路 → ② 成绩 → ③ 结果：三格 + 运算符，把等式画出来（2026-09-30 重做）
        原来三行 .snap-part 平铺，等式只存在于小注文字里（「＝ 总资产 − 本金」），读者要自己连；
        现在＋/＝直接占列，三格等宽跨行对齐 —— 「投了多少 → 赚亏多少 → 现在多少」一眼读完。
        ⚠ 小注一律短（窄屏格宽 ~106px 会截断）：完整口径在紧随其后的 ? 浮层（prin-q）里，不丢信息。 */
     '<div class="prin-kpis">' +
-      '<div class="pk"><div class="pk-k">本金</div><div class="pk-v">' + fmtYuan(principal) + "</div>" +
-        '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(cash) + '。">外部净转入</div></div>' +
+      '<div class="pk"><div class="pk-k">本金</div><div class="pk-v">' + fmtYuan(C.principal) + "</div>" +
+        '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(C.cash) + '。">外部净转入</div></div>' +
       '<div class="pk-op" aria-hidden="true">＋</div>' +
-      '<div class="pk"><div class="pk-k">累计收益</div><div class="pk-v ' + cls(pnl) + '">' + fmtAmt2(pnl) + "</div>" +
-        '<div class="pk-n">' + fmtPct(rate / 100, 2) + qBtn + "</div></div>" +
+      '<div class="pk"><div class="pk-k">累计收益</div><div class="pk-v ' + cls(C.pnl) + '">' + fmtAmt2(C.pnl) + "</div>" +
+        '<div class="pk-n">' + fmtPct(C.rate / 100, 2) + C.qBtn + "</div></div>" +
       '<div class="pk-op" aria-hidden="true">＝</div>' +
-      '<div class="pk"><div class="pk-k">总资产</div><div class="pk-v">' + fmtYuan(total) + "</div>" +
-        '<div class="pk-n" title="总资产 ＝ 持仓市值 ＋ 现金；现金 ' + fmtYuan(cash) + ' 是转进来但还没买成持仓的那部分（减仓回款也停在这里）">含现金 ' + fmtYuan(cash) + "</div></div>" +
-    "</div>" +
-    qNote +
-    /* ④ 两种成色：已兑现（实亏 / 实盈）与还拿着的浮动（浮亏 / 浮盈）。
-       用与快照卡完全相同的小节题 + 缩进块，全页一个版式（见 handoff §4.6）。 */
-    conclLine +
+      '<div class="pk"><div class="pk-k">总资产</div><div class="pk-v">' + fmtYuan(C.total) + "</div>" +
+        '<div class="pk-n" title="总资产 ＝ 持仓市值 ＋ 现金；现金 ' + fmtYuan(C.cash) + ' 是转进来但还没买成持仓的那部分（减仓回款也停在这里）">含现金 ' + fmtYuan(C.cash) + "</div></div>" +
+    "</div>"
+  );
+}
+
+/* ── ⑤ 收益构成（原 box.innerHTML 的第二段**原样移入** ✓；要 cashed / held / 拆解 → C ✓）── */
+function prMixHtml(C) {
+  return (
     /* ④ 两种成色：已兑现（实亏 / 实盈）与还拿着的浮动（浮亏 / 浮盈）。
        折叠起来 —— summary 里直接给「已实现 / 未实现」两个数，收起时不丢信息。 */
-    '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(cashed) + " · 未实现 " + fmtAmt2(held) + "</span></summary>" +
+    '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(C.cashed) + " · 未实现 " + fmtAmt2(C.held) + "</span></summary>" +
     '<div class="snap-tbl">' +
-      '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(cashed) + '">' + fmtAmt2(cashed) +
-        '</b><span class="snap-sub">' + (cashed ? (cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计 ✓）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里 ✓）") + "</span></span></div>" +
-      '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(held) + '">' + fmtAmt2(held) +
-        '</b><span class="snap-sub">' + (held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + cashNote + "</span></span></div>" +
+      '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(C.cashed) + '">' + fmtAmt2(C.cashed) +
+        '</b><span class="snap-sub">' + (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计 ✓）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里 ✓）") + "</span></span></div>" +
+      '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(C.held) + '">' + fmtAmt2(C.held) +
+        '</b><span class="snap-sub">' + (C.held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动" + C.cashNote + "</span></span></div>" +
       /* 按账户拆解（2026-10-09 加）：回答「累计收益包含场内场外对吗」= 包含 ✓，
          ⚠ 但**不是**汇总卡那两格相加 ✗ —— 场内还差一个「已兑现」（那两格是在持口径 ✓）。 */
       '<div class="snap-part"><span class="pn">按账户</span><span class="pv">' +
-        '<b class="' + cls(contribEtf) + '" id="prin-etf-contrib" data-v="' + contribEtf.toFixed(2) + '">' + fmtAmt2(contribEtf) + "</b>" +
-        '<span class="snap-sub">场内（含已兑现 ' + fmtAmt2(cashed) + '）· 场外 <b class="' + cls(contribOtc) +
-          '" id="prin-otc-contrib" data-v="' + contribOtc.toFixed(2) + '">' + fmtAmt2(contribOtc) +
+        '<b class="' + cls(C.contribEtf) + '" id="prin-etf-contrib" data-v="' + C.contribEtf.toFixed(2) + '">' + fmtAmt2(C.contribEtf) + "</b>" +
+        '<span class="snap-sub">场内（含已兑现 ' + fmtAmt2(C.cashed) + '）· 场外 <b class="' + cls(C.contribOtc) +
+          '" id="prin-otc-contrib" data-v="' + C.contribOtc.toFixed(2) + '">' + fmtAmt2(C.contribOtc) +
           "</b> · 两者相加 ＝ 上面的累计收益 ✓（⚠ 它与汇总卡右侧那两格不是同一口径 ✗）</span></span></div>" +
-    "</div></details>" +
-    rateSec +
-    perFundSec;
+    "</div></details>"
+  );
+}
+
+/* ── ⑥ 薄装配 ✓（拆分后的总入口：准备 → 各段拼装 → 注入，顺序与拆前完全一致 ✓）──
+   空快照 / 无卡早退都在 prCtx 内（原单体函数头部的判断原样保留 ✓）。 */
+function renderPrincipal() {
+  const C = prCtx();
+  if (!C) return;
+  const rs = prRateSec();
+  /* 拼接顺序＝拆前的 box.innerHTML 拼接顺序 ✓：KPI 三格 → 口径浮层 → 一句话结论 → 收益构成 → 收益率口径 → 逐只表/体检。
+     （conclLine 段的原注释：用与快照卡完全相同的小节题 + 缩进块，全页一个版式（见 handoff §4.6）。） */
+  C.box.innerHTML = prKpisHtml(C) + C.qNote + rs.concl + prMixHtml(C) + rs.sec + prPerFund(C);
 }
 
 function renderSnapLog() {
