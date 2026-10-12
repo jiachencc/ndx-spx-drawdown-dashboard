@@ -649,6 +649,22 @@ function renderOtcEst(nc) {
   const d2 = (s) => String(s || "—").slice(5);              // 2026-09-29 → 09-29（年份在块头统一交代）
   const est = nc.rows.filter((r) => r.src === "est").sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
   const app = nc.rows.filter((r) => r.src === "app");
+  /* ── 两个「净值日」不是同一个源（2026-10-12 加；用户：「因为场外前后有1-2天的延迟，所以呈现要符合逻辑
+        一点，也就是日期要对齐，应该没问题对吧？」）────────────────────────────────────
+     本表用的净值日 ＝ **东财净值序列**（拟合与对账都用它 ✓，日期成对 ✓）；
+     App 快照另有一个「净值日」（QDII 确认慢 ✓）—— **两者可能差 1 天** ✓。
+     实测 8 只里 1 只不同（南方 021000：序列 10-08 / App 10-09 ✓）。
+     ⚠ 不标出来就是个陷阱 ✗：表里说"净值日 10-08 → 指数日 10-09"✓，而 App 明明写着 10-09 ✗ →
+       读者会以为"表算错了 / 怎么还在补 10-09"✓ —— 上次那个 −125 元**假差异**就是同一个坑 ✓。
+     → 行内用 chip 显式标出 App 那个日期 ✓（谁不同标谁 ✓，一致的 7 只不加噪音 ✗）。 */
+  const appNavD = {};
+  OTC.funds.forEach((f) => { appNavD[f.code] = (f.nav && f.nav.closeDate) || ""; });
+  const navGapOf = (code) => {
+    const ft2 = (nc.rows.filter((r) => r.f.code === code)[0] || {}).ft;
+    const a = appNavD[code], s = ft2 && ft2.navDate;
+    return (a && s && a !== s) ? { app: a, ser: s } : null;
+  };
+  const gapList = OTC.funds.map((f) => ({ f: f, g: navGapOf(f.code) })).filter((x) => x.g);
   const upd = nc.upd || null;                               // 指数数据日（由 renderImpl 传入，不重复读 NOWCAST）
   /* 行＝名字 ＋ 可选第二行「净值日 → 指数日」＋ 中间列 ＋ 金额；悬停 title 给逐日明细与拟合参数 */
   const tr = (f, chip, mid, amt, o) => {
@@ -673,7 +689,11 @@ function renderOtcEst(nc) {
       + (r.list || []).map((x) => "  " + x.d + "　指数 " + pc(x.r) + "　→ 该只折算 " + pc(x.c)).join("\n")
       + "\n拟合：β " + r.ft.beta + " · α " + r.ft.alpha + "%（近 " + r.ft.n + " 个净值日 · r " + r.ft.r + " · 日误差 " + (r.ft.mae * 100).toFixed(3) + "pp）"
       + "\n→ 累乘 " + pc(r.pct) + " × 市值 " + fmtYuan(r.f.value) + " = " + fmtAmt2(r.amt) + " 元（估算，非读数）";
-    h += tr(r.f, "", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt, { sub, title });
+    /* chip ＝ App 那个净值日（仅当它与本表的序列净值日不同 ✓，见上方 navGapOf 注释 ✓） */
+    const g2 = navGapOf(r.f.code);
+    h += tr(r.f, g2 ? "App " + d2(g2.app) : "", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt,
+      { sub, title: title + (g2 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g2.ser + " ✓，拟合同源）；App 快照的净值日是 "
+        + g2.app + " ✓ —— 差 " + Math.round((Date.parse(g2.app) - Date.parse(g2.ser)) / 86400000) + " 天（QDII 确认慢 ✓）。本表按**序列**算 ✓。" : "") });
   });
   app.forEach((r) => h += tr(r.f, "", "—", Number.isFinite(r.f.day) ? r.f.day : 0, {
     sub: d2(r.ft && r.ft.navDate) + "（已追上）",
@@ -692,7 +712,16 @@ function renderOtcEst(nc) {
     + "悬停某一行可看那几天<b>分别</b>是什么行情。"
     + '<br><b>★参考</b>＝该代理跟踪不紧（日经只有 A股ETF、全球精选用纳指代）→ 数字只看量级；'
     + "<b>不计入</b>＝跟踪太弱（港股那只 r 0.38）→ 只给方向、不进合计，免得以精确到元的样式假精确。"
-    + "<br>估值不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。</div>";
+    + "<br>估值不是读数：它算的是<b>尚未公布</b>那段，公布后请以 App 读数为准（两者不叠加）。"
+    /* 两个「净值日」的两源说明（见 navGapOf 注释 ✓）——只在真有差异时追加 ✓，一致的就不吵 ✓ */
+    + "<br><b>⚠ 两个「净值日」来自两个源</b>：本表的净值日取自<b>东财净值序列</b>（拟合与对账都用它 ✓，"
+    + "所以 est 与 act 的日期成对 ✓）；App 快照另有一个「净值日」（QDII 确认慢约 1 天 ✓）。"
+    + (gapList.length
+      ? "本次 <b>" + gapList.length + "</b> 只两者不同：" + gapList.map((x) => esc(plDisplayName(x.f.name)) + " 序列 " + d2(x.g.ser)
+        + " / App " + d2(x.g.app)).join(" · ") + " ✓ —— 这些行里用 <b>chip</b> 标出 App 那个日期 ✓，"
+        + "本表一律按<b>序列</b>算 ✓（两者不可混用 ✗ —— 混着相除会造出「假差异」✓）。"
+      : "本次 8 只两者一致 ✓（无需区分 ✓）。")
+    + "</div>";
   /* ── 预估 vs 实际（2026-10-12 加；用户：「我每天更新截图后 你能有个结论 让我看到实际和预估的差异吗？
         就在场外当日预估这里」✓）────────────────────────────────────────────────
      数据：台账 NOWCAST_LOG（**日更时自动写** ✓，见 scripts/fetch-nowcast.mjs ✓）＋ App 最新已公布净值 ✓。
