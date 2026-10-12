@@ -239,6 +239,7 @@ const $ = (id) => document.getElementById(id);
  *
  * ▸ 工具
  *   $() = getElementById · esc() 转义 · fmtYuan/fmtAmt 金额 · mdOf 日期
+*   quoteDay() 「这个数字源自哪天」的唯一判据（自动源核验日 vs 本页在用报价日，取较新者 ✗→✓ 2026-10-12）
  *   tipBtn() ⓘ 浮层 · srcLabel() 来源标签 · plDisplayName() 场外简称
  *   ⚠ sourceHealth()（数据有效性）在 **data.js**，不在本文件；行情/回测数据同样在 data.js。
  *
@@ -346,8 +347,11 @@ let costInfos = [];  // 成本位弹窗数据
 let symIdx = {};     // sym → idx（场内日志筛选）
 
 /* ================= 口径日期（各模块统一标注「这个数字源自哪天」） =================
- * 场内：SOURCE_META 的核验日优先，缺失时退回 DEFAULT[k].priceDate（更新脚本写入的报价日）。
- *       五只报价日可能不同（QDII 净值滞后/停牌），故按标的取值，全部不同时显示区间。
+ * 场内：**取「自动源核验日」与「本页在用报价日」中较新者** ✓（判据收在 quoteDay() 一处 ✓）。
+ *       ⚠ 2026-10-12 改：原写「SOURCE_META 的核验日优先」✗ —— 落期时人工实读的 App 收盘
+ *         会比自动源新（10-12 vs 10-09 ✗），徽标于是少报两天 ✗（用户当天就是这么问上来的 ✓）。
+ *       各标的报价日可能不同（QDII 净值滞后/停牌），故按标的取值，不同时显示区间。
+ *       区间只聚合**本页实际持有**的市场 ✓（kr / hkus 只是跟踪对象，不是场内持仓 ✗）。
  * 场外：OTC.updated = App 截图日；各基金净值日逐只列在卡片内（两者常差一天，不可混用）。
  * 取不到日期时返回 null，由调用方显示「未记录」——不拿渲染时刻或今天冒充数据日期。 */
 const QUOTE_KEY = { ndx: "etfNdx", spx: "etfSpx", kr: "kr", n225: "n225", hkus: "hkus" };   // 持仓 idx → data.js 报价字段（模块级：卡片与总览行都要用）
@@ -530,11 +534,38 @@ function swingEvents(rounds) {
     return e;
   }).sort((a, b) => (a.d2 < b.d2 ? 1 : a.d2 > b.d2 ? -1 : 0));   // 新在上（按了结腿日期）
 }
+/* ── 「本页这个数字是哪天的」的**唯一判据**（2026-10-12 加，修用户当天报的「场内徽标还是 10.09？」✗）
+   本段（第 348 行起）的职责就是标「数字源自哪天」✓ —— 那就必须取**较新**的那个日期 ✗：
+     · 自动源核验日 ＝ SOURCE_META[k].asOf（CI 抓的）
+     · 本页在用报价日 ＝ DEFAULT[k].priceDate（平时脚本写入 ✓，落期时由人工实读覆盖 ✓）
+   原来一律「SOURCE_META 优先」✗：10-12 落期时，人工实读的 App 收盘（10-12）比自动源（10-09）**新** ✓，
+   徽标却仍报 10.09 ✗ → 读者会以为场内数据滞后两天 ✗。而这**每期落期都会重演** ✗
+   （落期在当晚、CI 次日凌晨才跑 ✓），不是一次性的巧合 ✗。
+   ▸ 两个都缺才返回 null（调用方显示「未记录」✓，不拿今天冒充 ✗）。 */
+function quoteDay(k, alt) {
+  const h = (typeof sourceHealth === "function") ? sourceHealth(k) : null;
+  const a = (h && h.asOf) || null;
+  const b = alt || (DEFAULT[k] && DEFAULT[k].priceDate) || (h && h.priceDate) || null;
+  if (a && b) return a > b ? a : b;                 // ISO 日期串直接比大小 ✓
+  return a || b || null;
+}
+/* 两个日期不一致时给悬停补一句「为什么」✓（否则同一页上「数据有效性」面板写 10-09、
+   徽标写 10-12 会像自相矛盾 ✗ —— 其实两者各有各的口径 ✓：面板讲**自动源**、徽标讲**本页数字** ✓） */
+function quoteDayNote(k, alt) {
+  const h = (typeof sourceHealth === "function") ? sourceHealth(k) : null;
+  const a = (h && h.asOf) || null;
+  const b = alt || (DEFAULT[k] && DEFAULT[k].priceDate) || null;
+  if (!a || !b || a === b) return "";
+  return " · 自动源核验 " + mdOf(a) + "、本页在用 " + mdOf(b) + "（取较新者 ✓）";
+}
 function quoteAsOfs() {
-  return ["etfNdx", "etfSpx", "kr", "n225", "hkus"].map((k) => {
-    const h = (typeof sourceHealth === "function") ? sourceHealth(k) : null;
-    return (h && (h.asOf || h.priceDate)) || (DEFAULT[k] && DEFAULT[k].priceDate) || null;
-  }).filter(Boolean).sort();
+  /* ⚠ 聚合范围（2026-10-12 收窄）：只算**本页实际持有**的场内标的 ✓ ——
+     原来把 kr / hkus 也算进来 ✗，而它们只是本页跟踪的市场、不是场内持仓 ✗：
+     人工实读只覆盖持有的那 3 只 → 徽标会被拉成区间「10.09–10.12」✗，
+     读者会以为场内数据两天混杂 ✗。依据：徽标自己的 title 就写着「场内 ETF 报价日」✓
+     —— 那就只该聚合场内持仓涉及的市场 ✓（数据驱动取 POSITIONS.hold ✓，不写死清单 ✗）。 */
+  const keys = [...new Set((POSITIONS.hold || []).map((h) => QUOTE_KEY[h.idx] || h.idx))];
+  return keys.map((k) => quoteDay(k)).filter(Boolean).sort();
 }
 function etfAsOfText() {
   const ds = quoteAsOfs();
@@ -548,7 +579,8 @@ function etfAsOfText() {
  *   于是那个 true 被静默忽略、简写一直没生效 —— typecheck 的 TS2554 就是报这个。 */
 function etfTag(suffix, short) {
   const t = etfAsOfText();
-  return '<span class="date-chip ' + (t ? "etf" : "stale") + '" title="场内 ETF 报价日（A 股交易日，15:00 收盘后即为定值）">' +
+  return '<span class="date-chip ' + (t ? "etf" : "stale") + '" title="场内 ETF 报价日（A 股交易日，15:00 收盘后即为定值）'
+    + " · 取「自动源核验日」与「本页在用报价日」中较新者 ✓；只聚合本页实际持有的市场 ✓" + '">' +
     (t ? (short ? "" : "场内 ") + t : "⚠ " + (short ? "" : "场内 ") + "未记录") + (suffix || "") + "</span>";
 }
 /* 场外快照（截图）日标签；short 同上 */
@@ -591,10 +623,11 @@ function otcNavInline(code) {
 
 /* 单只场内标的的报价日标签（盈亏总览行、持仓卡头用） */
 function etfRowTag(row) {
-  const h = (typeof sourceHealth === "function") ? sourceHealth(QUOTE_KEY[row.p.idx] || row.p.idx) : null;
-  const d = mdOf((h && h.asOf) || row.m.priceDate);
+  const k = QUOTE_KEY[row.p.idx] || row.p.idx;
+  const h = (typeof sourceHealth === "function") ? sourceHealth(k) : null;
+  const d = mdOf(quoteDay(k, row.m.priceDate));        // 与汇总徽标同一判据 ✓（原来这里也写死"核验日优先"✗）
   return d
-    ? '<span class="date-chip etf" title="场内报价日：' + esc((h && h.source) || "ETF 场内收盘价") + '">场内 ' + d + "</span>"
+    ? '<span class="date-chip etf" title="场内报价日：' + esc((h && h.source) || "ETF 场内收盘价") + esc(quoteDayNote(k, row.m.priceDate)) + '">场内 ' + d + "</span>"
     : '<span class="date-chip stale" title="该只报价日缺失，未做猜测">⚠ 场内 未记录</span>';
 }
 
@@ -6342,13 +6375,20 @@ function holdCardHtml(row, i, ctx) {
   const health = sourceHealth(quoteKey);
   /* 触发线依赖「当日涨跌」，而它来自报价日。报价超期时不再整句屏蔽——那会让卡片丢掉主要信息，
    * 且长期挂着一句重复警告会被直接无视。改为照常给结论、旁边挂滞后角标，把判断依据摆到结论边上；
-   * 只有连报价日期都没有（无从判断是哪天的行情）时才阻断。 */
-  const lagTag = (health.asOf && !health.usable)
+   * 只有连报价日期都没有（无从判断是哪天的行情）时才阻断。
+   * ⚠ 2026-10-12 补一条：**本页在用的报价比自动源新时不许挂这个角标** ✗ ——
+   *   否则会出现「现价 (10.12)」与「⚠ 场内 10.09 · 滞后 N 日」并排的自相矛盾 ✗
+   *   （角标讲的是**自动源**的滞后 ✗；本页数字已是人工实读的最新收盘 ✓，没有滞后可言 ✓）。 */
+  const qDayInUse = quoteDay(quoteKey, m.priceDate);
+  const srcBehind = !!(qDayInUse && health.asOf && qDayInUse > health.asOf);
+  const lagTag = (!srcBehind && health.asOf && !health.usable)
     ? ' <span class="date-chip stale" title="触发线按该报价日的收盘涨跌计算；已滞后 ' + health.days +
       ' 个交易日，盘中请以券商实时价为准">⚠ 场内 ' + mdOf(health.asOf) + '</span> · 滞后 ' + health.days + ' 日'
     : "";
   let strat;
-  if (!health.asOf) {
+  /* ⚠ 2026-10-12：这两处「有没有日期」的判据也换成**本页在用的那个日期**（qDayInUse ✓）——
+     不然会出现「本页报价日 = 10.12 有效 ✓，却因为自动源没日期而拒绝给结论」✗ 的怪状态 ✓。 */
+  if (!qDayInUse) {
     strat = '<span class="warn">报价日期未核验，不生成日内结论（见顶部来源行）</span>';
   } else if (chg <= st.dip) {
     strat = '<span class="up"><span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>' + lagTag;
@@ -6367,10 +6407,12 @@ function holdCardHtml(row, i, ctx) {
     : pct <= CONFIG.TIER_HIGH
       ? '<span aria-hidden="true">🟡</span> 位置中性，按既定纪律执行：日内跌 ≥' + Math.abs(st.dip) + "% 加仓、涨 ≥" + st.rally + "% 减仓。"
       : '<span aria-hidden="true">🔵</span> 成本偏高，注意控制节奏；若跌回成本下方，可小额分批摊低成本，勿一次性重手。';
-  /* 与触发线同一原则：报价日期有值就照常给建议，只在其后标明判断依据的日期与滞后天数 */
-  const advice = !health.asOf
+  /* 与触发线同一原则：报价日期有值就照常给建议，只在其后标明判断依据的日期与滞后天数。
+     ⚠ 2026-10-12：判据换成**本页在用的那个日期** ✓ —— 自动源落后于人工实读时不许再喊滞后 ✗
+     （那时 adviceBase 本身就是按最新收盘给的结论 ✓，括注会自相矛盾 ✗）。 */
+  const advice = !qDayInUse
     ? "报价日期未核验，此处仅展示历史成本位置，不生成操作建议。"
-    : adviceBase + (health.usable ? "" : "（按 " + mdOf(health.asOf) + " 报价判定，滞后 " + health.days + " 个交易日）");
+    : adviceBase + ((health.usable || srcBehind) ? "" : "（按 " + mdOf(qDayInUse) + " 报价判定，滞后 " + health.days + " 个交易日）");
   const sumTxt = "成本位于" + tierWord + "（分位 " + pct + "%）";
   const cushionTxt = r >= 0
     ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
@@ -6413,8 +6455,10 @@ function holdCardHtml(row, i, ctx) {
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:3px"></i></button>';
   }).join("");
   /* 三点水位梯 */
-  /* 现价口径日：核验日优先，缺失时退回脚本写入的 priceDate（即该报价的成交日）；两者都无才标未核验 */
-  const quoteDate = mdOf(health.asOf) || mdOf(m.priceDate);
+  /* 现价口径日：取「自动源核验日」与「本页在用 priceDate（脚本写入 / 人工实读）」中较新者 ✓
+     —— 与徽标同一判据（quoteDay 一处 ✓）；两者都无才标未核验。
+     ⚠ 2026-10-12 改：原来这里也是「核验日优先」✗（与 10.09 徽标同一处缺陷 ✓）。 */
+  const quoteDate = mdOf(quoteDay(quoteKey, m.priceDate));
   const dateStr = quoteDate ? " (" + quoteDate + ")" : "（日期未核验）";
   const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
   /* 三档读数：按数值升序排成一条「关系链」（2026-09-23）—— 原来 高点/现价/成本 是固定顺序平铺 ＋
@@ -6431,7 +6475,7 @@ function holdCardHtml(row, i, ctx) {
   };
   const ladNodes = [
     { v: p.idxAtCost, html: '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(3) + ' 元）"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtIdx(p.idxAtCost) + '</b></span>' },
-    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + (health.usable ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b></span>' },
+    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b></span>' },
     { v: hi, html: '<span class="lad-item" title="52 周最高' + (m.athDate ? "（" + m.athDate + "）" : "") + '"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtIdx(hi) + '</b>' + athStr + '</span>' },
   ].sort((x, y) => x.v - y.v);
   /* DCA 回撤加仓档 chip（成本口径：现价较成本每跌破一档即提示；POSITIONS.strategy.dipTiers 可覆盖 CONFIG 默认档） */

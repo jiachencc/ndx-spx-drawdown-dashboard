@@ -754,6 +754,46 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   win.location.hash = "#sec-snap";           // 还原（后面还有一大堆断言，别留个半开的视图 ✗）
   win.dispatchEvent(new win.Event("hashchange"));
 }
+/* ⑨ 场内日期徽标 ≡ 各**持有**市场「自动源核验日 vs 本页在用报价日」的**较新者**
+   （2026-10-12 加：用户问「盈亏总览的场内徽标为什么还是 10.09？」✗ ——
+    原判据是「SOURCE_META 核验日优先」✗：落期时人工实读的 App 收盘（10.12）比自动源（10.09）新 ✓，
+    徽标于是少报两天 ✗；而这**每期落期都会重演** ✗（落期在当晚、CI 次日凌晨才跑 ✓），不是巧合 ✗。
+    契约两条，都从这里独立推导 ✓：
+      ① 只取**较新**的那个日期 ✓（本段职责就是标「数字源自哪天」✗）；
+      ② 只聚合**本页实际持有**的市场 ✓ —— kr / hkus 只是跟踪对象 ✗，算进来会把徽标拉成区间
+         「10.09–10.12」✗，读者会以为场内数据两天混杂 ✗。 */
+{
+  const dm = readFileSync(path.join(root, "data.js"), "utf8");
+  const c = vm.createContext({});
+  const grab = (re) => (dm.match(re) || [""])[0];
+  vm.runInContext(grab(/const SOURCE_META = \{[\s\S]*?\n\};/) + "\nthis.M = SOURCE_META;"
+    + grab(/const DEFAULT = \{[\s\S]*?\n\};/) + "\nthis.D = DEFAULT;"
+    + grab(/const POSITIONS = \{[\s\S]*?\n\};/) + "\nthis.P = POSITIONS;", c, { timeout: 800 });
+  const M = c.M || {}, D = c.D || {}, P = c.P || {};
+  const QK = { ndx: "etfNdx", spx: "etfSpx", kr: "kr", n225: "n225", hkus: "hkus" };
+  const dayOf = (k) => {
+    const a = (M[k] || {}).asOf || null, b = (D[k] || {}).priceDate || null;
+    if (a && b) return a > b ? a : b;
+    return a || b || null;
+  };
+  const fmt = (ds) => {
+    const s = ds.filter(Boolean).sort();
+    if (!s.length) return "未记录";
+    const a = s[0].slice(5).replace("-", "."), b = s[s.length - 1].slice(5).replace("-", ".");
+    return a === b ? a : a + "–" + b;
+  };
+  const heldKeys = [...new Set((P.hold || []).map((h) => QK[h.idx] || h.idx))];
+  const want = fmt(heldKeys.map(dayOf));
+  const chip = win.document.querySelector("#pl-cnt .date-chip.etf");
+  const got = chip ? chip.textContent.replace(/\s+/g, "") : "";
+  check("场内徽标 ≡ 持有市场「自动源核验日 vs 本页在用报价日」的较新者（应为 " + want + "）",
+    got.indexOf(want) >= 0, "徽标「" + got + "」· 持有市场 " + heldKeys.join("/") + " 应得 " + want);
+  /* 只有当前两口径**确实分歧**时才查这条 ✓（不写死结论 ✗，与文件里其它条件断言同一手法 ✓） */
+  const wide = fmt(Object.keys(QK).map((k) => QK[k]).map(dayOf));
+  if (wide !== want)
+    check("场内徽标只聚合**持有**市场（五键口径会是 " + wide + "，不得采用 ✗）",
+      got.indexOf(wide) < 0, "徽标「" + got + "」· 五键口径 " + wide);
+}
 /* ④j 盈亏归因矩阵：**每行合计必须 ＝ 该期的「本期盈亏」**（2026-10-09 加，起于用户问
    「快照对比的盈亏归因要怎么优化，考虑到未来有清仓的情况」✓）
    ▸ 当时实测的 bug：10.09 行合计 **+2,939** ✗，真值 **+2,304** ✓ → 差 **+635.40**
