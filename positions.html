@@ -51,6 +51,7 @@ try {
     <a class="sec-nav-link" href="#sec-principal">本金</a>
     <a class="sec-nav-link" href="#sec-trend">走势</a>
     <a class="sec-nav-link" href="#sec-snap">快照</a>
+    <a class="sec-nav-link" href="#sec-attr">归因</a>
     <a class="sec-nav-link" href="#sec-acct">账户</a>
     <a class="sec-nav-link" href="#sec-otc-acct">场外账户</a>
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
@@ -105,13 +106,25 @@ try {
        ⑤ 归档：清仓历史（发生在首份快照之前、不计入本金与收益，放最后以免打断主线）
        ⚠ 本次改动只有两处：把「操作体检」从 ① 里挪到 ③ 的持仓之后（它夹在「盈亏总览」与「本金与收益」
          之间，把「现状」拆散了）；把「替换回测 / 费率体检」两节并成「工具」一节。
-         其余相对顺序未动 —— 那是 2026-09-24 定的（清仓历史归拢到末尾）。 -->
+       ⚠ 2026-10-12 补：② 里的「盈亏归因」**从快照对比卡内的第二个 tab 升格为同级区块** ✓
+         （紧跟在快照对比之后、共用那个视图切换器 ✓）—— 起因是用户问「盈亏归因内容这么多，
+         是不是可以单开一个模块了」✓，选了零算法改动的那条路：同页升格 ＋ 导航入口 ＋ 深链 #sec-attr ✓。
+         它带来的新契约：两个视图同一时刻只显示一个、**连标题一起切** ✓（实现在 setSnapView ✓）。
+       其余相对顺序未动 —— 那是 2026-09-24 定的（清仓历史归拢到末尾）。 -->
   <h2 class="sec-title" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
   <div class="view-switch" id="snap-switch" role="tablist" aria-label="快照对比视图">
     <button class="vs-btn on" data-view="log" role="tab" aria-selected="true">逐期明细</button>
     <button class="vs-btn" data-view="attr" role="tab" aria-selected="false">盈亏归因</button>
   </div>
   <div class="card tight" id="snap-list" style="padding:4px 14px;"></div>
+  <!-- 盈亏归因：2026-10-12 **升格为与「快照对比」同级的区块** ✓（此前是快照对比卡里的第二个 tab ✗）
+       —— 用户当天问「盈亏归因内容这么多，是不是可以单开一个模块了」✓，选了代价最小的那条：
+       同页升格为一级区块 ＋ 顶部区块导航入口 ＋ 深链 #sec-attr ✓，**不动任何算法、不动任何口径** ✓。
+       ⚠ 两个视图**同一时刻只显示一个（连标题一起切）** ✓ —— 切换的唯一实现在 setSnapView() ✓，
+         否则另一节就只剩个孤零零的标题 ✗。隐藏必须显式 display:none（.sec-title 是 display:flex ✗
+         会盖掉 hidden 属性 ✓，见 CSS 那两条同款先例）。
+       ⚠ 视图切换器 `#snap-switch` 留在原位（快照对比标题之下）✓：它管的是这两节 ✓，不是快照对比自己的零件。 -->
+  <h2 class="sec-title" id="sec-attr" hidden><span aria-hidden="true">🎯</span> 盈亏归因</h2>
   <div class="card tight" id="snap-attr" hidden></div>
 
   <h2 class="sec-title" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
@@ -2793,8 +2806,8 @@ function gotoHoldInAttr(code, d) {
   if (i !== undefined) saCur = i;
   saSel = { k: "hold", code: code, back: null };
   const btn = [...document.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === "attr");
-  if (btn) btn.click();
-  else { const attr = $("snap-attr"), log = $("snap-list"); if (attr && log) { log.hidden = true; attr.hidden = false; renderSnapAttr(); } }
+  if (btn) btn.click();                                  // → setSnapView + hash 同步（走唯一实现 ✓）
+  else { setSnapView("attr"); syncSnapHash("attr"); }    // 切换器不在时兜底（同上：不再另写显隐 ✗）
 }
 /* 委托绑一次即可 ✓（`#snap-list` 这个容器是常驻的 ✓，行是每次重渲染换掉的 ✓ —— 与页内其它列表同一手法 ✓）。
    ⚠ 键盘与鼠标走同一套 ✓（Enter / Space）；行是 role=button ＋ tabindex=0
@@ -2863,18 +2876,52 @@ function bindSnapListJump() {
     if (pick(e.target)) e.preventDefault();
   });
 }
-function bindSnapSwitch() {
+/* ── 视图切换的**唯一实现**（2026-10-12 升格为一级区块时收口）────────────────────────────
+   此前「点 tab」与「逐期明细点行进归因」是**两处各写一份显隐** ✗ —— 本项目在「三份手写副本」
+   上吃过三次事故（见 periodContrib 的 ★唯一实现★ 注释 ✓），所以这次只留 setSnapView() 一处 ✓。
+   2026-10-12 的变化：归因从「快照对比卡里的第二个 tab」变成**同级区块** ✓ →
+   显隐要**连标题一起切**（#sec-snap / #sec-attr）✗，否则另一节会只剩个孤零零的标题 ✗。 */
+let snapView = "log";                       // 当前视图（深链 / hashchange 靠它判断"要不要切"✓）
+function setSnapView(v, opt) {
   const box = $("snap-switch"), log = $("snap-list"), attr = $("snap-attr");
-  if (!box || !log || !attr) return;
+  const tSnap = $("sec-snap"), tAttr = $("sec-attr");
+  if (!log || !attr) return;
+  const isAttr = v === "attr";
+  snapView = isAttr ? "attr" : "log";
+  if (box) box.querySelectorAll(".vs-btn").forEach((x) => { const on = x.dataset.view === snapView;
+    x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
+  log.hidden = isAttr;                                // 卡片：同一时刻只一个
+  attr.hidden = !isAttr;
+  if (tSnap) tSnap.hidden = isAttr;                   // 标题：跟着一起换（2026-10-12 升格的新契约 ✓）
+  if (tAttr) tAttr.hidden = !isAttr;
+  if (isAttr) renderSnapAttr();                       // 归因按需渲染（零首屏成本 ✓ 不变）
+  /* 从深链 / 导航切过来时**先切再滚** ✓ —— 隐藏元素当不了锚点，浏览器原生滚动会落空 ✗ */
+  if (opt && opt.scroll) { const t = isAttr ? tAttr : tSnap; if (t && t.scrollIntoView) t.scrollIntoView({ block: "start" }); }
+}
+/* 视图 ↔ 锚点**同名**（#sec-snap / #sec-attr）✓ → 归因可以直接分享链接、也能被导航直达 ✓ */
+function syncSnapHash(v) {
+  const want = v === "attr" ? "#sec-attr" : "#sec-snap";
+  if (location.hash === want) return;
+  /* file:// 下 replaceState 可能被浏览器拒绝 ✓ → 退回改 hash（副作用是留一条历史，
+     但本页是本地看板、可接受 ✓）；两条路都不会抛错到调用方 ✓ */
+  try { history.replaceState(null, "", want); } catch (e) { location.hash = want; }
+}
+function applySnapHash() {
+  const want = location.hash === "#sec-attr" ? "attr" : location.hash === "#sec-snap" ? "log" : null;
+  if (!want || want === snapView) return;      // 已经在那个视图 → 什么都不做（免得 hash 同步回声、白重渲染 ✗）
+  setSnapView(want, { scroll: true });
+}
+function bindSnapSwitch() {
+  const box = $("snap-switch");
+  if (!box) return;
   box.onclick = (e) => {
     const b = e.target.closest(".vs-btn");
     if (!b) return;
-    const v = b.dataset.view;
-    box.querySelectorAll(".vs-btn").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
-    log.hidden = v !== "log";
-    attr.hidden = v !== "attr";
-    if (v === "attr") renderSnapAttr();
+    setSnapView(b.dataset.view);
+    syncSnapHash(b.dataset.view);
   };
+  window.addEventListener("hashchange", applySnapHash);
+  applySnapHash();                             // 带 #sec-attr 打开页面 → 直接进归因 ✓
 }
 
 safeCard("snap-list", "快照对比", renderSnapLog);

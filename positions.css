@@ -1496,10 +1496,12 @@
     #trend-box svg circle { fill: #000 !important; stroke: #fff !important; }
   }
 
-  /* ── 快照对比 · 视图切换 ＋ 盈亏归因图（2026-10-07 加）────────────────────────────────
-     ⚠ #snap-attr[hidden] / #snap-list[hidden] 必须显式 display:none：
-       `hidden` 属性靠 UA 样式生效，而 .card 的 display 规则会盖掉它 → 不写这两条，切走之后还看得见 ✗ */
-  #snap-attr[hidden], #snap-list[hidden] { display: none; }
+  /* ── 快照对比 · 视图切换 ＋ 盈亏归因图（2026-10-07 加；2026-10-12 归因升格为同级区块）──────
+     ⚠ #snap-attr[hidden] / #snap-list[hidden] / .sec-title[hidden] 必须显式 display:none：
+       `hidden` 属性靠 UA 样式生效，而 .card / .sec-title 的 display 规则会盖掉它
+       → 不写这几条，切走之后还看得见 ✗（.sec-title 是 display:flex，2026-10-12 归因升格后
+         在同一处又踩到同一个坑 ✓ —— 三者的理由完全一样，所以并排写在这里 ✓） */
+  #snap-attr[hidden], #snap-list[hidden], .sec-title[hidden] { display: none; }
   .view-switch { display: flex; gap: 6px; margin: 2px 0 6px; }
   .vs-btn { font: inherit; font-size: var(--fs-xs); color: var(--tx2); background: rgba(255,255,255,.05);
     border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }

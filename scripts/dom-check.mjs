@@ -701,6 +701,45 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   }
 }
 
+/* ⑧ 盈亏归因**升格为一级区块**（2026-10-12 做 E：用户问「盈亏归因内容这么多，是不是可以单开一个模块了」✓）
+   三条契约（都能被悄悄改回去 ✗ → 都给牙 ✓）：
+     ① 它有**自己的区块标题** #sec-attr，且出现在顶部区块导航里 ✓（不再藏在快照对比卡里 ✗）；
+     ② 同一时刻**只显示一个视图、且连标题一起切** ✓ —— 切到归因时 #sec-snap 标题让位、切回时 #sec-attr 让位
+        （漏切标题 → 另一节会剩个孤零零的标题 ✗；这是升格当天唯一新增的契约 ✓）；
+     ③ **深链 #sec-attr 直达** ✓：hash 一变就进归因视图（归因因此能单独分享 ✓）。
+   ▸ 本条**自己摆好视图状态** ✓（不依赖上一条测到哪儿了 ✓），跑完还原成默认的「逐期明细 ＋ #sec-snap」✓。
+   ▸ 另：门禁进归因视图仍走 `#snap-switch .vs-btn[data-view=attr]` ✓ —— 控件与 id 都没搬 ✗，
+     所以下面 40 条归因断言一条都不用改 ✓（这正是选「同页升格」而不是「拆页」的理由之一 ✓）。 */
+{
+  const d = win.document;
+  const tSnap = d.getElementById("sec-snap"), tAttr = d.getElementById("sec-attr");
+  const listEl = d.getElementById("snap-list"), attrEl = d.getElementById("snap-attr");
+  const vBtn = (v) => [...d.querySelectorAll("#snap-switch .vs-btn")].find((b) => b.dataset.view === v);
+  const navA = d.querySelector('.sec-nav a[href="#sec-attr"]');
+  check("盈亏归因升格为一级区块：有自己的区块标题 #sec-attr（不再是卡内 tab ✗）",
+    !!tAttr && /sec-title/.test(String(tAttr.className)),
+    tAttr ? "class=" + tAttr.className : "页面里没有 #sec-attr ✗");
+  check("区块导航里有「归因」入口（#sec-attr）",
+    !!navA && /归因/.test(navA.textContent || ""),
+    navA ? "导航项文本「" + navA.textContent + "」" : "导航里没有指向 #sec-attr 的链接 ✗");
+  vBtn("log").click();
+  const L = { snapT: tSnap.hidden, attrT: tAttr.hidden, list: listEl.hidden, attr: attrEl.hidden };
+  vBtn("attr").click();
+  const A = { snapT: tSnap.hidden, attrT: tAttr.hidden, list: listEl.hidden, attr: attrEl.hidden };
+  check("归因与快照对比同级：同一时刻只显示一个视图、标题跟着一起换（8 个开关位）",
+    L.snapT === false && L.attrT === true && L.list === false && L.attr === true &&
+    A.snapT === true && A.attrT === false && A.list === true && A.attr === false,
+    "逐期明细 " + JSON.stringify(L) + " / 归因 " + JSON.stringify(A));
+  vBtn("log").click();
+  win.location.hash = "#sec-attr";
+  win.dispatchEvent(new win.Event("hashchange"));
+  const deep = { card: attrEl.hidden, attrTitle: tAttr.hidden, snapTitle: tSnap.hidden };
+  check("深链 #sec-attr：hash 一变就进归因视图（可单独分享 ✓）",
+    deep.card === false && deep.attrTitle === false && deep.snapTitle === true,
+    JSON.stringify(deep));
+  win.location.hash = "#sec-snap";           // 还原（后面还有一大堆断言，别留个半开的视图 ✗）
+  win.dispatchEvent(new win.Event("hashchange"));
+}
 /* ④j 盈亏归因矩阵：**每行合计必须 ＝ 该期的「本期盈亏」**（2026-10-09 加，起于用户问
    「快照对比的盈亏归因要怎么优化，考虑到未来有清仓的情况」✓）
    ▸ 当时实测的 bug：10.09 行合计 **+2,939** ✗，真值 **+2,304** ✓ → 差 **+635.40**
