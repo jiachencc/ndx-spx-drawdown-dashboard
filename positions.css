@@ -1253,6 +1253,9 @@
   .trend-sum .sum-info[aria-expanded="true"] { border-color: var(--accent-line); background: var(--accent-bg); color: var(--blue); }
   .trend-sum .sum-note { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: var(--card2); border: 1px solid var(--line-soft); color: var(--tx3); font-size: var(--fs-xxs); line-height: 1.7; text-align: left; }
   .trend-sum .sum-note[hidden] { display: none; }
+  /* 结论句里的「基准截至 X · 组合已到 Y」小注（2026-10-12 加）——
+     基准点位常比最新一期快照晚一拍（纳指当日收盘要等美东收盘 ✓），把两者说清免得读成同一时点 ✗ */
+  .trend-sum .trend-asof { color: var(--tx3); white-space: nowrap; }
   /* 归因行的资金拆分小注（银证实锤 + 场外估） */
   .snap-sub { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }   /* 小注嵌在加粗数值里时也不跟着加粗 */
   /* 资产走势：KPI 行 / 时间 chips / crosshair 读数条 / 图例开关 */

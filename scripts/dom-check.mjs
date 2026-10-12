@@ -794,6 +794,79 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     check("场内徽标只聚合**持有**市场（五键口径会是 " + wide + "，不得采用 ✗）",
       got.indexOf(wide) < 0, "徽标「" + got + "」· 五键口径 " + wide);
 }
+/* ⑩ 同期纳指对比必须「同日」✗→✓（2026-10-12，用户报「同期纳指数据没更上」✓）
+   根因两类，别混为一谈：
+     ① 基准点位（data.js 的 BENCH）末点常比最新快照晚一期 —— 纳指**当日收盘要等美东收盘后才有** ✓，
+        这是「还没收盘」，不是抓取挂了 ✗（CI 每晚 sync-bench.mjs 自动补 ✓）；
+     ② 但原来的结论句 / 读数条拿**组合最新一期**减**基准末点** ✗ —— 两端不同天，属跨日相减 ✗
+        （实测：组合 +1.70%(10-12) − 纳指 +1.79%(10-09) → 「超额 −0.09%」✗ 全是这两天相减来的 ✗）。
+   契约三条，逐条独立验证 ✓：①「本金与收益」卡结论句写「均截至 <基准末点>」且「同期纳指」＝ BENCH 首末比 ✓；
+     ② 收益率视图的结论句 + 图例标出基准末点 ✓；③ 读数条在基准末点之后显「—」而非把上一日点位外推 ✗。 */
+{
+  const dm = readFileSync(path.join(root, "data.js"), "utf8");
+  const pdm = readFileSync(path.join(root, "positions-data.js"), "utf8");
+  const c = vm.createContext({});
+  vm.runInContext((dm.match(/const BENCH = \{[\s\S]*?\n\};/) || [""])[0] + "\nthis.B = BENCH;", c, { timeout: 500 });
+  vm.runInContext((pdm.match(/^const SNAPSHOTS = \[[\s\S]*?^\];/m) || [""])[0] + "\nthis.S = SNAPSHOTS;", c, { timeout: 500 });
+  /* ⚠ 用**全部快照**（含首期那些只有现金、无持仓的 ✓）—— 页面 buildTrendPts 也是这么取的 ✓，
+     只留 s.items 会把首期（08-28 是纯现金 ✗）跳过、基准起点错一位 → 首末比差 0.4pp ✗（第一版门禁就踩了 ✓） */
+  const B = c.B || {}, snaps = (c.S || []).filter((s) => s);
+  const bk = Object.keys(B).sort();
+  const firstSnap = snaps.length ? snaps[0].d : null;
+  const bFirst = bk.find((d) => d >= firstSnap);
+  const bLast = bk[bk.length - 1];
+  const behind = !!(bLast && snaps.length && bLast < snaps[snaps.length - 1].d);
+  const md = (d) => d && d.slice(5).replace("-", ".");
+  /* 页面用 Unicode 负号「−」(U+2212) 而非连字符「-」✗ —— 正则必须两者都认，否则负的百分数匹配不到 ✗ */
+  const SIGN = "[+\\-−]?";
+  const pct = (s) => { const m = s && s.match(new RegExp("(" + SIGN + "\\d+\\.\\d+)%")); return m ? parseFloat(m[1].replace("−", "-")) : null; };
+  /* ① 本金与收益卡（恒渲染 ✓） */
+  const concl = [...win.document.querySelectorAll(".pf-concl")].map((x) => x.textContent.replace(/\s+/g, " ")).join(" ");
+  const bPct = pct((concl.match(new RegExp("同期纳指\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
+  const yPct = pct((concl.match(new RegExp("你是\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
+  const pp = (concl.match(/(跑赢|落后)\s*(\d+\.\d+)pp/) || []);
+  const dir = pp[1], ppV = pp[2] ? parseFloat(pp[2]) : null;
+  const asof = (concl.match(/均截至\s*(\d{2}\.\d{2})/) || [])[1];
+  if (bFirst && bLast && B[bFirst]) {
+    const expect = (B[bLast] / B[bFirst] - 1) * 100;
+    check("本金收益卡「同期纳指」≡ BENCH 首末比（" + expect.toFixed(2) + "%）",
+      bPct !== null && Math.abs(bPct - expect) < 0.02, "卡上 " + bPct + "% vs 复算 " + expect.toFixed(2) + "%");
+  }
+  if (behind) {
+    check("本金收益卡结论句必须标「均截至 " + md(bLast) + "」（不跨日相减 ✗）",
+      asof === md(bLast), concl.slice(0, 90));
+    check("本金收益卡结论句同日自洽：你是 ＝ 同期纳指 ∓ pp（" + (dir === "落后" ? "落后" : "跑赢") + "）",
+      bPct !== null && yPct !== null && ppV !== null &&
+        Math.abs((dir === "落后" ? bPct - yPct : yPct - bPct) - ppV) < 0.02,
+      "同期 " + bPct + "% · 你是 " + yPct + "% · " + dir + " " + ppV + "pp");
+  }
+  /* ②③ 收益率视图：切过去再验（控件 id 同归因视图那套手法 ✓）。⚠ 数值闭环要与本金卡同窗，
+     故先点「全部」把时间档位拉到全期 ✓ —— 否则两处窗口不同、超额对不上 ✗。 */
+  const rateBtn = [...win.document.querySelectorAll('#trend-views .tchip')].find((b) => b.dataset.v === "rate");
+  if (rateBtn) {
+    rateBtn.click();
+    const allBtn = [...win.document.querySelectorAll('#trend-chips .tchip')].find((b) => b.dataset.r === "all");
+    if (allBtn) allBtn.click();
+    const legend = (win.document.querySelector(".trend-legend") || {}).textContent || "";
+    const sum = ((win.document.getElementById("trend-sum") || {}).textContent || "").replace(/\s+/g, " ");
+    const ro = ((win.document.getElementById("trend-readout") || {}).textContent || "").replace(/\s+/g, " ");
+    if (behind) {
+      check("收益率视图图例标出基准末点（同期纳指（截至 " + md(bLast) + "））",
+        legend.indexOf("截至 " + md(bLast)) >= 0, legend.slice(0, 80));
+      check("收益率视图结论句标出「基准截至 " + md(bLast) + " · 组合已到 " + md(snaps[snaps.length - 1].d) + "」",
+        sum.indexOf("基准截至 " + md(bLast)) >= 0 && sum.indexOf("组合已到 " + md(snaps[snaps.length - 1].d)) >= 0,
+        sum.slice(0, 90));
+      check("读数条在基准末点之后显「基准未到该日」，而非把上一日点位外推 ✗",
+        ro.indexOf("基准未到该日") >= 0 && /同期纳指\s*—/.test(ro), ro.slice(0, 90));
+      /* 数值闭环：收益率视图的「超额」≡ 本金卡同日的「你是 − 同期纳指」（两处独立渲染，必须同一个数 ✓）
+         —— 谁把某一处悄悄改回跨日（组合取全期 ✗），这里两处就对不上 ✗。 */
+      const exV = pct((sum.match(new RegExp("超额\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
+      if (yPct !== null && bPct !== null && exV !== null)
+        check("收益率视图「超额」≡ 本金卡同日「你是 − 同期纳指」（" + (yPct - bPct).toFixed(2) + "%）",
+          Math.abs(exV - (yPct - bPct)) < 0.02, "超额 " + exV + "% vs 你是−同期 " + (yPct - bPct).toFixed(2) + "%");
+    }
+  }
+}
 /* ④j 盈亏归因矩阵：**每行合计必须 ＝ 该期的「本期盈亏」**（2026-10-09 加，起于用户问
    「快照对比的盈亏归因要怎么优化，考虑到未来有清仓的情况」✓）
    ▸ 当时实测的 bug：10.09 行合计 **+2,939** ✗，真值 **+2,304** ✓ → 差 **+635.40**

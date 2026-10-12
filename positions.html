@@ -3080,13 +3080,18 @@ function renderTrendLegend() {
     ;
   } else if (trendView === "rate") {
     html = item("", "组合（TWR）", "蓝色实线＝资金流调整后的组合累计收益率（逐期剔除转入/转出），与基准同口径、同起点") +
-      item("base", "同期纳指", "灰色虚线＝同期纳指涨跌，已归一到与组合同一起点；两线间距即超额收益");
+      item("base", "同期纳指" + (benchIsBehind() ? "（截至 " + mdOf(benchLastDay()) + "）" : ""),
+        "灰色虚线＝同期纳指涨跌，已归一到与组合同一起点；两线间距即超额收益。" +
+        "⚠ 纳指当日收盘要等美东收盘后才有 ✓，所以基准末点常比组合晚一期（末点日期就标在这个标签上 ✓）；" +
+        "超额也在**基准末点那一天**算 ✓ —— 不跨日相减 ✗（补上后两者同日 ✓）。");
   } else if (trendView === "dd") {
     html = item("dn", "回撤", "红色实线＋面积＝资金流调整后单位净值相对历史峰值的回撤（0 在顶，越深越亏）；圆点为各期快照");
   } else {
     html = item("", "总资产", "蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）") +
       '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入＝外部净转入（含全额清仓加回）。两条线之间的竖直间距就是**累计收益（含已实现）**：资产线在上＝赚（绿色填充）；在下＝亏（不铺色，「水下」由两线相对位置表达，铺满红底会被误读成图表背景）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
-      item("base", "同节奏纳指", "灰色密虚线＝同节奏基准：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌。回答「同样的钱、同样的日期，全买纳指今天是多少」。末点＝最近一个有纳指收盘的日期（基准点位缺当日时自动停在前一天，不猜）。");
+      item("base", "同节奏纳指" + (benchIsBehind() ? "（截至 " + mdOf(benchLastDay()) + "）" : ""),
+        "灰色密虚线＝同节奏基准：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌。回答「同样的钱、同样的日期，全买纳指今天是多少」。末点＝最近一个有纳指收盘的日期（基准点位缺当日时自动停在前一天，不猜 ✓；该日期已标在标签上 ✓）。" +
+        "（基准点位由 CI 每晚跑 scripts/sync-bench.mjs 自动补 ✓、只补不覆盖 ✓。）");
   }
   el.innerHTML = html;
   syncCostBtn();
@@ -3272,6 +3277,20 @@ function benchRateAt(d) {
   if (!keys.length || typeof BENCH[d] !== "number" || !BENCH[keys[0]]) return null;
   return BENCH[d] / BENCH[keys[0]] - 1;
 }
+/* 基准点位的**末点日期**（2026-10-12 加，用户报「同期纳指数据没更上」✗）——
+   基准线/图例/结论句都要说清「它到哪天为止」✓：纳指当日收盘要等美东收盘后才有 ✓，
+   于是最新一期快照那天基准通常还没点位（末点停在上一交易日 ✓，trendBenchPts 故意不猜 ✓）。
+   图例与结论句都从这里取，不各自算一遍 ✗。 */
+function benchLastDay() {
+  if (typeof BENCH === "undefined" || !BENCH) return null;
+  const keys = Object.keys(BENCH).sort();
+  return keys.length ? keys[keys.length - 1] : null;
+}
+/* 基准是否落后于最新一期快照（是 → 图例/结论句要标「截至 X」✓） */
+function benchIsBehind() {
+  const b = benchLastDay(), s = snapAsOf();
+  return !!(b && s && b < s);
+}
 /* ---- 同节奏基准（借鉴 Portfolio Performance 的"同现金流基准组合"）------------------
  * 把组合每一期的「外部净流入」在当天按纳指点位买入，其余时间随纳指涨跌，得到一条市值链。
  * 它回答的是：**同样这些钱、同样这些日期，全部买纳指，今天会是多少？**
@@ -3315,6 +3334,12 @@ function benchCashflows(pts, bp) {
 /* 基准的相对收益，归一到「该点之前第一个有基准的日期」——与「收益率」视图内基准线**同一算法**，
    读数条据此显示「同期纳指 / 超额」，避免图与读数两处口径漂移。 */
 function benchRelAt(pts, k) {
+  /* ⚠ 2026-10-12 修：点落在基准末点之后 → 返回 null ✗→✓ —— 原来会**沿用上一个基准值** ✗
+     （10-12 那期读数条显示「同期纳指 +4.93%」= 10-09 的值 ✗），与图上「末点即止、不猜」自相矛盾 ✗。
+     依据同趋势线：BENCH 逐期由 CI（sync-bench.mjs ✓）补齐，补上就有值 ✓；没补就显式说没有 ✗，
+     而不是把上一个交易日的点位伪装成今天的 ✗。 */
+  const bEnd = benchLastDay();
+  if (!pts || !pts[k] || (bEnd && pts[k].d > bEnd)) return null;
   let b0 = null, out = null;
   for (let i = 0; i <= k; i++) {
     const b = benchRateAt(pts[i].d);
@@ -3927,16 +3952,31 @@ function renderRateView(box, pts) {
   svg += "</svg>";
   box.innerHTML = svg;
   showXhair(pts.length - 1);   // 读数条默认显示最新一期
-  const last = ser[ser.length - 1];
   /* 结论行：「当前收益率」KPI 行已有，这里只留基准对比（本视图独有）。
      口径说明收进 ⓘ，结论句本身只留「跑赢/跑输多少」。 */
   let sum, note;
   if (bi.length >= 2) {
-    const lb = bi[bi.length - 1].b;
-    sum = "同期纳指 <b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(last - lb) + "\">" + fmtPct(last - lb, 2) + "</b>";
+    /* ⚠ 2026-10-12 修（用户报「同期纳指数据没更上」✗）：原来拿**组合最新一期**减**基准最近一个点位** ✗，
+       而两者常不是同一天 —— 基准点位要靠 CI / 人工逐期记进 data.js 的 BENCH ✓，
+       纳指**当日收盘**要等美东收盘后才有（北京时间次日凌晨）✓，所以最新一期快照那天基准通常还没点位 ✗
+       （末点停在上一交易日 ✗，trendBenchPts 也是故意不猜的 ✓）。
+       实测：组合 +1.70%（10-12）减 纳指 +1.79%（10-09）＝「超额 −0.09%」✗ —— 这是**跨日相减** ✗。
+       改法：超额一律在**基准末点那一天**算 ✓（组合取同一天的那个点 bi[末位].i ✓），
+       并在句子里点明基准末点日期 ✓ ——「同期」两个字只有同一天才成立 ✓。 */
+    const bLast = bi[bi.length - 1];
+    const lb = bLast.b, iB = bLast.i;
+    const benchBehind = iB < pts.length - 1;                 // 基准还没跟上最新一期 ✓
+    sum = "同期纳指 <b>" + fmtPct(lb, 2) + "</b> · 超额 <b class=\"" + cls(ser[iB] - lb) + "\">" + fmtPct(ser[iB] - lb, 2) + "</b>"
+      + (benchBehind
+        ? ' <span class="trend-asof">基准截至 ' + (mdOf(pts[iB].d) || "?") + " · 组合已到 " + (mdOf(pts[pts.length - 1].d) || "?") + " ✓</span>"
+        : "");
     note = "两条线都是「相对起点的累计收益率」，且**同起点**：组合取快照首期、纳指取首个有基准的日期，故可直接比差值。" +
       "组合线用资金流调整口径（TWR，逐期剔除转入/转出），与指数同口径——用成本口径去比会得出错误的超额。" +
-      "基准为纳指 NDX 收盘价，逐期记在 data.js 的 BENCH（缺期自动跳过）。";
+      "基准为纳指 NDX 收盘价，逐期记在 data.js 的 BENCH（缺期自动跳过）。" +
+      (benchBehind
+        ? "⚠ 基准末点比组合晚一期：纳指当日收盘要等美东收盘后才有 ✓，所以**超额在基准末点那一天算** ✓（不做跨日相减 ✗）；" +
+          "补上后（CI 每晚跑 scripts/sync-bench.mjs 自动补 ✓）两者就同日了 ✓。"
+        : "");
   } else {
     sum = "<span style=\"color:var(--tx3)\">基准待补</span>";
     note = "基准待补：在 data.js 的 BENCH 记入各期 NDX 收盘即可对比（可跑 node scripts/sync-bench.mjs 自动补）。";
@@ -4020,6 +4060,9 @@ function showXhair(i) {
         roCell("同期纳指", bi === null ? "—" : fmtPct(bi, 2), null, bi === null ? "" : cls(bi)) +
         roCell("超额", ex === null ? "—" : fmtPct(ex, 2), null, ex === null ? "" : cls(ex)) + "</div>" +
       '<div class="ro-attr"><span class="nb"><span class="ro-k">超额 ＝ 组合 − 同期纳指（同口径同起点）</span></span>' +
+        (bi === null && p.d > (benchLastDay() || "")
+          ? '<span class="nb"><span class="ro-k">基准未到该日</span>末点 ' + (mdOf(benchLastDay()) || "?") + '</span>'
+          : "") +
         '<span class="nb"><span class="ro-k">· 成本口径</span>' + roPct(rr) + "</span></div>";
   } else if (mode === "dd") {
     const N = trendNavCached(L.pts);
@@ -5123,9 +5166,25 @@ function prRateSec() {
     const bIn = (bPts && bk.length) ? bk.filter((d) => d >= bPts[0].d && d <= bPts[bPts.length - 1].d) : [];
     const bTwr = bIn.length >= 2 ? BENCH[bIn[bIn.length - 1]] / BENCH[bIn[0]] - 1 : null;
     const bLast = bIn.length ? bIn[bIn.length - 1] : null;
+    /* ⚠ 2026-10-12 修：与基准比的那一段必须**同日** ✗→✓ —— 基准末点（bLast，纳指当日收盘
+       要等美东收盘 ✓）常常早于组合末期（最新快照 ✓），拿全期组合 TWR 去减它＝跨日相减 ✗
+       （用户当天报的「同期纳指没更上」正是这一类 ✗）。改法：组合 TWR 裁到 bLast 那天再比 ✓，
+       并在句子里写明基准末点 ✓。与「资产走势」收益率结论句同一规则 ✓（那一处同日修过 ✓）。 */
+    const rSame = (bLast && rPts[rPts.length - 1].d > bLast) ? rPts.filter((p) => p.d <= bLast) : rPts;
+    const twrOf = (arr) => {
+      if (!arr || arr.length < 2) return null;
+      const t = calcTWR(arr);
+      return t === null ? trendNav(arr).nav[arr.length - 1] - 1 : t;   // 与上面 twr 同一套兜底 ✓
+    };
+    const twrSame = twrOf(rSame);
+    const benchBehind = !!(bLast && rPts[rPts.length - 1].d > bLast);
     const days = cf ? cf.days : 0;
     const ann = days >= 90;                                  // 与走势 KPI 同规则
     const annT = (v) => (v === null || !ann ? v : Math.pow(1 + v, 365 / days) - 1);
+    /* 同日比较段的年化（基准末点早于组合末期时，跨度要按基准那段算，不能拿全期天数年化一段截断值 ✗） */
+    const daysSame = benchBehind ? Math.max(1, Math.round((Date.parse(bLast) - Date.parse(rPts[0].d)) / 86400000)) : days;
+    const annSame = daysSame >= 90;
+    const annTS = (v) => (v === null || !annSame ? v : Math.pow(1 + v, 365 / daysSame) - 1);
     const pc = (v) => (v === null || v === undefined ? "—" : fmtPct(v, 2));
     /* TWR 是「区间累计」（不足 90 天不年化）；XIRR 天生是年化 —— 两者跨度短时不可相减，
        否则等于拿 24 天的累计去减一个年化值（实测会造出 +14.77pp 这种假信号）。
@@ -5134,14 +5193,15 @@ function prRateSec() {
     const gap = (ann && xirr !== null && twr !== null) ? xirr - twr : null;
     /* 一句话结论：先回答「该看什么」。原来把 TWR / XIRR / 同节奏三行平铺，读者得自己找哪个是结论；
        口径说明一字未动，仍在下面的折叠块里。 */
-    if (twr !== null && bTwr !== null) {
-      const beat = twr - bTwr;
+    if (twrSame !== null && bTwr !== null) {
+      const beat = twrSame - bTwr;   // ⚠ 同日相减 ✓（组合裁到基准末点 bLast，见 twrSame 处注释）
       /* 措辞按 TWR 口径说：这里比的是「时间加权」——指数没有资金流，它的 TWR 就是指数涨跌本身，
          所以「同期纳指」与「同节奏纳指（同样的钱同样的日期）」在 TWR 口径下是同一个数，不必分开说。
          只有金额 / 资金加权口径下两者才会分叉（见「资产走势」的说明）。 */
-      conclLine = '<div class="pf-concl">同期纳指 <b>' + pc(annT(bTwr)) + "</b>，你是 <b class=\"" + cls(twr) + "\">" + pc(annT(twr)) +
-        "</b>（同为时间加权口径）→ <b class=\"" + cls(beat) + "\">" + (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>" +
-        (ann ? "" : " · 跨 " + Math.round(days) + " 天，样本太短不年化") + "</div>";
+      conclLine = '<div class="pf-concl">同期纳指 <b>' + pc(annTS(bTwr)) + "</b>，你是 <b class=\"" + cls(twrSame) + "\">" + pc(annTS(twrSame)) +
+        "</b>（同为时间加权口径" + (benchBehind ? "，均截至 " + mdOf(bLast) : "") + "）→ <b class=\"" + cls(beat) + "\">" +
+        (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>" +
+        (annSame ? "" : " · 跨 " + Math.round(daysSame) + " 天，样本太短不年化") + "</div>";
     }
     rateSec = '<details class="pf-fold"><summary class="snap-sec">收益率口径 <span class="snap-cnt">（首期 ' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
         " · TWR " + pc(annT(twr)) + (ann ? " · XIRR " + pc(annT(xirr)) : " · XIRR 暂不年化") +
@@ -5158,7 +5218,7 @@ function prRateSec() {
         '<span class="snap-sub" title="同节奏基准：把每一期的外部净流入在当天按纳指收盘买入（现金流与组合完全相同）">同样的钱、同样的日期全买纳指' +
         (bXirr !== null && ann ? "（XIRR " + pc(annT(bXirr)) + "）" : "") +
         (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") +
-        " → 你" + (twr >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twr - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
+        " → 你" + (twrSame >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twrSame - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
       "</div></details>";
   }
   return { sec: rateSec, concl: conclLine };
