@@ -130,6 +130,14 @@ check("汇总卡总资产 = 最新快照 " + money(snapTotal), near(sumText, sna
    closedGap 由本文件独立复算（读 data.js 的 POSITIONS.log），不读页面中间量 ✓。 */
 check("汇总卡累计收益 = 最新快照 pl − 全额清仓已实现 " + money(latest.pl - closedGap),
   near(sumText, latest.pl - closedGap), sumText.slice(0, 140));
+/* ③-2 汇总卡「本金」（2026-10-12 加）：页面上本金有**两条实现路径** ✗ ——
+     实时路径（renderImpl：Σ摊薄成本 ＋ 现金 ＋ 清仓修正）与快照路径（snapCost：总资产 − pl 或
+     裸成本 ＋ closedCostGap）—— 同一公式、两个输入源，任一漂移这里就红 ✓。
+   判据用**快照口径独立复算**：本金 ≡ 总资产 − 累计收益（＝ snapTotal − (pl − closedGap)）✓，
+   容差 3 元与总资产那条同源（页面是逐只取整后求和 ✓）。 */
+check("汇总卡本金 = 总资产 − 累计收益（快照口径独立复算，容差 3 元）",
+  near(sumText, snapTotal - (latest.pl - closedGap), 3),
+  "页面合计 " + sumText.slice(0, 60) + " … 复算 " + money(snapTotal - (latest.pl - closedGap)));
 
 /* ③b 汇总卡「当日盈亏」= 场内估 + 场外【预估】（2026-10-03：场外那半从"App 快照"换成"指数×仓位补齐"）
    两段的性质不同，必须分开断言：
@@ -406,6 +414,23 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   }).map((o) => o.k + "（应为 " + lastSell[o.k] + "）");
   check("清仓历史明细：场内每只「清仓日」= 该标的最后一笔卖出日（" + etfClosed.length + " 只）",
     badD.length === 0, badD.length ? "对不上：" + badD.join("、") : "逐只核对通过 ✓");
+  /* ④b-2 清仓卡「聚合读数」两行（2026-10-12 加）：胜率 / 平均持有 / 单笔极值
+     这两行属于"数据早就有（data.js 的 CLOSED.winRate/avgHoldDays 与 CLOSED_ETF 同名字段 ✓）、
+     页面此前只显示合计 ✗" —— 补显示时最容易抄错数字，故**逐值锚到 data.js 文件**（不读页面中间量 ✓）。 */
+  const CLOSED_D = (() => { try { const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED = \{[\s\S]*?^\};/m); if (!m) return null; const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED;", c, { timeout: 500 }); return c.o; } catch (e) { return null; } })();
+  const CLOSED_ETF_D = (() => { try { const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED_ETF = \{[\s\S]*?^\};/m); if (!m) return null; const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED_ETF;", c, { timeout: 500 }); return c.o; } catch (e) { return null; } })();
+  const oAgg = cardEl ? cardEl.querySelector("#closed-otc-agg") : null;
+  const eAgg = cardEl ? cardEl.querySelector("#closed-etf-agg") : null;
+  const attrOf = (el, k) => (el ? el.getAttribute(k) : null);
+  check("清仓卡：场外聚合（胜率 / 平均持有 / 笔数）≡ data.js CLOSED 逐值",
+    !!oAgg && !!CLOSED_D && +attrOf(oAgg, "data-winrate") === CLOSED_D.winRate
+      && +attrOf(oAgg, "data-hold") === CLOSED_D.avgHoldDays && +attrOf(oAgg, "data-n") === CLOSED_D.count,
+    oAgg ? "胜率 " + attrOf(oAgg, "data-winrate") + "% · 持有 " + attrOf(oAgg, "data-hold") + " 天 · " + attrOf(oAgg, "data-n") + " 笔（数据 " + CLOSED_D.winRate + "% / " + CLOSED_D.avgHoldDays + " 天 / " + CLOSED_D.count + " 笔）" : "卡里没有 #closed-otc-agg（聚合行没渲染）✗");
+  check("清仓卡：场内聚合（胜率 / 平均持有 / 单笔最大亏损 / 平均盈利）≡ data.js CLOSED_ETF 逐值",
+    !!eAgg && !!CLOSED_ETF_D && +attrOf(eAgg, "data-winrate") === CLOSED_ETF_D.winRate
+      && +attrOf(eAgg, "data-hold") === CLOSED_ETF_D.avgHoldDays && +attrOf(eAgg, "data-maxloss") === CLOSED_ETF_D.maxLoss
+      && +attrOf(eAgg, "data-avgwin") === CLOSED_ETF_D.avgWin,
+    eAgg ? "胜率 " + attrOf(eAgg, "data-winrate") + "% · 持有 " + attrOf(eAgg, "data-hold") + " 天 · 最大亏损 " + attrOf(eAgg, "data-maxloss") : "卡里没有 #closed-etf-agg ✗");
   /* ④c 盈亏总览的「清仓累计已兑现」行（2026-10-09 加）——
      它与本块 ① 的「清仓历史总行」是**同一批数字的两处显示**，分列两张卡就有漂移风险 → 必须断言一致 ✓。
      取的是行上的 data-pl（**精确值**）：卡片显示值按整元取整（fmtAmt ✗），0.01 容差的断言在显示值上
@@ -1637,6 +1662,28 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     /var\(--red\)/.test(defUp) && /var\(--green\)/.test(defDown), "--up: " + defUp + " · --down: " + defDown);
   check("财务页无 JS 报错", ferr.length === 0, ferr.slice(0, 3).join(" | "));
   fdom.window.close();
+}
+
+/* ⑤b 场外明细的「备注 / 限购退回」（2026-10-12 加）────────────────────────────────
+   数据早就有（OTC_LOG 的 note / req / refund ✓），此前页面上看不见 ✗ —— 于是两件最常被追问的
+   事答不上来：「这笔几点成交 / 走哪家银行 / 为什么失败」「限购下计划投 1,000、实际成交 100、退回 900」。
+   断言口径是**逐笔逐值**：页面渲染出的备注条数 ≡ 数据里有 note 的笔数 ✓、限购条数 ≡ 有 req 的笔数 ✓
+   （抄漏一笔、或忘渲染某一类都会当场红 ✗），再抽一条失败原因要求真的印出来 ✓。 */
+{
+  const OTC_LOG_D = (() => { try { const c = vm.createContext({}); vm.runInContext(dataSrc + "\nthis.o = OTC_LOG;", c, { timeout: 800 }); return c.o; } catch (e) { return null; } })();
+  const logBox = win.document.getElementById("otclog-card");
+  const flat = OTC_LOG_D ? Object.keys(OTC_LOG_D).map((k) => OTC_LOG_D[k]).filter(Array.isArray).flat() : [];
+  const wantNote = flat.filter((t) => t && t.note).length;
+  const wantReq = flat.filter((t) => t && Number.isFinite(t.req)).length;
+  const gotNote = logBox ? logBox.querySelectorAll(".d-note").length : 0;
+  const gotReq = logBox ? logBox.querySelectorAll(".d-req").length : 0;
+  check("场外明细：对账单备注逐笔显示（" + gotNote + " / " + wantNote + " 条）",
+    wantNote > 0 && gotNote === wantNote, "数据 " + wantNote + " 条 · 页面 " + gotNote + " 条（逐笔对齐 ✓ 差一条即失败 ✗）");
+  check("场外明细：限购「计划 / 退回」逐笔显示（" + gotReq + " / " + wantReq + " 条）",
+    wantReq > 0 && gotReq === wantReq, "数据 " + wantReq + " 条 · 页面 " + gotReq + " 条");
+  const ltxt = logBox ? logBox.textContent : "";
+  check("场外明细：失败/撤单笔写明原因（页面上能看到「银行卡限额失败」）",
+    /银行卡限额失败/.test(ltxt) && /退回 900/.test(ltxt), /银行卡限额失败/.test(ltxt) ? "备注与退回都在 ✓" : "页面没出现失败原因 ✗");
 }
 
 /* ⑥ 决策看板 index.html（2026-10-12 第二批加）─────────────────────────────────────
