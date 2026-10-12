@@ -1849,6 +1849,36 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     to15 <= 1e-9 ? /已到档/.test(t15) : near2(numOf("ndx-to15"), to15),
     "页面「" + t15 + "」vs 复算 " + to15.toFixed(2) + "pp");
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
+  /* ⑦ 数据有效性面板的两条文案契约（2026-10-12 加，用户当天直接看到并问上来「有效期好像很多没更新」）：
+     ① 人工维护项（SOURCE_META 里 status: "manual"，如 epsGrowth）**不许**再被报成「未核验来源日期」✗
+        —— 它没有自动源、本来就没有"核验日"可言，混在可疑源里会让整块面板失真 ✗；
+     ② 「超过有效期」必须带上**滞后交易日数**（+ 该源的发布节奏）✗ —— 只写结论看不出严重程度
+        （估值一滞后就是几十个交易日，用户正是被这四个字问上来的 ✓）。
+     两条都从 data.js 的 SOURCE_META / SOURCE_POLICY 独立推导 ✓，不读页面的中间量 ✓。 */
+  {
+    const dm = readFileSync(path.join(root, "data.js"), "utf8");
+    const mctx = vm.createContext({});
+    const metaSrc = (dm.match(/const SOURCE_META = \{[\s\S]*?\n\};/) || ["const SOURCE_META = {};"])[0];
+    vm.runInContext(metaSrc + "\nthis.M = SOURCE_META;", mctx, { timeout: 500 });
+    const manual = Object.entries(mctx.M).filter(([, m]) => m.status === "manual");
+    const panelTxt = ((idoc.getElementById("source-rows") || {}).textContent || "").replace(/\s+/g, " ");
+    const sumTxt = ((idoc.getElementById("source-summary") || {}).textContent || "").replace(/\s+/g, " ");
+    check("数据有效性面板：人工维护项单列（" + (manual.map(([k]) => k).join("/") || "无") + "），不混进「未核验来源日期」✗",
+      manual.length === 0
+        ? sumTxt.indexOf("人工维护") < 0
+        : sumTxt.indexOf("人工维护 " + manual.length + " 项") >= 0 && panelTxt.indexOf("人工维护") >= 0,
+      "汇总「" + sumTxt.slice(0, 90) + "」");
+    const staleRow = [...idoc.querySelectorAll("#source-rows > div")].map((d) => d.textContent.replace(/\s+/g, " "))
+      .filter((t) => /超过有效期/.test(t));
+    const noDays = staleRow.filter((t) => !/滞后 \d+ 个交易日/.test(t));
+    check("数据有效性面板：「超过有效期」必须带滞后交易日数（" + staleRow.length + " 行）",
+      noDays.length === 0,
+      noDays.length ? "缺天数：" + noDays[0].slice(0, 90) : "逐行都带天数 ✓");
+    /* 含 PE 的项降级时，估值节奏那句说明必须在（③ 的契约 ✓） */
+    if (staleRow.some((t) => /PE/.test(t)))
+      check("数据有效性面板：估值降级时明示「按季/不定期发布，不是抓取失败」✓",
+        panelTxt.indexOf("按季或不定期发布") >= 0, panelTxt.slice(0, 120));
+  }
   idom.window.close();
 }
 

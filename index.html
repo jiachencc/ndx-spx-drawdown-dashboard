@@ -1744,7 +1744,11 @@ function renderSourceHealth() {
   const keys = ["ndx", "spx", "vix", "tnx", "tnx2", "fx", "peFwd", "peTtm", "pePct", "ndxPeFwd", "ndxPePct", "cape", "putcall", "epsGrowth", "crosscheck"];
   const all = keys.map(k => sourceHealth(k));
   const ok = all.filter(h => h.usable), bad = all.filter(h => !h.usable);
-  $("source-summary").textContent = "数据有效性 " + ok.length + "/" + all.length + " 在有效期"
+  /* 人工维护项单列（2026-10-12 加）：epsGrowth 这类没有自动源、也没抓取时刻 ✓ ——
+     把它算进「在有效期」会误导（它根本没有"有效期"可言 ✗），所以从计数里摘出来单独写 ✓。 */
+  const manual = ok.filter(h => h.status === "manual");
+  $("source-summary").textContent = "数据有效性 " + (ok.length - manual.length) + "/" + all.length + " 在有效期"
+    + (manual.length ? " · 人工维护 " + manual.length + " 项" : "")
     + (bad.length ? " · 降级 " + bad.length + " 项：" + bad.map(h => h.label).join("、") : "");
   /* 降级项逐行给出原因；有效项压成一行 chips（日期缩到 MM-DD，来源与抓取时刻移到悬停）。 */
   const root = $("source-rows"); root.replaceChildren();
@@ -1759,8 +1763,20 @@ function renderSourceHealth() {
       const v = document.createElement("span"); v.textContent = h.text; v.style.cssText = "color:var(--tx3)"; v.title = provenance(h);
       row.append(n, v); root.appendChild(row);
     });
+    /* 估值节奏说明（2026-10-12 加，用户 10-12 问「有效期好像很多没更新」）：
+       估值那几项一滞后就是几十个交易日，光写「超过有效期」会被读成「我们抓挂了」✗ ——
+       实测是源方按季/不定期发布（forward-pe.json 末点停在 08-05，而同站 cape 已到 10-09 ✓）。
+       这句话只在**含 PE 的项确实降级时**出现 ✓（估值正常时不占版面 ✓）。 */
+    if (bad.some(h => /^(peFwd|peTtm|pePct|ndxPeFwd|ndxPePct)$/.test(h.key))) {
+      const cad = document.createElement("div");
+      cad.textContent = "注：估值（PE / PE 分位）由源方按季或不定期发布，滞后属它的正常节奏、不是抓取失败；"
+        + "滞后期间含 PE 的规则仅供参考（规则行内已标各自滞后天数）。";
+      cad.style.cssText = "font-size:11px;margin:2px 0 4px;color:var(--tx3)";
+      root.appendChild(cad);
+    }
   }
-  root.appendChild(heading("有效期内 " + ok.length + " 项（悬停查看来源与抓取时刻）", "var(--tx3)"));
+  root.appendChild(heading("有效期内 " + (ok.length - manual.length) + " 项（悬停查看来源与抓取时刻）"
+    + (manual.length ? " · 人工维护 " + manual.length + " 项" : ""), "var(--tx3)"));
   const chips = document.createElement("div");
   chips.style.cssText = "display:flex;flex-wrap:wrap;gap:3px 12px";
   ok.forEach(h => {
@@ -1769,7 +1785,7 @@ function renderSourceHealth() {
        但口径已经变了（ATH 从 10 年最高退化成 4 年最高），而来源字符串只挂在悬停 title 里 ——
        手机上根本看不到（2026-09-27 加：核心指数换源时必须让用户知道）。 */
     const caveat = /not 10y|fallback|4y window/i.test(h.source + " " + (SOURCE_META[h.key]?.methodology || ""));
-    s.textContent = h.label + " " + (h.asOf || "").slice(5) + (caveat ? " ⚠降级源" : "");
+    s.textContent = h.label + (h.status === "manual" ? " 人工维护" : " " + (h.asOf || "").slice(5)) + (caveat ? " ⚠降级源" : "");
     s.style.cssText = "color:" + (caveat ? "var(--yellow)" : "var(--tx3)") + ";font-family:var(--mono)";
     s.title = provenance(h) + (caveat ? "；⚠ 该源当前为降级口径（详见 methodology）" : "");
     chips.appendChild(s);
@@ -1783,7 +1799,10 @@ function renderSourceHealth() {
     const card = $(id)?.closest(".card"); if (!card) return;
     let note = card.querySelector(".source-health-note");
     if (!note) { note = document.createElement("div"); note.className = "source-health-note note"; card.appendChild(note); }
-    note.textContent = ks.map(k => { const h = sourceHealth(k); return h.usable ? h.label + " " + (h.asOf || "—").slice(5) : "⚠ " + h.label + "（" + h.text + "）"; }).join(" · ");
+    note.textContent = ks.map(k => { const h = sourceHealth(k);
+      /* 人工维护项单独写（2026-10-12 加）：它 usable ✓ 但没有 asOf ✗，照原样会印成「EPS预期（人工） —」✗ */
+      if (h.status === "manual") return h.label + "（" + h.text + "）";
+      return h.usable ? h.label + " " + (h.asOf || "—").slice(5) : "⚠ " + h.label + "（" + h.text + "）"; }).join(" · ");
   });
 }
 

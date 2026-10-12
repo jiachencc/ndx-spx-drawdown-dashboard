@@ -3496,6 +3496,15 @@ const SOURCE_META = {
     "status": "ok",
     "deltaPct": 0,
     "compared": "NDX 0.00%, SPX 0.00%"
+  },
+  /* 人工维护项（2026-10-12 加）：DEFAULT.epsGrowth 是手填的「盈利增速预期」，**没有自动源** ✗ ——
+     此前 SOURCE_META 里没有它，sourceHealth 就把它报成「未核验来源日期」✗，在「数据有效性」面板上
+     跟真的可疑源混在一起（用户 10-12 正是被这条误导的 ✓）。现在显式标 status: "manual" ✓：
+     没记核验日就写「人工维护（无自动源）」✓，将来手填了 asOf 才按 maxDays 判新鲜度 ✓。 */
+  "epsGrowth": {
+    "asOf": null,
+    "source": "人工维护：盈利增速预期（无免费源，人工维护）",
+    "status": "manual"
   }
 };
 /* AUTO_META_END */
@@ -3508,10 +3517,17 @@ const SOURCE_POLICY = {
   vix: { label: "VIX", maxDays: 1 },
   tnx: { label: "10Y", maxDays: 1 }, tnx2: { label: "2Y", maxDays: 1 },
   fx: { label: "USD/CNY", maxDays: 2 },
-  // 估值是周/月度序列，末点常滞后数周（2026-08-05 那次滞后约 40 天），门限按发布节奏给，不按日频卡
-  peFwd: { label: "SPX Forward PE", maxDays: 45 }, peTtm: { label: "SPX TTM PE", maxDays: 45 },
-  pePct: { label: "SPX PE分位", maxDays: 45 }, cape: { label: "CAPE", maxDays: 7 },
-  ndxPeFwd: { label: "NDX Forward PE", maxDays: 45 }, ndxPePct: { label: "NDX PE分位", maxDays: 45 },
+  /* 估值是周/月度序列，末点常滞后数周甚至数月，门限按发布节奏给、不按日频卡。
+     ⚠ 2026-10-12 实测澄清（用户问「很多没更新」）：源方 `forward-pe.json` 的 forward 序列末点
+       **仍停在 2026-08-05**（且它的 `current` 块**没有日期字段**），而同站 `pe.json` 的 cape 已到 10-09
+       → 是**源按季/不定期发布** ✗，不是我们没抓 ✓（我们存的 20.12 / 22.37 与源的 current 逐位相同 ✓）。
+     `cadence` 会拼进「超过有效期」的文案里 ✓（2026-10-12 加，见 sourceHealth）。 */
+  peFwd: { label: "SPX Forward PE", maxDays: 45, cadence: "源方按季/不定期发布" },
+  peTtm: { label: "SPX TTM PE", maxDays: 45, cadence: "源方按季/不定期发布" },
+  pePct: { label: "SPX PE分位", maxDays: 45, cadence: "源方按季/不定期发布" },
+  cape: { label: "CAPE", maxDays: 7 },
+  ndxPeFwd: { label: "NDX Forward PE", maxDays: 45, cadence: "源方按季/不定期发布" },
+  ndxPePct: { label: "NDX PE分位", maxDays: 45, cadence: "源方按季/不定期发布" },
   crosscheck: { label: "交叉校验（新浪 vs Yahoo）", maxDays: 1 },
   putcall: { label: "Put/Call", maxDays: 2 }, epsGrowth: { label: "EPS预期（人工）", maxDays: 30 },
   etfNdx: { label: "159941 报价", maxDays: 1 }, etfSpx: { label: "513650 报价", maxDays: 1 },
@@ -3532,6 +3548,18 @@ function sourceHealth(key, now = new Date(), meta = SOURCE_META) {
   const zone = /^(etfNdx|etfSpx|kr|n225|hkus|premium:)/.test(key) ? "Asia/Shanghai" : "America/New_York";
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(now);
   const validDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || "") && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
+  /* 人工维护项（2026-10-12 加）—— 如 epsGrowth（盈利增速预期，无免费源 ✗）：它没有自动抓取、
+     自然也没有 fetchedAt，但把它当「未核验来源日期」报出来是**误报** ✗（用户 10-12 在「数据有效性」
+     面板上就被这条误导了 ✓）。改为独立状态：记了核验日就按 maxDays 判新鲜度 ✓，没记就明说
+     「人工维护（无自动源）」✓ —— 既不假装它可疑 ✗，也不假装它有自动源 ✓。 */
+  if (m && m.status === "manual") {
+    const days0 = validDate(m.asOf) ? tradingDaysBetween(m.asOf, today) : null;
+    const over = days0 !== null && days0 > policy.maxDays;
+    return { key, label: policy.label, usable: !over, status: over ? "stale" : "manual", days: days0,
+      asOf: m.asOf || null, source: m.source || "人工维护",
+      short: over ? "超期 " + days0 + " 个交易日" : "人工维护",
+      text: over ? "人工维护项已超有效期（核验日 " + m.asOf + " · 滞后 " + days0 + " 个交易日）" : "人工维护（无自动源）" };
+  }
   if (!m || !validDate(m.asOf) || !validDate(today) || m.asOf > today) {
     return { key, label: policy.label, usable: false, status: "unverified", text: "未核验来源日期", short: "未核验来源日期", asOf: m?.asOf || null, source: m?.source || "未记录" };
   }
@@ -3540,9 +3568,16 @@ function sourceHealth(key, now = new Date(), meta = SOURCE_META) {
   /* `short` = 给规则旁标签用的**短句**（2026-09-27 加）：`text` 会把抓取失败的具体原因
      （最多 48 字符）拼进去，放在正文标签里直接撑爆窄屏（实测 390px 溢出 36px）。
      原因仍然完整保留在 text / 数据有效性面板里，标签只给结论。 */
-  const short = status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? "抓取失败" : "超过有效期";
+  const short = status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? "抓取失败" : "超期 " + days + " 个交易日";
+  /* ⚠ 「超过有效期」原来的文案只有结论、没有**滞后多少天**（2026-10-12 改）—— 估值那 5 项一滞后
+     就是几十个交易日，「超过有效期」看不出严重程度 ✗（同日用户就是被这几个字问上来的 ✓）。
+     现在带上「源末点日期 ＋ 滞后交易日数 ＋（若该源有 cadence）发布节奏」✓ ——
+     面板行内、各卡下方的小注都读同一个 text ✓，一处改全都跟着改 ✓。 */
+  const isStale = status !== "ok" && status !== "unverified" && m.status !== "retained";
   return { key, label: policy.label, usable: status === "ok", status, days, asOf: m.asOf, source: m.source || "未记录", short,
-    text: status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? (m.error ? "抓取失败：" + m.error.slice(0, 48) : "抓取失败，沿用旧值") : "超过有效期" };
+    text: status === "ok" ? "有效期内" : status === "unverified" ? "口径待核验" : m.status === "retained" ? (m.error ? "抓取失败：" + m.error.slice(0, 48) : "抓取失败，沿用旧值")
+      : isStale ? "超过有效期（源末点 " + m.asOf + " · 滞后 " + days + " 个交易日" + (policy.cadence ? " · " + policy.cadence : "") + "）"
+      : "超过有效期" };
 }
 
 /* Single source for every decision number. Views must read these (or the state

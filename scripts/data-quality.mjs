@@ -138,7 +138,10 @@ export function validateModel(m) {
     }
   }
   for (const [k, meta] of Object.entries(m.SOURCE_META || {})) {
-    if (!["ok", "retained", "unverified"].includes(meta.status) || (meta.asOf !== null && !isDate(meta.asOf)) || typeof meta.source !== "string") errors.push("invalid provenance " + k);
+    /* "manual" ＝ 人工维护项（2026-10-12 加）：源码里手填、没有自动抓取，所以既没有 fetchedAt、
+       也允许 asOf 为 null（＝「未记录核验日」）。此前白名单只有 ok / retained / unverified ✗，
+       于是给 DEFAULT.epsGrowth 补一条 provenance 会被判 invalid ✗ —— 见 sourceHealth 的 manual 分支。 */
+    if (!["ok", "retained", "unverified", "manual"].includes(meta.status) || (meta.asOf !== null && !isDate(meta.asOf)) || typeof meta.source !== "string") errors.push("invalid provenance " + k);
   }
   /* 场外当日收益预估的输入（AUTO，scripts/fetch-nowcast.mjs 写）：
      允许整块缺失（老数据 / 脚本没跑）—— 页面会退回 App 快照口径，不该报错；一旦存在，形状必须对。
