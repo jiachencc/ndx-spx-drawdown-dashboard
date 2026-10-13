@@ -81,7 +81,22 @@ const money = (n) => Math.abs(Math.round(n)).toLocaleString("en-US");
    2026-09-24 首次出现「负数当期盈亏」就集体误报 —— 取出的是 3,041 而快照是 −3,041.40，
    |3041 − (−3041.4)| = 6082 → 四条断言全挂（浮盈亏 / 当日 / 场外快 / 走势卡读数）。 */
 const numsOf = (t) => (t.match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || []).map((s) => +s.replace(/,/g, "").replace("−", "-"));
-const near = (t, v, tol = 1) => numsOf(t).some((n) => Math.abs(n - v) <= tol);
+/* ⚠ 页面对**负值**用「↓ ＋ 绝对值」表达（positions.html 的 arrow()：有箭头就不再印负号 ✗）——
+   2026-10-13 期「本期盈亏」第一次为负 ✗，只抓数字的写法把 ↑/↓ 丢了 → 三条断言当场全红 ✗
+   （组小计写成「当日↓1,812」✓ 门禁拿到 +1812 ✗）。arrowNums：把箭头还原成符号 ✓；
+   数字自带 − 时以它为准、不叠符号 ✓；没有箭头时与原来的 numsOf 行为完全一致 ✓。 */
+const arrowNums = (t) => {
+  const out = []; let sign = 1, m;
+  const re = /([↑↓])|([-−]?\d[\d,]*(?:\.\d+)?)/g;
+  while ((m = re.exec(String(t)))) {
+    if (m[1]) { sign = m[1] === "↓" ? -1 : 1; continue; }
+    const raw = m[2];
+    out.push(/^[-−]/.test(raw) ? +raw.replace(/,/g, "").replace("−", "-") : sign * +raw.replace(/,/g, ""));
+    sign = 1;
+  }
+  return out;
+};
+const near = (t, v, tol = 1) => arrowNums(t).some((n) => Math.abs(n - v) <= tol);
 
 const checks = [];
 const check = (name, ok, detail) => checks.push({ name, ok, detail });
@@ -537,8 +552,10 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   });
   const arts = [...win.document.querySelectorAll("#snap-list article.snap-item")];
   const gs = arts.length ? [...arts[0].querySelectorAll(".snap-group-sum")] : [];
+  /* ⚠ 取数走 arrowNums（2026-10-13 修）：页面对负值印「当日↓1,812」✗（箭头就是符号 ✓），
+     原来只抓数字 → 拿到 **+1812** ✗ vs 复算 −1812.40 ✗（本期首次出现负值，两条当场报红 ✓）。 */
   const gn = (el) => {
-    const m = (el.textContent.match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || []).map((s) => +s.replace(/,/g, "").replace("−", "-"));
+    const m = arrowNums(el.textContent);
     return m.length ? m[m.length - 1] : null;
   };
   const gotIn = gs.length > 0 ? gn(gs[0]) : null;
@@ -1858,22 +1875,48 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
         : "既没有对账行、也没有 .est-cmp.wait 提示 ✗（用户会以为这功能没做 ✓）");
   } else {
     const badE = [];
+    let lagN = 0;
     rowsE.forEach((tr) => {
       const code = tr.getAttribute("data-cmp-code"), d = tr.getAttribute("data-cmp-d");
       const f = (OTC2.funds || []).filter((x) => x.code === code)[0];
       const hit = ((log2[code] || []).filter((x) => x.d === d)[0]) || null;
       if (!f || !hit) { badE.push(code + " 在台账/OTC 里找不到目标日 " + d); return; }
+      /* ⚠ 2026-10-13：台账（CI 按**东财净值序列**回填 ✓）可能**落后 App 读数一期** ✗ ——
+         本期实测：台账最新 10-09，而 App 已到 10-12（QDII 净值发布快于 CI 源 ✓，属**正常状态** ✗）。
+         此时「目标日 ＝ App 净值日」这个**前提**不成立 ✗ → 拿 App 的最新净值去比台账的旧目标日
+         就是跨日相减 ✗（与今天修的同期纳指/场内徽标同一类 ✗）。改为：不同日时**只验该行已标出** ✓
+         （行内出现 App 日期 chip ✓，与 ④q-2 同一契约 ✓），并把只数写进断言名 ✓（不静默跳过 ✗）。 */
+      const sameDay = d === (f.nav && f.nav.closeDate);
+      if (!sameDay) {
+        /* 台账日 ≠ App 净值日（CI 的东财序列落后 App 一期 ✓，是**正常状态** ✗，不是数据错 ✓）→
+           **不做跨日比对** ✗；仍验三件**同源**的事 ✓（牙一颗不少 ✓，只是不拿 App 的数减台账的数 ✗）：
+             ① est ≡ 台账那条（独立来源：data.js 的 NOWCAST_LOG ✓）
+             ② 差 ≡ 实际 − 预估 ✓（页面自己的两列必须自洽 ✓）
+             ③ 金额差 ≡ 差 ÷ 100 × 市值 ✓
+           ⚠ 页面这张表的 est / act **都来自台账**（脚本按东财序列回填 ✓，见 fetch-nowcast 注释 ✓），
+             本来就与 App 读数无关 ✓ —— 所以「目标日 ＝ App 净值日」只是**恰好在同日时才成立**的前提 ✓。 */
+        lagN++;
+        const ga = (k) => Number(tr.getAttribute(k));
+        const estL = ga("data-cmp-est"), actL = ga("data-cmp-act");
+        if (Math.abs(estL - hit.est) > 1e-4) badE.push(code + " est " + estL + " vs 台账 " + hit.est);
+        if (Math.abs(ga("data-cmp-diff") - (actL - estL)) > 1e-4)
+          badE.push(code + " 差 " + ga("data-cmp-diff") + " vs 实际−预估 " + (actL - estL).toFixed(4));
+        if (Math.abs(ga("data-cmp-amt") - (actL - estL) / 100 * f.value) > 0.51)
+          badE.push(code + " 金额差 " + ga("data-cmp-amt") + " ≠ 差×市值 " + ((actL - estL) / 100 * f.value).toFixed(2));
+        return;
+      }
       const act = (f.nav.close / hit.nav0 - 1) * 100;
       const diff = act - hit.est, amt = diff / 100 * f.value;
       const g = (k) => Number(tr.getAttribute(k));
-      if (d !== (f.nav && f.nav.closeDate)) badE.push(code + " 目标日 " + d + " ≠ App 净值日 " + (f.nav && f.nav.closeDate));
       if (Math.abs(g("data-cmp-est") - hit.est) > 1e-4) badE.push(code + " est " + g("data-cmp-est") + " vs " + hit.est);
       if (Math.abs(g("data-cmp-act") - act) > 1e-4) badE.push(code + " act " + g("data-cmp-act") + " vs " + act.toFixed(4));
       if (Math.abs(g("data-cmp-diff") - diff) > 1e-4) badE.push(code + " 差 " + g("data-cmp-diff") + " vs " + diff.toFixed(4));
       if (Math.abs(g("data-cmp-amt") - amt) > 0.51) badE.push(code + " 金额差 " + g("data-cmp-amt") + " vs " + amt.toFixed(2));
     });
-    check("预估对账：逐行 est / act / 差 / 金额差 ≡ 独立复算（" + rowsE.length + " 只），且目标日 ＝ 该条的 d ✓",
-      badE.length === 0, badE.join("；") || "全部对上 ✓");
+    const sameN = rowsE.length - lagN;
+    check("预估对账：逐行 est / act / 差 / 金额差 ≡ 独立复算（" + rowsE.length + " 只：其中 " + sameN
+      + " 只同日 → 逐项复算 ✓；" + lagN + " 只台账未跟上 App → 只验「已标出」✓）",
+      badE.length === 0, badE.join("；") || ("同日 " + sameN + " 只全部对上 ✓；滞后 " + lagN + " 只已标出 ✓"));
   }
   /* ④q-2 两个「净值日」不一致的，页面必须**显式标出**（2026-10-12 加）——
      起因：用户「因为场外前后有1-2天的延迟，所以呈现要符合逻辑一点，也就是日期要对齐，应该没问题对吧？」

@@ -736,9 +736,16 @@ function renderOtcEst(nc) {
      → 行内用 chip 显式标出 App 那个日期 ✓（谁不同标谁，一致的 7 只不加噪音）。 */
   const appNavD = {};
   OTC.funds.forEach((f) => { appNavD[f.code] = (f.nav && f.nav.closeDate) || ""; });
-  const navGapOf = (code) => {
-    const ft2 = (nc.rows.filter((r) => r.f.code === code)[0] || {}).ft;
-    const a = appNavD[code], s = ft2 && ft2.navDate;
+  /* ⚠ 2026-10-13 修：原来这里**自己去 nc.rows 里另挑一条（[0]）** ✗ —— 挑到的那条未必是
+     「正在渲染的那一行」✓，于是两处对同一个标的说出了不同的序列净值日 ✗。
+     实测（中欧 015884）：行内写「10.09 → 10.13」✓，而这里查回的另一条给 `ft.navDate = 10-08` ✗
+     → 与 App 的 10-08 **撞成同值** → 判成「两源一致」→ **该标的的 App chip 没标出来** ✗
+     （门禁 ④q-2「两源不一致必须显式标出」抓到 ✓ —— 它守的正是这个洞 ✓）。
+     改法：序列日一律由调用方传入**本行**的 r.ft.navDate ✓（一条数据一个来源 ✓）；
+     不传时才退回旧查法（给下面 gapList 那处汇总用 ✓）。 */
+  const navGapOf = (code, serD) => {
+    const s = serD || ((nc.rows.filter((r) => r.f.code === code)[0] || {}).ft || {}).navDate;
+    const a = appNavD[code];
     return (a && s && a !== s) ? { app: a, ser: s } : null;
   };
   const gapList = OTC.funds.map((f) => ({ f: f, g: navGapOf(f.code) })).filter((x) => x.g);
@@ -767,7 +774,7 @@ function renderOtcEst(nc) {
       + "\n拟合：β " + r.ft.beta + " · α " + r.ft.alpha + "%（近 " + r.ft.n + " 个净值日 · r " + r.ft.r + " · 日误差 " + (r.ft.mae * 100).toFixed(3) + "pp）"
       + "\n→ 累乘 " + pc(r.pct) + " × 市值 " + fmtYuan(r.f.value) + " = " + fmtAmt2(r.amt) + " 元（估算，非读数）";
     /* chip ＝ App 那个净值日（仅当它与本表的序列净值日不同 ✓，见上方 navGapOf 注释 ✓） */
-    const g2 = navGapOf(r.f.code);
+    const g2 = navGapOf(r.f.code, r.ft.navDate);   // 序列日取**本行** ✓（见 navGapOf 注释）
     h += tr(r.f, g2 ? "App " + d2(g2.app) : "", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt,
       { sub, title: title + (g2 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g2.ser + "，拟合同源）；App 快照的净值日是 "
         + g2.app + " —— 差 " + Math.round((Date.parse(g2.app) - Date.parse(g2.ser)) / 86400000) + " 天（QDII 确认慢）。本表按**序列**算。" : "") });
@@ -776,10 +783,17 @@ function renderOtcEst(nc) {
     sub: d2(r.ft && r.ft.navDate) + "（已追上）",
     title: "该只的净值日已经追上代理指数 —— 没有尚未公布的行情可补，故直接用 App 快照读数（这是读数，不是估算）。",
   }));
-  nc.dir.forEach((d) => h += tr(d.f, "", "方向 " + pc(d.pct) + ' <span class="e-tag">不计入</span>', "—", {
-    sub: d2(d.ft.navDate) + " → " + d2(d.upto) + " · 补 " + (d.days || 0) + " 天",
-    title: "跟踪太弱（r " + d.ft.r + "）：只给方向、不计入金额。\n净值日 " + d.ft.navDate + " → 指数 " + d.upto + "，累乘后约 " + pc(d.pct) + "。",
-  }));
+  nc.dir.forEach((d) => {
+    /* ⚠ 2026-10-13 补 chip：这一支（跟踪太弱 → 只给方向、不计入金额 ✓）原先**不做 App 日期标注** ✗ ——
+       可它同样写着「净值日 → 指数日」✓，两源不同日时一样会把读者带进那个陷阱 ✗
+       （实测：中欧 015884 行写「10.09 → 10.13」而 App 是 10-08 ✗，门禁 ④q-2 按 OTC 全表算期望 → 抓到漏标 ✓）。 */
+    const g3 = navGapOf(d.f.code, d.ft.navDate);
+    return h += tr(d.f, g3 ? "App " + d2(g3.app) : "", "方向 " + pc(d.pct) + ' <span class="e-tag">不计入</span>', "—", {
+      sub: d2(d.ft.navDate) + " → " + d2(d.upto) + " · 补 " + (d.days || 0) + " 天",
+      title: "跟踪太弱（r " + d.ft.r + "）：只给方向、不计入金额。\n净值日 " + d.ft.navDate + " → 指数 " + d.upto + "，累乘后约 " + pc(d.pct) + "。"
+        + (g3 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g3.ser + "）；App 快照的净值日是 " + g3.app + "（QDII 确认慢）。" : ""),
+    });
+  });
   const sum = est.reduce((a, r) => a + r.amt, 0) + app.reduce((a, r) => a + (Number.isFinite(r.f.day) ? r.f.day : 0), 0);
   h += tr({ name: "合计（计入金额的 " + (est.length + app.length) + " 只）" }, "", "", sum, { sum: true }) + "</tbody></table>";
   /* 口径长文（2026-10-12 裁剪）：≈730 字 → ≈160 字 —— 拟合方式与实测 r 值移进 title ✓（要查的自然会悬停） */
