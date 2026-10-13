@@ -901,6 +901,56 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     }
   }
 }
+/* ⑪ 汇总 KPI 的「已实现」口径（2026-10-13 加：用户先问「总资产的累计收益 +330 是所有场内场外的
+   净收益对吗？包含了已经清仓的」✓，再问「已实现的场内 / 场外有必要体现到 KPI 吗」✓
+   → 结论是 B1＋B2：**不加 KPI 格数** ✗，只加口径措辞 ＋ 一行恒等式小注 ✓）
+   四条契约（都能被悄悄改回去 ✗ → 都给牙 ✓）：
+     ① 两个通道格标签写明**在持**口径 ✓ —— 字面「累计浮盈亏 · 场内」会被读成「该通道累计赚了多少」✗
+        （数据上 +18,822 vs 累计收益 +330 ✗，差的正是已实现那一块 ✗）；
+     ② 第 1 格副标里那行恒等式小注在、且**两个加数＝实际数字** ✓（在持浮盈 ＋ 已实现 ＝ 累计收益 ✓）；
+     ③ 恒等式用**独立复算**的已实现对账 ✓ —— 从 POSITIONS.log 按 closedCostGap 的同一算法重推 ✓
+        （不调页面函数 ✗、不写死 18,492 ✗）；页面那半若改口径 → 当场报红 ✗；
+     ④ `#sum-pl` 悬停必须仍写着「含已实现」✓ —— 这句是这整行口径的落点 ✓。
+   ▸ 条件分支自适应当前数据 ✓：没发生过全额清仓时，小注应当**不出现**（不让恒 0 的行常驻 ✗）。 */
+{
+  const grid = win.document.getElementById("sum-grid");
+  const cell1 = grid && grid.querySelector(".sum-cell[data-pl]");
+  const plRaw = cell1 ? Number(cell1.getAttribute("data-pl")) : NaN;
+  /* 独立复算「全额清仓加回」（＝已实现亏损的绝对值）：逐笔走出持仓、**归零才算**全额清仓 ✓ */
+  const dm = readFileSync(path.join(root, "data.js"), "utf8");
+  const c = vm.createContext({});
+  vm.runInContext((dm.match(/const POSITIONS = \{[\s\S]*?\n\};/) || [""])[0] + "\nthis.P = POSITIONS;", c, { timeout: 800 });
+  const log = (((c.P || {}).log) || []).slice().sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+  const qty = {}, gap = {};
+  log.forEach((e) => {
+    const sell = /卖出|赎回/.test(String(e.act)), before = qty[e.sym] || 0;
+    qty[e.sym] = before + (sell ? -(e.qty || 0) : (e.qty || 0));
+    if (sell && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized)) gap[e.sym] = (gap[e.sym] || 0) - e.realized;
+  });
+  const expCleared = Math.round(Object.values(gap).reduce((a, b) => a + b, 0) * 100) / 100;
+  const labels = [...grid.querySelectorAll(".sum-cell .s-label")].map((x) => x.textContent.replace(/\s+/g, ""));
+  const chans = labels.filter((t) => /累计浮盈亏/.test(t));
+  check("汇总 KPI：两个通道格标签写明**在持**口径（否则会被读成「该通道累计赚了多少」✗）",
+    chans.length === 2 && chans.every((t) => /在持/.test(t)), "标签：" + JSON.stringify(chans));
+  const subEl = cell1 && cell1.querySelector(".s-sub");
+  const sub = (subEl ? subEl.textContent : "").replace(/\s+/g, "");
+  const m = sub.match(/＝?在持浮盈([+−][\d,]+)＋已实现([+−][\d,]+)/);
+  const num = (s) => (s === undefined ? null : Number(String(s).replace(/−/g, "-").replace(/[+,]/g, "")));
+  if (expCleared) {
+    const a = num(m && m[1]), b = num(m && m[2]);
+    check("累计收益的副标有恒等式小注「＝ 在持浮盈 X ＋ 已实现 Y」", !!m, "副标：" + sub.slice(0, 90));
+    check("恒等式小注的两个加数 ＝ 实际数字（" + a + " ＋ " + b + " 应 ＝ " + plRaw + "）",
+      a !== null && b !== null && Math.abs((a + b) - plRaw) < 1.5,
+      "差 " + (a !== null && b !== null ? ((a + b) - plRaw).toFixed(2) : "（小注没解析出来 ✗）"));
+    check("小注里的「已实现」＝ 独立复算的全额清仓已实现（−" + expCleared.toFixed(2) + "）",
+      b !== null && Math.abs(b + expCleared) < 1, "小注 " + b + " vs 复算 " + (-expCleared));
+  } else {
+    check("没发生过全额清仓时，恒等式小注**不出现**（不让恒 0 的行常驻 ✗）",
+      !/在持浮盈/.test(sub), "副标：" + sub.slice(0, 90));
+  }
+  const tip = (win.document.getElementById("sum-pl") || {}).title || "";
+  check("累计收益的悬停仍写着「含已实现」（这一整行口径的落点）", /含已实现/.test(tip), tip.slice(0, 80));
+}
 /* ④j 盈亏归因矩阵：**每行合计必须 ＝ 该期的「本期盈亏」**（2026-10-09 加，起于用户问
    「快照对比的盈亏归因要怎么优化，考虑到未来有清仓的情况」✓）
    ▸ 当时实测的 bug：10.09 行合计 **+2,939** ✗，真值 **+2,304** ✓ → 差 **+635.40**

@@ -1355,8 +1355,8 @@ function renderImpl() {
     total: "本金 ＝ 外部净转入（银行 / 支付宝 → 账户）：买卖、申赎、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；**全额清仓**时已兑现那块会漏出，故本金里显式加回它。"
       + "总资产 ＝ 本金 ＋ 累计收益（含已实现）。⚠ 右侧「累计浮盈亏 · 场内 / 场外」是**在持**口径（不含已兑现），两格之和 ≠ 这里的累计收益。"
       + "⚠ 范围：场内 5 只 ETF ＋ 场外 8 只基金 ＋ 券商可用现金，不含招行理财 / 黄金 —— 财务看板的「总资产」含 7 个账户，不是同一范围。",
-    etf: "场内累计浮盈亏 ＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金）；券商摊薄成本已含已实现盈亏，故本金 ≡ 银证净转入。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
-    otcA: "场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台截图读数）：与逐笔流水（Σ「成功」笔）的差额共 ",
+    etf: "场内累计浮盈亏（**在持**口径，不含已兑现）＝ Σ份数×现价 − Σ摊薄成本（含券商可用现金）；券商摊薄成本已含已实现盈亏，故本金 ≡ 银证净转入。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
+    otcA: "场外累计浮盈亏（**在持**口径，不含已兑现）＝ Σ八只 App「持仓成本」口径（各平台截图读数）：与逐笔流水（Σ「成功」笔）的差额共 ",
     otcB: "（在途申购 / 个别待确认笔所致，逐笔见「场外定投与操作记录」卡）。⚠ 市值里另有在途 ",
     otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
     day: "口径：**全部实际读数，不含任何估算** ✓（2026-10-13 用户决定：「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓）。"
@@ -1375,10 +1375,33 @@ function renderImpl() {
          与另外两行不是一类信息，故单独一行（2026-09-30 用户要求），不跟在收益率后面挤成一句。
        · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
        · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
-       末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。 */
-    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（快照口径）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
+       末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。
+       ⚠ 2026-10-13 用户问「总资产的累计收益 +330 是所有场内场外的净收益对吗？包含了已经清仓的」✓，
+         接着问「已实现的场内 / 场外有必要体现到 KPI 吗」✓ → 结论：**不加格数** ✗，做两处措辞 ＋ 一行小注：
+           · B1 两个通道格标签写明**在持**口径 ✓ —— 字面「累计浮盈亏 · 场内」会被读成「该通道累计赚了多少」✗，
+             而它与第 1 格的「累计收益（含已实现）」差着已实现那一块 ✗（数据上是 +18,822 vs +330 ✗）；
+           · B2 第 1 格副标加一行恒等式「＝ 在持浮盈 ＋ 已实现」✓ —— 两个加数直接摆出来 ✓，读者不用做减法 ✓。
+         ⚠ 为什么**不**给「已实现（场内 / 场外）」单开 KPI 格 ✗（当天的结论，理由留档）：
+           ① 场外那格会**恒 0 且算不出来** —— OTC_LOG 395 笔流水里 赎回 0 笔 ✗、字段只有 amt/status（无 realized ✗）；
+              放上 KPI，「场外已实现 0」会被读成"场外从没亏赚过" ✗，其实是"没有数据源" ✗
+              （与 otcLogGap 注释里「不能用 0 冒充」同一条禁忌 ✗）；
+           ② 已实现是**低频事件** ✗（至今只在 10-09 全额清仓那两笔 ✓）；
+           ③ 严谨限定语**塞不进 KPI 格** ✗ —— 摊薄成本口径下部分卖出的盈亏已折进剩余成本 ✗，不单独成"已实现" ✓
+              （8 笔卖出的 realized 合计 −24,027.97 ✗ ≠ 全额清仓口径 18,492.00 ✓），
+              380px 每格约 110px 放不下这层限定 ✗，简写成"已实现"反而制造新误解 ✗。
+           真要做时见「B3」：只加**一格**「已实现（全额清仓）」✓、不拆场内/场外 ✓、且无清仓时整格隐藏 ✗。 */
+    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（快照口径）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span>' +
+      /* B2 恒等式小注（2026-10-13 加）：把「累计收益 ＝ 在持浮盈亏 ＋ 已实现」的两个加数直接摆出来 ✓，
+         读者不用自己做减法 ✓（用户当天问「+330 包含已经清仓的吗」—— 缺的就是这一行 ✗）。
+         ⚠ **条件显示**：clearedGap 为 0（从没发生过全额清仓）时整行不出现 ✓（不让恒 0 的行常驻 ✗）。
+         ⚠ 两个加数取自**上面那两格同一对变量**（etfPl + otcPl ✓ / clearedGap ✓），不另算一遍 ✗；
+           clearedGap 是「本金里加回的已实现亏损额」＝绝对值 ✓，等式左边要的是它的负号 ✓。 */
+      (clearedGap
+        ? '<br>＝ 在持浮盈 <span class="' + cls(etfPl + otcPl) + '">' + fmtAmt(etfPl + otcPl) + '</span><br>＋ 已实现 <span class="' + cls(-clearedGap) + '">' + fmtAmt(-clearedGap) + '</span>'
+        : "") +
+      '</div><div class="s-asof">' + mixTag + '</div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 在持（场内）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 在持（场外）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + '"><span aria-hidden="true">📉</span> 当日盈亏（实际）</div>' +
       /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 的版式恢复 ✓）—— 但现在**三栏都是实际读数** ✓：
          2026-10-13 用户决定「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓
