@@ -1326,12 +1326,18 @@ function renderImpl() {
       + " ⚠ 与旁边的 App 快照读数不是一回事：那是已公布的、这是尚未公布的。"
     : "";
 
-  /* 场内当日盈亏（估）：Σ 市值 × chg/(100+chg)，chg 为当个交易日涨跌%（data.js AUTO/手工校对）；
-     与场外 day（QDII 净值滞后一天的口径）相加即为「当日盈亏」，与 09-10 起快照 day 字段一致 */
-  const etfDayPl = rows.reduce((a, r) => { const c = r.m.chg || 0; return a + r.valAmt * c / (100 + c); }, 0);
-  /* 合计＝场内估 ＋ 场外**预估**（2026-10-03）：两半都是"眼下这一刻"的口径；
-     dayOtc（App 快照，【已公布】的那部分）不进合计，只放副标当对照 —— 两者不相减 */
-  const dayAll = etfDayPl + dayOtcEst;
+  /* ⚠ 2026-10-13 用户决定：**场内不预估了**（原话「场内不预估了 不准」✗）——
+     原来那半 ＝ Σ 市值 × chg/(100+chg) ✓（chg 取自 data.js 的场内报价 ✓），而**报价的时点不受控** ✗：
+       · 落期当天（我们用 App 收盘覆盖 ✓）→ 精确 ✓；
+       · CI 在盘前跑（北京 05:47 是常态 ✓）→ 拿到的是**上一交易日收盘** ✗ → 这半格实际在说"昨天的涨跌"✗；
+       · CI 被延迟到盘中（2026-10-13 实测 10:43 ✗）→ 拿到**盘中价** ✗。
+     实测依据（同一天）：用盘中价推出 场内当日 −4,871 元，而实际（App 当日参考盈亏）−1,812.40 ✗
+       → 偏差 −3,059 元 ＝ 真实波动的 **2.69 倍** ✗ —— 这个数放上去就是在误导 ✗。
+     → 场内那半**不再显示估算** ✓（改一句话说明 ＋ 指向券商 App ✓）；合计随之**只含场外** ✓。
+     场内当日的**实际值**仍有据可查 ✓：最新快照的 day 里含它（「快照对比」卡，落期时按 App 读的 ✓）。
+     ⚠ 走势图的「今日估算」点用的是**同一套场内报价** ✗ —— 那一处这次**没动** ✓（它的语义是"当前估值"
+       而不是"当日盈亏"✗，且图例已标「盘中估算、尚未收盘」✓）；要不要一并停掉，见提交说明的待办 ✓。 */
+  const dayAll = dayOtcEst;   // 合计＝场外（估）only ✓ —— 场内不入此数 ✗（见上）
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
@@ -1349,7 +1355,8 @@ function renderImpl() {
     otcA: "场外累计浮盈亏 ＝ Σ八只 App「持仓成本」口径（各平台截图读数）：与逐笔流水（Σ「成功」笔）的差额共 ",
     otcB: "（在途申购 / 个别待确认笔所致，逐笔见「场外定投与操作记录」卡）。⚠ 市值里另有在途 ",
     otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
-    day: "口径是【两半拼接】：场内 ＝ 当日涨跌幅 × 持仓推算（估算）；场外 ＝ 代理指数把【尚未公布】的那几天补齐（估算）。两者可靠性不同，故分栏显示、不合成一个精确值。",
+    day: "口径：**只估场外** ✓。⚠ 2026-10-13 起**场内不再估算** ✗ —— 场内那半＝当日涨跌幅 × 持仓，而报价的时点不受控（盘前跑＝上一交易日收盘 ✗、延迟到盘中＝盘中价 ✗），实测偏差可达真实波动的数倍 ✗；场内当日以**券商 App** 为准 ✓（本页「快照对比」卡里的快照 day 含它的实际值 ✓）。"
+      + "场外 ＝ 代理指数把【尚未公布】的那几天补齐（估算 ✓）：可靠性按标的差别很大（主力纳指/标普系误差约 0.1pp ✓，跟踪弱的只给方向 ✓），准确率与逐条对账见下方「预估 vs 实际」台账 ✓。",
   };
   $("sum-grid").innerHTML =
     /* 4 格（2026-09-30 二次排版，按用户口径「这些就够了」）：
@@ -1365,18 +1372,17 @@ function renderImpl() {
     '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产（估）</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（快照口径）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span></div><div class="s-asof">' + mixTag + '</div></div>' +
     '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
     '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
-    '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估）</div>' +
+    '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + (ncTip ? "\n\n" + ncTip : "") + '"><span aria-hidden="true">📉</span> 当日盈亏（估 · 场外）</div>' +
       /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 按用户口径）：分量在前、合计在后，
          盘中看到大数字时不会把「盘中估算 ＋ 隔日快照」当成一个同口径的精确值。
          （2026-10-03：场外那一半从「App 快照」换成「预估补齐」—— App 快照降为副标里的对照值。） */
+      /* 两栏（2026-10-13 起）：场内**不再估算** ✗ → 只剩「场外（估）」；
+         场内那一栏保留但只写「不估算」✓ —— 缺一个数要**让人看见原因**，不能静默消失 ✗（见上方注释）。 */
       '<div class="s-split">' +
-        '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v ' + cls(etfDayPl) + '">' + fmtAmt2(etfDayPl) + '</div></div>' +
-        '<div class="s-split-plus">+</div>' +
         '<div class="s-split-cell"><div class="s-split-k">场外' + (nc.est ? '<span class="s-est" title="预估：把最后净值日之后、尚未公布的行情按代理指数补齐">估</span>' : '') + '</div><div class="s-split-v ' + cls(dayOtcEst) + '">' + fmtAmt2(dayOtcEst) + '</div></div>' +
-        '<div class="s-split-plus">=</div>' +
-        '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>' +
+        '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v" style="color:var(--tx3);font-weight:400">不估算</div></div>' +
       '</div>' +
-      '<div class="s-sub src-muted">场内为当日估算（涨跌幅 × 持仓）· ' +
+      '<div class="s-sub src-muted">⚠ 场内那半已停估 —— 报价时点不可靠（可能落后一天、或延迟到盘中拿到盘中价 ✗），盘中请看券商 App ✓ · ' +
         (nc.est ? '场外＝指数×仓位 补齐 ' + nc.est + ' 只 × ' + (() => { const d = nc.rows.filter((r) => r.src === "est").map((r) => r.days); const a = Math.min.apply(null, d), b = Math.max.apply(null, d); return a === b ? a : a + "~" + b; })() + ' 天（指数到 ' + (nc.upd ? nc.upd.slice(5).replace("-", ".") : "—") + ' · App 快照 ' + fmtAmt2(dayOtc) + '）' : '场外为 App 快照读数') +
         (dayMiss ? ' · ' + dayMiss + ' 只未更新' : '') + (nc.dir.length ? ' · ' + nc.dir.length + ' 只跟踪弱未计入' : '') + '</div></div>';
 

@@ -166,13 +166,19 @@ check("汇总卡本金 = 总资产 − 累计收益（快照口径独立复算�
      ⚠ NOWCAST 缺失（老数据 / 脚本没跑）时页面退回 App 快照口径，这里同步按老口径断言。 */
 const dayCellEl = sum ? [...sum.querySelectorAll(".sum-cell")].find((el) => el.textContent.includes("当日盈亏")) : null;
 const dayCell = dayCellEl ? dayCellEl.textContent.replace(/\s+/g, "") : null;
-const splitVals = dayCellEl ? [...dayCellEl.querySelectorAll(".s-split-cell .s-split-v")].map((e) => numsOf(e.textContent)[0]) : [];
-if (splitVals.length === 3) {
-  const [vEtf, vOtc, vAll] = splitVals;
-  check("汇总卡当日盈亏三栏自洽（场内 ＋ 场外 ＝ 合计）", Math.abs(vEtf + vOtc - vAll) <= 1,
-    "场内 " + vEtf + " ＋ 场外 " + vOtc + " = " + vAll);
+/* ⚠ 2026-10-13：用户决定「场内不预估了 不准」✗ → 这格从**三栏**（场内 ＋ 场外 ＝ 合计）改成**两栏**
+   （场外（估）值 ＋ 场内「不估算」✓）。解析跟着改 ✓，并且**加一条牙** ✗：
+   场内那一栏**不许再出现数字** ✓ —— 谁哪天把估算加回来，这里当场红 ✓（原来那条"三栏自洽"就随之取消 ✓，
+   因为「合计」这个概念本身已经不存在了 ✓）。 */
+const splitCells = dayCellEl ? [...dayCellEl.querySelectorAll(".s-split-cell")] : [];
+const splitVals = splitCells.map((e) => numsOf(e.textContent)[0]);
+const vOtcDay = splitVals[0];                                   // 场外（估）在前 ✓
+const etfSlotTxt = splitCells.length >= 2 ? splitCells[1].textContent.replace(/\s+/g, "") : "";
+if (splitCells.length >= 2 && Number.isFinite(vOtcDay)) {
+  check("汇总卡当日盈亏：场外（估）可解析 ＋ 场内栏**不含数字**（2026-10-13 起不估算，人为加回来必红 ✗）",
+    !/\d/.test(etfSlotTxt), "场内栏「" + etfSlotTxt.slice(0, 40) + "」· 场外 " + vOtcDay);
 } else {
-  check("汇总卡当日盈亏三栏可解析", false, dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
+  check("汇总卡当日盈亏两栏可解析（场外值 ＋ 场内「不估算」）", false, dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
 }
 const prevFull = ctx.rows.filter((s) => s.items).at(-2);
 const IN_CODES = ["159941", "513650", "513310", "513880", "160644"];   // 场内五只（同 SNAP_MKT）
@@ -201,9 +207,11 @@ const otcDayApp = OC.funds.filter((f) => String(f.upd || "").slice(0, 10) === St
 {
   const otcVal = OC.funds.reduce((a, f) => a + f.value, 0);
   const tol = Math.max(50, otcVal * 0.05);
-  check("当日盈亏合计与快照 day 量级一致（±" + money(tol) + " 内 · 口径不同故不比相等）",
-    splitVals.length === 3 && Math.abs(splitVals[2] - latest.day) <= tol,
-    splitVals.length === 3 ? "页面合计 " + splitVals[2] + " vs 快照 day " + latest.day.toFixed(2) + "（差 " + (splitVals[2] - latest.day).toFixed(2) + "）" : "三栏未解析");
+  /* ⚠ 2026-10-13 改：页面这格**不再含场内** ✗（场内不估算 ✓）→ 与「快照 day（场内＋场外）」已不是同一范围 ✗，
+     改为与**快照里场外那部分**比量级 ✓（同范围 ✓，这才是这条断言本来的意思 ✓）。tol 沿用「场外市值的 5%」✓。 */
+  check("页面场外（估）与「快照里的场外 day」量级一致（±" + money(tol) + " 内 · 口径不同故不比相等）",
+    Number.isFinite(vOtcDay) && Math.abs(vOtcDay - otcDayApp) <= tol,
+    "页面场外 " + vOtcDay + " vs 快照场外 " + otcDayApp.toFixed(2) + "（差 " + (vOtcDay - otcDayApp).toFixed(2) + "）");
 }
 /* 场外那半：① 与「从数据独立复算的预估」比（有效的那条）② App 快照那部分必须仍在副标里 */
 /* 与页面同一算法（口径见 positions.html 里那段注释）—— 故意重写一遍：抄页面的中间量就不叫独立校验了 */
@@ -243,9 +251,9 @@ check("汇总卡副标仍保留 App 快照（已公布的那部分）" + money(o
   /* ⚠ 只取金额那一格：整行 textContent 里还有「计入金额的 7 只」，numsOf 会先抓到那个 7 */
   const sumCell = sumRow ? sumRow.querySelector(".e-amt") : null;
   const sumVal = sumCell ? numsOf(sumCell.textContent)[0] : null;
-  check("逐只拆解表「合计」= KPI 里的场外数 " + (splitVals.length === 3 ? splitVals[1] : "?"),
-    rows.length > 0 && Number.isFinite(sumVal) && splitVals.length === 3 && Math.abs(sumVal - splitVals[1]) <= 1,
-    "表合计 " + sumVal + " vs KPI 场外 " + splitVals[1] + "（表内 " + Math.max(0, rows.length - 1) + " 行）");
+  check("逐只拆解表「合计」= KPI 里的场外数 " + (Number.isFinite(vOtcDay) ? vOtcDay : "?"),
+    rows.length > 0 && Number.isFinite(sumVal) && Number.isFinite(vOtcDay) && Math.abs(sumVal - vOtcDay) <= 1,
+    "表合计 " + sumVal + " vs KPI 场外 " + vOtcDay + "（表内 " + Math.max(0, rows.length - 1) + " 行）");
   check("逐只拆解表覆盖全部 " + OC.funds.length + " 只场外基金",
     rows.length === OC.funds.length + 1, "表内 " + Math.max(0, rows.length - 1) + " 行 ＋ 合计 1 行 = " + rows.length);
 }
