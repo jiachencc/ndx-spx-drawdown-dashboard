@@ -237,11 +237,20 @@ if (splitCells.length === 3) {
     "页面场外 " + vOtcDay + " vs App 日收益合计 " + otcDayApp.toFixed(2) + (traded ? "（本期有买卖）" : ""));
 }
 const subText = dayCellEl && dayCellEl.querySelector(".s-sub") ? dayCellEl.querySelector(".s-sub").textContent.replace(/\s+/g, " ") : "";
-/* ⚠ 2026-10-13：副标不再放「App 快照那个数」✗（那格现在**三栏全是实际读数** ✓，没有估算可对照 ✓）——
-   改守两条文案契约 ✓：说清两个来源 ✓（券商 App「当日参考盈亏」/ 平台 App「日收益」✓）＋ 写明快照日期 ✓。 */
-check("汇总卡副标说明来源与快照日期（实读值 · 场内＝券商 App · 场外＝平台 App · 快照 " + (latest ? latest.d.slice(5) : "?") + "）",
-  subText.indexOf("券商 App") >= 0 && subText.indexOf("日收益") >= 0 && !!latest && subText.indexOf(latest.d.slice(5).replace("-", ".")) >= 0,
+/* ⚠ 2026-10-13 第二轮（用户报「实读值 xxx 说明太多了，精简」✗）：
+   副标不再重述来源与推导 ✗ —— 那三句（场内/场外/合计 各是什么）整体搬进**悬停** ✓ →
+   判据也跟着搬 ✓：**副标**只守「有快照日期 ✓ ＋ 没有算式 ✓」；**来源说明**改在悬停里守 ✓（下一条 ✓）。
+   （原判据要求副标出现「券商 App」「日收益」✗ —— 那正是被精简掉的内容 ✓；且它把已订正的
+     「场内＝券商 App」当成了应有内容 ✗，与 ⑫ 的口径一致性问题同源 ✓。） */
+check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗，快照 " + (latest ? latest.d.slice(5) : "?") + "）",
+  !!latest && subText.indexOf(latest.d.slice(5).replace("-", ".")) >= 0 && subText.indexOf("＝") < 0,
   (subText || "（无副标）").slice(0, 160));
+/* 精简掉的那些话**必须在悬停里找得到** ✓ —— 否则就是"删掉没说"，不是"搬走"了 ✗ */
+{
+  const dayTip = dayCellEl ? (dayCellEl.getAttribute("title") || "") : "";
+  check("当日盈亏**悬停**仍说清两个来源（券商 App「当日总盈亏」✓ ＋ 各平台 App「日收益」✓）",
+    /券商 App/.test(dayTip) && /日收益/.test(dayTip), dayTip.slice(0, 110));
+}
 
 /* ③c 逐只拆解表（2026-10-03 加，挂在汇总卡内）：① 合计必须等于 KPI 里那个场外数
    ② 8 只场外基金一只不落（少一行就是渲染漏了，这种错肉眼很难发现） */
@@ -1002,7 +1011,8 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     new RegExp("场内 " + (P.hold || []).length + " 只").test(tip0)
       && new RegExp("场外 " + (O.funds || []).length + " 只").test(tip0),
     tip0.slice(-70));
-  const tip1 = cells[1].getAttribute("title") || "", tip3 = (cells[3].querySelector(".s-label") || {}).title || "";
+  /* ⚠ 当日盈亏的悬停 2026-10-13 改挂在**整格**上 ✓（原来挂 label ✗，与上面三格不一致 ✗）→ 取整格 ✓ */
+  const tip1 = cells[1].getAttribute("title") || "", tip3 = cells[3].getAttribute("title") || "";
   check("场内悬停不再声称「Σ摊薄成本（含券商可用现金）」✗，并讲清现金的归属 ✓",
     /不含现金/.test(tip1) && !/含券商可用现金/.test(tip1), tip1.slice(0, 70));
   check("当日盈亏悬停不再把倒算说成实读 ✗（改为「场内 ＝ 合计 − 场外」✓）",
@@ -1010,10 +1020,14 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   /* ⚠ 副标那行**也要查** ✓ —— 第一遍只改了悬停 ✗，可见副标还写着「场内 ＝ 券商 App『当日参考盈亏』」✗
      （截图抓出来的 ✓，门禁当时没盯着副标 ✗ → 现在补上 ✓）。 */
   const sub3 = txt(cells[3].querySelector(".s-sub"));
-  /* ⚠ 副标文字经 txt() 去掉了空白 ✗ → 正则必须空白容忍 ✓（tip3 是原串、可以带空格 ✓；
-     这里踩过一次：写了带空格的 /场内 ＝ 合计 − 场外/ → 明明页面对了却报红 ✗）。 */
-  check("当日盈亏**副标**也照实说（合计实读 ✓ / 场内 ＝ 合计 − 场外 ✓，不再把倒算写成实读 ✗）",
-    /场内\s*＝\s*合计\s*−\s*场外/.test(sub3) && !/场内\s*＝\s*券商/.test(sub3), sub3.slice(0, 80));
+  /* ⚠ 副标文字经 txt() 去掉了空白 ✗ → 判据一律走空白容忍的写法 ✓
+     （这里踩过一次：写了带空格的 /场内 ＝ 合计 − 场外/ → 明明页面对了却报红 ✗）。
+     2026-10-13 第二轮：用户报「实读值 xxx 说明太多了，精简」✗ → 副标里那三条公式整体搬进悬停 ✓，
+     副标**只留快照日与缺口只数** ✓ → 这样断言：有日期 ✓、**没有算式** ✓（出现「＝」即说明又把推导写回可见处 ✗）、
+     且**确实变短了** ✓（上限给到 26 字，含 dayEtf 为空时那句长警告 ✓）。 */
+  check("当日盈亏副标**只留日期与缺口**（无算式 ✓ 且 ≤26 字 ✓），推导只放悬停 ✓",
+    /快照\s*\d/.test(sub3) && !/＝/.test(sub3) && sub3.length <= 26,
+    "副标（" + sub3.length + " 字）：" + sub3.slice(0, 60));
   const stale = (O.funds || []).filter((f) => !(Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) >= (O.updated || ""))));
   if (stale.length)
     check("当日盈亏悬停点名本次未更新的 " + stale.length + " 只（" + stale.map((f) => f.code).join(" / ") + " ✓，原来是黑盒 ✗）",
