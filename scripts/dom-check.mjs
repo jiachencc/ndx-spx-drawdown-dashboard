@@ -954,6 +954,71 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   const tip = (win.document.getElementById("sum-pl") || {}).title || "";
   check("累计收益的悬停仍写着「含已实现」（这一整行口径的落点）", /含已实现/.test(tip), tip.slice(0, 80));
 }
+/* ⑫ 汇总 KPI 的「文字 ≡ 实现」（2026-10-13 逐字段 review 后的 P0＋P1）——
+   这一天用户先问「KPI 里的每个数据哪些还需要调整」，review 的结论是：**数字逐项对得上** ✓，
+   错的是几处**口径文字与实现不符** ✗（会让人拿本金去乘收益率、或把倒算当实读 ✗）：
+     ① 场内那格的「收益率」分母是**在持成本**（＝摊薄成本 ✓），而它上一行的「本金」是**外部净转入口径** ✗
+        （含全额清仓加回那 18,492 ✓）→ 两者不是同一个数 ✗，副标必须点明分母 ✓；
+     ② 场内悬停原写「Σ摊薄成本（**含**券商可用现金）」✗ —— 实测 implEtfRows() 只来自 POSITIONS.hold ✓，
+        **没有现金行** ✗（现金并在场外桶里、两边相抵 ✓，今天现金 0 所以数没差 ✓）；
+     ③ 「当日盈亏」悬停原写「场内 ＝ 券商 App 当日参考盈亏」✗ —— 场内那半其实是**倒算**的 ✓
+        （`dayEtf ＝ 快照 day − Σ场外` ✓，同一次落盘的两半 ✓）；
+     ④ 「（估）」原来写死 ✗ → 改成与走势图同名格**同一判据**（当天还没落期才标 ✓）；
+     ⑤ 「已扣款未入账」→「未并入成本」✓（与悬停里那句「市值里另有在途」分开命名 ✓，两者口径不同 ✗）；
+     ⑥ 「N 只本次未更新」要点名 ✓（原来是黑盒 ✗）；⑦ 通道格改名「在持浮盈」后，别处引用也同步 ✓。
+   ▸ 全部**独立复算** ✓：成本取 POSITIONS.hold 的 Σ(qty×cost) ✓；未更新名单按 dayVals 同一判据重推 ✓
+     （不调页面函数 ✗、不写死数字 ✗）。 */
+{
+  const dp = readFileSync(path.join(root, "data.js"), "utf8");
+  const ds = readFileSync(path.join(root, "positions-data.js"), "utf8");
+  const c = vm.createContext({});
+  vm.runInContext((dp.match(/const POSITIONS = \{[\s\S]*?\n\};/) || [""])[0] + "\nthis.P = POSITIONS;", c, { timeout: 800 });
+  vm.runInContext((ds.match(/const OTC = \{[\s\S]*?\n\};/) || [""])[0] + "\nthis.O = OTC;"
+    + (ds.match(/const SNAPSHOTS = \[[\s\S]*?\n\];/) || [""])[0] + "\nthis.S = SNAPSHOTS;", c, { timeout: 800 });
+  const P = c.P || {}, O = c.O || {}, S = c.S || [];
+  const holdCost = (P.hold || []).reduce((t, h) => t + (h.qty || 0) * (h.cost || 0), 0);
+  const cells = [...win.document.getElementById("sum-grid").querySelectorAll(".sum-cell")];
+  const txt = (el) => ((el && el.textContent) || "").replace(/\s+/g, "");
+  const sub0 = txt(cells[0].querySelector(".s-sub")), sub1 = txt(cells[1].querySelector(".s-sub")), sub2 = txt(cells[2].querySelector(".s-sub"));
+  const pick = (s, re) => { const m = s.match(re); return m ? Number(m[1].replace(/,/g, "")) : null; };
+  const base = pick(sub1, /按在持成本([\d,]+)/), prin1 = pick(sub1, /本金([\d,]+)/);
+  check("场内格副标点明「收益率」的分母（应＝Σ(qty×cost) " + holdCost.toFixed(0) + " ✓，与上一行的本金不是同一个数 ✗）",
+    base !== null && Math.abs(base - holdCost) < 1.5, "副标：" + sub1.slice(0, 60));
+  check("场内格：显示的「本金」与「在持成本」确实是两个数（差 " + (prin1 !== null && base !== null ? Math.abs(prin1 - base).toFixed(0) : "?") + " ✓ —— 正是要点明分母的原因 ✓）",
+    base !== null && prin1 !== null && Math.abs(prin1 - base) > 1000, "本金 " + prin1 + " / 在持成本 " + base);
+  const today = (function () { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); })();
+  const snapLast = ((S.filter((x) => x.items).slice(-1)[0] || {}).d) || null;
+  const wantEst = snapLast !== today, lab0 = txt(cells[0].querySelector(".s-label"));
+  check("总资产标签的「（估）」＝ 与走势图同一判据（最新快照 " + snapLast + (wantEst ? " ≠ 今天 → 带（估）✓" : " ＝ 今天 → 不标 ✗") + "）",
+    wantEst ? /（估）/.test(lab0) : !/（估）/.test(lab0), "标签：" + lab0);
+  check("累计收益那行写明「含已实现」✓（不再用内部术语「快照口径」✗）",
+    /累计收益（含已实现）/.test(sub0), "副标：" + sub0.slice(0, 60));
+  check("场外格那行改名为「未并入成本」✓（与悬停里「市值里另有在途」分开 ✗）",
+    /未并入成本/.test(sub2) && !/已扣款未入账/.test(sub2), "副标：" + sub2.slice(0, 70));
+  /* ⑧ 总资产悬停里的「范围」只数当前持有（原写死「场内 5 只 ETF」✗ —— 那含已清仓的两只 ✗，
+     本格范围是 implEtfRows() ＝ POSITIONS.hold ✓）→ 两处都按数据现算 ✓（不写死 5 / 8 ✗）。 */
+  const tip0 = cells[0].getAttribute("title") || "";
+  check("总资产悬停的范围只数**当前持有**（场内 " + (P.hold || []).length + " 只 / 场外 " + (O.funds || []).length + " 只 ✓）",
+    new RegExp("场内 " + (P.hold || []).length + " 只").test(tip0)
+      && new RegExp("场外 " + (O.funds || []).length + " 只").test(tip0),
+    tip0.slice(-70));
+  const tip1 = cells[1].getAttribute("title") || "", tip3 = (cells[3].querySelector(".s-label") || {}).title || "";
+  check("场内悬停不再声称「Σ摊薄成本（含券商可用现金）」✗，并讲清现金的归属 ✓",
+    /不含现金/.test(tip1) && !/含券商可用现金/.test(tip1), tip1.slice(0, 70));
+  check("当日盈亏悬停不再把倒算说成实读 ✗（改为「场内 ＝ 合计 − 场外」✓）",
+    /场内 ＝ 合计 − 场外/.test(tip3) && !/场内 ＝ 券商 App/.test(tip3), tip3.slice(0, 70));
+  /* ⚠ 副标那行**也要查** ✓ —— 第一遍只改了悬停 ✗，可见副标还写着「场内 ＝ 券商 App『当日参考盈亏』」✗
+     （截图抓出来的 ✓，门禁当时没盯着副标 ✗ → 现在补上 ✓）。 */
+  const sub3 = txt(cells[3].querySelector(".s-sub"));
+  /* ⚠ 副标文字经 txt() 去掉了空白 ✗ → 正则必须空白容忍 ✓（tip3 是原串、可以带空格 ✓；
+     这里踩过一次：写了带空格的 /场内 ＝ 合计 − 场外/ → 明明页面对了却报红 ✗）。 */
+  check("当日盈亏**副标**也照实说（合计实读 ✓ / 场内 ＝ 合计 − 场外 ✓，不再把倒算写成实读 ✗）",
+    /场内\s*＝\s*合计\s*−\s*场外/.test(sub3) && !/场内\s*＝\s*券商/.test(sub3), sub3.slice(0, 80));
+  const stale = (O.funds || []).filter((f) => !(Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) >= (O.updated || ""))));
+  if (stale.length)
+    check("当日盈亏悬停点名本次未更新的 " + stale.length + " 只（" + stale.map((f) => f.code).join(" / ") + " ✓，原来是黑盒 ✗）",
+      stale.every((f) => tip3.indexOf(f.code) >= 0), "悬停尾部：" + tip3.slice(-80));
+}
 /* ④j 盈亏归因矩阵：**每行合计必须 ＝ 该期的「本期盈亏」**（2026-10-09 加，起于用户问
    「快照对比的盈亏归因要怎么优化，考虑到未来有清仓的情况」✓）
    ▸ 当时实测的 bug：10.09 行合计 **+2,939** ✗，真值 **+2,304** ✓ → 差 **+635.40**
