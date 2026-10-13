@@ -8,11 +8,14 @@
  *   （不打开归因视图也能复现 ✓）。修完之后加这条探针，防止同类问题再溜进来 ✓。
  *
  * 断言（都只有真实布局才测得出来 ✓）：
- *   ① 1440 / 760 / 380 三档**首次加载**：页面无横向溢出 ✓
+ *   ① 1440 / 760 / 414 / 380 四档**首次加载**：页面无横向溢出 ✓（414 于 2026-10-13 补 ✓）
  *   ② 每个 <svg> 的宽度 ≤ 其容器的 clientWidth ✓（溢出 367px 时的直接症状 ✓）
  *   ③ 1440 → 380 **拖动缩放**后：无横向溢出 ＋ SVG 不超容器 ✓ ← 那个 bug 的回归探针 ✓
  *   ④ 380 → 1440 拖回后：无横向溢出 ✓（只增不减的另一种坏法 ✓）
  *   ⑤ 380px 下顺带把**按需渲染**的归因视图点亮（列头图也按真实像素画 ✓ → 一并纳入检查 ✓）
+ *   ⑥ 四档下：汇总 KPI 的**两个通道标签各只占 1 行** ✓（2026-10-13 加 —— 用户报「KPI 实际在手机上会折叠成
+ *      3 行」✗：401–430px 原断点仍走 3 列 ✗ → 每格 113–119px ✗ → 标签折 3 行 ✗；而上一轮验收只测 380px ✗
+ *      （恰好是 2 列 ✓）→ 那一档**无人覆盖** ✗。数行数要按真实 line-height ✓，用 fontSize×1.4 估会误判 ✓）
  *
  * 依赖：playwright（全局 ✓，与 dom-check 同一约定 ✓）—— 没装时由 verify-all **跳过**并说明 ✓，
  *   不让环境问题挡住提交 ✓。
@@ -56,7 +59,20 @@ const audit = (p) => p.evaluate(() => {
         out.push(e.tagName + "「" + (e.textContent || "").trim().slice(0, 8) + "」越界 " + Math.round(over) + "px");
     });
   });
-  return { ov: document.documentElement.scrollWidth - iw, bad: bad, out: out, nSvg: document.querySelectorAll("svg").length };
+  /* 汇总 KPI 的通道标签占几行（2026-10-13 加）—— 起因：用户报「KPI 实际在手机上会折叠成 3 行」✗
+     实测 414/430px（原断点 ≤400px ✗ 仍走 3 列 ✗）下标签正是 **3 行** ✗、首格副标 8 行 ✗、格高 221px ✗。
+     「内容折行」只有真实布局测得出 ✗（jsdom 里高度恒 0 ✓）→ 做成常驻探针 ✓。
+     ⚠ 按**真实 line-height** 数行数 ✓（早先拿 fontSize×1.4 估 ✓ 会把 1 行算成 2 行 ✗ —— 那次误判过 ✓）。 */
+  const lineCount = (el) => {
+    const cs = getComputedStyle(el);
+    let lh = parseFloat(cs.lineHeight);
+    if (!Number.isFinite(lh)) lh = parseFloat(cs.fontSize) * 1.2;
+    return Math.max(1, Math.round(el.getBoundingClientRect().height / lh));
+  };
+  const kpiLabels = [...document.querySelectorAll("#sum-grid .sum-cell .s-label")]
+    .filter((e) => /浮盈/.test(e.textContent))
+    .map((e) => ({ t: e.textContent.replace(/\s+/g, " ").trim(), n: lineCount(e) }));
+  return { ov: document.documentElement.scrollWidth - iw, bad: bad, out: out, nSvg: document.querySelectorAll("svg").length, kpiLabels: kpiLabels };
 });
 
 /* 把按需渲染的归因视图也点亮（列头图是真实像素画的 ✓ 必须一起查 ✓）——
@@ -90,8 +106,9 @@ const waitReady = (p) => p.waitForFunction(() => {
   return !!(svg && svg.getBoundingClientRect().width > 0 && grid && grid.children.length > 0);
 }, { timeout: 5000 }).catch(() => {});
 
-/* ① 三档首屏 */
-for (const w of [1440, 760, 380]) {
+/* ① 四档首屏（2026-10-13 加 414px ✓ —— 真机最常见的档位 ✓；
+   上一轮只测 1440/760/380 ✗，而 380 恰好落在 2 列 ✓，401–430px 那一档**无人覆盖** ✗ → 折行漏了两天 ✗） */
+for (const w of [1440, 760, 414, 380]) {
   const p = await browser.newPage({ viewport: { width: w, height: 1000 } });
   p.on("pageerror", (e) => errs.push(w + "px " + e.message));
   await p.goto(page, { waitUntil: "load" });
@@ -101,6 +118,10 @@ for (const w of [1440, 760, 380]) {
   check("首屏 " + w + "px：页面无横向溢出" + (w === 380 ? "（含归因列头图 ✓）" : ""), r.ov <= 0,
     r.ov > 0 ? "溢出 " + r.ov + "px" : "溢出 0px ✓");
   check("首屏 " + w + "px：每个 SVG 都不超出容器（共 " + r.nSvg + " 个）", r.bad.length === 0, r.bad.slice(0, 3).join(" · "));
+  /* 通道标签必须 1 行 ✓ —— 四档都 ≥375px ✓（375px 以下不查：那已属极窄机型 ✓，见 positions.css 的说明 ✓） */
+  check("首屏 " + w + "px：两个通道标签都只占 1 行（" + r.kpiLabels.map((x) => x.t + " " + x.n + " 行").join(" · ") + "）",
+    r.kpiLabels.length === 2 && r.kpiLabels.every((x) => x.n <= 1),
+    r.kpiLabels.length === 2 ? "行数 " + r.kpiLabels.map((x) => x.n).join("/") : "只找到 " + r.kpiLabels.length + " 个通道标签 ✗");
   /* 只在 380 档查"图内元素越界" ✓：那一档才把按需渲染的列头图打开 ✓（没图时查了也是空 ✓ 假绿 ✗） */
   if (w === 380)
     check("首屏 380px：图内元素不越出画布（列头图已打开 ✓）", r.out.length === 0, r.out.slice(0, 3).join(" · "));
@@ -135,5 +156,5 @@ for (const c of checks) {
   if (!c.ok) failed++;
   console.log((c.ok ? "  ✓ " : "  ✗ ") + c.name + (c.detail && !c.ok ? "   ← " + c.detail : ""));
 }
-console.log("\n版面校验：" + (checks.length - failed) + "/" + checks.length + " 通过（真实浏览器 · 1440/760/380 三档 ＋ 拖动缩放）");
+console.log("\n版面校验：" + (checks.length - failed) + "/" + checks.length + " 通过（真实浏览器 · 1440/760/414/380 四档 ＋ 拖动缩放）");
 process.exit(failed ? 1 : 0);

@@ -1443,6 +1443,17 @@
   .trend-dot { cursor: pointer; }
   .footer { text-align: center; font-size: var(--fs-xs); color: var(--tx3); margin: 20px auto 0; max-width: 720px; line-height: 1.8; }
 
+  /* ── 汇总 KPI：手机上**不该排 3 格**（2026-10-13 加，用户报「KPI 实际在手机上会折叠成 3 行」✗）──
+     ⚠ 症状与根因（实测 430/414px 真机档 ✓）：原断点是 ≤400px 才降 2 列 ✗，
+       而 401–430px（iPhone Plus / Pro Max、多数 Android 竖屏 ✓）仍走 3 列 ✗ → 每格仅 113–119px ✗
+       → 通道标签折成 **3 行** ✗、首格副标甚至 8 行 ✗、格高 221px ✗（380px 的验收恰好落在 2 列 ✗ 所以漏了 ✗）。
+       提到 ≤560px 后：401–560px 也是 2 列 ✓ → 每格 150–230px ✓ → 标签 1 行 ✓、格高约 170px ✓。
+     ⚠ 只改 .sum-grid 的列数 ✓ —— 下面 ≤400px 那一整块（字号 / 内边距 / .snap-line / .prin-kpis 等
+       窄屏妥协 ✗）按原样留在 ≤400px ✓，不跟着放宽到 560px ✗（那些是为更窄的机型调的 ✓）。
+     ⚠ 760px（layout-check 那一档）仍是 3 列 ✓ → 那条门禁的预期不变 ✓。 */
+  @media (max-width: 560px) {
+    .sum-grid { grid-template-columns: repeat(2, 1fr); }   /* 末格仍跨整行，见 .sum-grid .sum-cell:last-child */
+  }
   @media (max-width: 480px) {
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
     .sum-cell .s-val { font-size: var(--fs-lg); }

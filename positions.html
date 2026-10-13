@@ -1381,6 +1381,14 @@ function renderImpl() {
            · B1 两个通道格标签写明**在持**口径 ✓ —— 字面「累计浮盈亏 · 场内」会被读成「该通道累计赚了多少」✗，
              而它与第 1 格的「累计收益（含已实现）」差着已实现那一块 ✗（数据上是 +18,822 vs +330 ✗）；
            · B2 第 1 格副标加一行恒等式「＝ 在持浮盈 ＋ 已实现」✓ —— 两个加数直接摆出来 ✓，读者不用做减法 ✓。
+         ⚠ 同一天第二轮（用户报「KPI 实际在手机上会折叠成 3 行」✗ —— 实测就是 3 行 ✓）：
+           上面 B1 那 13 字标签在真机档撑不住 ✗ → 两处收口（CSS 侧的完整理由见 positions.css 那条 ≤560px 注释 ✓）：
+             · 标签**再缩到 8 字**：「在持浮盈 · 场内 / 场外」✓（320–430px 全区间 1 行 ✓；
+               「在持」仍在标签里 ✓ → 门禁 ⑪「标签含在持」那条一个字都不用改 ✓）；
+             · 2 列断点从 ≤400px 提到 **≤560px** ✓（401–430px 原来仍走 3 列 ✗ → 每格仅 113–119px ✗ →
+               标签折 3 行 ✗、首格副标 8 行 ✗、格高 221px ✗）。
+           ⚠ 教训留档：上一轮验收只测了 380px ✗——而 380 恰好是 2 列 ✓ → 401–430px 那一档**无人覆盖** ✗。
+             「内容折行」这类问题必须在**真机档（414px ✓）＋ 真浏览器**里数行数 ✓（已写进 layout-check 常驻 ✓）。
          ⚠ 为什么**不**给「已实现（场内 / 场外）」单开 KPI 格 ✗（当天的结论，理由留档）：
            ① 场外那格会**恒 0 且算不出来** —— OTC_LOG 395 笔流水里 赎回 0 笔 ✗、字段只有 amt/status（无 realized ✗）；
               放上 KPI，「场外已实现 0」会被读成"场外从没亏赚过" ✗，其实是"没有数据源" ✗
@@ -1400,8 +1408,8 @@ function renderImpl() {
         ? '<br>＝ 在持浮盈 <span class="' + cls(etfPl + otcPl) + '">' + fmtAmt(etfPl + otcPl) + '</span><br>＋ 已实现 <span class="' + cls(-clearedGap) + '">' + fmtAmt(-clearedGap) + '</span>'
         : "") +
       '</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 累计浮盈亏 · 在持（场内）</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 累计浮盈亏 · 在持（场外）</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 在持浮盈 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) + '</div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 在持浮盈 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + '<br>已扣款未入账 ' + fmtAmt2(otcLogGap) + '</div></div>' +
     '<div class="sum-cell"><div class="s-label" title="' + SUM_TIPS.day + '"><span aria-hidden="true">📉</span> 当日盈亏（实际）</div>' +
       /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 的版式恢复 ✓）—— 但现在**三栏都是实际读数** ✓：
          2026-10-13 用户决定「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓

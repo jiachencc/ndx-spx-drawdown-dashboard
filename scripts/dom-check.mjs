@@ -929,7 +929,10 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   });
   const expCleared = Math.round(Object.values(gap).reduce((a, b) => a + b, 0) * 100) / 100;
   const labels = [...grid.querySelectorAll(".sum-cell .s-label")].map((x) => x.textContent.replace(/\s+/g, ""));
-  const chans = labels.filter((t) => /累计浮盈亏/.test(t));
+  /* ⚠ 筛「浮盈」而不是「累计浮盈亏」✗（2026-10-13 第二轮：标签为手机收窄到 8 字
+     「在持浮盈 · 场内 / 场外」✓ —— 写死旧词就会筛不到而**假绿** ✗；改词后这条仍成立 ✓，
+     这与 ⑧-e「区块名现取自 sec-title」同一手法 ✓：断言盯着**语义**，不盯着某一版措辞 ✓）。 */
+  const chans = labels.filter((t) => /浮盈/.test(t));
   check("汇总 KPI：两个通道格标签写明**在持**口径（否则会被读成「该通道累计赚了多少」✗）",
     chans.length === 2 && chans.every((t) => /在持/.test(t)), "标签：" + JSON.stringify(chans));
   const subEl = cell1 && cell1.querySelector(".s-sub");
