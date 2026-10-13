@@ -16,6 +16,8 @@
  *   ⑥ 四档下：汇总 KPI 的**两个通道标签各只占 1 行** ✓（2026-10-13 加 —— 用户报「KPI 实际在手机上会折叠成
  *      3 行」✗：401–430px 原断点仍走 3 列 ✗ → 每格 113–119px ✗ → 标签折 3 行 ✗；而上一轮验收只测 380px ✗
  *      （恰好是 2 列 ✓）→ 那一档**无人覆盖** ✗。数行数要按真实 line-height ✓，用 fontSize×1.4 估会误判 ✓）
+ *   ⑦ ≤560px 手机档：汇总 KPI 走**三行式**——总资产独占一行 ✓ / 通道两格并排 ✓ / 当日盈亏收尾 ✓
+ *      （2026-10-13 用户提的排法 ✓：总资产副标最长 ✗，挤在 119px 里要折 6–8 行 ✗）；桌面仍 3 列并排 ✓
  *
  * 依赖：playwright（全局 ✓，与 dom-check 同一约定 ✓）—— 没装时由 verify-all **跳过**并说明 ✓，
  *   不让环境问题挡住提交 ✓。
@@ -72,7 +74,13 @@ const audit = (p) => p.evaluate(() => {
   const kpiLabels = [...document.querySelectorAll("#sum-grid .sum-cell .s-label")]
     .filter((e) => /浮盈/.test(e.textContent))
     .map((e) => ({ t: e.textContent.replace(/\s+/g, " ").trim(), n: lineCount(e) }));
-  return { ov: document.documentElement.scrollWidth - iw, bad: bad, out: out, nSvg: document.querySelectorAll("svg").length, kpiLabels: kpiLabels };
+  /* 「总资产」格占整行吗（2026-10-13 加 ✓）：手机档的三行式排法＝总资产独占一行 ✓ / 通道两格并排 ✓ /
+     当日盈亏收尾 ✓。用「首格宽 ÷ 栅格宽」判定 ✓（跨整行 ≈100% ✓，两列里的一格 ≈50% ✓），不靠肉眼 ✓。 */
+  const sg = document.getElementById("sum-grid");
+  const firstCell = sg ? sg.querySelector(".sum-cell") : null;
+  const firstSpan = (sg && firstCell && sg.clientWidth)
+    ? Math.round((firstCell.getBoundingClientRect().width / sg.clientWidth) * 100) : 0;
+  return { ov: document.documentElement.scrollWidth - iw, bad: bad, out: out, nSvg: document.querySelectorAll("svg").length, kpiLabels: kpiLabels, firstSpan: firstSpan };
 });
 
 /* 把按需渲染的归因视图也点亮（列头图是真实像素画的 ✓ 必须一起查 ✓）——
@@ -122,6 +130,10 @@ for (const w of [1440, 760, 414, 380]) {
   check("首屏 " + w + "px：两个通道标签都只占 1 行（" + r.kpiLabels.map((x) => x.t + " " + x.n + " 行").join(" · ") + "）",
     r.kpiLabels.length === 2 && r.kpiLabels.every((x) => x.n <= 1),
     r.kpiLabels.length === 2 ? "行数 " + r.kpiLabels.map((x) => x.n).join("/") : "只找到 " + r.kpiLabels.length + " 个通道标签 ✗");
+  /* 三行式排法只在手机档 ✓（760 / 1440 仍是 3 列并排 ✓ —— 那里横向不缺空间 ✓，别顺手改成整行 ✗） */
+  if (w <= 560)
+    check("首屏 " + w + "px：总资产格独占一整行（实测占宽 " + r.firstSpan + "%）", r.firstSpan >= 92,
+      "占宽 " + r.firstSpan + "% ✗ —— 总资产没独占一行 ✗（手机档应为 总资产 / 通道两格 / 当日盈亏 三行 ✓）");
   /* 只在 380 档查"图内元素越界" ✓：那一档才把按需渲染的列头图打开 ✓（没图时查了也是空 ✓ 假绿 ✗） */
   if (w === 380)
     check("首屏 380px：图内元素不越出画布（列头图已打开 ✓）", r.out.length === 0, r.out.slice(0, 3).join(" · "));

@@ -1453,6 +1453,14 @@
      ⚠ 760px（layout-check 那一档）仍是 3 列 ✓ → 那条门禁的预期不变 ✓。 */
   @media (max-width: 560px) {
     .sum-grid { grid-template-columns: repeat(2, 1fr); }   /* 末格仍跨整行，见 .sum-grid .sum-cell:last-child */
+    /* ── 三行式排法（2026-10-13 用户提 ✓）：总资产独占一行 / 通道两格并排 / 当日盈亏收尾 ──
+       ⚠ 为什么（实测）：三格里「总资产」副标最长 ✗ —— 本金 ＋ 累计收益 ＋ 恒等式两行 ＋ 两个日期胶囊 ✗，
+         和通道格挤同宽（约 119px ✗）时要折 6–8 行 ✗；独占一行（约 340px ✓）后折行数明显下降 ✓，
+         且「总量在最上 → 分通道居中 → 当日收尾」的层级更顺 ✓。
+       ⚠ **只在 ≤560px 生效** ✗ —— 桌面横向不缺空间 ✓，3 列并排更紧凑 ✓（760px 那一档也保持 3 列 ✓，
+         与 layout-check 的既有预期一致 ✓）。
+       ⚠ 末格（当日盈亏）跨整行是**基础规则** ✓（见 .sum-grid .sum-cell:last-child ✓），此处不重写 ✗。 */
+    .sum-grid .sum-cell:first-child { grid-column: 1 / -1; }
   }
   @media (max-width: 480px) {
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
