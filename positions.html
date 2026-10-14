@@ -4308,7 +4308,13 @@ function snapTotal(s) {
    ▸ 判据：某笔卖出使该标的**累计份数归零** → 取这一笔的 realized
      （它已含该标的此前的部分卖出效应：摊薄成本额本身就是「Σ买入含费 − Σ卖出净额」，
       故此前的部分卖出**不可再加** —— 会重复计）。
-   ▸ upTo 供走势图逐期取历史；10-08 及以前恒为 0 ✓（仓库史上首次全额清仓发生在 10-09）。 */
+   ▸ upTo 供走势图逐期取历史；10-08 及以前恒为 0 ✓（仓库史上首次全额清仓发生在 10-09）。
+   ▸ ⚠ **2026-10-14 补上场外那一半**：上面这条路只能走 POSITIONS.log（**场内**交割单，有份额），
+     而场外压根没有份额级流水（OTC_LOG 只有金额）→ 场外全额清仓在结构上就认不到 ✗。
+     2026-10-14 首次遇到（中欧 015884 全额赎回、回款转出余额宝）→ 那一块（成本 6,300 − 回款 4,455.64
+     ＝ 1,844.36）由 positions-data.js 的 **OTC_CLEARED** 显式给出，口径与场内**逐字一致**：
+     gap ＝ Σ(成本 − 回款)，且只在「回款离开本页跟踪范围」时才计入 ✓。
+   ▸ 两半共用同一个 upTo：某只的历史期里它还在 items 中 → 加了就是重复计 ✗（故 OTC_CLEARED 带 d）。 */
 function closedCostGap(upTo) {
   const log = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])
     .filter((e) => !upTo || e.d <= upTo).slice()
@@ -4320,7 +4326,10 @@ function closedCostGap(upTo) {
     if (sell && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized))
       gap[e.sym] = (gap[e.sym] || 0) - e.realized;
   });
-  return Object.keys(gap).reduce((a, k) => a + gap[k], 0);
+  const otcGap = ((typeof OTC_CLEARED !== "undefined" && Array.isArray(OTC_CLEARED)) ? OTC_CLEARED : [])
+    .filter((x) => x && (!upTo || x.d <= upTo))
+    .reduce((a, x) => a + ((x.cost || 0) - (x.proceeds || 0)), 0);
+  return Object.keys(gap).reduce((a, k) => a + gap[k], 0) + otcGap;
 }
 /* 裸成本（不给清仓修正）＝ Σ持仓成本 + 现金 */
 function snapRawCost(s) {
@@ -4490,6 +4499,13 @@ function periodContrib(code, prev, cur) {
       .filter((t) => t.status === "成功" && /赎回/.test(String(t.act)) && t.d > prev.d && t.d <= cur.d)
       .reduce((s, t) => s + nz(t.amt), 0);
     if (red > 0) return { v: red - nz(a.val), kind: "close" };
+    /* ⚠ 2026-10-14 加（首次遇到）：**场外赎回申请发生在更早一期、但回款在本期才到账** → 上一支按「赎回日落在
+       本期」筛，必然落空 ✗（中欧 015884：赎回发生在 10-09、快照里一路「沿用」到 10-13，10-14 才离场）。
+       这一支改用 positions-data.js 的 **OTC_CLEARED**（d = 回款到账日 ✓ 正好落进本期），口径与上面完全一致：
+       v ＝ 回款 − 期初市值 ✓ —— 与本金 / flow 用的是同一份 MANUAL 数据，三处不会漂 ✓ */
+    const oc = ((typeof OTC_CLEARED !== "undefined" && Array.isArray(OTC_CLEARED)) ? OTC_CLEARED : [])
+      .find((x) => x && x.code === code && x.d > prev.d && x.d <= cur.d);
+    if (oc) return { v: nz(oc.proceeds) - nz(a.val), kind: "close" };
     return { v: 0, kind: "na" };
   }
   return { v: 0, kind: "na" };

@@ -121,7 +121,18 @@ const LOGPOS = (() => {
 })();
 /* ⚠ 2026-10-09 改：由常量改为**带 upTo 的函数**（closedGapTo）＋ 常量 closedGap 保留（＝全程 ✓）。
    起因：归因「全期」行的新断言要按**矩阵基准期**取"当时的修正项" ✓ —— 10-09 之前它恒为 0 ✓，
-   但若将来出现更早的全额清仓，用"全程值"去算基准期的累计收益就会算错 ✗。两个用法共用同一实现，不会漂 ✓ */
+   但若将来出现更早的全额清仓，用"全程值"去算基准期的累计收益就会算错 ✗。两个用法共用同一实现，不会漂 ✓
+   ⚠ 2026-10-14 补**场外那一半**：页面 closedCostGap() 从 POSITIONS.log（场内交割单、有份额）推，
+   场外没有份额级流水 → 由 positions-data.js 的 OTC_CLEARED 显式给出（口径 = Σ(成本 − 回款)）。
+   这里同样**独立复算**（读那个常量，不调页面函数 ✓、不写死数字 ✓）—— 页面那半若改口径 → 当场报红 ✓ */
+const OTCCLEARED = (() => {
+  try {
+    const m = String(dataSrc || "").match(/^const OTC_CLEARED = \[[\s\S]*?^\];/m);
+    if (!m) return [];
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = OTC_CLEARED;", c, { timeout: 500 });
+    return Array.isArray(c.o) ? c.o : [];
+  } catch (e) { return []; }
+})();
 const closedGapTo = (upTo) => {
   const log = ((LOGPOS && LOGPOS.log) || []).filter((e) => !upTo || e.d <= upTo).slice()
     .sort((a, b) => (a.d === b.d ? 0 : a.d < b.d ? -1 : 1));
@@ -131,7 +142,9 @@ const closedGapTo = (upTo) => {
     qty[e.sym] = before + (s ? -(e.qty || 0) : (e.qty || 0));
     if (s && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized)) gap[e.sym] = (gap[e.sym] || 0) - e.realized;
   });
-  return Object.keys(gap).reduce((a, k) => a + gap[k], 0);
+  const otcGap = OTCCLEARED.filter((x) => x && (!upTo || x.d <= upTo))
+    .reduce((a, x) => a + ((x.cost || 0) - (x.proceeds || 0)), 0);
+  return Object.keys(gap).reduce((a, k) => a + gap[k], 0) + otcGap;
 };
 const closedGap = closedGapTo(null);
 
@@ -572,7 +585,13 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     else {
       const sell = ((P3 && P3.log) || []).filter((e) => /卖出|减仓|清仓/.test(String(e.act || "")) &&
         e.sym === a.name && e.d > pv.d && e.d <= cu.d)[0];
-      d = (sell && Number.isFinite(sell.realized)) ? (sell.realized + (a.cost || 0)) - (a.val || 0) : -(a.pl || 0);
+      /* ⚠ 2026-10-14：场外清仓同样要按「回款 − 期初市值」（页面的 periodContrib 第三支）——
+         赎回日早于本期、回款本期才到的那种（015884）在 POSITIONS.log 里找不到流水，
+         页面的判据是 positions-data.js 的 OTC_CLEARED（d = 回款到账日），这里同口径独立复算 ✓ */
+      const oc = OTCCLEARED.filter((x) => x && x.code === code && x.d > pv.d && x.d <= cu.d)[0];
+      if (sell && Number.isFinite(sell.realized)) d = (sell.realized + (a.cost || 0)) - (a.val || 0);
+      else if (oc) d = (Number(oc.proceeds) || 0) - (a.val || 0);
+      else d = -(a.pl || 0);
     }
     sums[etfSet.has(code) ? "in" : "ot"] += d;
   });
@@ -936,7 +955,12 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     qty[e.sym] = before + (sell ? -(e.qty || 0) : (e.qty || 0));
     if (sell && before > 0 && qty[e.sym] === 0 && Number.isFinite(e.realized)) gap[e.sym] = (gap[e.sym] || 0) - e.realized;
   });
-  const expCleared = Math.round(Object.values(gap).reduce((a, b) => a + b, 0) * 100) / 100;
+  /* ⚠ 2026-10-14：POSITIONS.log 只装**场内**交割单 → 上面这一趟只得到场内那 18,492.00。
+     场外全额清仓（首次：015884 中欧）没有份额级流水，判据是 positions-data.js 的 OTC_CLEARED
+     （口径 = Σ(成本 − 回款)，与页面 closedCostGap() 逐字一致）→ 这里同口径独立复算并加回 ✓；
+     漏掉这一项，小注里的「已实现」就会比页面少一块而报红（页面那半是对的 ✓）。 */
+  const otcCleared = OTCCLEARED.reduce((a, x) => a + ((x.cost || 0) - (x.proceeds || 0)), 0);
+  const expCleared = Math.round((Object.values(gap).reduce((a, b) => a + b, 0) + otcCleared) * 100) / 100;
   const labels = [...grid.querySelectorAll(".sum-cell .s-label")].map((x) => x.textContent.replace(/\s+/g, ""));
   /* ⚠ 筛「浮盈」而不是「累计浮盈亏」✗（2026-10-13 第二轮：标签为手机收窄到 8 字
      「在持浮盈 · 场内 / 场外」✓ —— 写死旧词就会筛不到而**假绿** ✗；改词后这条仍成立 ✓，

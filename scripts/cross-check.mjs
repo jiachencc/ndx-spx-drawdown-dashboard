@@ -40,6 +40,13 @@ const evalBlock = (html, re, expr) => {
 export const parsePositions = (html) => ({
   rows: evalBlock(html, /^const SNAPSHOTS = \[[\s\S]*?^\];/m, "SNAPSHOTS"),
   otc: evalBlock(html, /^const OTC = \{[\s\S]*?^\};/m, "OTC"),
+  /* ⚠ 2026-10-14 加：场外的**全额清仓**台账（本文件此前只能从 POSITIONS.log 拿已实现，而那只装场内交割单 ✗）。
+     页面 closedCostGap() 与下面 ② 的修正项**共用这一份 MANUAL 数据**，口径 = Σ(成本 − 回款) ✓。
+     取不到（老版本数据文件没有这个常量）时返回 [] —— 不抛错，保持向后可跑 ✓ */
+  otcCleared: (() => {
+    try { return evalBlock(html, /^const OTC_CLEARED = \[[\s\S]*?^\];/m, "OTC_CLEARED") || []; }
+    catch (e) { return []; }
+  })(),
 });
 
 const sumOf = (items, field, pick) => Object.entries(items)
@@ -48,7 +55,7 @@ const sumOf = (items, field, pick) => Object.entries(items)
 const money = (x) => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(2);
 
 export function crossIssues(model, html, diag = false) {
-  const { rows, otc } = parsePositions(html);
+  const { rows, otc, otcCleared } = parsePositions(html);
   const issues = [], lines = [];
   const hold = model.POSITIONS?.hold || [];
   const holdCodes = new Set(hold.map((p) => p.code));
@@ -122,7 +129,10 @@ export function crossIssues(model, html, diag = false) {
          不修正残差 **−18,282.00** ✗（判红、挡住写入）；修正后 = **+210.00** ＝ 当日场外定投
          （南方 200 ＋ 华安A/C 各 5）✓✓ —— 与「Δ总资产 ＝ flow ＋ day − 费用」独立吻合（差 0.05 逐只取整）。
        ⚠ realized 取自 POSITIONS.log 的卖出/减仓/清仓行（按快照 items 的 name 匹配本只最近一笔）。
-         场外清仓（若有）在 log 里没有对应流水 → 无法修正，此时**照实报缺**，不静默放过 ✗。 */
+       ⚠ **2026-10-14 补场外那一半**：POSITIONS.log 只装**场内**交割单 → 场外全额清仓（首次即 015884 中欧）
+         在那里找不到对应流水。原先的处理是「照实报缺」✗（本期就会命中、把写入挡住）；
+         现改为回落到 positions-data.js 的 **OTC_CLEARED** —— 与页面 closedCostGap() 同一份数据、同一口径
+         （已实现 ＝ 回款 − 成本）；两处都找不到才报缺，不静默放过 ✗。 */
     let clearRealized = 0; const clearNoFlow = [];
     for (const code of Object.keys(p.items)) {
       if (c.items[code]) continue;                       // 还在本期 items 里 → 不是清仓（减仓由摊薄口径自洽 ✓）
@@ -130,7 +140,10 @@ export function crossIssues(model, html, diag = false) {
       const e = (model.POSITIONS?.log || [])
         .filter((x) => /卖出|减仓|清仓/.test(String(x.act || "")) && x.sym === nm && Number.isFinite(x.realized))
         .sort((a, b) => (a.d < b.d ? 1 : -1))[0];
-      if (e) clearRealized += e.realized; else clearNoFlow.push(code + "（" + nm + "）");
+      const oc = (otcCleared || []).find((x) => x && x.code === code);
+      if (e) clearRealized += e.realized;
+      else if (oc) clearRealized += (Number(oc.proceeds) || 0) - (Number(oc.cost) || 0);   // 场外：已实现 ＝ 回款 − 成本
+      else clearNoFlow.push(code + "（" + nm + "）");
     }
     const f2 = dCash === null ? null : dCost + dCash - clearRealized;
     if (diag && clearRealized) lines.push("  " + c.d + "  清仓修正 −Σ已实现 " + money(clearRealized) + "（" + (clearNoFlow.length ? "✗ 无法修正：" + clearNoFlow.join("、") : "已全部找到对应流水 ✓") + "）");
