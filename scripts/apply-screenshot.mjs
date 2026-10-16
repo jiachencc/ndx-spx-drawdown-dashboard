@@ -86,10 +86,10 @@ for (const f of input.otc || []) {
      → 本期就该记 null ✓（把上一期那个 −213.45 再记一遍＝重复计入 ✗）。
      原校验要求 day 必须有限数 → 这种「尚未更新」的合法状态**根本写不进去** ✗（与数据模型自相矛盾 ✗）。
      value / pnl / qty 仍必须是数（沿用上一期也要显式写出来 ✓）。 */
-  for (const k of ["value", "pnl", "qty"]) if (!Number.isFinite(f[k])) errors.push(f.code + " 缺 " + k);
+  for (const k of ["value", "pnl", "qty"]) if (!Number.isFinite(f[k])) errors.push(labelOf(f.code) + " 缺 " + k);
   if (!(Number.isFinite(f.day) || f.day === null))
-    errors.push(f.code + " 的 day 必须是数或 null（null = 该净值日未更新，勿用 0 冒充 ✗）");
-  if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(f.code + " 缺 navClose/navDate");
+    errors.push(labelOf(f.code) + " 的 day 必须是数或 null（null = 该净值日未更新，勿用 0 冒充 ✗）");
+  if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(labelOf(f.code) + " 缺 navClose/navDate");
   /* upd 必须**不早于**本期快照日：页面按它判「已同步」，日期早了就会显示「N 只未更新」、
      并把该只的当日收益从合计里剔除（2026-09-23 自检时正是这样被 dom-check 抓到的 —— 沿用上期 upd 即翻车）。
      ⚠ 2026-10-16：判据**移到 positions-logic.js 的 POS_LOGIC.synced**（与页面、门禁同一份源码 ✓）——
@@ -98,7 +98,7 @@ for (const f of input.otc || []) {
        唯一诚实的写法就是记真实时刻，写成当天属伪造时间戳 ✗（handoff 底线）。 */
   if (!f.upd) f.upd = input.date + " 20:00";
   else if (!LOGIC.synced(f.upd, input.date))
-    errors.push(f.code + " 的 upd（" + f.upd + "）早于本期 " + input.date + "：页面会当它没更新，当日合计会少算这一只");
+    errors.push(labelOf(f.code) + " 的 upd（" + f.upd + "）早于本期 " + input.date + "：页面会当它没更新，当日合计会少算这一只");
 }
 for (const [k, e] of Object.entries(input.etf || {})) {
   if (!(k in ETF_KEYS)) errors.push("etf 多出未知键：" + k);
@@ -126,7 +126,16 @@ const last = rows.filter((r) => r.items).at(-1);
 if (!last) errors.push("没有可参照的上一期完整快照");
 else if (input.date <= rows.at(-1).d) errors.push("date " + input.date + " 不晚于最新快照 " + rows.at(-1).d + "（历史不许改）");
 const missing = (otcNow.funds || []).filter((f) => !input.otc.some((x) => x.code === f.code));
-if (missing.length && !ALLOW_PARTIAL) errors.push("场外只给了 " + input.otc.length + "/" + otcNow.funds.length + " 只（缺 " + missing.map((f) => f.code).join("/") + "）：未凑齐不写快照，否则旧值会被冻进历史；确实要写就加 --allow-partial");
+/* 名称（代码）：本工具**所有给人看的输出**（改动日志 / 提示 / 报错 / 期注释）一律写成「名称（代码）」。
+   2026-10-16 用户提出：「023402 是哪个数字我不太能对应」✗ —— 过去只打 6 位代码，每次都得查表。
+   名称来源：① 在持场外 OTC.funds ② 场内 POSITIONS.hold 的 sym；兜底**只写代码、不猜** ✗。
+   ⚠ 数据文件里**仍只存代码**（它是主键，快照 items 的键也是它）—— 这条只改「给人看的那一侧」✓。
+   ⚠ 定义位置必须在下面的 errors 收集**之前**（那些报错也要带名称 ✓），故不能依赖后面才初始化的 prev。 */
+const NAME_MAP = new Map();
+for (const f of otcNow.funds || []) NAME_MAP.set(f.code, f.name);
+for (const h of model.POSITIONS.hold || []) NAME_MAP.set(h.code, h.sym);
+const labelOf = (code) => { const n = NAME_MAP.get(code); return n ? n + "（" + code + "）" : String(code); };
+if (missing.length && !ALLOW_PARTIAL) errors.push("场外只给了 " + input.otc.length + "/" + otcNow.funds.length + " 只（缺 " + missing.map((f) => labelOf(f.code)).join("、") + "）：未凑齐不写快照，否则旧值会被冻进历史；确实要写就加 --allow-partial");
 if (errors.length) { console.error("输入有问题：\n" + errors.map((s) => "  - " + s).join("\n")); process.exit(1); }
 
 /* ---------- 推导 ---------- */
@@ -156,19 +165,21 @@ for (const [key, idx] of Object.entries(ETF_KEYS)) {
      为什么必须跳过：页面「快照对比」正是靠「上期有、本期没有」判**清仓**（tag: "close"）✓。
      ⚠ 原实现是 `nextHold(holdByIdx(idx).code)` —— 清仓后 holdByIdx 返回 undefined，
        直接取 .code 会 **TypeError 崩掉整个脚本** ✗（2026-10-09 清仓中韩/港美时实测踩到）。 */
-  if (!hp) { tips.push(idx + "（" + key + "）已不在 POSITIONS.hold 里 → 本期不进 items（页面据此显示「清仓」✓）"); continue; }
+  /* ⚠ 2026-10-16：原来打成 `kr（kr）`（idx 与 key 同值时重复一次 ✗），且没说清 key 到底是什么 ✗ ——
+     它其实不是基金代码，而是**场内报价键**（etfNdx/etfSpx/kr/n225/hkus 之一）✓。 */
+  if (!hp) { tips.push(key + " 已清仓（不在 POSITIONS.hold 里）→ 本期不进 items，页面据此显示「清仓」✓；⚠ " + key + " 是**场内报价键**、不是 6 位基金代码 ✓"); continue; }
   const p = nextHold(hp.code);
   const close = typeof input.etf[key] === "object" ? input.etf[key].close : input.etf[key];
   const cost = r2(p.qty * p.cost), val = r2(p.qty * close);
   items[p.code] = { name: p.sym, qty: p.qty, cost, val, pl: r2(val - cost) };
   dCost += cost - pc(p.code); dVal += val - pv(p.code);
   dCostIn += cost - pc(p.code); dValIn += val - pv(p.code);
-  if (!prev[p.code]) tips.push(p.code + " 是本期新建仓，其 Δ 会计入当日（当日会偏大，需人工核对）");
+  if (!prev[p.code]) tips.push(labelOf(p.code) + " 是本期新建仓，其 Δ 会计入当日（当日会偏大，需人工核对）");
 }
 for (const f of input.otc) {
   const known = otcNow.funds.find((x) => x.code === f.code);
   const name = (prev[f.code] || {}).name || String(known.name).replace(/[（(].*$/, "").slice(0, 8);
-  if (!(prev[f.code] || {}).name) tips.push("快照短名 " + f.code + " 由基金名截取（上一期快照没有它，建议核对）");
+  if (!(prev[f.code] || {}).name) tips.push("快照短名 " + labelOf(f.code) + " 由基金名截取（上一期快照没有它，建议核对）");
   const cost = r2(f.value - f.pnl);
   items[f.code] = { name, qty: f.qty, cost, val: r2(f.value), pl: r2(f.pnl) };
   dCost += cost - pc(f.code); dVal += r2(f.value) - pv(f.code);
@@ -184,7 +195,7 @@ if (ALLOW_PARTIAL) {
     items[code] = { ...prev[code] };
     dCost += (prev[code].cost || 0) - pc(code);
     dVal += (prev[code].val || 0) - pv(code);
-    tips.push(code + "（" + (prev[code].name || "") + "）本期未给读数 → **沿用上一期快照**，页面会标「未更新」✓");
+    tips.push(labelOf(code) + "（" + (prev[code].name || "") + "）本期未给读数 → **沿用上一期快照**，页面会标「未更新」✓");
   }
 }
 const sumBy = (pick, field) => r2(Object.entries(items).filter(([c]) => pick(c)).reduce((a, [, it]) => a + it[field], 0));
@@ -257,9 +268,9 @@ for (const key of Object.keys(ETF_KEYS)) {
 }
 /* 持仓份数/成本（cost 与 idxAtCost 必须一起改：门禁强制两者相等） */
 for (const h of input.hold || []) {
-  dataSrc = sub1(dataSrc, new RegExp("(code: \"" + h.code + "\"[^\\n]*?qty: )\\d+", "m"), "$1" + h.qty, h.code + " qty");
+  dataSrc = sub1(dataSrc, new RegExp("(code: \"" + h.code + "\"[^\\n]*?qty: )\\d+", "m"), "$1" + h.qty, labelOf(h.code) + " qty");
   dataSrc = sub1(dataSrc, new RegExp("(code: \"" + h.code + "\"[^\\n]*?cost: )[-0-9.]+(, idxAtCost: )[-0-9.]+", "m"),
-    "$1" + num(h.cost, 10) + "$2" + num(h.cost, 10), h.code + " cost/idxAtCost");
+    "$1" + num(h.cost, 10) + "$2" + num(h.cost, 10), labelOf(h.code) + " cost/idxAtCost");
 }
 /* 流水：插到 log: [ 之后（新的在最上面） */
 if ((input.trades || []).length) {
@@ -325,7 +336,7 @@ const rateOf = (f) => { const c = f.value - f.pnl - pendOf(f.code); return (c ? 
 /* OTC：逐只场外（从 code: 起到下一条之前；只动字段值，注释一行不碰） */
 for (const f of input.otc) {
   const at = posSrc.indexOf('code: "' + f.code + '"');
-  if (at < 0) { changes.push("✗ OTC.funds 里找不到 " + f.code); hardFail = true; continue; }
+  if (at < 0) { changes.push("✗ OTC.funds 里找不到 " + labelOf(f.code)); hardFail = true; continue; }
   const nextEntry = posSrc.indexOf("\n    { name: ", at);
   const arrEnd = posSrc.indexOf("\n  ],", at);
   const end = nextEntry < 0 || (arrEnd >= 0 && arrEnd < nextEntry) ? arrEnd : nextEntry;
@@ -339,7 +350,7 @@ for (const f of input.otc) {
     .replace(/(\bupd: ")[^"]*(")/, "$1" + (f.upd || input.date + " 20:00") + "$2")
     .replace(/(nav: \{ close: )[-0-9.]+/, "$1" + num(f.navClose, 4))
     .replace(/(nav: \{ close: [-0-9.]+, closeDate: ")[\d-]+(")/, "$1" + f.navDate + "$2");
-  if (out !== before) changes.push("· OTC " + f.code + "：value " + num(f.value, 2) + " / day " + (f.day === null ? "null" : num(f.day, 2)) + " / pnl " + num(f.pnl, 2) +
+  if (out !== before) changes.push("· OTC " + labelOf(f.code) + "：value " + num(f.value, 2) + " / day " + (f.day === null ? "null" : num(f.day, 2)) + " / pnl " + num(f.pnl, 2) +
     " / rate " + rateOf(f) + " / upd " + (f.upd || input.date + " 20:00") + " / nav " + num(f.navClose, 4) + "@" + f.navDate);
   posSrc = posSrc.slice(0, at) + out + posSrc.slice(at + seg.length);
 }
@@ -348,7 +359,7 @@ const noteHead = "⚠ 本页" + (missing.length ? "仅 " + input.otc.length + "/
   "；总资产 " + num(r2(totalVal + input.cash), 2) + " = 场内 " + num(inVal, 2) + " + 场外 " + num(otcVal, 2) + " + 现金 " + num(input.cash, 2) +
   "；累计浮盈亏 " + num(pl, 2) + "；当日 " + num(day, 2) + "（场内 " + num(dayIn, 2) + " + 场外 " + num(dayOtc, 2) + "）" +
   "；flow " + num(flow, 2) + " = Δ成本 " + num(dCost, 2) + " + Δ现金 " + num(dCash, 2) +
-  ((input.pending || []).length ? "；在途 " + input.pending.map((p) => p.code + " " + p.amount).join("、") + "（市值已含、份额未含）" : "");
+  ((input.pending || []).length ? "；在途 " + input.pending.map((p) => labelOf(p.code) + " " + p.amount).join("、") + "（市值已含、份额未含）" : "");
 const period = "  { d: \"" + input.date + "\", cash: " + num(input.cash, 2) + ", pl: " + num(pl, 2) +
   ", day: " + num(day, 2) + ", flow: " + num(flow, 2) + ",\n" +
   "    /* " + [noteHead, input.note].filter(Boolean).join("。") + " */\n" +

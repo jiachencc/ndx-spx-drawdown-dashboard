@@ -71,6 +71,12 @@ ndx_spx_dashboard_handoff/
 
 ~~每月月初补 MONTHLY~~ 已自动化：月度涨跌幅由脚本按日 K 聚合（月末收盘环比，当月为至今），无需手改。
 
+**📝 记录约定（2026-10-16 起；用户原话：「023402 是哪个数字我不太能对应」）**：凡**给人看**的输出 ——
+`apply-screenshot` 的改动日志 / 提示 / 报错 / 它生成的期注释，以及 AI 汇报里提到某只时 —— 一律写
+**「名称（代码）」**（例：`广发全球精选股票(QDII)人民币F（023402）`），不要光甩一个 6 位代码 ✗。
+⚠ **数据文件里仍只存代码**（它是主键、快照 `items` 的键也是它 ✓）—— 这条只管「人读的那一侧」；
+查不到名称时**只写代码、不猜** ✗。实现：`apply-screenshot.mjs` 的 `labelOf()`（名称取自 OTC.funds → POSITIONS.hold）。
+
 **第三个 AUTO 块 `FEES`（费率表，2026-09-20 加）**：综合费率 ＝ 管理费 ＋ 托管费 ＋ 销售服务费（年化），抓自东方财富基金档案页 `fundf10.eastmoney.com/jbgk_<code>.html`（招募说明书口径）。代码清单 = 我持有的场内 + 持有场外 + 回测候选 + `peers` 指向的替代产品（约 28 只）。`peers` 是 MANUAL 判断（同口径更便宜的替代，`null` = 没有），维护在 [scripts/fetch-fees.mjs](scripts/fetch-fees.mjs) 顶部；抓失败保留旧值，不阻断日更。
 
 **第二个 AUTO 块 `ALT_BACKTEST`（标的替换回测，2026-09-20 加）**：把「选哪只标的」单独量化——同一批流水（同样日期、同样金额）换成同类别的另一只产品，到期末差多少。由 [scripts/alt-etf-backtest.mjs](scripts/alt-etf-backtest.mjs) 抓腾讯前复权日K + 东财历史净值后**整块重写**（与 `MONTHLY` 同手法：先 `validateModel` 再 `auditFiles` 再原子写，任一不过就不写、保留旧值）。候选清单与综合费率是该脚本顶部 `UNIVERSE` 的 MANUAL 常量，**换候选只改那一处**。CI 在行情更新之后、终审之前跑它（`continue-on-error`：失败不阻断日更，只是页面上的期末日期会落后，`?debug` 会提示）。
