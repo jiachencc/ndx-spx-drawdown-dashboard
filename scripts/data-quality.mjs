@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, NOWCAST: typeof NOWCAST === \"undefined\" ? null : NOWCAST };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -157,39 +157,11 @@ export function validateModel(m) {
        于是给 DEFAULT.epsGrowth 补一条 provenance 会被判 invalid ✗ —— 见 sourceHealth 的 manual 分支。 */
     if (!["ok", "retained", "unverified", "manual"].includes(meta.status) || (meta.asOf !== null && !isDate(meta.asOf)) || typeof meta.source !== "string") errors.push("invalid provenance " + k);
   }
-  /* 场外当日收益预估的输入（AUTO，scripts/fetch-nowcast.mjs 写）：
-     允许整块缺失（老数据 / 脚本没跑）—— 页面会退回 App 快照口径，不该报错；一旦存在，形状必须对。
-     页面对它是"逐日累乘"的，日期错一格就会静默少算/多算一天的涨跌 → 所以这里逐项校验。 */
-  const nc = m.NOWCAST;
-  if (nc) {
-    if (!isDate(nc.updated)) errors.push("NOWCAST.updated invalid");
-    for (const [k, arr] of Object.entries(nc.idx || {})) {
-      if (!Array.isArray(arr) || arr.length < 2) { errors.push("NOWCAST.idx." + k + ": too short"); continue; }
-      let prev = "";
-      for (const p of arr) {
-        if (!isDate(p.d) || p.d <= prev) errors.push("NOWCAST.idx." + k + ": dates not ascending @" + p.d);
-        if (!Number.isFinite(p.c) || !(p.c > 0)) errors.push("NOWCAST.idx." + k + ": bad close @" + p.d);
-        prev = p.d;
-      }
-    }
-    for (const [code, f] of Object.entries(nc.fits || {})) {
-      if (!(nc.idx || {})[f.prox]) errors.push("NOWCAST.fits." + code + ": unknown prox " + f.prox);
-      for (const key of ["beta", "alpha", "r", "mae", "n"]) if (!Number.isFinite(f[key])) errors.push("NOWCAST.fits." + code + "." + key + ": not finite");
-      if (!isDate(f.navDate)) errors.push("NOWCAST.fits." + code + ".navDate invalid");
-      if (!["num", "ref", "dir"].includes(f.tier)) errors.push("NOWCAST.fits." + code + ".tier invalid");
-      if (Number.isFinite(f.beta) && Math.abs(f.beta) > 3) errors.push("NOWCAST.fits." + code + ".beta implausible");
-      if (Number.isFinite(f.mae) && !(f.mae >= 0 && f.mae <= 0.2)) errors.push("NOWCAST.fits." + code + ".mae implausible");
-      /* ★ 跟踪很紧的（r ≥ 0.95，即真正的指数联接基金）β 必须贴近 1 ——
-         这是**数据侧**唯一能自动抓到的错（页面侧复算两条读同一份数据，改 β 抓不到，2026-10-03 实测）。
-         2026-10-03 反向验证：把 021000 的 β 从 0.952 改成 0.4，只有这条拦得住。 */
-      if (Number.isFinite(f.r) && Number.isFinite(f.beta) && f.r >= 0.95 && (f.beta < 0.8 || f.beta > 1.2))
-        errors.push("NOWCAST.fits." + code + ": r " + f.r + " 说明跟踪很紧，但 beta " + f.beta + " 不在 0.8~1.2");
-      /* tier 必须与 r/mae 自洽（脚本里 TIER 的阈值见 fetch-nowcast.mjs）—— 防"分档写反/漏改" */
-      const want = f.r < 0.6 ? "dir" : f.mae <= 0.002 ? "num" : f.mae <= 0.01 ? "ref" : "dir";
-      if (["num", "ref", "dir"].includes(f.tier) && f.tier !== want)
-        errors.push("NOWCAST.fits." + code + ": tier " + f.tier + " 与 mae/r 不一致（应为 " + want + "）");
-    }
-  }
+  /* ⚠️ 2026-10-16 删：原「NOWCAST 合约」（场外当日收益预估的输入，scripts/fetch-nowcast.mjs 写）——
+     页面上的「场外当日预估」模块已整体下线，数据侧 `NOWCAST` / `NOWCAST_LOG` 两块与其唯一写者
+     `scripts/fetch-nowcast.mjs` 也一并移除 ✓，故这里不再有可校验的对象。
+     历史：该合约曾抓过「r ≥ 0.95 时 β 必须落在 0.8~1.2」与「tier 与 mae/r 自洽」，
+     是当时唯一能自动抓到**数据侧**拟合错的断言（页面侧复算读同一份数据，改 β 抓不到 ✓）。 */
   return errors;
 }
 export function metrics(raw) {
@@ -319,12 +291,8 @@ export function autoBlockIssues(model, dataSrc, posSrc) {
   if (snapLast && benchLast && diff(snapLast, benchLast) > 3)
     issues.push("AUTO 块陈旧：BENCH 最新日期 " + benchLast + " 落后最新快照日 " + snapLast +
       " 超过 3 天 —— scripts/sync-bench.mjs 那步多半坏了（走势图的「同节奏纳指」虚线会停在旧日期）");
-  /* NOWCAST（场外当日预估的输入，2026-10-03 加）：它落后于美股数据日，说明 fetch-nowcast 那步坏了 ——
-     页面不会报错，只会**一直按旧指数补齐**（每行会标着旧日期，但没人会天天去核对）。
-     容差 5 天：长假期间 NOWCAST 里的 A股代理顶得上来，不会误报；真坏了才会连续落后。 */
-  if (mkt && model?.NOWCAST?.updated && model?.DEFAULT?.date && diff(model.DEFAULT.date, model.NOWCAST.updated) > 5)
-    issues.push("AUTO 块陈旧：NOWCAST.updated " + model.NOWCAST.updated + " 落后美股数据日 " + model.DEFAULT.date +
-      " 超过 5 天 —— scripts/fetch-nowcast.mjs 那步多半坏了（场外预估会一直按旧指数补齐，页面每行的时间标签会露馅）");
+  /* ⚠️ 2026-10-16 删：原「NOWCAST 陈旧」检查（落后美股数据日 > 5 天就报）—— 该块与其写者
+     scripts/fetch-nowcast.mjs 已随页面模块一起移除 ✓，不再有第二个自动源可查。 */
   return issues;
 }
 

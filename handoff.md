@@ -239,15 +239,17 @@ ndx_spx_dashboard_handoff/
 
 ---
 
-### 4.9 场外「当日收益（估）」· nowcast（2026-10-03 加；**2026-10-16 页面模块已下线**）
+### 4.9 场外「当日收益（估）」· nowcast（2026-10-03 加；**2026-10-16 已整体下线**）
 
-> ⚠ **2026-10-16：用户决定删除该页面模块** —— 汇总卡里那个折叠块（`#otc-est-wrap`「📉 场外当日预估 · 逐只拆解」
-> ＋ 块内第二张「预估 vs 实际」对账表）连同它的 CSS、`renderOtcEst()`、`renderImpl` 里的 `nc` 计算、
+> ⚠ **2026-10-16：用户决定删除该模块 —— 页面侧与数据侧都已拔掉** ✓
+> **页面侧**：汇总卡里那个折叠块（`#otc-est-wrap`「📉 场外当日预估 · 逐只拆解」＋ 块内第二张
+> 「预估 vs 实际」对账表）连同它的 CSS、`renderOtcEst()`、`renderImpl` 里的 `nc` 计算、
 > 以及 dom-check 的三组断言（③c 逐只拆解表 / ④q 预估对账 / ④q-2 两源净值日 chip）**一并移除** ✓。
+> **数据侧**（同一天，用户：「没有消费就删掉」）：`data.js` 的 `NOWCAST` / `NOWCAST_LOG` 两块（共 684 行、
+> 12.5 KB）· `scripts/fetch-nowcast.mjs`（唯一写者）· `scripts/nowcast-backtest.mjs` · CI 的**第 ⑥ 步**
+> · `data-quality.mjs` 的 NOWCAST 合约与「NOWCAST 陈旧」检查 · readModel 白名单里那一项 —— **全仓库已无引用** ✓。
 > 原因：场外当日收益现在**每天都由截图给出实读值**（7/7 全覆盖），把预估再摆一遍已无必要 ✓。
-> ⏳ **数据侧暂留**（未做，属另一件事）：`data.js` 的 `NOWCAST` / `NOWCAST_LOG`、`scripts/fetch-nowcast.mjs`（CI 第 ⑥ 步）、
-> `data-quality.mjs` 的 NOWCAST 合约、`scripts/nowcast-backtest.mjs` 都还在 ✓ —— 停用它们要连 CI 与数据块一起动。
-> 下面这段设计／踩坑记录**留着**：若将来要恢复该模块或拿它做离线分析，这些结论仍然成立 ✓。
+> 下面这段设计／踩坑记录**留着**：若要恢复（值都还在 git 历史里）或拿它做离线分析，这些结论仍然成立 ✓。
 
 
 **要解决什么**：场外 QDII 净值晚 1~2 天公布（华安更慢），App 的「日收益」永远停在截图那天；
@@ -257,9 +259,8 @@ ndx_spx_dashboard_handoff/
 对 8 只基金分别试 k = −1/0/+1，全部以 **k = 0** 相关最高（纳指 r 0.99 / 标普 0.99 / 日经 0.78 / 港股 0.53）。
 所以窗口 = 指数里【严格晚于净值日】的那几根，逐日累乘 `Π(1 + (α + β·r_t)/100) − 1`，再 × 市值。
 
-**数据流**：`scripts/fetch-nowcast.mjs` → `data.js` 的 `const NOWCAST`（AUTO，CI 里紧跟 fetch_and_update 之后跑，
-`continue-on-error`；块缺失时页面退回 App 快照口径，与加这个功能之前完全一致）→ ~~positions.html 渲染~~
-（2026-10-16 起页面不再消费它 ✓，见上方说明）。
+**数据流**（已整条移除，此处留档）：~~`scripts/fetch-nowcast.mjs` → `data.js` 的 `const NOWCAST`（AUTO，CI 第 ⑥ 步，
+`continue-on-error`）→ `positions.html` 渲染~~ —— 2026-10-16 全链路删除 ✓（页面先下线、数据侧随后拔掉）。
 代理指数：新浪 `.NDX`/`.INX`（末值与仓库 Yahoo 值一致）· 腾讯 `hkHSTECH` · 腾讯 `sh513880`（A股日经ETF）。
 
 **可信度分档**（脚本按 r/mae 算 `tier`，页面照画）：
@@ -275,12 +276,9 @@ ndx_spx_dashboard_handoff/
 - 本机 Node 的 `fetch` 打新浪/东财会偶发 "Empty reply from server"，curl 正常 → 脚本里 fetch 失败退回 curl。
 - 窗口用**东财净值日**而不是 App 截图里的「净值日」：拟合同一套日期，且 App 那栏偶尔 +1（显示口径）。
 
-**校验分工**：`check-data` 管数据侧形状与合理性（r ≥ 0.95 时 β 必须落在 0.8~1.2、tier 与 mae/r 自洽）；
-~~`dom-check` 管页面侧（三栏自洽 ＋ 场外用 NOWCAST 独立复算比对 ＋ App 快照仍在副标里）~~
-—— 2026-10-16 随页面模块下线，这三组断言（③c / ④q / ④q-2）已删 ✓；汇总卡那三栏的断言（③b）**仍在** ✓，
-它只吃 `OTC.funds` ＋ 快照，与预估无关 ✓。
-⚠ ~~页面侧复算与页面读同一份数据，改 β 它抓不到~~（该复算已删）—— 数据侧仍由 check-data 那条把关 ✓。
-精度只能手动跑 `node scripts/nowcast-backtest.mjs`（不进 CI）。
+**校验分工**（都已随模块删除）：`check-data` 管数据侧形状与合理性；`dom-check` 管页面侧。
+汇总卡「当日盈亏」那三栏的断言（③b）**仍在** ✓ —— 它只吃 `OTC.funds` ＋ 快照，与预估无关 ✓。
+⚠ 当时那条「页面侧复算与页面读同一份数据，改 β 抓不到」的教训仍成立（若要恢复，数据侧那条 β 断言别省）。
 
 ## 5. 部署指南（发布到 GitHub Pages）
 

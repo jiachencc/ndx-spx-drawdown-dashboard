@@ -179,7 +179,7 @@ check("汇总卡本金 = 总资产 − 累计收益（快照口径独立复算�
      ③ 场外那半的**未更新只**必须被点名（悬停里）—— 见下面那两条 ✓
    ⚠ 2026-10-16：原先还有一条「场外 ≡ 用 NOWCAST 独立复算的**预估**」✗ —— 随页面上的
      「场外当日预估」模块整体下线一并删除 ✓（预估不再出现在页面上，就没有可比的对象了）。
-     NOWCAST 数据侧的形状校验仍在 check-data ✓（本文件不再读它）。 */
+     NOWCAST 数据侧的校验（形状 ＋ 陈旧）与其唯一写者/数据块也在同一天整体移除 ✓ —— 全仓库已无引用。 */
 const dayCellEl = sum ? [...sum.querySelectorAll(".sum-cell")].find((el) => el.textContent.includes("当日盈亏")) : null;
 const dayCell = dayCellEl ? dayCellEl.textContent.replace(/\s+/g, "") : null;
 /* ⚠ 2026-10-13：用户决定「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓ →
