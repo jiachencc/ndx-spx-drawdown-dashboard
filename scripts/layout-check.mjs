@@ -142,6 +142,18 @@ for (const w of [1440, 760, 414, 380]) {
   /* 只在 380 档查"图内元素越界" ✓：那一档才把按需渲染的列头图打开 ✓（没图时查了也是空 ✓ 假绿 ✗） */
   if (w === 380)
     check("首屏 380px：图内元素不越出画布（列头图已打开 ✓）", r.out.length === 0, r.out.slice(0, 3).join(" · "));
+  /* ⚠ 逐笔流水**默认折叠** → 它的版式从来没被量过 ✗（2026-10-16 给它加了金额列才发现这个覆盖缺口：
+     折叠态下 layout-check 看不见那些行，而手机宽度下正是最容易挤的地方 ✓）。
+     这里在窄屏把它展开再逐行量：行内容宽度不得超过行自身 ✓（超出＝挤成横向滚动 / 叠字 ✗）。 */
+  if (w <= 560) {
+    await p.evaluate(() => document.querySelectorAll("#pos-list details.pos-log").forEach((d) => { d.open = true; }));
+    await p.waitForTimeout(120);
+    const logOv = await p.evaluate(() => [...document.querySelectorAll("#pos-list .log-item")]
+      .filter((el) => el.scrollWidth > el.clientWidth + 1)
+      .map((el) => (el.textContent || "").replace(/\s+/g, " ").slice(0, 54)));
+    check("首屏 " + w + "px：逐笔流水**展开后**每行不溢出（含金额列 ✓）", logOv.length === 0,
+      logOv.length ? logOv.slice(0, 2).join(" · ") : "全部行都装得下 ✓");
+  }
   await p.close();
 }
 

@@ -959,6 +959,10 @@
      弱一档色（tx3）—— 它与成本价的百分比是两件事（一个讲减了多少仓、一个讲成本怎么变），
      且卖出行的成本 chip 已刻意不给百分比，这里也不上红绿，避免与盈亏色争视线。 */
   .log-cut { font-style: normal; color: var(--tx3); }
+  /* 行内金额（②，2026-10-16）：它是这一笔最常用的数 → 比同行的 tx2 亮一档（--tx ✓），沿用等宽 ✓ */
+  .log-amt { color: var(--tx); }
+  /* 备注被截断的省略号（①）：非斜体、与备注同色 —— 别让它看起来像链接 ✗ */
+  .log-more { font-style: normal; color: var(--tx3); }
   /* 波段复盘表新增列：这趟往返对摊薄成本的影响（元/份）；颜色由 .up/.down 给（下降=绿） */
   .sw-cost { font-family: var(--mono); font-size: var(--fs-xxs); white-space: nowrap; cursor: help; }
   .log-note { width: 100%; font-family: var(--sans); color: var(--tx3); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: break-word; }

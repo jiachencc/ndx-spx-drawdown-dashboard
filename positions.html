@@ -296,6 +296,7 @@ const CONFIG = {
      等于「哪笔买得多」这个信息没画出来 ✗。改后极差 3.7~6.0px ✓。 */
   BUY_DOT_RANGE: 7,
   TIP_CLAMP: 40,
+  NOTE_MAX: 34,                // 逐笔流水的备注**行内**最多显示多少字（全文挂 title ✓）—— 见 shortNote() 的注释
   PREM_WARN: 3,
   PREM_HIGH: 8,
   DCA_DIP_TIERS: [-15, -25],   // 成本回撤加仓档（%，负数=较成本跌的深度）：现价跌破档位即提示「已达/距 X% 档」（POSITIONS.strategy.dipTiers 可覆盖）
@@ -6604,6 +6605,21 @@ function costTrace() {
 
 /* ---- 流水条目（现嵌在各持仓卡内，hideSym 时省略重复的标的名）
  * pair：配对角标 HTML（同一回路的买入行与卖出行挂同一个编号，逐笔流水才看得出「哪一买对哪一卖」） ---- */
+/* 短备注（2026-10-16）：log[].note 里混着两类内容 —— 操作信息（「平安 10-16 13:35 成交 · 费 5」✓）
+   与**对账证据链**（「与上一轮按 Δ持仓成本反推的成交价完全一致（零订正）」✗ —— 那是写给仓库看的）。
+   整段贴进「操作记录」＝ 把工作过程当成操作历史 ✗（实测一行 60~110 字，15 行全是噪声）。
+   → 这里**只截显示**：取第一个分句、再压到 CONFIG.NOTE_MAX 字，全文与说明挂 title ✓。
+   ⚠ 数据层 log[].note 一字不动 ✓ —— 它还兼着费用解析（「费 X」）与对账证据链两个用途，别去改它 ✗。 */
+function shortNote(s) {
+  if (!s || typeof s !== "string") return "";
+  const marks = ["；", ";", "，", "。"].map((m) => s.indexOf(m)).filter((i) => i > 4);
+  let t = s.slice(0, marks.length ? Math.min.apply(null, marks) : s.length);
+  if (t.length > CONFIG.NOTE_MAX) t = s.slice(0, CONFIG.NOTE_MAX);
+  t = t.replace(/\*\*/g, "").trim();          // 备注里的 markdown 粗体记号不会渲染，去掉免得当噪声 ✗
+  const cut = t.length < s.length;
+  return '<div class="log-note" title="' + esc(s) + (cut ? "\n\n（上面是备注全文；行内只显示前 " + t.length +
+    " 字 —— 其余多为对账 / 核对记录，属数据层证据链 ✓）" : "") + '">' + esc(t) + (cut ? ' <i class="log-more">…</i>' : "") + "</div>";
+}
 function logItemHtml(e, hideSym, pair) {
   const a = String(e.act || "");
   const c = /建仓|加仓|买入/.test(a) ? "act-open" : isSellAct(a) ? "act-close" : "act-other";
@@ -6650,15 +6666,26 @@ function logItemHtml(e, hideSym, pair) {
   /* 减仓幅度（卖出行，2026-09-25 方案 B）：本次卖出份 ÷ 操作前份 —— 挨着份数读作「卖了 3,000 份（−58.8%）」 */
   const cutPct = (isSell && t && t.qtyBefore > 0 && e.qty) ? (e.qty / t.qtyBefore) * 100 : null;
   return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
-    '<span class="log-date">' + d + '</span>' +
-    '<span class="act-badge ' + c + '">' + e.act + '</span>' +
+    /* ④ 完整日期挂悬停（行上仍只写 MM.DD ✓）：台账是长期的，跨年后再看「09.29」就不知道是哪年了 ✗ */
+    '<span class="log-date" title="' + esc(e.d || "") + '">' + d + '</span>' +
+    /* ③ 动作列压缩：买 / 卖 → ▲ / ▼ ＋ 方向色（与全页绿涨红跌同一套 ✓），动作细节（建仓 / 加仓 / 定投…）挂 title；
+       「其他」（撤单 / 失败 / 部分成功）**保留原词** —— 那才是真正需要读的字 ✓。
+       原先每行都写「买入 / 卖出」✗：15 行里 15 个零信息量的词，把宽度吃掉了 ✗。 */
+    '<span class="act-badge ' + c + '" title="' + esc(a) + '">' +
+      (c === "act-open" ? '<b class="up" aria-label="' + esc(a) + '">▲</b>'
+        : c === "act-close" ? '<b class="down" aria-label="' + esc(a) + '">▼</b>' : esc(a)) +
+    '</span>' +
     (hideSym ? "" : '<span class="log-sym">' + e.sym + '</span>') +
     '<span class="log-nums">' + fmtQty(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + " 元" +
+      /* ② 行内金额：原来只有「份数 @ 价」，金额得心算 ✗（而周小计里就有 ✓）。
+         口径与周小计**完全一致** ＝ 份数 × 成交价（**毛额、不含费**）→ 故标 ≈，含费值挂 title ✓ */
+      (e.cost !== undefined ? ' <b class="log-amt" title="≈' + fmtAbs2(e.qty * e.cost) + " 元 ＝ " + fmtQty(e.qty) + " 份 × " + e.cost.toFixed(4) +
+        ' 元（**毛额、不含费** —— 与周小计同口径 ✓）；含费的实际扣款见本行「成本价」那栏（带 ≈ 表示费用为估算 ✓）">≈' + fmtAbs2(e.qty * e.cost) + " 元</b>" : "") +
       (cutPct === null ? "" : ' <i class="log-cut" title="减仓幅度：本次卖出 ' + fmtQty(e.qty) + " 份 ÷ 操作前 " + fmtQty(t.qtyBefore) + " 份\">−" + cutPct.toFixed(1) + "%</i>") +
       "</span>" +
     costChip +
     (pair || "") +
-    (e.note ? '<div class="log-note">' + e.note + '</div>' : '') +
+    shortNote(e.note) +
   '</div>';
 }
 /* 周小计：ISO 周（周一起算），聚合该周买卖笔数与金额、资金净额。

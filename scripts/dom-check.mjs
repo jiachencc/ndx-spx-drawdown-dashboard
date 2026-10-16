@@ -376,6 +376,40 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
   check("场内卡溢价 ≥ " + 3 + "% 时悬停给出**规模**（≈ 多少元是溢价）", premGapMiss.length === 0, premGapMiss.join("、") || "溢价规模已给 ✓");
 }
 
+/* ③f-4 逐笔流水的「可读性四条」（2026-10-16 加，用户点单 ①②③④）——
+   全部是**页面显示层**的事（数据层 log[] 一字未动 ✓），所以只能在这里断：
+   ① 备注行内必须**截断**：log[].note 里混着"操作信息"与**对账证据链** ✗ ——
+      原样贴进来等于把工作过程当成操作历史（实测单行 60~115 字，15 行全噪声），全文应挂 title ✓；
+   ② 每行必须有**金额**：原来只有「份数 @ 价」，金额得心算 ✗（而周小计里就有 ✓）；
+   ③ 买 / 卖的动作列只许一个字形：原先每行写「买入 / 卖出」，15 行 15 个零信息量的词 ✗；
+   ④ 日期悬停必须是**完整日期**：行上只写 MM.DD ✓，但这份台账跨年后就不知道是哪年了 ✗。 */
+{
+  const cards4 = [...win.document.querySelectorAll("#pos-list > article")];
+  const longNote = [], noAmt = [], actWord = [], noFullDate = [];
+  let rows4 = 0;
+  cards4.forEach((card, ci) => {
+    const tag = "第 " + (ci + 1) + " 张卡";
+    [...card.querySelectorAll(".log-item")].forEach((el) => {
+      rows4++;
+      const act = el.querySelector(".act-badge"), num = el.querySelector(".log-nums");
+      const day = el.querySelector(".log-date"), note = el.querySelector(".log-note");
+      if (note) {
+        const shown = note.textContent.replace(/…/g, "").trim();
+        const full = note.getAttribute("title") || "";
+        if (shown.length > 36) longNote.push(tag + " 行内 " + shown.length + " 字：" + shown.slice(0, 28));
+        if (full.length > shown.length + 6 && !/备注全文/.test(full)) longNote.push(tag + " 备注被截断却没在 title 给全文 ✗");
+      }
+      if (num && !/≈[\d,]+ 元/.test(num.textContent)) noAmt.push(tag + "：" + num.textContent.replace(/\s+/g, " ").slice(0, 40));
+      if (act && /买入|卖出|建仓|加仓|清仓|减仓/.test(act.textContent)) actWord.push(tag + "：" + act.textContent.trim());
+      if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day.getAttribute("title") || "")) noFullDate.push(tag + "：" + (day.getAttribute("title") || "无 title"));
+    });
+  });
+  check("逐笔流水 " + rows4 + " 行：备注行内已截断（全文挂 title）", longNote.length === 0, longNote.slice(0, 3).join("；") || "全部截断 ✓");
+  check("逐笔流水：每行都给了金额（≈ 元，口径同周小计）", noAmt.length === 0, noAmt.slice(0, 3).join("；") || "全部有金额 ✓");
+  check("逐笔流水：买 / 卖用字形（▲ / ▼），不再逐行写「买入 / 卖出」", actWord.length === 0, actWord.slice(0, 3).join("；") || "已压缩 ✓");
+  check("逐笔流水：日期悬停给完整日期（MM.DD 只用于显示）", noFullDate.length === 0, noFullDate.slice(0, 3).join("；") || "全部完整 ✓");
+}
+
 /* ③h 盈亏全程三条线（2026-10-04 加）：① chip 标签 ② 三个序列都在
    ③ **合计末值 = 独立复算**（ACCT_STATS.monthly ＋ 财务页 FIN_PL 的 5 个 fund 渠道）——
       这条最关键：数据跨文件（还跨页引用 finance-data.js），抄错 / 读错不会报错，只会画出一条似是而非的线 */
