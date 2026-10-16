@@ -71,11 +71,17 @@ for (const f of input.otc || []) {
   if (!/^\d{6}$/.test(f.code || "")) errors.push("otc.code 非法：" + f.code);
   for (const k of ["value", "pnl", "day", "qty"]) if (!Number.isFinite(f[k])) errors.push(f.code + " 缺 " + k);
   if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(f.code + " 缺 navClose/navDate");
-  /* upd 必须是本期日期：页面按它判「已同步」，日期不对就会显示「N 只未更新」、
-     并把该只的当日收益从合计里剔除（2026-09-23 自检时正是这样被 dom-check 抓到的 —— 沿用上期 upd 即翻车）。 */
+  /* upd 必须**不早于**本期快照日：页面按它判「已同步」，日期早了就会显示「N 只未更新」、
+     并把该只的当日收益从合计里剔除（2026-09-23 自检时正是这样被 dom-check 抓到的 —— 沿用上期 upd 即翻车）。
+     ⚠ 2026-10-16 放宽（本脚本此前要求 `startsWith(input.date)`，比页面严 ✗ 且与「不伪造时间戳」冲突）：
+       · 页面 2026-09-25 起就是 `f.upd.slice(0,10) >= OTC.updated` 即算本期（positions.html 的 syncBadge / syncCnt，
+         原话「晚于快照日的属**补录**，不该标成『待更』」）—— 脚本没跟上，导致**跨零点截图**必被拒 ✗；
+       · 实测场景：10-15 那期的 8 张截图是 **10-16 02:34~11:14** 拍的（晚间没拍、第二天凌晨补拍是常态）。
+         此时唯一诚实的写法就是记真实时刻，而写 `2026-10-15 20:00` 属伪造时间戳 ✗（handoff 底线）。
+       → 判据与页面统一为「upd ≥ 快照日」，晚于快照日的原样记真、不假装成当天。 */
   if (!f.upd) f.upd = input.date + " 20:00";
-  else if (!String(f.upd).startsWith(input.date))
-    errors.push(f.code + " 的 upd（" + f.upd + "）不是本期 " + input.date + " 的时间：页面会当它没更新，当日合计会少算这一只");
+  else if (String(f.upd).slice(0, 10) < input.date)
+    errors.push(f.code + " 的 upd（" + f.upd + "）早于本期 " + input.date + "：页面会当它没更新，当日合计会少算这一只");
 }
 for (const [k, e] of Object.entries(input.etf || {})) {
   if (!(k in ETF_KEYS)) errors.push("etf 多出未知键：" + k);
@@ -118,6 +124,11 @@ const pv = (c) => (prev[c] ? prev[c].val : 0), pc = (c) => (prev[c] ? prev[c].co
 const items = {}; const tips = [];
 const holdCodes = new Set(model.POSITIONS.hold.map((p) => p.code));
 let dCost = 0, dVal = 0;
+/* 场内**单独**一对累计量（2026-10-16 加，修 day 的双计 bug）：
+   dCost/dVal 是**全场**（场内 ＋ 场外），flow 要用它（ΔΣ成本 ＋ Δ现金）；
+   而 dayIn 的定义是「场内 Δ市值 − Δ成本」，场外那半由 Σ(场外 day) 单独承担 ✓。
+   原先二者共用 dCost/dVal → day = (dVal−dCost) + ΣdayOtc 把场外算了**两遍** ✗。 */
+let dCostIn = 0, dValIn = 0;
 for (const [key, idx] of Object.entries(ETF_KEYS)) {
   const hp = holdByIdx(idx);
   /* 2026-10-09 加：该场内标的**已清仓**（不再在 POSITIONS.hold 里）→ 跳过，不进本期 items。
@@ -130,6 +141,7 @@ for (const [key, idx] of Object.entries(ETF_KEYS)) {
   const cost = r2(p.qty * p.cost), val = r2(p.qty * close);
   items[p.code] = { name: p.sym, qty: p.qty, cost, val, pl: r2(val - cost) };
   dCost += cost - pc(p.code); dVal += val - pv(p.code);
+  dCostIn += cost - pc(p.code); dValIn += val - pv(p.code);
   if (!prev[p.code]) tips.push(p.code + " 是本期新建仓，其 Δ 会计入当日（当日会偏大，需人工核对）");
 }
 for (const f of input.otc) {
@@ -157,7 +169,10 @@ if (ALLOW_PARTIAL) {
 const sumBy = (pick, field) => r2(Object.entries(items).filter(([c]) => pick(c)).reduce((a, [, it]) => a + it[field], 0));
 const pl = sumBy(() => true, "pl");
 const dayOtc = r2(input.otc.reduce((a, f) => a + f.day, 0));
-const dayIn = r2(dVal - dCost);
+/* dayIn 取**场内**那一半（dCostIn/dValIn），不加场外的 —— 场外由 dayOtc 承担 ✓。
+   ⚠ 2026-10-16 修：此前写成 r2(dVal - dCost)（全场），于是 10-15 期算出 day −14,537.99（＝ −12,444.75 − 2,093.25）
+     —— 场外被算了**两遍** ✗。历史各期都显式传了 day，所以一直没暴露 ✗；注释本来写的就是「场内 Δ市值−Δ成本」✗→✓。 */
+const dayIn = r2(dValIn - dCostIn);
 const day = Number.isFinite(input.day) ? r2(input.day) : r2(dayIn + dayOtc);
 const dCash = r2(input.cash - last.cash);
 /* 2026-10-09 加：流入口径的**例外**与显式覆盖。
@@ -227,8 +242,15 @@ if ((input.trades || []).length) {
 }
 /* ACCT_STATS */
 dataSrc = sub1(dataSrc, /(const ACCT_STATS = \{\n  updated: ")[\d-]+(")/m, "$1" + (input.acct?.updated || input.date) + "$2", "ACCT_STATS.updated");
-for (const k of ["pnl", "pnlPct"]) if (Number.isFinite(input.acct?.[k]))
-  dataSrc = sub1(dataSrc, new RegExp("(^  " + k + ": )[-0-9.]+", "m"), "$1" + num(input.acct[k], 2), "ACCT_STATS." + k);
+/* ⚠ 2026-10-16 修：原实现对两个键都用行首锚点 `^  <k>: `，但 data.js 里 **pnlPct 与 pnl 同行**
+   （`  pnl: 3166.40, pnlPct: -10.34,`）→ pnlPct 的行首锚点永远匹配不到 ✗，脚本报
+   「✗ 找不到锚点：ACCT_STATS.pnlPct」并整体拒绝写盘 ✗（首次真的传 acct.pnl/pnlPct 时踩到 —— 此前各期
+   只传 updated，所以一直没暴露）。改成：pnl 仍按行首锚，pnlPct 按 `pnlPct: ` 定位（data.js 里唯一，注释里的
+   「pnlPct 是 …」不带冒号，不会误伤 ✓）。 */
+if (Number.isFinite(input.acct?.pnl))
+  dataSrc = sub1(dataSrc, /(^  pnl: )[-0-9.]+/m, "$1" + num(input.acct.pnl, 2), "ACCT_STATS.pnl");
+if (Number.isFinite(input.acct?.pnlPct))
+  dataSrc = sub1(dataSrc, /(pnlPct: )[-0-9.]+/, "$1" + num(input.acct.pnlPct, 2), "ACCT_STATS.pnlPct");
 /* OTC：updated / cash */
 posSrc = sub1(posSrc, /(const OTC = \{\n  updated: ")[\d-]+(")/m, "$1" + input.date + "$2", "OTC.updated");
 posSrc = sub1(posSrc, /(\n  cash: )[-0-9.]+/m, "$1" + num(input.cash, 2), "OTC.cash");

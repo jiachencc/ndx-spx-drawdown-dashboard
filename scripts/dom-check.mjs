@@ -210,7 +210,13 @@ const OC = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.matc
    ✗：10-12 期 015884 中欧未更新（已清仓在途、按用户指示本期不记），它的 day 仍是 10-08 那个净值日的 −192.26，
    算进来就会把副标里对的数判成错 ✗（副标写 +329＝7 只本周读到 App 的合计，原式给 137 ✗）。
    改为只累加「upd 日期 ＝ OTC.updated」的那些只 —— 与页面副标「App 快照 +X · 1 只未更新」同一口径 ✓。 */
-const otcDayApp = OC.funds.filter((f) => String(f.upd || "").slice(0, 10) === String(OC.updated).slice(0, 10))
+/* ⚠ 2026-10-16 修：这里原为**严格相等** `=== OC.updated`，与页面已经不是同一口径了 ✗ ——
+   页面 2026-09-25 起放宽为「upd **不早于**快照日即算本期」（positions.html 的 dayVals / syncBadge / syncCnt，
+   原话「晚于快照日的属**补录**」）；本文件上一行的注释还写着「与页面副标同一口径 ✓」，实际已经漂了 ✗。
+   实测场景：10-15 那期的 8 张截图是 10-16 02:34~11:14 拍的（跨零点补拍），页面把它们算作本期（场外 −2,093.25 ✓），
+   而本断言按 `===` 一只都不认 → 期望值成 0.00 → 把**正确的页面**判成错 ✗✗（apply-screenshot 的写盘被这条挡下并回滚）。
+   → 判据与 positions.html 的 dayVals 逐字一致：`!f.upd || upd.slice(0,10) >= OTC.updated` ✓ */
+const otcDayApp = OC.funds.filter((f) => !f.upd || String(f.upd).slice(0, 10) >= String(OC.updated).slice(0, 10))
   .reduce((a, f) => a + (Number.isFinite(f.day) ? f.day : 0), 0);
 /* ③b-0 预估值与「快照 day」只比**量级**（2026-10-03 改）：两者口径本就不同 ——
    快照 day 是"场内当日 ＋ 场外已公布"，页面合计是"场内估值 ＋ 场外预估补齐"，不该相等；
@@ -915,8 +921,18 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     if (behind) {
       check("收益率视图图例标出基准末点（同期纳指（截至 " + md(bLast) + "））",
         legend.indexOf("截至 " + md(bLast)) >= 0, legend.slice(0, 80));
-      check("收益率视图结论句标出「基准截至 " + md(bLast) + " · 组合已到 " + md(snaps[snaps.length - 1].d) + "」",
-        sum.indexOf("基准截至 " + md(bLast)) >= 0 && sum.indexOf("组合已到 " + md(snaps[snaps.length - 1].d)) >= 0,
+      /* ⚠ 2026-10-16 修：页面 buildTrendPts 在「系统当日 > 快照末日」时会**补一个今日估算点**
+         （positions.html:3471~3475，该点 d ＝ 系统当日）→ 结论句「组合已到 X」写的是**今日**，不一定是快照末日 ✗。
+         旧断言写死 `snaps.at(-1).d`，只在「落盘日 ＝ 跑门禁那天」时刚好成立 ✓
+         （此前各期都是当晚落盘、当晚跑 → 一直没暴露 ✗）。10-15 那期为跨零点补拍、10-16 才落盘 → 必然误报 ✗。
+         → 期望改为「页面两个合法取值之一」：快照末日（今日估算不可得时 ✓）或系统当日（有今日点时 ✓）；
+           其余任何日期仍判错 ✓。 */
+      const snapLastD = snaps[snaps.length - 1].d;
+      const todayISO = (() => { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); })();
+      const combD = (md(snapLastD) === md(todayISO)) ? md(snapLastD)
+        : ([md(snapLastD), md(todayISO)].find((x) => sum.indexOf("组合已到 " + x) >= 0) || "");
+      check("收益率视图结论句标出「基准截至 " + md(bLast) + " · 组合已到 " + (combD || md(snapLastD) + " 或 " + md(todayISO)) + "」",
+        sum.indexOf("基准截至 " + md(bLast)) >= 0 && combD !== "",
         sum.slice(0, 90));
       check("读数条在基准末点之后显「基准未到该日」，而非把上一日点位外推 ✗",
         ro.indexOf("基准未到该日") >= 0 && /同期纳指\s*—/.test(ro), ro.slice(0, 90));
