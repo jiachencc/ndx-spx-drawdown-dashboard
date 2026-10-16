@@ -28,6 +28,10 @@ const steps = [
   ["check-fed（加息周期看板数据）", ["node", ["scripts/check-fed.mjs"]]],
   /* 2026-10-12 第三批加：色板/字体栈收进 tokens.css 后，防止有人（或复制粘贴）又抄回各页 ✗ */
   ["check-tokens（跨页令牌唯一出处）", ["node", ["scripts/check-tokens.mjs"]]],
+  /* 2026-10-16 加：两套主题的**对比度**（文字 ≥4.5 · 图形 ≥3）。
+     为什么需要它：主题规则是「深色为基座、body.light 覆盖」，而 Playwright 默认跑在浅色 ✗ ——
+     截图与 layout-check 一直只覆盖浅色，用户主用的深色从没验过 ✗。这条纯算数、不依赖浏览器 ✓ */
+  ["check-contrast（深浅两套主题对比度）", ["node", ["scripts/check-contrast.mjs"]]],
   ["cross-check（跨文件一致性）", ["node", ["scripts/cross-check.mjs"]]],
   ["regression（回归测试）", ["node", ["--test", "scripts/test-dashboard.mjs"]]],
   ["inline-compile（页面内联脚本可编译）", ["node", ["--input-type=module", "-e",

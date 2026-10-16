@@ -9,8 +9,9 @@
 |---|---|---|
 | **核心库**（不是入口） | `data-quality.mjs` | 被 8 个脚本 import：`readModel / validateModel / metrics / monthly / createRecorder / replaceConst / replaceMember / atomicWrite / auditFiles / isDate / autoBlockIssues / readPosLogic`。**改数据层读写一律经过它**（原子写 ＋ 审计）|
 | **共享口径**（不是入口） | 根目录 `positions-logic.js` | 持仓页那三条判据的**唯一出处**（本期已同步 / 场外当日合计的有效集合 /「组合已到」的日期）：页面用 `<script src>` 直接调，脚本用 `readPosLogic()` 读同一份源码。**改口径只改这里** —— 2026-10-16 之前四处各写一份，一次更新漂出三套 ✗ |
+| **主题**（深浅两套） | `tokens.css`（调色板）＋ `positions.css` 的 `:root`（深色基座）与 `body.light`（浅色覆盖） | 深色是基座、浅色是覆盖层，默认跟随系统。⚠ **`check-contrast` 只在令牌层做算术**，它读的就是这两处：`--up: var(--green)` 这类一层 `var()` 会被解析 ✓；令牌改名/搬家请同步它 ✗ |
 | **抓取（会改仓库）** | `fetch_and_update.mjs` · `fetch-fees.mjs` · `sync-bench.mjs` · `alt-etf-backtest.mjs` · `refresh-otc.mjs` | 写 `data.js` / `positions-data.js` / `fed-cycle/fed-data.json`。失败时**保留旧值**，不污染已有行情 |
-| **门禁（只读，失败即 exit≠0）** | `check-data.mjs` · `check-finance.mjs` · `check-fed.mjs` · `cross-check.mjs` · `dom-check.mjs` · `lint.mjs` | `check-data` 会顺带跑 `cross-check` 的 `crossIssues` 与 `autoBlockIssues` |
+| **门禁（只读，失败即 exit≠0）** | `check-data.mjs` · `check-finance.mjs` · `check-fed.mjs` · `check-tokens.mjs` · **`check-contrast.mjs`** · `cross-check.mjs` · `dom-check.mjs` · `layout-check.mjs` · `lint.mjs` | `check-data` 会顺带跑 `cross-check` 的 `crossIssues` 与 `autoBlockIssues`；**`check-contrast` 纯算术、不依赖浏览器** —— 它读 `tokens.css` ＋ `positions.css` 的深浅两套令牌，按「文字 ≥4.5 · 图形 ≥3」判 ✓（2026-10-16 加，起因：主题基座是深色，而截图/layout-check 默认只跑浅色 ✗）|
 | **测试** | `test-dashboard.mjs` | `node --test` 合成数据回归（离线可跑） |
 | **工具 / 产图** | `screenshot.mjs` · `apply-screenshot.mjs` · `typecheck.mjs` | `apply-screenshot` 把 App 截图转录成数据（**唯一的人工入口**）|
 

@@ -17,7 +17,10 @@
  */
 
   :root {
-    --tx3: #6f7f99;      /* 三级文字：原 #8294af 与 --tx2 只差 5%，肉眼分不出来，等于白设一档 */
+    --tx3: #7f8fa6;      /* 三级文字：原 #8294af 与 --tx2 只差 5%、肉眼分不出来，等于白设一档。
+                            2026-10-16 由 #6f7f99 调到此值：实测算对比度 4.37:1（嵌套面 --card2 只有 3.91 ✗）
+                            —— 而它正是 10~12px 小字（图例 / k-sub / 口径注）的主力色，而全页都按 4.5:1 要求
+                            （本页最大字号 15px、KPI 数值 13px 粗，都不算 WCAG 的「大号文字」✓）→ 现 5.39 / 4.83 ✓ */
     /* ---- 原始色板（--green / --red / --yellow / --blue / --cyan）与 --bg/--card/--tx/字体栈
      * 已搬到 ../tokens.css（2026-10-12 第三批：四页共用一份 ✓）。
      * 这里只留**本页独有**的 --purple ✗（决策页取值不同，暂不统一）与下面的语义映射 ✓ ---- */
@@ -96,19 +99,29 @@
     --line-soft: #dfe6f1;
     --tx: #16243b;
     --tx2: #52627e;
-    --tx3: #7c8ba1;      /* 浅色底上同样与 --tx2 拉开一档 */
+    --tx3: #5f6d83;      /* 浅色底上同样与 --tx2 拉开一档；2026-10-16 由 #7c8ba1 调深（原 3.46:1、嵌套 3.23 ✗ → 5.25 / 4.89 ✓） */
     --green: #0ea372;
     --red: #e23b53;
     /* ⚠ --up/--down 必须在这里**重声明**（2026-10-12）：`:root` 上 `--up: var(--green)` 的 var()
        在 :root 处就替换固化了（custom property 的计算值规则 ✓），body.light 只改 --green 时
        后代继承到的 --up 仍是深色值 #2dd4a7 ✗ —— 浅色板这两个颜色从未真正生效过 ✗
        （实测：浅色下 .up 数字 = rgb(45,212,167) = 深色绿 ✓ 本行修复后才是 #0ea372 ✓）。 */
-    --up: var(--green);
-    --down: var(--red);
-    --yellow: #c8901a;
-    --blue: #2f7be0;
-    --cyan: #0a9fc4;
+    /* 文字语义色用**专门值**（2026-10-16）：浅色下文字要 4.5:1，而调色板那一对是给图形用的（3:1 即可）——
+       原样吃 --green(#0ea372 对白底 3.23:1 ✗) / --red(#e23b53 4.21:1 ✗) 都不到标 ✗ →
+       文字色单独取 #0a7a55(5.35 ✓) / #d92b45(4.79 ✓)；--green/--red 保持原值供条形 / 圆点等图形 ✓ */
+    --up: #0a7a55;
+    --down: #d02440;
+    --yellow: #8a5f0b;
+    --blue: #2a6ecb;
+    --cyan: #087086;
     --purple: #8b5cf6;
+    /* ⚠ 上面 --down/--yellow/--blue/--cyan 四个值 2026-10-16 一并调深 —— 它们原本只按「看着舒服」定，
+       scripts/check-contrast.mjs 一上马就把浅色侧全抓出来了：
+         --down   #d92b45 → 嵌套面 4.47:1 ✗ → #d02440（5.24 / 4.88 ✓）
+         --yellow #c8901a → 2.81:1 ✗✗ 连图形都不够 3:1 → #8a5f0b（留足余量：本页浅色的 --card2 比 #f5f7fa 略深 ✓）
+         --blue   #2f7be0 → 4.17:1 ✗ → #2a6ecb（5.01 / 4.67 ✓）
+         --cyan   #0a9fc4 → 3.10:1 ✗ → #087086（5.72 / 5.33 ✓）
+       深色侧同批数字全部达标 ✓（--tx3 是唯一需要调的一处，见文件上方）。 */
     /* 语义色的透明变体：白底上不能照搬深色底的比例，否则淡到看不见 */
     --up-bg: rgba(14,163,114,.10);      --up-line: rgba(14,163,114,.30);      --up-fill: rgba(14,163,114,.55);
     --down-bg: rgba(226,59,83,.10);     --down-line: rgba(226,59,83,.30);     --down-fill: rgba(226,59,83,.55);
@@ -778,7 +791,7 @@
   .bar-track .seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; pointer-events: none; overflow: hidden; }
   /* 四分位刻度（2026-10-16 加）：轴就是「52周分位」，25/50/75% 三档给它参照 ——
      极淡（--tx3 的 45%）、不抢区间带与游标；写在 seg 之前，故压在它们之下 ✓ */
-  .bar-track .bar-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--tx3); opacity: .45; pointer-events: none; }
+  .bar-track .bar-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--tx2); opacity: .75; pointer-events: none; }
   /* 斜纹填充：盈亏区间有质感，且与纯色游标区分开 */
   .bar-track .seg.gain { background: repeating-linear-gradient(135deg, var(--up-fill) 0 4px, var(--up-bg) 4px 9px); }
   .bar-track .seg.loss { background: repeating-linear-gradient(135deg, var(--down-fill) 0 4px, var(--down-bg) 4px 9px); }
@@ -842,8 +855,8 @@
      原先时间走 element opacity（0.95 → 0.40），会把圆点、竖线、光晕**一起**压暗 ✗（最老的点在小屏上等同噪点）；
      改后三档都是**不透明色**，复用既有语义阶梯（--up-line 30% / --up-fill 60% / --green 100%）✓，
      竖线与光晕不再跟着变暗 ✓。档位由渲染侧按**笔序三分位**给（.t-old/.t-mid/.t-new），少于 3 笔一律 .t-new ✓ */
-  .buy-mark b { width: 6px; height: 6px; border-radius: 50%; background: var(--up-line); }
-  .buy-mark.t-mid b { background: var(--up-fill); }
+  .buy-mark b { width: 6px; height: 6px; border-radius: 50%; background: var(--up-line); box-shadow: inset 0 0 0 1px var(--up); }
+  .buy-mark.t-mid b { background: var(--up-fill); box-shadow: inset 0 0 0 1px var(--up); }
   .buy-mark.t-new b { background: var(--green); box-shadow: 0 0 5px var(--up-fill); }
   .buy-mark.flash b { animation: buyflash .5s ease-in-out 3; }
   @keyframes buyflash { 0%, 100% { transform: scale(1); box-shadow: 0 0 5px var(--up-fill); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--up-solid); } }
@@ -853,17 +866,15 @@
   /* 渠道：斜杠紧凑式（无边框 chip），省下的横向空间留给长名称；空间不足时省略名称、渠道始终完整 */
   /* 渠道＋口径日期：移到第二行左端（原来与名称同行，挤占名称宽度） */
   .pl-src { font-size: var(--fs-xxs); font-weight: 400; font-family: var(--sans); color: var(--tx3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .buy-mark i { width: 1.5px; background: var(--up-line); }
-  .buy-mark.t-mid i { background: var(--up-fill); }
-  .buy-mark.t-new i { background: var(--green); }
+  /* 竖线一律全色：时间档由圆点承担（按档淡化的竖线在深色下会掉到 2:1 以下 ✗） */
+  .buy-mark i { width: 1.5px; background: var(--up); }
   /* 卖出标记：红**空心**圈（与买入绿实心对称，空心＝已离场）；不堆叠，笔数少时更清爽。
      颜色深浅三档与买入侧同一套规则（2026-10-16）✓ */
-  .sell-mark b { border-radius: 50%; background: transparent; border: 1.5px solid var(--down-line); box-shadow: 0 0 4px var(--down-fill); box-sizing: border-box; }
-  .sell-mark i { width: 1.5px; background: var(--down-line); }
-  .sell-mark.t-mid b { border-color: var(--down-fill); }
-  .sell-mark.t-mid i { background: var(--down-fill); }
-  .sell-mark.t-new b { border-color: var(--red); box-shadow: 0 0 5px var(--down-fill); }
-  .sell-mark.t-new i { background: var(--red); }
+  .sell-mark b { border-radius: 50%; background: transparent; border: 1.5px solid var(--down); box-shadow: 0 0 4px var(--down-fill); box-sizing: border-box; }
+  /* ⚠ 卖出侧**不按时间分档**（2026-10-16）：空心圈的可见度只由边框色决定，边框一淡化就掉到 2:1 以下 ✗
+     （实测 --down-line 30% 压卡片 = 1.94:1）；且时间对已了结的卖出意义有限 ✓。
+     JS 仍会给它 t-old/t-mid/t-new 类，这里刻意不给对应规则（无害 —— 别以为是漏了 ✗）。 */
+  .sell-mark i { width: 1.5px; background: var(--down); }
   .sell-mark.flash b { animation: sellflash .5s ease-in-out 3; }
   @keyframes sellflash { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--down-solid); } }
   .buy-tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: var(--fs-xs); font-family: var(--mono); color: var(--tx); white-space: nowrap; box-shadow: var(--tip-shadow); pointer-events: none; font-feature-settings: "tnum"; }
