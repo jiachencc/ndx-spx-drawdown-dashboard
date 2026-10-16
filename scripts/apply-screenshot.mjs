@@ -80,7 +80,15 @@ if (!Number.isFinite(input.cash)) errors.push("cash 缺失（各渠道可用资�
 if (!input.otc?.length) errors.push("otc 为空（至少要有一只场外读数）");
 for (const f of input.otc || []) {
   if (!/^\d{6}$/.test(f.code || "")) errors.push("otc.code 非法：" + f.code);
-  for (const k of ["value", "pnl", "day", "qty"]) if (!Number.isFinite(f[k])) errors.push(f.code + " 缺 " + k);
+  /* ⚠ day 允许 **null**（2026-10-16 修）：那是「该净值日未更新」的**合法状态**，见 positions-data.js 的字段约定
+     —— `day: null` = 渲染「—」且**不计入**当日合计，**勿用 0 冒充** ✗。
+     实测：007280 摩根（日本当天估值）在 2026-10-16 20:14 时，10-16 的净值还没出、金额与份额都还停在 10-15
+     → 本期就该记 null ✓（把上一期那个 −213.45 再记一遍＝重复计入 ✗）。
+     原校验要求 day 必须有限数 → 这种「尚未更新」的合法状态**根本写不进去** ✗（与数据模型自相矛盾 ✗）。
+     value / pnl / qty 仍必须是数（沿用上一期也要显式写出来 ✓）。 */
+  for (const k of ["value", "pnl", "qty"]) if (!Number.isFinite(f[k])) errors.push(f.code + " 缺 " + k);
+  if (!(Number.isFinite(f.day) || f.day === null))
+    errors.push(f.code + " 的 day 必须是数或 null（null = 该净值日未更新，勿用 0 冒充 ✗）");
   if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(f.code + " 缺 navClose/navDate");
   /* upd 必须**不早于**本期快照日：页面按它判「已同步」，日期早了就会显示「N 只未更新」、
      并把该只的当日收益从合计里剔除（2026-09-23 自检时正是这样被 dom-check 抓到的 —— 沿用上期 upd 即翻车）。
@@ -318,13 +326,13 @@ for (const f of input.otc) {
   const before = seg;
   const out = seg
     .replace(/(\bvalue: )[-0-9.]+/, "$1" + num(f.value, 2))
-    .replace(/(\bday: )(null|[-0-9.]+)/, "$1" + num(f.day, 2))
+    .replace(/(\bday: )(null|[-0-9.]+)/, "$1" + (f.day === null ? "null" : num(f.day, 2)))
     .replace(/(\bpnl: )[-0-9.]+/, "$1" + num(f.pnl, 2))
     .replace(/(\brate: )[-0-9.]+/, "$1" + rateOf(f))
     .replace(/(\bupd: ")[^"]*(")/, "$1" + (f.upd || input.date + " 20:00") + "$2")
     .replace(/(nav: \{ close: )[-0-9.]+/, "$1" + num(f.navClose, 4))
     .replace(/(nav: \{ close: [-0-9.]+, closeDate: ")[\d-]+(")/, "$1" + f.navDate + "$2");
-  if (out !== before) changes.push("· OTC " + f.code + "：value " + num(f.value, 2) + " / day " + num(f.day, 2) + " / pnl " + num(f.pnl, 2) +
+  if (out !== before) changes.push("· OTC " + f.code + "：value " + num(f.value, 2) + " / day " + (f.day === null ? "null" : num(f.day, 2)) + " / pnl " + num(f.pnl, 2) +
     " / rate " + rateOf(f) + " / upd " + (f.upd || input.date + " 20:00") + " / nav " + num(f.navClose, 4) + "@" + f.navDate);
   posSrc = posSrc.slice(0, at) + out + posSrc.slice(at + seg.length);
 }

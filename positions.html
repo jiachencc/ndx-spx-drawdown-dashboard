@@ -794,9 +794,15 @@ function renderOtcEst(nc) {
      10-14 的值 ✗ —— 与 10-13 给 nc.dir 补 chip 是**同一个陷阱** ✓（门禁 ④q-2 按 OTC 全表算期望 → 抓到漏标 ✓）。 */
   app.forEach((r) => {
     const g4 = navGapOf(r.f.code, r.ft && r.ft.navDate);
-    return h += tr(r.f, g4 ? "App " + d2(g4.app) : "", "—", Number.isFinite(r.f.day) ? r.f.day : 0, {
-      sub: d2(r.ft && r.ft.navDate) + "（已追上）",
-      title: "该只的净值日已经追上代理指数 —— 没有尚未公布的行情可补，故直接用 App 快照读数（这是读数，不是估算）。"
+    /* ⚠ 2026-10-16：day 可能是 **null**（该净值日未更新，见 positions-data.js 的字段约定）——
+       此时金额渲染「—」（与下面的 dir 行同一手法 ✓）且**不计入合计** ✓；
+       既不能拿 0 冒充 ✗（假装它没动），也不能把上一期那个数再记一遍 ✗（重复计入）。 */
+    const hasDay = Number.isFinite(r.f.day);
+    return h += tr(r.f, g4 ? "App " + d2(g4.app) : "", "—", hasDay ? r.f.day : "—", {
+      sub: d2(r.ft && r.ft.navDate) + (hasDay ? "（已追上）" : " · 净值未更新"),
+      title: (hasDay
+        ? "该只的净值日已经追上代理指数 —— 没有尚未公布的行情可补，故直接用 App 快照读数（这是读数，不是估算）。"
+        : "该只本期的净值**还没公布**（App 上的金额/份额与上一期相同）→ 当日收益记「—」、**不计入合计** ✓。")
         + (g4 ? "\n⚠ 本表的日期取自**东财净值序列**（" + g4.ser + "）；App 快照的净值日是 " + g4.app
           + " —— 这一只是 **App 更新、序列慢**（日本当天即估值），不是 QDII 确认慢。" : ""),
     });
@@ -812,8 +818,13 @@ function renderOtcEst(nc) {
         + (g3 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g3.ser + "）；App 快照的净值日是 " + g3.app + "（QDII 确认慢）。" : ""),
     });
   });
-  const sum = est.reduce((a, r) => a + r.amt, 0) + app.reduce((a, r) => a + (Number.isFinite(r.f.day) ? r.f.day : 0), 0);
-  h += tr({ name: "合计（计入金额的 " + (est.length + app.length) + " 只）" }, "", "", sum, { sum: true }) + "</tbody></table>";
+  const appIn = app.filter((r) => Number.isFinite(r.f.day));
+  const noDay = app.length - appIn.length;
+  const sum = est.reduce((a, r) => a + r.amt, 0) + appIn.reduce((a, r) => a + r.f.day, 0);
+  /* ⚠ 2026-10-16：标签里的「N 只」必须是**真计入金额**的只数（est ＋ app 里有 day 的那些）——
+     否则一只未更新的会一边显示「—」、一边被算进「计入金额的 N 只」✗（自相矛盾，且掩盖「少算了」）。 */
+  h += tr({ name: "合计（计入金额的 " + (est.length + appIn.length) + " 只"
+    + (noDay ? " · " + noDay + " 只净值未更新" : "") + "）" }, "", "", sum, { sum: true }) + "</tbody></table>";
   /* 口径长文（2026-10-12 裁剪）：≈730 字 → ≈160 字 —— 拟合方式与实测 r 值移进 title ✓（要查的自然会悬停） */
   h += '<div class="otc-note" title="' + esc(
       "做法：把最后净值日之后、尚未公布的那几根指数涨跌，按 α + β×日涨跌逐日累乘，再 × 市值"
@@ -1336,13 +1347,22 @@ function renderImpl() {
   };
   OTC.funds.forEach((f) => {
     const ft = ncRaw && ncRaw.fits[f.code], ser = ft && ncRaw.idx[ft.prox];
+    /* ⚠ 2026-10-16 修：**每只都必须出一行**（金额可以是「—」）——
+       原先这些分支只在 day 是数时才 push，否则**静默丢行** ✗：实测 007280 摩根（10-16 净值未出 → day: null）
+       从表里消失了，门禁「逐只拆解表覆盖全部 N 只场外基金」当场抓住 ✓。
+       丢行的后果比少一个数严重：读者会以为该只不在持仓里 ✗，而它明明有市值、只是没有新读数 ✓。 */
     if (!ft || !ser || ser.length < 2) {
-      if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, src: "app", days: 0 }); } else nc.noFit++;
+      nc.rows.push({ f, src: "app", days: 0 });
+      if (Number.isFinite(f.day)) nc.amt += f.day; else nc.noFit++;
       return;
     }
     if (ft.tier === "dir") { nc.dir.push({ f, ft, ...(cumOf(ft, ser) || { days: 0, pct: 0 }) }); return; }   // 只给方向，不进金额
     const c = cumOf(ft, ser);
-    if (!c) { if (Number.isFinite(f.day)) { nc.amt += f.day; nc.rows.push({ f, ft, src: "app", days: 0, upto: ser[ser.length - 1].d }); } return; }
+    if (!c) {
+      nc.rows.push({ f, ft, src: "app", days: 0, upto: ser[ser.length - 1].d });
+      if (Number.isFinite(f.day)) nc.amt += f.day;
+      return;
+    }
     const amt = f.value * (c.g - 1);
     nc.amt += amt; nc.days += c.days; nc.est++;
     nc.rows.push({ f, ft, src: "est", days: c.days, pct: c.pct, amt, upto: c.upto, list: c.list });
