@@ -23,25 +23,33 @@
      "hold": [ { "code": "159941", "qty": 82100, "cost": 1.5921 } ],     // 份数/成本变了才写（App 读数）
      "trades": [ { "d": "2026-09-24", "act": "买入", "sym": "纳指ETF广发", "qty": 1000, "cost": 1.700,
                    "realized": null, "note": "平安证券 09-24 成交…" } ],
-     "pending": [ { "code": "021000", "amount": 400 } ],                 // 在途（市值已含、份额未含）
-     "acct": { "updated": "2026-09-24", "pnl": 3500.00, "pnlPct": -9.80 },
+     "pending": [ { "code": "021000", "amount": 400 } ],                 // 在途（市值已含、份额未含）；⚠ rate 的分母要用它
+     "acct": { "updated": "2026-09-24", "pnl": 3500.00, "pnlPct": -9.80,
+               // ↓ 2026-10-16 扩：这些原先全靠手工 replace_in_file（一期 8 处），现在一处搬完 ✓
+               "trades": 64, "fees": 322.05,          // 同一行，要给全
+               "win": 2, "loss": 3,                   // 同一行，要给全
+               "avgPos": 96.51, "holdDays": 93, "benchYtd": -5.63,
+               "monthly": { "m": "10月", "pnl": -3619.00, "pct": -0.95, "bench": -2.67 } },   // 当月行三个数给全
      "day": 1234.56,                             // 可选：当日盈亏（不填则用「场内 Δ市值−Δ成本 + Σ场外 day」推）
      "note": "当日事件说明（可选，附在快照注释里）"
-   }
-   `etf` 的值可写成数字（close，chg 由文件里的旧 close 推）或 { close, chg }（chg 由 App 读取，
-   复跑/补录时用它才能保持幂等 —— 只有数字时 chg 会被推成 0）。
+     }
+     `etf` 的值可写成数字（close，chg 由文件里的旧 close 推）或 { close, chg }（chg 由 App 读取，
+     复跑/补录时用它才能保持幂等 —— 只有数字时 chg 会被推成 0）。
 
-   推导并写入：rate = pnl ÷ (value − pnl)；DEFAULT 的 chg / priceDate / ath / low52；
-   快照 items（场内 val = close×份数、cost = 成本价×份数；场外取 App 读数）、pl = Σ、
-   day、flow = ΔΣ成本 + Δ现金，以及注释里的全部合计文字。
+     推导并写入：rate = pnl ÷ (**value − pnl − 该只在途**)〔2026-10-16 起：App 的分母是不含在途的确认成本，
+     旧式 value − pnl 会让每期都差一截、得手工订正 3~4 格〕；DEFAULT 的 chg / priceDate / ath / low52；
+     快照 items（场内 val = close×份数、cost = 成本价×份数；场外取 App 读数）、pl = Σ、
+     day、flow = ΔΣ成本 + Δ现金，以及注释里的全部合计文字。
 
-   两条硬规则（对应 2026-09-23 踩过的两个坑）：
-   · 场外没凑齐（少于全部只数）且没加 --allow-partial → 拒绝写快照（否则旧值会被冻进历史）
-   · 快照日必须晚于最新一期（历史不许改）
-   ⚠ 仍需人工补的：ACCT_STATS.monthly[当月]（App 对账单读数）、AUTO 的 premiums（见 handoff.md SOP 第 6 步）。 */
+     两条硬规则（对应 2026-09-23 踩过的两个坑）：
+     · 场外没凑齐（少于全部只数）且没加 --allow-partial → 拒绝写快照（否则旧值会被冻进历史）
+     · 快照日必须晚于最新一期（历史不许改）
+     ⚠ 仍需人工补的：**只剩** AUTO 的 premiums（见 handoff.md SOP 第 6 步）
+     —— ACCT_STATS 的全部字段（含 monthly[当月]）2026-10-16 起由本脚本的 `acct` 一处写入 ✓。 */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { readModel } from "./data-quality.mjs";
 
@@ -115,6 +123,10 @@ if (errors.length) { console.error("输入有问题：\n" + errors.map((s) => " 
 /* ---------- 推导 ---------- */
 const r1 = (x) => Math.round(x * 10) / 10, r2 = (x) => Math.round(x * 100) / 100, r3 = (x) => Math.round(x * 1000) / 1000;
 const num = (v, dp = 2) => { const s = (+v).toFixed(dp); return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s; };
+/* 定长小数（不抹尾零）：只给 **ACCT_STATS** 那几个字段用 —— data.js 里它们是**人读的**固定两位
+   （`pnl: 3166.40` / `fees: 287.05` / `pct: 6.50`），用 num 会把 `-3619.00` 写成 `-3619` ✗
+   制造无意义的 diff（快照 items 那边相反，历来就是抹零的 `val: 179190` ✓，别混）。 */
+const numF = (v, dp = 2) => (+v).toFixed(dp);
 const holdByCode = (code) => model.POSITIONS.hold.find((p) => p.code === code);
 const holdByIdx = (idx) => model.POSITIONS.hold.find((p) => p.idx === idx);
 const nextHold = (code) => { const p = holdByCode(code); const u = (input.hold || []).find((h) => h.code === code); return u ? { ...p, qty: u.qty, cost: u.cost, idxAtCost: u.cost } : p; };
@@ -248,12 +260,52 @@ dataSrc = sub1(dataSrc, /(const ACCT_STATS = \{\n  updated: ")[\d-]+(")/m, "$1" 
    只传 updated，所以一直没暴露）。改成：pnl 仍按行首锚，pnlPct 按 `pnlPct: ` 定位（data.js 里唯一，注释里的
    「pnlPct 是 …」不带冒号，不会误伤 ✓）。 */
 if (Number.isFinite(input.acct?.pnl))
-  dataSrc = sub1(dataSrc, /(^  pnl: )[-0-9.]+/m, "$1" + num(input.acct.pnl, 2), "ACCT_STATS.pnl");
+  dataSrc = sub1(dataSrc, /(^  pnl: )[-0-9.]+/m, "$1" + numF(input.acct.pnl, 2), "ACCT_STATS.pnl");
 if (Number.isFinite(input.acct?.pnlPct))
-  dataSrc = sub1(dataSrc, /(pnlPct: )[-0-9.]+/, "$1" + num(input.acct.pnlPct, 2), "ACCT_STATS.pnlPct");
+  dataSrc = sub1(dataSrc, /(pnlPct: )[-0-9.]+/, "$1" + numF(input.acct.pnlPct, 2), "ACCT_STATS.pnlPct");
+/* ACCT_STATS 的其余人工字段（**2026-10-16 扩**：此前只有 updated / pnl / pnlPct，
+   于是每期都要为此手写 8 次 replace_in_file —— 对账单一行里的 trades/fees、win/loss 还得拆成两处，
+   正是「漏改一处就静默漂」的高发区 ✗）。
+   口径：全部是 App「对账单 · 今年」页的**原读数**，本脚本只搬数、不推导 ✓。
+   取值要求：**同一行/同一行条目里的字段必须给全**（给一半会静默保留另一半的旧值 → 又是那个坑 ✗）→ 缺就报错，
+   宁可拒绝写盘，也不留半新半旧 ✗。 */
+const A = input.acct || {};
+if (Number.isFinite(A.trades) || Number.isFinite(A.fees)) {
+  if (![A.trades, A.fees].every(Number.isFinite)) { changes.push("✗ acct.trades / acct.fees 要给全（同一行）"); hardFail = true; }
+  else dataSrc = sub1(dataSrc, /(^  trades: )[-0-9.]+(, fees: )[-0-9.]+/m,
+    "$1" + num(A.trades, 0) + "$2" + numF(A.fees, 2), "ACCT_STATS.trades/fees");
+}
+if (Number.isFinite(A.win) || Number.isFinite(A.loss)) {
+  if (![A.win, A.loss].every(Number.isFinite)) { changes.push("✗ acct.win / acct.loss 要给全（同一行）"); hardFail = true; }
+  else dataSrc = sub1(dataSrc, /(^  win: )[-0-9.]+(, loss: )[-0-9.]+/m,
+    "$1" + num(A.win, 0) + "$2" + num(A.loss, 0), "ACCT_STATS.win/loss");
+}
+if (Number.isFinite(A.avgPos))
+  dataSrc = sub1(dataSrc, /(^  avgPos: )[-0-9.]+/m, "$1" + numF(A.avgPos, 2), "ACCT_STATS.avgPos");
+if (Number.isFinite(A.holdDays))
+  dataSrc = sub1(dataSrc, /(^  holdDays: )[-0-9.]+/m, "$1" + num(A.holdDays, 0), "ACCT_STATS.holdDays");
+if (Number.isFinite(A.benchYtd))
+  dataSrc = sub1(dataSrc, /(^  benchYtd: )[-0-9.]+/m, "$1" + numF(A.benchYtd, 2), "ACCT_STATS.benchYtd");
+/* 当月那一行（形如 `{ m: "10月", pnl: -3619.00, pct: -0.95, bench: -2.67 }`）——
+   月份名由输入给（跨月时不必改脚本 ✓），三个数必须一并给全 ✓。 */
+if (A.monthly && A.monthly.m) {
+  const mm = A.monthly;
+  if (![mm.pnl, mm.pct, mm.bench].every(Number.isFinite)) {
+    changes.push("✗ acct.monthly 的 pnl / pct / bench 要给全（对账单一行三个数）"); hardFail = true;
+  } else dataSrc = sub1(dataSrc, new RegExp("(\\{ m: \"" + mm.m + "\", pnl: )[-0-9.]+(, pct: )[-0-9.]+(, bench: )[-0-9.]+"),
+    "$1" + numF(mm.pnl, 2) + "$2" + numF(mm.pct, 2) + "$3" + numF(mm.bench, 2), "ACCT_STATS.monthly[" + mm.m + "]");
+}
 /* OTC：updated / cash */
 posSrc = sub1(posSrc, /(const OTC = \{\n  updated: ")[\d-]+(")/m, "$1" + input.date + "$2", "OTC.updated");
 posSrc = sub1(posSrc, /(\n  cash: )[-0-9.]+/m, "$1" + num(input.cash, 2), "OTC.cash");
+/* rate 的分母规则（**2026-10-16 内建**）：用**不含在途**的确认成本 ＝ value − pnl − 在途。
+   为什么：App 与历史链条的分母都是「已确认份额的成本」，而在途（钱已扣、份额未确认）不算 ✓。
+   旧实现用 value − pnl（＝本页含在途的成本）→ 对有在途的 021778 / 021000 / 040046 / 014978 会算小一截 ✗，
+   于是**每期都要手工订正 3~4 格**（10-13/10-14/10-15 三期都手改过）✗ —— 现在按这条算，
+   2026-10-15 那期**逐只 7/7 与 App 一致**（0.80 / 1.20 / 1.17 / −0.55 …）✓，手工订正可以退休 ✓。 */
+const pendOf = (code) => (input.pending || []).filter((p) => p.code === code)
+  .reduce((a, p) => a + (Number.isFinite(p.amount) ? p.amount : 0), 0);
+const rateOf = (f) => { const c = f.value - f.pnl - pendOf(f.code); return (c ? r2((f.pnl / c) * 100) : 0).toFixed(2); };
 /* OTC：逐只场外（从 code: 起到下一条之前；只动字段值，注释一行不碰） */
 for (const f of input.otc) {
   const at = posSrc.indexOf('code: "' + f.code + '"');
@@ -267,12 +319,12 @@ for (const f of input.otc) {
     .replace(/(\bvalue: )[-0-9.]+/, "$1" + num(f.value, 2))
     .replace(/(\bday: )(null|[-0-9.]+)/, "$1" + num(f.day, 2))
     .replace(/(\bpnl: )[-0-9.]+/, "$1" + num(f.pnl, 2))
-    .replace(/(\brate: )[-0-9.]+/, "$1" + r2((f.pnl / (f.value - f.pnl)) * 100).toFixed(2))
+    .replace(/(\brate: )[-0-9.]+/, "$1" + rateOf(f))
     .replace(/(\bupd: ")[^"]*(")/, "$1" + (f.upd || input.date + " 20:00") + "$2")
     .replace(/(nav: \{ close: )[-0-9.]+/, "$1" + num(f.navClose, 4))
     .replace(/(nav: \{ close: [-0-9.]+, closeDate: ")[\d-]+(")/, "$1" + f.navDate + "$2");
   if (out !== before) changes.push("· OTC " + f.code + "：value " + num(f.value, 2) + " / day " + num(f.day, 2) + " / pnl " + num(f.pnl, 2) +
-    " / rate " + r2((f.pnl / (f.value - f.pnl)) * 100).toFixed(2) + " / upd " + (f.upd || input.date + " 20:00") + " / nav " + num(f.navClose, 4) + "@" + f.navDate);
+    " / rate " + rateOf(f) + " / upd " + (f.upd || input.date + " 20:00") + " / nav " + num(f.navClose, 4) + "@" + f.navDate);
   posSrc = posSrc.slice(0, at) + out + posSrc.slice(at + seg.length);
 }
 /* 快照：追加一期（含自动生成的注释合计） */
@@ -307,13 +359,42 @@ if (!WRITE) { console.log("\n（干跑：未写盘。确认无误后加 --write 
 const backup = { data: dataSrc0, pos: posSrc0 };
 writeFileSync(DATA_PATH, dataSrc); writeFileSync(POSDATA_PATH, posSrc);
 const tryRun = (file, args) => { try { execFileSync("node", [file, ...args], { stdio: "pipe" }); return null; } catch (e) { return String(e.stdout || "") + String(e.stderr || ""); } };
+/* ⚠ 2026-10-16 修「失败信息读不出来」：原来按**行内是否含 ✗**筛失败行 ——
+   但这个项目的断言描述里**一半本身就带 ✗**（例如「…不再重述来源与推导 ✗」是一条**通过**的断言）✗，
+   于是前 6 行全被这类 ✓ 行占满、真正的失败被挤出 slice(0,6) ✗✗。实测为此要把整份仓库复制到别处、
+   再把 tryRun 改成 return null 跳过内建门禁，才能看到是哪条失败 —— 排查成本全花在工具上 ✗。
+   → 改为判**状态前缀**（`^\s*✗`），并把门禁的**完整** stdout 落盘到 outputs/gate-*.log（该目录已被 .gitignore ✓），
+     失败信息里给出绝对路径，需要上下文时直接看日志 ✓。 */
+const GATE_LOG_DIR = new URL("../outputs/", import.meta.url);
+const runGate = (file, label) => {
+  const out = tryRun(file, []);
+  if (!out) return null;
+  let logPath = "";
+  try {
+    mkdirSync(GATE_LOG_DIR, { recursive: true });
+    const p = new URL("gate-" + label + ".log", GATE_LOG_DIR);
+    writeFileSync(p, out);
+    logPath = fileURLToPath(p);
+  } catch { /* 日志落盘失败不影响主流程（门禁结论不依赖它） */ }
+  /* 三种格式都要能读出来（实测：dom-check 用「✗ 描述」，check-data 用「- 描述」＋一行英文总结 ✗） */
+  const lines = out.split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => l.trim());
+  const marked = lines.filter((l) => /^\s*✗/.test(l));
+  const bullets = lines.filter((l) => /^\s*[-·]\s+\S/.test(l));
+  const head = marked.length ? marked.slice(0, 8)
+    : (bullets.length ? [lines[0]].concat(bullets.slice(0, 7)) : lines.slice(-8));
+  return "  " + label + "：\n" +
+    head.map((l) => (l.startsWith("  ") ? l : "    " + l)).join("\n") +
+    (logPath ? "\n    完整输出：" + logPath : "");
+};
 const bad = [];
-const g1 = tryRun("scripts/check-data.mjs", []); if (g1) bad.push("check-data：\n" + g1.trim());
-const g2 = tryRun("scripts/dom-check.mjs", []); if (g2) bad.push("dom-check：\n" + g2.trim().split("\n").filter((l) => l.includes("✗")).slice(0, 6).join("\n"));
+const g1 = runGate("scripts/check-data.mjs", "check-data"); if (g1) bad.push(g1);
+const g2 = runGate("scripts/dom-check.mjs", "dom-check"); if (g2) bad.push(g2);
 if (bad.length) {
   writeFileSync(DATA_PATH, backup.data); writeFileSync(POSDATA_PATH, backup.pos);
   console.error("\n✗ 门禁未通过 → 已回滚（两个文件均已还原）：\n" + bad.join("\n"));
   process.exit(1);
 }
 console.log("\n✓ 已落盘，门禁通过（check-data 含交叉一致性 ✓ · dom-check ✓）");
-console.log("  仍需人工的两件：ACCT_STATS.monthly[当月]（若 App 给了新值）· AUTO 的 premiums（见 handoff.md SOP 第 6 步）");
+/* ⚠ 2026-10-16：ACCT_STATS 的全部字段（含 monthly[当月]）已能由本脚本的 acct 写入 → 从「仍需人工」里摘掉 ✓，
+   只留 premiums（它的净值要连网抓，见 handoff.md SOP 第 6 步）。 */
+console.log("  ⚠ 仍需人工的只剩：AUTO 的 premiums（需当日各 ETF 单位净值，见 handoff.md SOP 第 6 步）");
