@@ -66,18 +66,6 @@ try {
     <div class="sum-grid" id="sum-grid"></div>
     <div class="alloc-bar" id="alloc-bar" role="img" aria-label="组合占比"></div>
     <div class="alloc-legend" id="alloc-legend"></div>
-    <!-- 场外当日预估 · 逐只拆解（2026-10-03）：挂在汇总卡里 —— 它是「场外那半」的**明细**。
-         ⚠ 2026-10-13 起它**不再是「当日盈亏」那格的展开** ✗：那格已改成纯实际读数 ✓（不留估算 ✓），
-           而这里仍是预估（指数补齐 ✓）—— 两者是不同东西，别再互相指认 ✗。
-         ⚠ 2026-10-09 起**默认折叠**（用户要求）：它默认展开时会把汇总卡撑高一屏，而总资产与三格 KPI
-           是每天第一眼要看的东西 —— 逐只明细按需点开即可 ✓（点一下 summary）。
-         ⚠ 本块**没有任何 JS 会改 open** ✓（renderOtcEst 只填 #otc-est 的内容）；
-           故折叠状态就是 HTML 属性说了算，不要在这里加 open、也不要在渲染里补 open。
-         版式沿用全页折叠块的 .closed-all；dom-check ③c 读的是 DOM（与是否展开无关）故不受影响。 -->
-    <details class="closed-all" id="otc-est-wrap">
-      <summary>📉 场外当日预估 · 逐只拆解 <span id="otc-est-cnt"></span></summary>
-      <div id="otc-est"></div>
-    </details>
   </div>
 
   <h2 class="sec-title" id="sec-pl"><span aria-hidden="true">⚖️</span> 盈亏总览 <span class="cnt" id="pl-cnt"></span></h2>
@@ -713,207 +701,6 @@ function implOtcRows() {
     return { f, n, costNav, r, shares, costAmt, valAmt: f.value };
   });
 }
-/* 场外当日预估 · 逐只拆解（2026-10-03 加；挂在汇总卡内）
- * ⚠ 2026-10-13：它**不再是汇总卡「当日盈亏」那格的展开** ✗ —— 那格已改成纯实际读数 ✓（估算全部撤下 ✓）；
- *   这里是独立的**预估**视图（指数补齐 ✓），与那格不是同一个数、也不叠加 ✗。
- * 为什么单独列：真正想看的是"哪只还没公布、各补了多少、哪只不该当真"。
- * 数据直接用 renderImpl 里算好的 nc（与 KPI 同一份），**不重算** —— 两处各算一遍迟早漂移。
- * 排序：预估的按金额降序 → 净值已追上的（用 App 快照）→ 只给方向的（跟踪弱，不进合计）。
- * 版式沿用全页折叠块（.closed-all）：**2026-10-09 起默认折叠** ✓（用户要求 —— 默认展开会把汇总卡
- *   撑高一屏；要看逐只拆解点一下 summary 即可）。本函数只负责填内容，**不碰 open 状态** ✓。 */
-function renderOtcEst(nc) {
-  const box = $("otc-est"), cnt = $("otc-est-cnt");
-  if (!box) return;
-  if (!nc || (!nc.est && !nc.rows.length && !nc.dir.length)) {
-    box.innerHTML = '<div class="otc-note">未启用：data.js 里没有 <b>NOWCAST</b> 块（等下一次自动更新，或手动跑 <code>scripts/fetch-nowcast.mjs</code>）。'
-      + '此刻场外那半用的是 App 快照口径，与加这个功能之前一致。</div>';
-    if (cnt) cnt.textContent = "";
-    return;
-  }
-  const pc = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
-  const d2 = (s) => String(s || "—").slice(5).replace("-", ".");              // 2026-09-29 → 09-29（年份在块头统一交代）
-  const est = nc.rows.filter((r) => r.src === "est").sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
-  const app = nc.rows.filter((r) => r.src === "app");
-  /* ── 两个「净值日」不是同一个源（2026-10-12 加；用户：「因为场外前后有1-2天的延迟，所以呈现要符合逻辑
-        一点，也就是日期要对齐，应该没问题对吧？」）────────────────────────────────────
-     本表用的净值日 ＝ **东财净值序列**（拟合与对账都用它，日期成对）；
-     App 快照另有一个「净值日」（QDII 确认慢）—— **两者可能差 1 天**。
-     实测 8 只里 1 只不同（南方 021000：序列 10-08 / App 10-09）。
-     ⚠ 不标出来就是个陷阱 ✗：表里说"净值日 10-08 → 指数日 10-09"，而 App 明明写着 10-09 →
-       读者会以为"表算错了 / 怎么还在补 10-09" —— 上次那个 −125 元**假差异**就是同一个坑。
-     → 行内用 chip 显式标出 App 那个日期 ✓（谁不同标谁，一致的 7 只不加噪音）。 */
-  const appNavD = {};
-  OTC.funds.forEach((f) => { appNavD[f.code] = (f.nav && f.nav.closeDate) || ""; });
-  /* ⚠ 2026-10-13 修：原来这里**自己去 nc.rows 里另挑一条（[0]）** ✗ —— 挑到的那条未必是
-     「正在渲染的那一行」✓，于是两处对同一个标的说出了不同的序列净值日 ✗。
-     实测（中欧 015884）：行内写「10.09 → 10.13」✓，而这里查回的另一条给 `ft.navDate = 10-08` ✗
-     → 与 App 的 10-08 **撞成同值** → 判成「两源一致」→ **该标的的 App chip 没标出来** ✗
-     （门禁 ④q-2「两源不一致必须显式标出」抓到 ✓ —— 它守的正是这个洞 ✓）。
-     改法：序列日一律由调用方传入**本行**的 r.ft.navDate ✓（一条数据一个来源 ✓）；
-     不传时才退回旧查法（给下面 gapList 那处汇总用 ✓）。 */
-  const navGapOf = (code, serD) => {
-    const s = serD || ((nc.rows.filter((r) => r.f.code === code)[0] || {}).ft || {}).navDate;
-    const a = appNavD[code];
-    return (a && s && a !== s) ? { app: a, ser: s } : null;
-  };
-  const gapList = OTC.funds.map((f) => ({ f: f, g: navGapOf(f.code) })).filter((x) => x.g);
-  const upd = nc.upd || null;                               // 指数数据日（由 renderImpl 传入，不重复读 NOWCAST）
-  /* 行＝名字 ＋ 可选第二行「净值日 → 指数日」＋ 中间列 ＋ 金额；悬停 title 给逐日明细与拟合参数 */
-  const tr = (f, chip, mid, amt, o) => {
-    o = o || {};
-    return '<tr' + (o.sum ? ' class="sum"' : "") + '><td class="e-nm"'
-      + (o.title ? ' title="' + o.title.replace(/"/g, "&quot;") + '"' : "") + ">"
-      + (o.sum ? esc(f.name) : esc(plDisplayName(f.name)))      // 合计行不是基金名，别过 plDisplayName
-      + (chip ? '<span class="chip">' + chip + "</span>" : "")
-      + (o.sub ? '<span class="e-date">' + o.sub + "</span>" : "")
-      + '</td><td class="e-mid"><i class="c-lb">预估幅度</i>' + mid + '</td><td class="e-amt"><i class="c-lb">预估金额</i>'
-      + (typeof amt === "number" ? fmtAmt2(amt) : amt) + "</td></tr>";
-  };
-  /* ⚠ 这张表要有个锚点 `id="est-now"` ✓（2026-10-12 加）—— 本块里现在**有两张表**了 ✓
-     （下面还挂了一张「预估 vs 实际」），门禁按 #otc-est 取 tbody tr 会把两张一起数 →
-     给它一个 id，断言按 id 取 ✓（不是把断言放宽 —— 那会掩盖"渲染漏行"这类错）。 */
-  let h = '<table class="est-tbl" id="est-now"><thead><tr><th class="e-nm">基金 <span class="e-th2">· 净值日 → 指数日</span></th>'
-    + '<th class="e-mid">预估幅度</th><th class="e-amt">预估金额</th></tr></thead><tbody>';
-  est.forEach((r) => {
-    /* 只写两个日期＋天数：表头已经写了「净值日 → 指数日」，行内再重复一次就会在 390px 折成两行 */
-    const sub = d2(r.ft.navDate) + " → " + d2(r.upto) + " · 补 " + r.days + " 天";
-    const title = "净值日 " + r.ft.navDate + " → 代理指数（" + r.ft.prox + "）" + r.upto + "，相隔 " + r.days + " 个指数交易日\n"
-      + (r.list || []).map((x) => "  " + x.d + "　指数 " + pc(x.r) + "　→ 该只折算 " + pc(x.c)).join("\n")
-      + "\n拟合：β " + r.ft.beta + " · α " + r.ft.alpha + "%（近 " + r.ft.n + " 个净值日 · r " + r.ft.r + " · 日误差 " + (r.ft.mae * 100).toFixed(3) + "pp）"
-      + "\n→ 累乘 " + pc(r.pct) + " × 市值 " + fmtYuan(r.f.value) + " = " + fmtAmt2(r.amt) + " 元（估算，非读数）";
-    /* chip ＝ App 那个净值日（仅当它与本表的序列净值日不同 ✓，见上方 navGapOf 注释 ✓） */
-    const g2 = navGapOf(r.f.code, r.ft.navDate);   // 序列日取**本行** ✓（见 navGapOf 注释）
-    h += tr(r.f, g2 ? "App " + d2(g2.app) : "", pc(r.pct) + (r.ft.tier === "ref" ? ' <span class="e-tag">参考</span>' : ""), r.amt,
-      { sub, title: title + (g2 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g2.ser + "，拟合同源）；App 快照的净值日是 "
-        + g2.app + " —— 差 " + Math.round((Date.parse(g2.app) - Date.parse(g2.ser)) / 86400000) + " 天（QDII 确认慢）。本表按**序列**算。" : "") });
-  });
-  /* ⚠ 2026-10-14 补 chip：这一支（「净值日已追上」→ **直接用 App 读数** ✓）同样在行里写了一个**日期** ✓，
-     而它显示的**值恰恰来自 App 快照** —— App 的净值日可能比本表的序列净值日**更新** ✗
-     （实测 2026-10-14 摩根 007280：序列 10-13 / App 10-14 —— 日本当天即估值，App 比东财序列早一天 ✓，
-      与通常「QDII 确认慢一天」正好**反过来** ✗）。不标出来，读者会看到「10.13（已追上）」配着一个
-     10-14 的值 ✗ —— 与 10-13 给 nc.dir 补 chip 是**同一个陷阱** ✓（门禁 ④q-2 按 OTC 全表算期望 → 抓到漏标 ✓）。 */
-  app.forEach((r) => {
-    const g4 = navGapOf(r.f.code, r.ft && r.ft.navDate);
-    /* ⚠ 2026-10-16：day 可能是 **null**（该净值日未更新，见 positions-data.js 的字段约定）——
-       此时金额渲染「—」（与下面的 dir 行同一手法 ✓）且**不计入合计** ✓；
-       既不能拿 0 冒充 ✗（假装它没动），也不能把上一期那个数再记一遍 ✗（重复计入）。 */
-    const hasDay = Number.isFinite(r.f.day);
-    return h += tr(r.f, g4 ? "App " + d2(g4.app) : "", "—", hasDay ? r.f.day : "—", {
-      sub: d2(r.ft && r.ft.navDate) + (hasDay ? "（已追上）" : " · 净值未更新"),
-      title: (hasDay
-        ? "该只的净值日已经追上代理指数 —— 没有尚未公布的行情可补，故直接用 App 快照读数（这是读数，不是估算）。"
-        : "该只本期的净值**还没公布**（App 上的金额/份额与上一期相同）→ 当日收益记「—」、**不计入合计** ✓。")
-        + (g4 ? "\n⚠ 本表的日期取自**东财净值序列**（" + g4.ser + "）；App 快照的净值日是 " + g4.app
-          + " —— 这一只是 **App 更新、序列慢**（日本当天即估值），不是 QDII 确认慢。" : ""),
-    });
-  });
-  nc.dir.forEach((d) => {
-    /* ⚠ 2026-10-13 补 chip：这一支（跟踪太弱 → 只给方向、不计入金额 ✓）原先**不做 App 日期标注** ✗ ——
-       可它同样写着「净值日 → 指数日」✓，两源不同日时一样会把读者带进那个陷阱 ✗
-       （实测：中欧 015884 行写「10.09 → 10.13」而 App 是 10-08 ✗，门禁 ④q-2 按 OTC 全表算期望 → 抓到漏标 ✓）。 */
-    const g3 = navGapOf(d.f.code, d.ft.navDate);
-    return h += tr(d.f, g3 ? "App " + d2(g3.app) : "", "方向 " + pc(d.pct) + ' <span class="e-tag">不计入</span>', "—", {
-      sub: d2(d.ft.navDate) + " → " + d2(d.upto) + " · 补 " + (d.days || 0) + " 天",
-      title: "跟踪太弱（r " + d.ft.r + "）：只给方向、不计入金额。\n净值日 " + d.ft.navDate + " → 指数 " + d.upto + "，累乘后约 " + pc(d.pct) + "。"
-        + (g3 ? "\n⚠ 本表的净值日取自**东财净值序列**（" + g3.ser + "）；App 快照的净值日是 " + g3.app + "（QDII 确认慢）。" : ""),
-    });
-  });
-  const appIn = app.filter((r) => Number.isFinite(r.f.day));
-  const noDay = app.length - appIn.length;
-  const sum = est.reduce((a, r) => a + r.amt, 0) + appIn.reduce((a, r) => a + r.f.day, 0);
-  /* ⚠ 2026-10-16：标签里的「N 只」必须是**真计入金额**的只数（est ＋ app 里有 day 的那些）——
-     否则一只未更新的会一边显示「—」、一边被算进「计入金额的 N 只」✗（自相矛盾，且掩盖「少算了」）。 */
-  h += tr({ name: "合计（计入金额的 " + (est.length + appIn.length) + " 只"
-    + (noDay ? " · " + noDay + " 只净值未更新" : "") + "）" }, "", "", sum, { sum: true }) + "</tbody></table>";
-  /* 口径长文（2026-10-12 裁剪）：≈730 字 → ≈160 字 —— 拟合方式与实测 r 值移进 title ✓（要查的自然会悬停） */
-  h += '<div class="otc-note" title="' + esc(
-      "做法：把最后净值日之后、尚未公布的那几根指数涨跌，按 α + β×日涨跌逐日累乘，再 × 市值"
-      + "（净值日 d 的变化 ↔ 代理指数同日 d，实证 r 0.996~0.999 —— 依据见 scripts/fetch-nowcast.mjs）。"
-      + "悬停某一行可看那几天分别是什么行情；「补」的天数 ＝ 净值日与指数日之间的交易日数。"
-    ) + '"><b>口径</b>：估算＝把<b>尚未公布</b>的那几根指数涨跌按代理指数补齐 —— 它<b>不是读数</b>，公布后以 App 为准（两者不叠加）。'
-    + '<br>每行都标「净值 Y → 指数 Z」：Y 是该只<b>已公布</b>的最后一天、Z 是补到的那天（各只可能不同：美股代理跟到最新收盘，A股日经ETF 跟着 A股休市停住）。'
-    + '<br><b>★参考</b>＝该代理跟踪不紧（日经只有 A股ETF、全球精选用纳指代）→ 只看量级；<b>不计入</b>＝跟踪太弱（港股那只）→ 只给方向、不进合计。'
-    + (gapList.length
-      ? "<br><b>两个「净值日」来自两个源</b>：本表一律按东财<b>序列</b>算（与 App 那个不可混用 —— 混着相除会造出「假差异」）；本次 "
-        + gapList.length + " 只不同：" + gapList.map((x) => esc(plDisplayName(x.f.name)) + " 序列 " + d2(x.g.ser)
-        + " / App " + d2(x.g.app)).join(" · ") + " —— 这些行里用 <b>chip</b> 标出 App 那个日期。"
-      : "<br><b>两个「净值日」来自两个源</b>：本表一律按东财<b>序列</b>算；本次 8 只一致，无需区分。")
-    + "</div>";
-    + "</div>";
-  /* ── 预估 vs 实际（2026-10-12 加；用户：「我每天更新截图后 你能有个结论 让我看到实际和预估的差异吗？
-        就在场外当日预估这里」）────────────────────────────────────────────────
-     数据：台账 NOWCAST_LOG（**日更时自动写**，见 scripts/fetch-nowcast.mjs）＋ App 最新已公布净值。
-     判据：**只认日期对得上的那一条** —— 台账里 d ＝ 该只当前净值日 的那条 ✓：
-       预估 est ＝ 当时按 α+β×指数日涨跌逐日累乘出来的（%）
-       实际 act ＝ nav / 那条的 nav0 − 1（%）← 两边锚在同一对日期（navDate0 → d）上 → 可比
-       差 ＝ act − est（pp）· 金额差 ＝ 差 × 当前市值 ✓（"这个估算值多少钱的偏差"）
-     ⚠ 对不上（净值日还没推进 / 台账没记过那天）→ **不出数**，只说明"等下次截图" ——
-       拿上一条预估硬凑＝把两个不同的日期窗口对比（看着有数、其实没意思）。
-     ▸ 门禁 dom-check ④q 会独立复算每一行（est/act/差/金额）并断言"对不上的日子不出数"。 */
-  const LOG = (typeof NOWCAST_LOG !== "undefined" && NOWCAST_LOG && NOWCAST_LOG.entries) ? NOWCAST_LOG.entries : null;
-  const otcVal = OTC.funds.reduce((a, f) => a + (f.value || 0), 0);
-  const cmp = [];
-  let pend = 0;
-  /* 待公布的**目标日**（2026-10-12 加）：等待态里只写「N 条待公布」不够 —— 用户当天问的就是
-     「是明天截图后才看到吗？」✗。把目标日摆出来，「等哪一天」才一目了然 ✓。 */
-  const pendDays = [];
-  /* ⚠ 这里**只读台账** ✓ —— 不在页面里拿 App 读数去算"实际" ✗：
-     2026-10-12 首版就这么干过 → App 净值日与东财净值序列差一天 →
-     出现 est +0.499% vs act 0.000%（−125 元）这种**假差异** ✗✗（拿 App 的 10-09 除东财的 10-08）。
-     "实际"必须与 est **同源**（东财净值序列）→ 由脚本回填 act ✓（见 fetch-nowcast.mjs 的台账注释）。 */
-  if (LOG) OTC.funds.forEach((f) => {
-    (LOG[f.code] || []).forEach((e) => {
-      if (typeof e.act !== "number" || !Number.isFinite(e.act)) { pend++; if (pendDays.indexOf(e.d) < 0) pendDays.push(e.d); return; }
-      cmp.push({ f: f, d: e.d, from: e.navDate0, est: e.est, act: e.act, diff: e.act - e.est, amt: (e.act - e.est) / 100 * (f.value || 0) });
-    });
-  });
-  cmp.sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt));
-  const logN = LOG ? Object.keys(LOG).reduce((a, k) => a + (LOG[k] || []).length, 0) : 0;
-  const logFunds = LOG ? Object.keys(LOG).filter((k) => (LOG[k] || []).length).length : 0;
-  /* 对账表原另有一个 pctS，与上方 pc 逐字符同实现（同一种「百分比数字 → +x.xx%」格式抄了两份）→
-     2026-10-12 合并到 pc：同一格式只留一处，改格式不会再漏掉一张表。
-     ⚠ ppS 是「百分点」差值口径（3 位 + pp），与百分比不是同一个东西 —— 实现已并入全局 fmtPp ✓（2026-10-12）。 */
-  const ppS = (v) => fmtPp(v / 100, 3);
-  if (!cmp.length) {
-    h += '<div class="est-cmp wait" data-cmp-n="0" data-log-n="' + logN + '">'
-      + "<b>预估 vs 实际</b>：暂无已对账的那一天 —— 台账里已记下 <b>" + logN + "</b> 条待公布预估 ✓（" + logFunds + " 只）"
-      + " · 目标日 " + (pendDays.length ? pendDays.map(d2).join(" / ") : "—") + "。"
-      + "等待的是<b>净值序列</b>（东财，与拟合同源）走到那一天 —— 届时脚本会把「实际」自动回填 ✓，"
-      + "这一栏就出现「预估 / 实际 / 差多少」（两边同源同日期，差 ＝ 实际 − 预估；出结果前不写任何数字 ✓）。"
-      + "⚠ <b>与 App 截图无关</b>，不用特意发图 ✓。</div>";
-  } else {
-    const sumDiff = cmp.reduce((a, x) => a + x.amt, 0);
-    const avgE = cmp.reduce((a, x) => a + x.est, 0) / cmp.length;
-    const avgA = cmp.reduce((a, x) => a + x.act, 0) / cmp.length;
-    const hitDir = cmp.filter((x) => Math.sign(x.est) === Math.sign(x.act)).length;
-    const dList = [...new Set(cmp.map((x) => x.d))].map((x) => d2(x)).join(" / ");
-    h += '<div class="est-cmp" data-cmp-n="' + cmp.length + '" data-cmp-sum="' + sumDiff.toFixed(2) + '" data-log-n="' + logN + '">'
-      + '<div class="ec-head"><b>预估 vs 实际</b> · 已对账 <b>' + cmp.length + "</b> 只（目标日 " + dList + "）"
-      + '<span class="ec-hint">预估＝台账里当时记下的 ｜ 实际＝App 刚公布的净值 ｜ 差 ＝ 实际 − 预估</span></div>'
-      + '<table class="est-tbl ec-tbl"><thead><tr><th class="e-nm">基金</th><th class="e-mid">预估</th><th class="e-mid">实际</th>'
-      + '<th class="e-mid">差</th><th class="e-amt">金额差</th></tr></thead><tbody>'
-      + cmp.map((x) => '<tr data-cmp-code="' + esc(x.f.code) + '" data-cmp-d="' + x.d + '" data-cmp-from="' + x.from + '"'
-          + ' data-cmp-est="' + x.est.toFixed(4) + '" data-cmp-act="' + x.act.toFixed(4) + '"'
-          + ' data-cmp-diff="' + x.diff.toFixed(4) + '" data-cmp-amt="' + x.amt.toFixed(2) + '">'
-          + '<td class="e-nm">' + esc(plDisplayName(x.f.name)) + '<span class="e-date">' + d2(x.from) + " → " + d2(x.d) + "</span></td>"
-          + '<td class="e-mid">' + pc(x.est) + '</td><td class="e-mid">' + pc(x.act) + "</td>"
-          + '<td class="e-mid ' + cls(x.diff) + '">' + ppS(x.diff) + "</td>"
-          + '<td class="e-amt ' + cls(x.amt) + '">' + fmtAmt2(x.amt) + "</td></tr>").join("")
-      + '<tr class="sum" data-cmp-total="' + sumDiff.toFixed(2) + '"><td class="e-nm">合计（' + cmp.length + ' 只）</td>'
-      + '<td class="e-mid">' + pc(avgE) + '</td><td class="e-mid">' + pc(avgA) + "</td>"
-      + '<td class="e-mid ' + cls(avgA - avgE) + '">' + ppS(avgA - avgE) + "</td>"
-      + '<td class="e-amt ' + cls(sumDiff) + '">' + fmtAmt2(sumDiff) + "</td></tr></tbody></table>"
-      + '<div class="otc-note"><b>结论</b>：这一批预估<b>' + (avgE >= avgA ? "偏乐观" : "偏保守") + "</b> " + Math.abs(avgE - avgA).toFixed(3)
-      + "pp（预估均值 " + pc(avgE) + " vs 实际均值 " + pc(avgA) + "）；折成钱 ≈ <b>" + fmtAmt2(sumDiff) + " 元</b>"
-      + (otcVal ? "（占场外市值 " + (Math.abs(sumDiff) / otcVal * 100).toFixed(2) + "%）" : "") + " · 方向命中 " + hitDir + "/" + cmp.length + "。"
-      + "<br>⚠ 单次差异里既有模型误差、也有「App 净值日 ↔ 代理指数日」的错位 —— 攒几天（台账会一直记）"
-      + "才看得出是<b>系统性</b>偏高还是偏低，别拿一次就下结论。</div></div>";
-  }
-  box.innerHTML = h;
-  if (cnt) cnt.textContent = "（计入 " + (est.length + app.length) + " 只 · 合计 " + fmtAmt2(sum) + " 元 · 指数数据到 " + (upd ? d2(upd) : "—")
-    + (est.length ? " · " + est.length + " 只待公布" : "") + (nc.dir.length ? " · " + nc.dir.length + " 只只给方向" : "")
-    + (cmp.length ? " · 已对账 " + cmp.length + " 只" : (logN ? " · 台账待对账 " + logN + " 条" : "")) + "）";
-}
 
 /* ---- 场外定投 · 操作记录（2026-10-04 加）--------------------------------------------
  * 用户问「场内那块能不能给场外也做一个、有必要吗」。能做（数据全在 OTC_LOG：391 笔，含 status），
@@ -1318,59 +1105,6 @@ function renderImpl() {
      当天还没落期时，这格显示的是「场内最新价 ＋ 场外上次快照」的现算值 ✓，也就是走势图那个
      `isToday` 的"今日估算"点 ✓（那边同样是"与最后一期快照同日时省略"✓）；当天已落期 → 全是实读 ✓。 */
   const sumIsEst = snapAsOf() !== todayStr();
-  /* ===== 场外「当日收益（估）」：用代理指数把还没公布的那几天补齐（2026-10-03 加）=====
-     为什么：场外 QDII 净值晚 1~2 天公布（华安更慢），App 的「日收益」永远停在截图那天。
-     依据（scripts/fetch-nowcast.mjs 里实证，不是拍脑袋）：**净值日 d 的变化 ↔ 代理指数【同日】d 的涨跌** ——
-       纳指 r 0.999 / 标普 0.996 / A股日经ETF 0.868 / 恒生科技 0.381；
-       样本外日误差 0.044~0.053pp（指数型，≈ 不预估的 1/13）· 0.68~0.74pp（弱代理）· 2.0pp（港股混合）。
-     算法：窗口 = 指数里【严格晚于东财净值日】的那几根 → 逐日累乘 Π(1 + (α + β·r_t)/100) − 1 → × 市值。
-     ⚠ tier 分档（脚本给，页面照画）：num 给数字 ｜ ref 给数字但标"参考" ｜ dir **只给方向、不计入金额**
-       —— 中欧港股数字 r 只有 0.381，给它一个精确到元的数就是假精确。
-     ⚠ 某只净值已追上（无缺口）→ 直接用它的 App day（那已经是当期值，再加预估就会重复计）。
-     ⚠ 整块缺失（老数据 / 脚本没跑）→ 全部退回 App 快照口径，页面行为与加这个功能之前一致。 */
-  const ncRaw = (typeof NOWCAST !== "undefined" && NOWCAST && NOWCAST.idx && NOWCAST.fits) ? NOWCAST : null;
-  const nc = { amt: 0, days: 0, rows: [], est: 0, dir: [], noFit: 0 };
-  nc.upd = ncRaw ? ncRaw.updated : null;    // 指数数据的"最新日"（各代理不同，逐行另标自己的）
-  /* 把「最后净值日之后的指数涨跌」逐日累乘成该只的预估涨跌 —— 估的和只给方向的都用它，避免两处口径漂移 */
-  const cumOf = (ft, ser) => {
-    const i0 = ser.findIndex((p) => p.d > ft.navDate);
-    if (i0 < 1) return null;                                   // 净值已追上 → 没有缺口
-    let g = 1;
-    const list = [];                                           // 逐日明细：行悬停要显示"这 N 天分别是什么行情"
-    for (let i = i0; i < ser.length; i++) {
-      const r = (ser[i].c / ser[i - 1].c - 1) * 100;            // 代理指数该日涨跌%
-      list.push({ d: ser[i].d, r, c: ft.alpha + ft.beta * r }); // c = 折算到该只的涨跌%（α + β·r）
-      g *= 1 + (ft.alpha + ft.beta * r) / 100;
-    }
-    /* upto = **该只代理**的最新数据日（各只可能不同：美股代理能到最新收盘，A股日经ETF 跟 A股休市停住）*/
-    return { days: ser.length - i0, pct: (g - 1) * 100, g, list, upto: ser[ser.length - 1].d };
-  };
-  OTC.funds.forEach((f) => {
-    const ft = ncRaw && ncRaw.fits[f.code], ser = ft && ncRaw.idx[ft.prox];
-    /* ⚠ 2026-10-16 修：**每只都必须出一行**（金额可以是「—」）——
-       原先这些分支只在 day 是数时才 push，否则**静默丢行** ✗：实测 007280 摩根（10-16 净值未出 → day: null）
-       从表里消失了，门禁「逐只拆解表覆盖全部 N 只场外基金」当场抓住 ✓。
-       丢行的后果比少一个数严重：读者会以为该只不在持仓里 ✗，而它明明有市值、只是没有新读数 ✓。 */
-    if (!ft || !ser || ser.length < 2) {
-      nc.rows.push({ f, src: "app", days: 0 });
-      if (Number.isFinite(f.day)) nc.amt += f.day; else nc.noFit++;
-      return;
-    }
-    if (ft.tier === "dir") { nc.dir.push({ f, ft, ...(cumOf(ft, ser) || { days: 0, pct: 0 }) }); return; }   // 只给方向，不进金额
-    const c = cumOf(ft, ser);
-    if (!c) {
-      nc.rows.push({ f, ft, src: "app", days: 0, upto: ser[ser.length - 1].d });
-      if (Number.isFinite(f.day)) nc.amt += f.day;
-      return;
-    }
-    const amt = f.value * (c.g - 1);
-    nc.amt += amt; nc.days += c.days; nc.est++;
-    nc.rows.push({ f, ft, src: "est", days: c.days, pct: c.pct, amt, upto: c.upto, list: c.list });
-  });
-  /* ⚠ 2026-10-13：`nc.amt`（场外「指数补齐」预估）**不再进汇总卡那格** ✗ ——
-     用户决定那格只用实际读数 ✓（「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓）。
-     它现在只由**折叠块**（renderOtcEst ✓「场外当日预估 · 逐只拆解」✓）与「预估 vs 实际」台账消费 ✓；
-     原来挂在那格 title 上的 ncTip 一并下架 ✓（同一套说明折叠块里已有 ✓，不两处各写一套 ✗）。 */
 
   /* ── 当日盈亏：**只用实际值**（2026-10-13 用户决定：「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」）──
      ① 场内那半的估算**撤掉** ✗ —— 它 ＝ Σ 市值 × chg/(100+chg)（chg 取自 data.js 的场内报价 ✓），
@@ -1507,7 +1241,6 @@ function renderImpl() {
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
-  renderOtcEst(nc);          // 场外当日预估的逐只拆解（挂在汇总卡内，见函数注释）
   renderOtcLevel();          // 场外净值水位（52 周区间 + 成本点）
   renderOtcLog();            // 场外定投 · 操作记录（391 笔体检 + 异常笔 + 可折叠明细）
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
@@ -7980,3 +7713,4 @@ bindTrendCrosshair();
 </script>
 </body>
 </html>
+

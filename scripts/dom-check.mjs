@@ -173,16 +173,13 @@ check("汇总卡本金 = 总资产 − 累计收益（快照口径独立复算�
   near(sumText, snapTotal - (latest.pl - closedGap), 3),
   "页面合计 " + sumText.slice(0, 60) + " … 复算 " + money(snapTotal - (latest.pl - closedGap)));
 
-/* ③b 汇总卡「当日盈亏」= 场内估 + 场外【预估】（2026-10-03：场外那半从"App 快照"换成"指数×仓位补齐"）
-   两段的性质不同，必须分开断言：
+/* ③b 汇总卡「当日盈亏」：**全是实际读数**（2026-10-13 用户决定「每天截图更新就行了」✓）
      ① 三栏自洽：场内 ＋ 场外 ＝ 合计（页面内部一致，tol 1 元）
-     ② 场外那一半 = 用 data.js 的 NOWCAST + positions-data.js 的 OTC **独立复算**出来的预估（tol 5 元）——
-        这条是有效的那条：它把页面数字锚在**数据**上，而不是与页面自己的中间量比（与自己比永远自洽）。
-        ⚠ 它拦得住**页面侧**的错（窗口/对齐/分档抄错、忘了排除 dir 档），拦不住**数据侧**的错 ——
-          因为两边读的是同一份 NOWCAST。数据侧的合理性由 check-data 的 NOWCAST 合约把关
-          （r 高时 beta 必须贴近 1、tier 必须与 mae/r 自洽）。2026-10-03 把这个边界实测确认过。
-     ③ 场外那半的【已公布】部分（App 快照 Σ day）必须**仍出现在副标里** —— 预估是"补上去"的，不是"顶掉"的。
-     ⚠ NOWCAST 缺失（老数据 / 脚本没跑）时页面退回 App 快照口径，这里同步按老口径断言。 */
+     ② 场外那一半 ≡ Σ「本期已更新」基金的 App 日收益（严格相等，tol 1 元）—— 判据取 POS_LOGIC.sumDay ✓
+     ③ 场外那半的**未更新只**必须被点名（悬停里）—— 见下面那两条 ✓
+   ⚠ 2026-10-16：原先还有一条「场外 ≡ 用 NOWCAST 独立复算的**预估**」✗ —— 随页面上的
+     「场外当日预估」模块整体下线一并删除 ✓（预估不再出现在页面上，就没有可比的对象了）。
+     NOWCAST 数据侧的形状校验仍在 check-data ✓（本文件不再读它）。 */
 const dayCellEl = sum ? [...sum.querySelectorAll(".sum-cell")].find((el) => el.textContent.includes("当日盈亏")) : null;
 const dayCell = dayCellEl ? dayCellEl.textContent.replace(/\s+/g, "") : null;
 /* ⚠ 2026-10-13：用户决定「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓ →
@@ -208,9 +205,6 @@ const traded = prevFull ? Object.keys(latest.items).some((c) => {
   const a = prevFull.items[c], b = latest.items[c];
   return !!(a && b && (a.qty || 0) !== (b.qty || 0));
 }) : false;
-/* 场外那半要用的两份数据：先取出来（⚠ 定义必须在用之前 —— 2026-10-03 这里踩过一次 TDZ） */
-const nowcastSrc = (() => { try { const s = readFileSync(path.join(root, "data.js"), "utf8"); const m = s.match(/^const NOWCAST = \{[\s\S]*?^\};/m); return m ? m[0] : null; } catch { return null; } })();
-const NC = (() => { if (!nowcastSrc) return null; const c = vm.createContext({}); vm.runInContext(nowcastSrc + "\nthis.n = NOWCAST;", c, { timeout: 500 }); return c.n; })();
 const OC = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC;", c, { timeout: 500 }); return c.o; })();
 /* ⚠ 2026-10-12 修：本条口径是「App 快照里**已公布的那部分**」✗ —— 原式把**沿用旧读数**的基金 day 也加了进来
    ✗：10-12 期 015884 中欧未更新（已清仓在途、按用户指示本期不记），它的 day 仍是 10-08 那个净值日的 −192.26，
@@ -235,22 +229,6 @@ const otcDayApp = LOGIC.sumDay(OC.funds, OC.updated);
     Number.isFinite(vAllDay) && Math.abs(vAllDay - latest.day) <= 1,
     "页面合计 " + vAllDay + " vs 快照 day " + latest.day.toFixed(2) + "（差 " + (vAllDay - latest.day).toFixed(2) + "）");
 }
-/* 场外那半：① 与「从数据独立复算的预估」比（有效的那条）② App 快照那部分必须仍在副标里 */
-/* 与页面同一算法（口径见 positions.html 里那段注释）—— 故意重写一遍：抄页面的中间量就不叫独立校验了 */
-const recomputeOtc = (nc, o) => {
-  let amt = 0;
-  for (const f of o.funds) {
-    const ft = nc && nc.fits[f.code], ser = ft && nc.idx[ft.prox];
-    if (!ft || !ser || ser.length < 2) { amt += (Number.isFinite(f.day) ? f.day : 0); continue; }
-    if (ft.tier === "dir") continue;                         // 跟踪弱 → 只给方向、不进金额
-    const i0 = ser.findIndex((p) => p.d > ft.navDate);
-    if (i0 < 1) { amt += (Number.isFinite(f.day) ? f.day : 0); continue; }
-    let g = 1;
-    for (let i = i0; i < ser.length; i++) g *= 1 + (ft.alpha + ft.beta * (ser[i].c / ser[i - 1].c - 1) * 100) / 100;
-    amt += f.value * (g - 1);
-  }
-  return amt;
-};
 if (splitCells.length === 3) {
   /* ⚠ 2026-10-13：页面「场外」栏现在是**实际读数**（Σ 各平台 App「日收益」✓）而不是「指数补齐」的预估 ✗
      → 断言改成与 otcDayApp **严格相等** ✓（原来比的是"独立复算的预估"✓，那是折叠块 + 台账的事
@@ -273,30 +251,6 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
   const dayTip = dayCellEl ? (dayCellEl.getAttribute("title") || "") : "";
   check("当日盈亏**悬停**仍说清两个来源（券商 App「当日总盈亏」✓ ＋ 各平台 App「日收益」✓）",
     /券商 App/.test(dayTip) && /日收益/.test(dayTip), dayTip.slice(0, 110));
-}
-
-/* ③c 逐只拆解表（2026-10-03 加，挂在汇总卡内）：① 合计必须等于 KPI 里那个场外数
-   ② 8 只场外基金一只不落（少一行就是渲染漏了，这种错肉眼很难发现） */
-{
-  const box = win.document.querySelector("#otc-est");
-  /* ⚠ 只数**预估表**（#est-now ✓）：本块 2026-10-12 起还挂了一张「预估 vs 实际」对账表 ✗ ——
-     按 #otc-est 全取 tbody tr 会把两张一起数 ✓（当时实测 11 行 vs 期望 9 ✓，当场报红 ✓）。
-     给它锚点按 id 取 ✓，而不是放宽断言 ✗（"渲染漏一行"正是这条要拦的 ✓）。 */
-  const rows = box ? [...box.querySelectorAll("#est-now tbody tr")] : [];
-  const sumRow = rows.find((tr) => tr.classList.contains("sum"));
-  /* ⚠ 只取金额那一格：整行 textContent 里还有「计入金额的 7 只」，numsOf 会先抓到那个 7 */
-  const sumCell = sumRow ? sumRow.querySelector(".e-amt") : null;
-  const sumVal = sumCell ? numsOf(sumCell.textContent)[0] : null;
-  /* ⚠ 2026-10-13：这张拆解表是**预估**（指数补齐 ✓），而汇总卡那格已是**实际读数** ✗
-     → 不能再拿它去对 KPI 的场外数 ✗（两者本来就不是同一个数 ✓）。
-     改为对**独立复算的预估** ✓（recomputeOtc ✓，故意重写一遍的算法 ✓）—— 牙一颗不少 ✓，
-     而且比原来更有意义 ✓（原来只是"表和格子自己一致"✓）。 */
-  const estExpect = NC ? recomputeOtc(NC, OC) : otcDayApp;
-  check("逐只拆解表「合计」≡ 独立复算的场外预估 " + money(estExpect),
-    rows.length > 0 && Number.isFinite(sumVal) && Math.abs(sumVal - estExpect) <= 5,
-    "表合计 " + sumVal + " vs 复算 " + estExpect.toFixed(2) + (NC ? "（NOWCAST " + NC.updated + "）" : "") + "（表内 " + Math.max(0, rows.length - 1) + " 行）");
-  check("逐只拆解表覆盖全部 " + OC.funds.length + " 只场外基金",
-    rows.length === OC.funds.length + 1, "表内 " + Math.max(0, rows.length - 1) + " 行 ＋ 合计 1 行 = " + rows.length);
 }
 
 /* ③e 场外定投 · 操作记录（2026-10-04 加）：① 体检表覆盖全部场外基金 ② 逐笔明细的笔数 = OTC_LOG 总笔数
@@ -2026,151 +1980,6 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       : (unscoped ? "页面级规则在 ✓" : "找不到页面级 .sa-back ✗"));
 }
 
-/* ④q 「预估 vs 实际」对账区（2026-10-12 加，用户：「我每天更新截图后 你能有个结论 让我看到实际和预估
-   的差异吗？就在场外当日预估这里」）────────────────────────────────────────────────────
-   台账 NOWCAST_LOG ＝ **当时记下的预估**（脚本写 ✓）；App 新净值 ＝ **实际** ✓。本块独立复算每条并盯两件事 ✗：
-     ① 参与对账的每一行，目标日 d 必须 ≡ 该只 App 的净值日 ✓（对不上就不许出数 ✗）
-     ② 没有可对账的那天 → 页面**一个数字都不许编** ✗（只提示"等下次截图" ✓）
-        —— 总比"拿上一条预估硬凑"好 ✓（那会把两个不同的日期窗口对比 ✓）。
-   ▸ 台账 2026-10-12 刚播种 ✓ → 此刻必然走"暂无对账"分支 ✓；等你发新截图、某只净值日推进之后 ✓，
-     同一段代码会自动开始逐行验 ✓（判据不依赖"今天有没有对比"✓）。 */
-{
-  const log2 = (() => {
-    try {
-      const s = readFileSync(path.join(root, "data.js"), "utf8");
-      const m = s.match(/^const NOWCAST_LOG = (\{[\s\S]*?^\});/m);
-      return m ? JSON.parse(m[1]).entries : null;
-    } catch (e) { return null; }
-  })();
-  const OTC2 = (() => {
-    try {
-      const s = readFileSync(path.join(root, "positions-data.js"), "utf8");
-      const c = vm.createContext({});
-      vm.runInContext(s.match(/^const OTC = \{[\s\S]*?\n\};/m)[0] + "\nthis.o = OTC;", c, { timeout: 500 });
-      return c.o;
-    } catch (e) { return null; }
-  })();
-  const boxE = win.document.getElementById("otc-est");
-  const waitE = boxE ? boxE.querySelector(".est-cmp.wait") : null;
-  const rowsE = boxE ? [...boxE.querySelectorAll(".ec-tbl tbody tr[data-cmp-code]")] : [];
-  const logN = log2 ? Object.keys(log2).reduce((a, k) => a + (log2[k] || []).length, 0) : 0;
-  if (!log2 || !OTC2) {
-    check("预估对账：台账 NOWCAST_LOG 与 OTC 都能读到（对账的数据底座）", false,
-      (!log2 ? "data.js 里没有 NOWCAST_LOG ✗" : "") + (!OTC2 ? " 读不到 positions-data.js 的 OTC ✗" : ""));
-  } else if (!rowsE.length) {
-    /* ⚠ 等待态的**文案**也要守（2026-10-12 加，用户当天问「是明天截图后才看到吗？」）：
-       原文案写「你下次发场外截图、某只的净值日推进到台账记过的那天…」✗ —— 与实际机制不符 ✗：
-       act 是**脚本**按东财净值序列回填的（见 fetch-nowcast.mjs:208 与它 note 里那句「别在页面里拿 App
-       读数去算 ✗」），与截图无关 ✓。判据：必须说「净值序列」✓、必须点明与截图无关 ✓，
-       且不许再出现「你下次发场外截图」这种把用户引向做无用功的句子 ✗。 */
-    const wTxt = waitE ? waitE.textContent.replace(/\s+/g, " ") : "";
-    check("预估对账：台账已就绪（" + logN + " 条待公布）但尚无已对账的那天 → 页面**不编数**、只说明在等净值序列 ✓",
-      !!waitE && Number(waitE.getAttribute("data-cmp-n")) === 0 && logN > 0
-        && wTxt.indexOf("净值序列") >= 0 && wTxt.indexOf("与 App 截图无关") >= 0 && wTxt.indexOf("你下次发场外截图") < 0,
-      waitE ? "data-cmp-n=0 ✓ · 文案：" + wTxt.trim().slice(0, 96)
-        : "既没有对账行、也没有 .est-cmp.wait 提示 ✗（用户会以为这功能没做 ✓）");
-  } else {
-    const badE = [];
-    let lagN = 0;
-    rowsE.forEach((tr) => {
-      const code = tr.getAttribute("data-cmp-code"), d = tr.getAttribute("data-cmp-d");
-      const f = (OTC2.funds || []).filter((x) => x.code === code)[0];
-      const hit = ((log2[code] || []).filter((x) => x.d === d)[0]) || null;
-      if (!f || !hit) { badE.push(code + " 在台账/OTC 里找不到目标日 " + d); return; }
-      /* ⚠ 2026-10-13：台账（CI 按**东财净值序列**回填 ✓）可能**落后 App 读数一期** ✗ ——
-         本期实测：台账最新 10-09，而 App 已到 10-12（QDII 净值发布快于 CI 源 ✓，属**正常状态** ✗）。
-         此时「目标日 ＝ App 净值日」这个**前提**不成立 ✗ → 拿 App 的最新净值去比台账的旧目标日
-         就是跨日相减 ✗（与今天修的同期纳指/场内徽标同一类 ✗）。改为：不同日时**只验该行已标出** ✓
-         （行内出现 App 日期 chip ✓，与 ④q-2 同一契约 ✓），并把只数写进断言名 ✓（不静默跳过 ✗）。 */
-      const sameDay = d === (f.nav && f.nav.closeDate);
-      if (!sameDay) {
-        /* 台账日 ≠ App 净值日（CI 的东财序列落后 App 一期 ✓，是**正常状态** ✗，不是数据错 ✓）→
-           **不做跨日比对** ✗；仍验三件**同源**的事 ✓（牙一颗不少 ✓，只是不拿 App 的数减台账的数 ✗）：
-             ① est ≡ 台账那条（独立来源：data.js 的 NOWCAST_LOG ✓）
-             ② 差 ≡ 实际 − 预估 ✓（页面自己的两列必须自洽 ✓）
-             ③ 金额差 ≡ 差 ÷ 100 × 市值 ✓
-           ⚠ 页面这张表的 est / act **都来自台账**（脚本按东财序列回填 ✓，见 fetch-nowcast 注释 ✓），
-             本来就与 App 读数无关 ✓ —— 所以「目标日 ＝ App 净值日」只是**恰好在同日时才成立**的前提 ✓。 */
-        lagN++;
-        const ga = (k) => Number(tr.getAttribute(k));
-        const estL = ga("data-cmp-est"), actL = ga("data-cmp-act");
-        if (Math.abs(estL - hit.est) > 1e-4) badE.push(code + " est " + estL + " vs 台账 " + hit.est);
-        if (Math.abs(ga("data-cmp-diff") - (actL - estL)) > 1e-4)
-          badE.push(code + " 差 " + ga("data-cmp-diff") + " vs 实际−预估 " + (actL - estL).toFixed(4));
-        if (Math.abs(ga("data-cmp-amt") - (actL - estL) / 100 * f.value) > 0.51)
-          badE.push(code + " 金额差 " + ga("data-cmp-amt") + " ≠ 差×市值 " + ((actL - estL) / 100 * f.value).toFixed(2));
-        return;
-      }
-      const act = (f.nav.close / hit.nav0 - 1) * 100;
-      const diff = act - hit.est, amt = diff / 100 * f.value;
-      const g = (k) => Number(tr.getAttribute(k));
-      if (Math.abs(g("data-cmp-est") - hit.est) > 1e-4) badE.push(code + " est " + g("data-cmp-est") + " vs " + hit.est);
-      if (Math.abs(g("data-cmp-act") - act) > 1e-4) badE.push(code + " act " + g("data-cmp-act") + " vs " + act.toFixed(4));
-      if (Math.abs(g("data-cmp-diff") - diff) > 1e-4) badE.push(code + " 差 " + g("data-cmp-diff") + " vs " + diff.toFixed(4));
-      if (Math.abs(g("data-cmp-amt") - amt) > 0.51) badE.push(code + " 金额差 " + g("data-cmp-amt") + " vs " + amt.toFixed(2));
-    });
-    const sameN = rowsE.length - lagN;
-    check("预估对账：逐行 est / act / 差 / 金额差 ≡ 独立复算（" + rowsE.length + " 只：其中 " + sameN
-      + " 只同日 → 逐项复算 ✓；" + lagN + " 只台账未跟上 App → 只验「已标出」✓）",
-      badE.length === 0, badE.join("；") || ("同日 " + sameN + " 只全部对上 ✓；滞后 " + lagN + " 只已标出 ✓"));
-  }
-  /* ④q-2 两个「净值日」不一致的，页面必须**显式标出**（2026-10-12 加）——
-     起因：用户「因为场外前后有1-2天的延迟，所以呈现要符合逻辑一点，也就是日期要对齐，应该没问题对吧？」
-     实况：本表用**东财净值序列**的净值日 ✓（拟合/对账同源 ✓），而 App 快照另有一个净疋日 ✓（QDII 慢 1 天 ✓）
-       —— 实测 8 只里 1 只不同（南方 021000：序列 10-08 / App 10-09 ✓）。
-     ⚠ 不标出来就是陷阱 ✗：表里写「净值日 10-08 → 指数日 10-09」✓，而 App 写着 10-09 ✗ →
-       读者会以为表算错 ✓（上次那个 −125 元假差异就是这个错位的产物 ✓）。
-     判据：从 OTC ＋ NOWCAST 独立算出"哪些只两源不同"✓，断言这些行**有** App 日期的 chip ✓，
-       且两源**一致**的行**没有**那种 chip ✗（不制造噪音 ✓）。 */
-  {
-    const boxE2 = win.document.getElementById("otc-est");
-    const tbl = boxE2 ? boxE2.querySelector("#est-now") : null;
-    const rowsE2 = tbl ? [...tbl.querySelectorAll("tbody tr")] : [];
-    const gapWant = [];
-    /* 本表的序列净值日 ≡ NOWCAST.fits[code].navDate ✓（台账的 navDate0 与它同值 ✓，见 fetch-nowcast 注释 ✓） */
-    const ncFits2 = (() => {
-      try {
-        const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const NOWCAST = (\{[\s\S]*?^\});/m);
-        return m ? JSON.parse(m[1]).fits : null;
-      } catch (e) { return null; }
-    })();
-    (OTC2.funds || []).forEach((f) => {
-      const serD = (ncFits2 && ncFits2[f.code]) ? ncFits2[f.code].navDate : null;
-      const appD = (f.nav && f.nav.closeDate) || "";
-      if (serD && appD && serD !== appD) gapWant.push({ code: f.code, name: f.name, ser: serD, app: appD });
-    });
-    /* 行里没有 code 属性 → 用"该行是否带 App 日期 chip"来判 ✓（chip 文本形如 "App 10.09" ✓）
-       ⚠ 判据不分隔符（2026-10-12 页面统一点号后，页面写 10.09 而这里原写死 10-09 曾误报 ✗） */
-    const chips = rowsE2.map((tr) => ((tr.querySelector(".chip") || {}).textContent || "").trim());
-    const badG = [];
-    /* ⚠ 2026-10-12 修：原判据是「**全局**恰好 1 个含该日期的 chip」✗ —— 隐含「同一个 App 日期只会出现在一只上」✗。
-       10-12 期两源不同有 7 只、其中 **5 只 App 日期同为 10.09** → 全局计数必然 ≠ 1 ✗（而页面其实标对了 ✓，
-       属判据太窄的误报 ✗）。改为**按日期计数**：某 App 日期的 chip 个数 ＝ gapWant 里该日期的只数 ✓
-       —— 仍然抓得住「漏标 / 多标」✗（原先想守的契约一条没丢 ✓）。 */
-    const wantByDate = {};
-    gapWant.forEach((g) => { const k = g.app.slice(5); wantByDate[k] = (wantByDate[k] || 0) + 1; });
-    Object.keys(wantByDate).forEach((md) => {
-      const mdDot = md.replace("-", ".");
-      const n = chips.filter((c) => c.indexOf(mdDot) >= 0 || c.indexOf(md) >= 0).length;
-      if (n !== wantByDate[md])
-        badG.push("App " + mdDot + " 的 chip 有 " + n + " 个、应为 " + wantByDate[md] + " 个 ✗（该日期两源不同 "
-          + wantByDate[md] + " 只）");
-    });
-    /* 反向：两源一致的行不该带 App chip ✓（不许制造噪音 ✗） */
-    const okCodes = (OTC2.funds || []).filter((f) => {
-      const code = f.code;
-      const g = gapWant.filter((x) => x.code === code)[0];
-      return !g;
-    });
-    const anyExtra = chips.filter((c) => c).length - gapWant.length;
-    check("预估表：两源「净值日」不一致的必须显式标出（本次 " + gapWant.length + " 只" +
-      (gapWant.length ? "：" + gapWant.map((g) => g.name.slice(0, 8) + " 序列 " + g.ser.slice(5) + "/App " + g.app.slice(5)).join(" · ") : "") + "）",
-      badG.length === 0 && anyExtra === 0 && (rowsE2.length > 0),
-      (badG.join("；") || "") + (anyExtra !== 0 ? (badG.length ? "；" : "") + "有 " + anyExtra + " 个多余的 App chip ✗（两源一致的不该标 ✓）" : "")
-        || ("标出 " + chips.filter((c) => c).length + " 处 ✓ · 一致的行无 chip ✓"));
-  }
-}
-
 /* ⑥ 个人财务看板（2026-10-10 加 —— 本次动了它两处 UI：加「本月 · 进行中」列、两个图去掉中轴）──────
    为什么现在补：这两处都是"改版时最容易被后来人悄悄改回去"的契约 ✗，而 finance 页此前
    **一条 DOM 断言都没有** ✗（只有 check-finance 管数据恒等式 ✓）。五条断言全读**渲染出来的 DOM**：
@@ -2363,3 +2172,4 @@ if (VERBOSE) console.log("\n读数条原文：" + readText);
 console.log("\nDOM 校验：" + (checks.length - failed) + "/" + checks.length + " 通过（快照 " + latest.d + " · 总资产 " + money(snapTotal) + " · 快照现金 " + money(snapCash) + " · 页面在用现金 " + otcCash + "）");
 dom.window.close();
 process.exit(failed ? 1 : 0);
+

@@ -241,22 +241,6 @@
   .alloc-key { display: inline-flex; align-items: center; gap: 5px; background: none; border: 0; padding: 1px 0; cursor: pointer; font-family: var(--sans); font-size: var(--fs-xs); color: var(--tx2); }
   .alloc-key:hover { color: var(--tx); }
   .alloc-key b { font-family: var(--mono); font-weight: 700; color: var(--tx); font-feature-settings: "tnum"; }
-  /* 场外当日预估 · 逐只表（2026-10-03，挂在汇总卡内的折叠块里）：
-     三列 —— 基金（名 ＋ 缺口 chip）｜ 预估幅度 ｜ 预估金额。窄屏不拆列、只缩字号：320px 下三列共 ≈250px，放得下。 */
-  table.est-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-xs); margin-top: 3px; }
-  table.est-tbl th { color: var(--tx3); font-weight: 600; font-size: var(--fs-xxs); text-align: right; padding: 2px 6px; }
-  table.est-tbl th.e-nm { text-align: left; }
-  table.est-tbl td { padding: 5px 6px; border-top: 1px solid var(--line-soft); text-align: right; font-family: var(--mono); font-feature-settings: "tnum"; color: var(--tx2); white-space: nowrap; }
-  table.est-tbl td.e-nm { text-align: left; font-family: inherit; color: var(--tx); white-space: normal; }
-  table.est-tbl td.e-amt { color: var(--tx); }
-  table.est-tbl tr.sum td { border-top: 1px dashed var(--line-soft); font-weight: 700; color: var(--tx); }
-  table.est-tbl .chip { margin-left: 5px; }
-  /* 时间标签（2026-10-03 加）：名字下第二行「净值日 → 指数日」——
-     估算的两个输入各自带日期，否则这个数会显得比它本身更"当下"（本页纪律：每个数字都要能指出它是哪天的）。 */
-  table.est-tbl .e-date { display: block; font-size: 10px; color: var(--tx3); font-family: var(--mono); margin-top: 1px; font-feature-settings: "tnum"; }
-  table.est-tbl th .e-th2 { font-weight: 400; color: var(--tx3); font-size: var(--fs-xxs); }
-  /* 分档小标（参考 / 不计入）：与 KPI 里那个「估」徽标同一套语言 —— 提示"这个数不是读数" */
-  .e-tag { font-size: 9px; color: var(--warn); border: 1px solid var(--line); border-radius: 999px; padding: 0 4px; margin-left: 3px; }
   .alloc-key i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
   .alloc-key.ndx i { background: var(--accent-solid); }
   .alloc-key.spx i { background: var(--purple-solid); }
@@ -913,20 +897,20 @@
     table.dca-tbl tr.sum { border-top: 1px solid var(--line); border-bottom: none; font-weight: 700; }
     table.dca-tbl tr.sum td.n { width: 50%; }
   }
-  /* ── 窄屏：场外当日预估（.est-tbl，3 列）与回本阶梯（.rb-tbl，5 列）→ 卡片（2026-10-09 加）──────
+  /* ── 窄屏：回本阶梯（.rb-tbl，5 列）→ 卡片（2026-10-09 加）
+     ⚠ 2026-10-16：这一条原本同时管 .est-tbl（「场外当日预估 · 逐只拆解」）✓ —— 该模块整体下线后
+       只留 .rb-tbl 这一半 ✓（`.c-lb` / `.e-mid` / `.e-nm` 等随之只剩这边在用）。
      与 .dca-tbl 同构、与 .chk-tbl 同源（隐表头 → 行块化 → 数字列两列一行 + 预埋列名）✓
-     ⚠ 这两张表的数字列**桌面是右对齐**（.est-tbl td 与 .rb-tbl td.num），
-       卡片模式下必须改左对齐 —— 否则每格里"标签在左、数字被推到格子最右"会散架 ✗ */
-  table.est-tbl .c-lb, table.rb-tbl .c-lb { display: none; }
+     ⚠ 这张表的数字列**桌面是右对齐**（.rb-tbl td.num），卡片模式下必须改左对齐 ——
+       否则每格里"标签在左、数字被推到格子最右"会散架 ✗ */
+  table.rb-tbl .c-lb { display: none; }
   @media (max-width: 767px) {
-    table.est-tbl thead, table.rb-tbl thead { display: none; }
-    table.est-tbl, table.est-tbl tbody, table.est-tbl tr, table.est-tbl td,
+    table.rb-tbl thead { display: none; }
     table.rb-tbl, table.rb-tbl tbody, table.rb-tbl tr, table.rb-tbl td { display: block; }
-    table.est-tbl tr, table.rb-tbl tr { padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
-    table.est-tbl td, table.rb-tbl td { padding: 0; border: none; text-align: left; white-space: normal; }
-    table.est-tbl td.e-mid, table.est-tbl td.e-amt,
+    table.rb-tbl tr { padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
+    table.rb-tbl td { padding: 0; border: none; text-align: left; white-space: normal; }
     table.rb-tbl td.num { display: inline-block; width: 50%; padding: 4px 0 0; text-align: left; white-space: nowrap; }
-    table.est-tbl td .c-lb, table.rb-tbl td .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); }
+    table.rb-tbl td .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); }
     /* 回本阶梯的「首列」是档位（0%（回本）/ +20%…）：它是这一格的**标题**，不加列名、整行占满 ✓ */
     table.rb-tbl tr.rb-more td { padding: 6px 0 0; color: var(--tx3); }
   }
@@ -1402,17 +1386,6 @@
   .otc-pnote { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line-soft);
     font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.6; }
 
-  /* ── 「预估 vs 实际」对账区（2026-10-12 加，挂在「场外当日预估」块内 ✓）───────────────
-     与上方预估表同一套表格语言（复用 .est-tbl / .e-mid ✓），只在外面加一层虚线分隔 ✓；
-     "暂无对账"那版是一段细字 ✓（不是空表 ✗ —— 空表会让人以为"对账结果是零"✓）。 */
-  .est-cmp { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line-soft); }
-  .est-cmp .ec-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
-    font-size: var(--fs-xs); color: var(--tx2); }
-  .est-cmp .ec-head b { font-family: var(--mono); color: var(--tx); }
-  .est-cmp .ec-hint { font-size: var(--fs-xxs); color: var(--tx3); }
-  .est-cmp .ec-tbl td.e-mid { font-family: var(--mono); font-feature-settings: "tnum"; }
-  .est-cmp.wait { font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.65; }
-  .est-cmp.wait b { color: var(--tx2); font-family: var(--mono); }
   /* 清仓历史：名称（带代码）左、兑现盈亏右；末行合计与上方虚线分隔 */
   .closed-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: var(--fs-sm); }
   .closed-row:last-of-type { border-bottom: 0; }
@@ -1813,10 +1786,10 @@
   /* 数据格（含合计列）比表头再小一档 → 取 mini（9px，与 .chk-tbl 的列内小标签同档 ✓）
      ⚠ **2026-10-09（用户：「数字字体也用统一的 JetBrains」）**：这里原来是"没设 font-family"
        → 继承正文的 --sans ✗，而全页其它数字都是 var(--mono)（= "JetBrains Mono", …）✓
-       （.pl-amt / .s-val / .est-tbl td / .dca-tbl .f-inv / .sd-amt … 无一例外）
+       （.pl-amt / .s-val / .rb-tbl td.num / .dca-tbl .f-inv / .sd-amt … 无一例外）
        → 补上 font-family: var(--mono) ＋ tnum，与它们**同一套** ✓
        为什么连 .mx-d（期列）一起管：td 上设置即覆盖它，而日期本来也该用等宽（与 .snap-date 同口径 ✓）
-       th（列名是文字）仍走 sans ✓ —— 与 .est-tbl / .dca-tbl / .chk-tbl 的表头一致 ✓ */
+       th（列名是文字）仍走 sans ✓ —— 与 .dca-tbl / .chk-tbl / .rb-tbl 的表头一致 ✓ */
   #snap-attr table.sa-mx td { font-size: var(--chk-fs-mini); padding: 1.5px 5px;
     font-family: var(--mono); font-feature-settings: "tnum"; }
 
@@ -1830,7 +1803,7 @@
          · **散在句子里的计数**（.cnt 的 "13 只"、"合计（8 只 · 391 笔）"）—— 标签文字，跟着散文走 ✓
      ★ 为什么可以放心大范围套 mono：--mono 栈里**只有拉丁字体**（JetBrains Mono…），
        中文会自然回退到系统 CJK 字体 → 套上去只改数字与拉丁字母，**中文外观不变** ✓
-       （这也正是本页既有做法：.pl-amt / .s-val / .est-tbl td / .dca-tbl .f-inv / .xr-tbl td.num 都这么用） */
+       （这也正是本页既有做法：.pl-amt / .s-val / .rb-tbl td.num / .dca-tbl .f-inv / .xr-tbl td.num 都这么用） */
   .alt-row .alt-name i,
   .row1 .from i,
   .otc-note b, .otc-note code, .dca-legend b,

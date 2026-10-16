@@ -24,12 +24,13 @@
 
 【项目现状】
 - 文件：positions.html（结构 + 内联 JS 逻辑，约 7100 行）、positions.css、tokens.css（跨页共享色板/字体栈）、font.css
-- 16 个区块，按 DOM 顺序：顶部状态条 → 组合占比 → 场外当日预估（折叠）→ 盈亏总览 → 本金与收益 →
+- 15 个区块，按 DOM 顺序：顶部状态条 → 组合占比 → 盈亏总览 → 本金与收益 →
   资产走势 → 快照对比 → 盈亏归因（默认 hidden）→ 场内账户统计 → 场外账户统计 → 场内持仓与操作记录 →
   操作体检 → 场外净值水位 → 场外定投操作记录 → 工具 → 清仓历史
+  （2026-10-16 删掉「场外当日预估（折叠）」一块：场外当日收益已每天有实读值 ✓）
 - 关键类名/容器：.sec-title（区块标题）、.card.tight、#trend-*（#trend-kpis / #trend-sum / #trend-views /
   #trend-chips / #trend-readout / #trend-box / #trend-legend）、#snap-switch（视图切换）/ #snap-list / #snap-attr、
-  #otc-est-wrap、.pf-fold（折叠件）、details/summary 的广泛使用
+  .pf-fold（折叠件）、details/summary 的广泛使用
 - 断点：767px 为主移动断点，另有 560 / 480 / 430 / 400 / 380
 - 已有主题：CSS 变量 + body.light，跟随 prefers-color-scheme；已做 prefers-reduced-motion / prefers-contrast / print
 - 已有门禁：layout-check 在 1440 / 760 / 380 三档校验「无横向溢出」，所以任何改动都必须在这三档下不溢出

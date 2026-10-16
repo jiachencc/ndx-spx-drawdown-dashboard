@@ -239,7 +239,16 @@ ndx_spx_dashboard_handoff/
 
 ---
 
-### 4.9 场外「当日收益（估）」· nowcast（2026-10-03 加）
+### 4.9 场外「当日收益（估）」· nowcast（2026-10-03 加；**2026-10-16 页面模块已下线**）
+
+> ⚠ **2026-10-16：用户决定删除该页面模块** —— 汇总卡里那个折叠块（`#otc-est-wrap`「📉 场外当日预估 · 逐只拆解」
+> ＋ 块内第二张「预估 vs 实际」对账表）连同它的 CSS、`renderOtcEst()`、`renderImpl` 里的 `nc` 计算、
+> 以及 dom-check 的三组断言（③c 逐只拆解表 / ④q 预估对账 / ④q-2 两源净值日 chip）**一并移除** ✓。
+> 原因：场外当日收益现在**每天都由截图给出实读值**（7/7 全覆盖），把预估再摆一遍已无必要 ✓。
+> ⏳ **数据侧暂留**（未做，属另一件事）：`data.js` 的 `NOWCAST` / `NOWCAST_LOG`、`scripts/fetch-nowcast.mjs`（CI 第 ⑥ 步）、
+> `data-quality.mjs` 的 NOWCAST 合约、`scripts/nowcast-backtest.mjs` 都还在 ✓ —— 停用它们要连 CI 与数据块一起动。
+> 下面这段设计／踩坑记录**留着**：若将来要恢复该模块或拿它做离线分析，这些结论仍然成立 ✓。
+
 
 **要解决什么**：场外 QDII 净值晚 1~2 天公布（华安更慢），App 的「日收益」永远停在截图那天；
 而汇总卡「当日盈亏（估）」若不补，场外那半就是个过期数。
@@ -249,7 +258,8 @@ ndx_spx_dashboard_handoff/
 所以窗口 = 指数里【严格晚于净值日】的那几根，逐日累乘 `Π(1 + (α + β·r_t)/100) − 1`，再 × 市值。
 
 **数据流**：`scripts/fetch-nowcast.mjs` → `data.js` 的 `const NOWCAST`（AUTO，CI 里紧跟 fetch_and_update 之后跑，
-`continue-on-error`；块缺失时页面退回 App 快照口径，与加这个功能之前完全一致）→ positions.html 渲染。
+`continue-on-error`；块缺失时页面退回 App 快照口径，与加这个功能之前完全一致）→ ~~positions.html 渲染~~
+（2026-10-16 起页面不再消费它 ✓，见上方说明）。
 代理指数：新浪 `.NDX`/`.INX`（末值与仓库 Yahoo 值一致）· 腾讯 `hkHSTECH` · 腾讯 `sh513880`（A股日经ETF）。
 
 **可信度分档**（脚本按 r/mae 算 `tier`，页面照画）：
@@ -266,8 +276,10 @@ ndx_spx_dashboard_handoff/
 - 窗口用**东财净值日**而不是 App 截图里的「净值日」：拟合同一套日期，且 App 那栏偶尔 +1（显示口径）。
 
 **校验分工**：`check-data` 管数据侧形状与合理性（r ≥ 0.95 时 β 必须落在 0.8~1.2、tier 与 mae/r 自洽）；
-`dom-check` 管页面侧（三栏自洽 ＋ 场外用 NOWCAST 独立复算比对 ＋ App 快照仍在副标里）。
-⚠ 页面侧复算与页面读同一份数据，**改 β 它抓不到** —— 那是 check-data 那条的活。
+~~`dom-check` 管页面侧（三栏自洽 ＋ 场外用 NOWCAST 独立复算比对 ＋ App 快照仍在副标里）~~
+—— 2026-10-16 随页面模块下线，这三组断言（③c / ④q / ④q-2）已删 ✓；汇总卡那三栏的断言（③b）**仍在** ✓，
+它只吃 `OTC.funds` ＋ 快照，与预估无关 ✓。
+⚠ ~~页面侧复算与页面读同一份数据，改 β 它抓不到~~（该复算已删）—— 数据侧仍由 check-data 那条把关 ✓。
 精度只能手动跑 `node scripts/nowcast-backtest.mjs`（不进 CI）。
 
 ## 5. 部署指南（发布到 GitHub Pages）
