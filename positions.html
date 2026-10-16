@@ -6140,6 +6140,11 @@ function holdCardHtml(row, i, ctx) {
   const lo = m.low52 || Math.min(p.idxAtCost, m.close || p.idxAtCost);
   const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
   const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
+  /* 价格格式化（2026-10-16 加，用户点单 ②）：**按每个数自己的来源精度显示** ——
+     成本价 4 位（它是累加摊薄量、4 位才有意义 ✓）、场内报价与高低点 3 位（A 股 ETF 报价本身就是 3 位 ✓）。
+     原先同一张卡里成本价出现 3 次却有 2 种精度（1.6062 / 1.61）、现价也被抹成 2 位（1.738 → 1.74 ✗），
+     读者只能怀疑哪个准 ✗。 */
+  const fmtPx = (v, dp) => (v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : (+v).toFixed(dp));
   const pct = Math.round(pctOf(p.idxAtCost));
   const tier = pct < CONFIG.TIER_LOW ? ["t-low", "区间偏低", "🟢"] : pct <= CONFIG.TIER_HIGH ? ["t-mid", "区间中位", "🟡"] : ["t-high", "区间偏高", "🔵"];
   const backToCost = p.idxAtCost / m.close - 1;   // Return required from the current price to cost.
@@ -6147,6 +6152,16 @@ function holdCardHtml(row, i, ctx) {
   const isIdxScope = p.idx === "ndx" || p.idx === "spx";
   const athLbl = isIdxScope ? "历史高点" : "52周高";
   const heldDays = asOfUs && firstDate[p.sym] ? Math.max(1, Math.round((Date.parse(asOfUs) - Date.parse(firstDate[p.sym])) / 86400000)) : null;
+  /* ⑤ 2026-10-16 加（用户点单）：只有「持有 N 天」在建仓分很多笔时不足以说明
+     「我这笔成本是哪段时间堆出来的」✗ —— 正文补首笔日期，title 里给首笔/末笔与买卖笔数（数据全在 log ✓）。 */
+  const symLog = (POSITIONS.log || []).filter((e) => e.sym === p.sym);
+  const logDays = symLog.map((e) => e.d).sort();
+  const firstBuyD = firstDate[p.sym] || logDays[0] || null;
+  const lastLogD = logDays.length ? logDays[logDays.length - 1] : null;
+  const buyN = symLog.filter((e) => !isSellAct(e)).length, sellN = symLog.filter((e) => isSellAct(e)).length;
+  const heldTip = "首笔 " + (firstBuyD || "—") + " · 末笔 " + (lastLogD || "—") +
+    "（共 " + buyN + " 笔买入" + (sellN ? "、" + sellN + " 笔卖出" : "") + "）" +
+    "。「持有 N 天」＝从首笔到本页快照日 —— 分批建仓时它不代表某一笔的实际持有期。";
   const st = POSITIONS.strategy || { dip: -2, rally: 3 };
   const chg = m.chg || 0;
   const ruleTxt = "跌 " + Math.abs(st.dip) + "% 加仓 / 涨 " + st.rally + "% 减仓";
@@ -6164,20 +6179,29 @@ function holdCardHtml(row, i, ctx) {
     ? ' <span class="date-chip stale" title="触发线按该报价日的收盘涨跌计算；已滞后 ' + health.days +
       ' 个交易日，盘中请以券商实时价为准">⚠ 场内 ' + mdOf(health.asOf) + '</span> · 滞后 ' + health.days + ' 日'
     : "";
+  /* 今日金额（2026-10-16 加，用户点单 ③）：「今天怎么样」是最常问的一句，而百分比对 17 万市值
+     等于要心算 ✗（173,626 × 1.58% 得自己算）。⚠ 口径：市值 × 当日涨跌，与 App「当日参考盈亏」同类 ——
+     **当天有买卖时会偏**（新买入的份额没有"昨收"可比，App 那格同样如此 ✓），故数值标「≈」、
+     偏差原因挂在 title 里（不占正文空间）✓。 */
+  const dayAmt = (Number.isFinite(chg) && Number.isFinite(valAmt)) ? valAmt * (chg / 100) : null;
+  const dayAmtTxt = dayAmt === null ? ""
+    : '<span title="≈' + fmtAmt(dayAmt) + ' 元，口径＝当前市值 × 当日涨跌（与 App「当日参考盈亏」同类）。' +
+      '⚠ 当天有买卖时会偏：新买入的份额当天没有「昨收」可比 —— App 那一格也有同样的偏差。">（' +
+      fmtAmt(dayAmt) + ' 元 ≈）</span>';
   let strat;
   /* ⚠ 2026-10-12：这两处「有没有日期」的判据也换成**本页在用的那个日期**（qDayInUse ✓）——
      不然会出现「本页报价日 = 10.12 有效 ✓，却因为自动源没日期而拒绝给结论」✗ 的怪状态 ✓。 */
   if (!qDayInUse) {
     strat = '<span class="warn">报价日期未核验，不生成日内结论（见顶部来源行）</span>';
   } else if (chg <= st.dip) {
-    strat = '<span class="up"><span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>' + lagTag;
+    strat = '<span class="up"><span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + dayAmtTxt + ' · 触发加仓观察（跌 ≥' + Math.abs(st.dip) + '%）</span>' + lagTag;
   } else if (chg >= st.rally) {
-    strat = '<span class="warn"><span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>' + lagTag;
+    strat = '<span class="warn"><span aria-hidden="true">🎯</span> 今日 ' + fmtPctChg(chg / 100) + dayAmtTxt + ' · 触发减仓观察（涨 ≥' + st.rally + '%）</span>' + lagTag;
   } else {
     /* 常态压缩（2026-09-23）：未触发是绝大多数日子的状态，原来把整条规则也写在这一行，
        每个交易日都得重读一遍规则。规则挪进本卡 ? 说明里，这里只留「未触发」。 */
     strat = '<span style="color:var(--tx3)" title="' + ruleTxt + '"><span aria-hidden="true">🎯</span> 今日 ' +
-      fmtPctChg(chg / 100) + ' · 未触发</span>' + lagTag;
+      fmtPctChg(chg / 100) + dayAmtTxt + ' · 未触发</span>' + lagTag;
   }
   posInfos[i] = { close: m.close, chg, lo, hi, days: m.days };
   const tierWord = tier[1];
@@ -6264,14 +6288,14 @@ function holdCardHtml(row, i, ctx) {
        左端是成本 → 就是浮盈率（绿）；现价 ↔ 高点低于高点用琥珀，不当亏损看。 */
     const c = (b === p.idxAtCost) ? "warn" : (a === p.idxAtCost ? (g >= 0 ? "up" : "down") : "warn");
     const txt = fmtPct(g);   // fmtPct 自带正负号（用排版减号 −），不要再手工加 "+" → 否则会出 "++8.3%"
-    return '<span class="lad-gap ' + c + '" title="' + txt + '（' + fmtIdx(a) + ' → ' + fmtIdx(b) + '）">' + txt + '</span>';
+    return '<span class="lad-gap ' + c + '" title="' + txt + '（' + fmtPx(a, a === p.idxAtCost ? 4 : 3) + ' → ' + fmtPx(b, b === p.idxAtCost ? 4 : 3) + '）">' + txt + '</span>';
   };
   const ladNodes = [
-    { v: p.idxAtCost, html: '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(3) + ' 元）"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtIdx(p.idxAtCost) + '</b></span>' },
+    { v: p.idxAtCost, html: '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(4) + ' 元）"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtPx(p.idxAtCost, 4) + '</b></span>' },
     /* ⚠ 2026-10-16：现价那枚点改**竖线**（class lad-bar）—— 与条上「成本＝圆 · 现价＝竖线」的新形状语言对齐 ✓
        （原先三档读数里三个点都是圆点、只靠颜色区分 ✗，色盲/强光下与成本那枚难分） */
-    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot lad-bar" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b></span>' },
-    { v: hi, html: '<span class="lad-item" title="52 周最高' + (m.athDate ? "（" + m.athDate + "）" : "") + '"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtIdx(hi) + '</b>' + athStr + '</span>' },
+    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot lad-bar" style="background:var(--tx)"></i>现价 <b>' + fmtPx(m.close, 3) + '</b></span>' },
+    { v: hi, html: '<span class="lad-item" title="52 周最高' + (m.athDate ? "（" + m.athDate + "）" : "") + '"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtPx(hi, 3) + '</b>' + athStr + '</span>' },
   ].sort((x, y) => x.v - y.v);
   /* DCA 回撤加仓档 chip（成本口径：现价较成本每跌破一档即提示；POSITIONS.strategy.dipTiers 可覆盖 CONFIG 默认档） */
   const dipTiers = (POSITIONS.strategy && POSITIONS.strategy.dipTiers) || CONFIG.DCA_DIP_TIERS;
@@ -6319,6 +6343,7 @@ function holdCardHtml(row, i, ctx) {
      两个数不同日 —— 脚本里对它的定性就是 "asynchronous price/NAV ratio, not contemporaneous premium"，
      故胶囊只写「溢价/折价 + 数值」，"不同日、只能算近似"的保留全部交给悬停。 */
   let premChip = "";
+  let premMobileNote = "";   // ④ 溢价规模那句：手机没有悬停，故同时写进本卡可点开的「?」浮层（在下面 premTip 里赋值）
   if (prem && Number.isFinite(prem.pct)) {
     const pv = prem.pct;
     const pc = pv >= CONFIG.PREM_HIGH ? "prem-high" : pv >= CONFIG.PREM_WARN ? "prem-warn" : pv < 0 ? "prem-disc" : "prem-ok";
@@ -6337,6 +6362,22 @@ function holdCardHtml(row, i, ctx) {
       : pv < 0 ? "折价：场内买更划算"
       : "溢价温和（<" + CONFIG.PREM_WARN + "%）：买入即多吃这一小块成本";
     premTip += "\n\n结论：" + premLvl + "。";
+    /* ⚠ 溢价**规模**（2026-10-16 加，用户点单 ④）：这是卡上唯一一个「能亏、却从别处看不出规模」的数 ✗ ——
+       溢价不会永远在：它回落时场内市值会往净值靠，差价直接蒸发 ✓（反过来折价收窄是"白捡"✓）。
+       量法：按最新净值算，当前市值里有 (1 − 净值/场内价) × 市值 是溢价 ✓。
+       ⚠ 只在 |溢价| ≥ PREM_WARN 时才给这句 —— 温和溢价那点钱不值得占悬停的注意力 ✓。
+       ⚠ 口径：这是**按当前份额算的一次性差价**，不是每日损益 ✓（别与策略行那个「今日」混 ✗）。 */
+    const premGap = (Number.isFinite(prem.nav) && prem.nav > 0 && m.close) ? valAmt * (1 - prem.nav / m.close) : null;
+    if (premGap !== null && Math.abs(pv) >= CONFIG.PREM_WARN)
+      premTip += "\n\n⚠ 规模：" + (pv > 0
+        ? "按最新净值算，这 " + fmtYuan(valAmt) + " 元市值里约 " + fmtYuan(Math.abs(premGap)) +
+          " 元是溢价 —— 溢价回落到 0 这部分会直接蒸发（一次性差价，不是每日损益）。"
+        : "按最新净值算，这 " + fmtYuan(valAmt) + " 元市值比净值口径便宜约 " + fmtYuan(Math.abs(premGap)) +
+          " 元 —— 折价收窄时这部分是白捡的（一次性差价，不是每日损益）。");
+    /* 手机没有悬停 ✗ → 同一句也放进本卡可点开的「?」浮层里（那里本来就是给移动端的说明位 ✓） */
+    premMobileNote = (premGap === null || Math.abs(pv) < CONFIG.PREM_WARN) ? ""
+      : " ⚠ 按最新净值算，本卡市值里约 <b>" + fmtYuan(Math.abs(premGap)) + " 元</b>是" +
+        (pv > 0 ? "溢价（回落到 0 就蒸发）" : "折价（收窄时是白捡的）") + " —— 一次性差价，非每日损益；逐只的数在溢价胶囊悬停里。";
     premChip = premHealth.usable
       ? (function () {
           /* 方向由「溢价 / 折价」二字承担，数值只留绝对值 —— 否则会读成「折价 +0.9%」（符号与词打架） */
@@ -6419,7 +6460,7 @@ function holdCardHtml(row, i, ctx) {
     "</tbody></table>" +
     '<div class="otc-note"><b>口径</b>：摊薄成本价 <b>' + costPx.toFixed(4) + " 元/份</b>（Σ买入含费 − Σ卖出净额 ÷ 剩余份额，与卡上成本读数同源）——" +
       "卖在这个价刚好把<b>净现金投入 " + fmtYuan(costAmt) + "</b>收回来。券商 App 按 FIFO 摊成本，显示的持仓成本价可能略有不同。<br>" +
-      "「相对现价」按报价日 " + (health && health.asOf ? mdOf(health.asOf) : "未核验") + " 的 " + fmtIdx(nowPx) + " 元/份 计算，盘中以券商实时价为准。" +
+      "「相对现价」按报价日 " + (health && health.asOf ? mdOf(health.asOf) : "未核验") + " 的 " + fmtPx(nowPx, 3) + " 元/份 计算，盘中以券商实时价为准。" +
       "每 1% 的价格步长 ＝ 成本价的 1%，本例 " + stepPx.toFixed(4) + " 元/份 ＝ " + Math.round(stepPx * p.qty) + " 元。</div>" +
     "</details>";
   return '<article class="card" data-sym="' + p.sym + '">' +
@@ -6432,7 +6473,8 @@ function holdCardHtml(row, i, ctx) {
       /* 头部右侧＝持有规模三件（2026-09-23）：原「组合占比」独占 KPI 一格，而它与市值、份数同属
          "仓位多大"、不是决策数；腾出的第三格改放「已落袋 / 摊薄」（见下）。桌面头部本来就有大片
          空白，这一挪零成本；手机上它独占一行，但换来 KPI 行少一格重复。 */
-      '<span class="held">' + (heldDays ? '持有 ' + heldDays + ' 天 · ' : '') + '市值 ' + fmtYuan(valAmt) +
+      '<span class="held" title="' + esc(heldTip) + '">' + (heldDays ? '持有 ' + heldDays + ' 天' + (firstBuyD ? '（首笔 ' + mdOf(firstBuyD) + '）' : '') + ' · ' : '') +
+        '市值 ' + fmtYuan(valAmt) +
         (totalVal ? ' · 占比 ' + (valAmt / totalVal * 100).toFixed(1) + '%' : '') + '</span>' +
     '</div>' +
     '<div class="' + kpiRowCls + '">' +
@@ -6444,7 +6486,16 @@ function holdCardHtml(row, i, ctx) {
          原来它独占第三格、且把同一个成本价又写了一遍。 */
       '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div>' +
         '<div class="k-sub" style="color:var(--tx3)">成本价 ' + p.cost.toFixed(4) + ' 元' +
-        (dipDelta !== null ? ' · 首笔 ' + spanFrom.toFixed(4) + ' → 今（' + (dipDelta <= 0 ? "−" : "+") + fmtAbs2(Math.abs(dipDelta * p.qty)) + ' 元）' : '') + '</div></div>' +
+        /* ⚠ 2026-10-16 改（用户点单 ①）：原写法「首笔 1.6294 → 今（−2,320 元）」**符号与语义都反了** ✗ ——
+           成本**下降**（摊薄的功劳）显示成负数、读作"亏了 2,320"；成本**上升**又显示成 +X、读作"赚了"✗；
+           且没有动词，读者得自己倒推「首笔→今」是什么意思 ✗。
+           现在两个成本价都给出来、并带上动词（摊薄省下 / 多花）✓ —— 同一个数仍然只出现一次 ✓。 */
+        (dipDelta !== null
+          ? ' · 首笔 ' + spanFrom.toFixed(4) + ' → 今 ' + spanTo.toFixed(4) +
+            (Math.abs(dipDelta) < 0.00005 ? '（成本未变）'
+              : dipDelta < 0 ? '（摊薄省下 ' + fmtAbs2(Math.abs(dipDelta * p.qty)) + ' 元）'
+                : '（摊薄多花 ' + fmtAbs2(dipDelta * p.qty) + ' 元）')
+          : '') + '</div></div>' +
       kpiThird +
     '</div>' +
     /* 三档读数 ＋ 右侧分位胶囊（2026-09-23 合并）：两者讲的是同一件事的两种表达 ——
@@ -6468,7 +6519,7 @@ function holdCardHtml(row, i, ctx) {
         '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
       '</div>' +
-      '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
+      '<div class="bar-labels"><span>' + fmtPx(lo, 3) + '</span><span>' + fmtPx(hi, 3) + '</span></div>' +
       /* 图例去掉「成本/现价/高点」三项（2026-09-23）：它们已在上面 .lad-line 里逐项给出、配色与条上标记一致 → 图例只留条上独有的两类点 */
       /* 去掉「历次买入」后面的星号（2026-09-23）：星号只在 title 里有解释，移动端没有悬停 → 说明挪进 ? 里 */
       /* 图例**按需**渲染（2026-10-16）：三只在持标的的卖出笔数都是 0（卖出都发生在已清仓的中韩/港美上，
@@ -6486,7 +6537,7 @@ function holdCardHtml(row, i, ctx) {
       '绿点/红圈的两个编码（2026-10-16 改）：<b>点越大＝那笔金额越大</b>（面积按 √ 缩放，份数跨价位不可比故不用份数）、<b>颜色越深＝越新</b>（三档：浅 / 中 / 深；少于 3 笔时不分档）。<br>' +
       '轴上的三条淡刻度是 <b>52 周分位 25 / 50 / 75%</b> —— 与胶囊里那个「52周分位」是同一把尺子。<br>' +
       '卡内市值/浮盈按<b>场内现价</b>（含溢价）估算；「溢价/折价（近似）」＝场内收盘价 ÷ 基金<b>最近公布</b>的单位净值 − 1：' +
-      'QDII 净值晚 1~2 个交易日才出、两个数不同日，故为近似；正＝溢价（场内买贵了）、负＝折价。</div>' +
+      'QDII 净值晚 1~2 个交易日才出、两个数不同日，故为近似；正＝溢价（场内买贵了）、负＝折价。' + premMobileNote + '</div>' +
     '</div>' +
     ladderFold +
     /* 操作体检**不再**嵌在卡里（2026-09-27 用户改为「单独做一块」）——
@@ -7192,7 +7243,7 @@ function costPopHtml(info) {
   const costTxt = info.nav4
     ? info.cost.toFixed(4) + ' · ' + fmtQty(info.qty) + ' 份（估）'
     : info.cost.toFixed(3) + ' 元 · ' + fmtQty(info.qty) + ' 份';
-  return '<div class="ip-title"><span aria-hidden="true">🏷️</span> ' + (info.nav4 ? "成本净值 " : "成本位 ") + (info.nav4 ? info.idxAtCost.toFixed(4) : fmtIdx(info.idxAtCost)) + '</div>' +
+  return '<div class="ip-title"><span aria-hidden="true">🏷️</span> ' + (info.nav4 ? "成本净值 " : "成本位 ") + info.idxAtCost.toFixed(4) + '</div>' +
     '<div class="ip-row"><span>现价较成本</span><b class="' + cls(info.r) + '">' + fmtPct(info.r) + '</b></div>' +
     '<div class="ip-row"><span>成本距高点</span><b>' + fmtPct(info.gapCost) + '</b></div>' +
     '<div class="ip-row"><span>' + (info.nav4 ? "成本净值 / 份额" : "成本价 / 份数") + '</span><b>' + costTxt + '</b></div>' +

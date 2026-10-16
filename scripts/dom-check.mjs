@@ -326,6 +326,56 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
   check("场内位置条：图例按需渲染（无卖出点则不出现「卖出」）", legendBad.length === 0, legendBad.join("；") || "图例项 ≡ 数据 ✓");
 }
 
+/* ③f-3 场内卡的「数字表述」（2026-10-16 加，用户点单 ①②③⑤）——
+   这四条都属于「数字对、但读者会读错 / 得心算」那一类，纯看数据层永远发现不了 ✗：
+   ① 摊薄那格必须带**动词**（「摊薄省下 / 多花 X 元」）：原写法「首笔 1.6294 → 今（−2,320 元）」
+      符号与语义**都是反的** —— 成本下降（好事）显示成负数、上升显示成 +X，且没有动词 ✗；
+   ② 卡内不许出现同一个成本价的两种精度：成本价一律 4 位（现价 / 高低点 3 位）—— 原先 1.6062 与 1.61 并存 ✗；
+   ③ 策略行的「今日」必须同时给 % 与金额（17 万市值看百分比要心算 ✗）；
+   ⑤ 持有天数那格必须带首笔日期（分批建仓时「持有 N 天」不代表某一笔的持有期 ✗）。 */
+{
+  const POS3 = (() => {
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 }); return c.o;
+  })();
+  const holds3 = (POS3 && POS3.hold) || [];
+  const cards3 = [...win.document.querySelectorAll("#pos-list > article")];
+  const noVerb = [], twoDp = [], noDayAmt = [], noFirstD = [], premGapMiss = [];
+  cards3.forEach((card, ci) => {
+    const h = holds3[ci] || {};
+    const sym = h.sym || "(第 " + (ci + 1) + " 张)";
+    const txt = card.textContent.replace(/\s+/g, "");
+    /* ① 摊薄那格带动词（有 ≥2 笔买入才该出现这一句） */
+    const kpis = [...card.querySelectorAll(".kpi")];
+    const costKpi = kpis.find((k) => /距成本位/.test(k.textContent));
+    const sub = costKpi ? costKpi.querySelector(".k-sub").textContent.replace(/\s+/g, "") : "";
+    if (!/摊薄(省下|多花)|成本未变/.test(sub)) noVerb.push(sym + "：" + sub.slice(0, 60));
+    /* ② 同一个成本价不许两种精度：2 位形式若出现，只能是别的数（本页成本价 4 位 ✓） */
+    if (Number.isFinite(h.idxAtCost)) {
+      const two = h.idxAtCost.toFixed(2);
+      /* 只在「成本价」语境里查（避免 1.61 恰好也是别的数的前缀而误报） */
+      if (new RegExp("成本价?" + two.replace(".", "\\.") + "(?![0-9])").test(txt)) twoDp.push(sym + " 出现 " + two + "（成本价应为 4 位 " + h.idxAtCost.toFixed(4) + "）");
+      if (!txt.includes("成本价" + h.idxAtCost.toFixed(4) + "元")) twoDp.push(sym + " 缺 4 位成本价 " + h.idxAtCost.toFixed(4));
+    }
+    /* ③ 今日必须带金额 —— 正则**紧贴百分比之后**（2026-10-16 收紧：原先写成 /今日.*%（.*元≈/
+       会一路匹配到本行末尾那个「?」浮层的说明文字里，等于放宽成"整卡有「元≈」就行" ✗） */
+    const stratTxt = (card.querySelector(".strat-row") ? card.querySelector(".strat-row").textContent : "").replace(/\s+/g, "");
+    if (!/今日[-+−]?\d[\d.]*%（[-+−][\d,]+元≈）/.test(stratTxt)) noDayAmt.push(sym + "：" + stratTxt.slice(0, 50));
+    /* ⑤ 持有天数带首笔日期 */
+    const heldTxt = (card.querySelector(".held") ? card.querySelector(".held").textContent : "").replace(/\s+/g, "");
+    if (!/持有\d+天（首笔\d\d\.\d\d）/.test(heldTxt)) noFirstD.push(sym + "：" + heldTxt.slice(0, 40));
+    /* ④ 溢价 ≥ 3%（PREM_WARN）时，悬停里要给出规模 */
+    const premChip = card.querySelector(".date-chip.prem-warn, .date-chip.prem-high, .date-chip.prem-disc");
+    if (premChip && !/规模/.test(premChip.getAttribute("title") || "")) premGapMiss.push(sym);
+  });
+  check("场内卡「摊薄」那格带动词（省下 / 多花 / 成本未变）—— 不是光给一个符号 ✗", noVerb.length === 0, noVerb.join("；") || "全部带动词 ✓");
+  check("场内卡：同一个成本价只有一种精度（4 位；2 位形式不得出现在成本价语境）", twoDp.length === 0, twoDp.join("；") || "精度统一 ✓");
+  check("场内卡策略行「今日」同时给 % 与金额（≈ 元）", noDayAmt.length === 0, noDayAmt.join("；") || "全部带金额 ✓");
+  check("场内卡「持有 N 天」带首笔日期", noFirstD.length === 0, noFirstD.join("；") || "全部带首笔 ✓");
+  check("场内卡溢价 ≥ " + 3 + "% 时悬停给出**规模**（≈ 多少元是溢价）", premGapMiss.length === 0, premGapMiss.join("、") || "溢价规模已给 ✓");
+}
+
 /* ③h 盈亏全程三条线（2026-10-04 加）：① chip 标签 ② 三个序列都在
    ③ **合计末值 = 独立复算**（ACCT_STATS.monthly ＋ 财务页 FIN_PL 的 5 个 fund 渠道）——
       这条最关键：数据跨文件（还跨页引用 finance-data.js），抄错 / 读错不会报错，只会画出一条似是而非的线 */
