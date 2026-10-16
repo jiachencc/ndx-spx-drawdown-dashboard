@@ -28,6 +28,12 @@ const argOf = (k, d) => { const i = argv.indexOf(k); return i >= 0 && argv[i + 1
 const outDir = path.resolve(root, argOf("--out", "outputs/review"));
 const onlyCards = argOf("--only", "").split(",").filter(Boolean);
 const onlyPages = argOf("--page", "").split(",").filter(Boolean);
+/* --dark：用深色渲染（2026-10-16 加）。本页的主题规则是「深色为基座、body.light 覆盖」
+   （positions.css 头部），默认跟随系统 → 而 **Playwright 的默认 prefers-color-scheme 是 light**
+   ✗✗，所以此前所有截图（以及 layout-check）**一直只覆盖浅色** —— 用户却主要用深色。
+   产物名带 -dark 后缀，两种主题可以并排比对 ✓。 */
+const dark = argv.includes("--dark");
+const thTag = dark ? "-dark" : "";
 
 /* 两种宽度：桌面看信息密度、手机看断行与横向溢出（历史上窄屏挤字改过一版） */
 const VIEWPORTS = [
@@ -101,7 +107,7 @@ let problems = 0;
 for (const pg of pages) {
   const url = pathToFileURL(path.join(root, pg.file)).href;
   for (const vp of VIEWPORTS) {
-    const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2 });
+    const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, colorScheme: dark ? "dark" : "light" });
     const page = await ctx.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
@@ -112,7 +118,7 @@ for (const pg of pages) {
     await page.waitForTimeout(600);
 
     const scan = await page.evaluate(SCAN);
-    const full = path.join(outDir, pg.tag + "-" + vp.tag + ".png");
+    const full = path.join(outDir, pg.tag + thTag + "-" + vp.tag + ".png");
     await page.screenshot({ path: full, fullPage: true });
     console.log(pad(pg.tag + " " + vp.tag) + " 整页 → " + rel(full) + "  " + kb(full));
 
@@ -128,7 +134,7 @@ for (const pg of pages) {
       const el = page.locator(sel).first();
       if (await el.count() === 0) continue;
       /* 元素截图会自动滚动到可视区并裁剪——这正是 agent-browser 做不到的那一步 */
-      const out = path.join(outDir, "card-" + name + "-" + vp.tag + ".png");
+      const out = path.join(outDir, "card-" + name + thTag + "-" + vp.tag + ".png");
       try {
         await el.screenshot({ path: out, timeout: 5000 });
         console.log("      · " + pad(name, 12) + rel(out) + "  " + kb(out));
