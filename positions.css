@@ -1413,6 +1413,15 @@
   .closed-all > summary::before { content: "▸ "; }
   .closed-all[open] > summary::before { content: "▾ "; }
   .closed-all[open] > summary { margin-bottom: 2px; }
+  /* 明细按平台分段（2026-10-16 加，A）：段头是一行**同构**的 .closed-row
+     （平台 ＋ 场内/场外 ＋ N 笔 ＋ 来源说明 ＋ 该段合计 ✓），用一条更实的上边线把它与上一段分开 ——
+     比再套一层标题/卡片轻，且与上面「按平台汇总」那几行同构，不引入第三套行样式 ✓ */
+  .closed-all .closed-sec { margin-top: 6px; border-top: 1px solid var(--line); border-bottom: 0; padding-top: 7px; }
+  .closed-all .closed-sec:first-of-type { margin-top: 2px; }
+  .closed-all .closed-sec .c-nm b { color: var(--tx); }
+  /* ⇄ 在持同名（2026-10-16 加，D）：同一只基金的**不同份额类别 / 不同账户**（在持那份见另外两张卡 ✓）。
+     用警示色小胶囊 —— 它是"别合并"的提醒，不是状态徽章，所以不占 .chip 那套语义 ✓ */
+  .closed-row .c-code.c-held { color: var(--warn); border: 1px solid var(--line); border-radius: 999px; padding: 0 5px; }
   .trend-dot { cursor: pointer; }
   .footer { text-align: center; font-size: var(--fs-xs); color: var(--tx3); margin: 20px auto 0; max-width: 720px; line-height: 1.8; }
 

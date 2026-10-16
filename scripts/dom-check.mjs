@@ -454,6 +454,31 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
       && +attrOf(eAgg, "data-hold") === CLOSED_ETF_D.avgHoldDays && +attrOf(eAgg, "data-maxloss") === CLOSED_ETF_D.maxLoss
       && +attrOf(eAgg, "data-avgwin") === CLOSED_ETF_D.avgWin,
     eAgg ? "胜率 " + attrOf(eAgg, "data-winrate") + "% · 持有 " + attrOf(eAgg, "data-hold") + " 天 · 最大亏损 " + attrOf(eAgg, "data-maxloss") : "卡里没有 #closed-etf-agg ✗");
+  /* ④b-3 清仓卡「⇄ 在持同名」小标（2026-10-16 加，D）——
+     数据侧 `CLOSED.items[].alsoHeld` 是**显式标注**（明确不做名称模糊匹配 ✗，因为同一只基金在不同 App 里
+     名字都不一样：App「广发纳指100」vs 本仓库「广发纳斯达克100」），页面据此在明细行打小标 ✓。
+     两条都要断：① 指向的代码**真的在持**（改名 / 清仓后忘了改这一格，小标就会把读者引到不存在的在持项 ✗）；
+     ② 页面渲染的小标数 ≡ 数据里的标注数（漏渲染 / 多渲染都错 ✗）。 */
+  const heldSet = new Set(((POS && POS.hold) || []).map((p) => p.code).concat(((OC && OC.funds) || []).map((f) => f.code)));
+  const marked = ((CLOSED_D && CLOSED_D.items) || []).filter((r) => r.alsoHeld);
+  const badHeld = marked.filter((r) => !heldSet.has(r.alsoHeld)).map((r) => r.name + " → " + r.alsoHeld);
+  check("清仓卡：`alsoHeld` 指向的代码真的在持（" + marked.length + " 条）",
+    badHeld.length === 0, badHeld.length ? "不在持 ✗：" + badHeld.join("、") : marked.map((r) => r.alsoHeld).join(" / ") || "无标注");
+  const heldChips = cardEl ? cardEl.querySelectorAll(".c-held").length : -1;
+  check("清仓卡：渲染「⇄ 在持同名」小标 ≡ data.js alsoHeld 条数（" + marked.length + " 条）",
+    heldChips === marked.length, "页面 " + heldChips + " 枚 vs 数据 " + marked.length + " 条");
+  /* ④b-4 明细**按平台分段**（2026-10-16 加，A）——
+     分段是纯渲染分组（数据侧不新增字段 ✗），所以只能在这里断「分组有没有丢行 / 少一段」✗。
+     段头带 data-sec / data-sec-sum / data-sec-n（精确值，页面显示值按千分位取整，不能拿它比 ✗）。 */
+  const secs = cardEl ? [...cardEl.querySelectorAll(".closed-sec[data-sec]")] : [];
+  const secSum = secs.reduce((a, s) => a + parseFloat(s.getAttribute("data-sec-sum")), 0);
+  const secN = secs.reduce((a, s) => a + (parseInt(s.getAttribute("data-sec-n"), 10) || 0), 0);
+  const wantSec = ((CLOSED_D && CLOSED_D.items) ? 1 : 0) + ((CLOSED_ETF_D && CLOSED_ETF_D.items) ? 1 : 0);
+  const wantN = ((CLOSED_D && CLOSED_D.items) ? CLOSED_D.items.length : 0) + ((CLOSED_ETF_D && CLOSED_ETF_D.items) ? CLOSED_ETF_D.items.length : 0);
+  check("清仓卡：明细按平台分段 —— 段头 " + wantSec + " 个 · 笔数合计 " + wantN + " · 各段合计之和 ≡ 场内 ＋ 场外",
+    secs.length === wantSec && secN === wantN && Math.abs(secSum - (sOtc + sEtf)) <= 0.01,
+    secs.map((s) => s.getAttribute("data-sec") + " " + s.getAttribute("data-sec-sum") + "（" + s.getAttribute("data-sec-n") + " 笔）").join(" · ")
+      || "没有段头（明细没按平台分段）✗");
   /* ④c 盈亏总览的「清仓累计已兑现」行（2026-10-09 加）——
      它与本块 ① 的「清仓历史总行」是**同一批数字的两处显示**，分列两张卡就有漂移风险 → 必须断言一致 ✓。
      取的是行上的 data-pl（**精确值**）：卡片显示值按整元取整（fmtAmt ✗），0.01 容差的断言在显示值上

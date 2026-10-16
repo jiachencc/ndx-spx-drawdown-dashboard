@@ -4816,6 +4816,13 @@ function renderClosed() {
      ⚠ 这些已实现**不进**「累计浮盈亏 / 本金」（那是持仓 / 快照口径） */
   const OTC_PLATFORM = "支付宝";     // CLOSED 块整块来自支付宝「清仓分析」（见 data.js 注释）
   const ETF_PLATFORM = "平安证券";   // 场内只有这一家券商（ACCT_STATS 与全部流水都指向它）
+  /* 平台 → 该段的**来源说明**（2026-10-16 加，A：明细按平台分段时，段头要交代这一段的数是怎么来的 ✓）。
+     只在这一处定义 ✓ —— 段头与「按平台汇总」用的是同一批数，来源字样别在两边各写一套 ✗。
+     新增平台时在这里补一行；漏了会退化成兜底文案（不报错，但门禁会查段头计数 ✓）。 */
+  const SEC_SRC = {};
+  SEC_SRC[OTC_PLATFORM] = "支付宝「清仓分析」页**原读数**（每行含持有区间 / 清仓收益 / 清仓收益率）✓";
+  SEC_SRC[ETF_PLATFORM] = "本页由 POSITIONS.log **推导**（份数回放、期末归零者＝已了结；含双边费用 ✓）";
+  const secSrc = (p) => SEC_SRC[p] || "来源见本卡「?」浮层 ✓";
   const fmt2 = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(dp === undefined ? 2 : dp) + "%";
   const days = (a, b) => (a && b) ? Math.round((new Date(b) - new Date(a)) / 864e5) : null;
@@ -4826,9 +4833,15 @@ function renderClosed() {
       /* 场外投入＝盈亏 ÷ App 清仓收益率（App 不给投入 ✗）→ 一律标 ≈ ✓ */
       cost: (typeof r.rate === "number" && r.rate !== 0) ? r.pnl / (r.rate / 100) : null,
       rate: (typeof r.rate === "number") ? r.rate : null, cash: null,
+      /* ⇄ 在持同名（2026-10-16 加，D）：数据侧 `alsoHeld` 指向本页**在持**的代码 ——
+         同一只基金的**不同份额类别 / 不同账户**（例：广发全球精选 A(支付宝·已清仓) ↔ F(广发直销·在持)）✓。
+         它由 data.js 里**显式**标注、不由名称模糊匹配 ✗（"广发纳斯达克100"vs"广发纳指100"这种同一只基金
+         名字都不同，模糊匹配必然误报 ✗）。门禁会校验被指向的代码真的在持 ✓ */
+      held: r.alsoHeld || null,
     })) : []).concat(etf.map((r) => ({
       name: r.sym, platform: ETF_PLATFORM, kind: "场内", sym: r.sym,
       buy: r.buy, sell: r.sell, days: r.days, pnl: r.pnl, cost: r.cost, rate: r.rate, cash: r.cash,
+      held: r.alsoHeld || null,
     }))).sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));
   const sumOf = (rs) => rs.reduce((a, r) => a + r.pnl, 0);
   const inR = rows.filter((r) => r.kind === "场内"), otR = rows.filter((r) => r.kind === "场外");
@@ -4845,7 +4858,7 @@ function renderClosed() {
   plats.sort((a, b) => (a.s - b.s));            // 亏得多的在上（与页面明细排序习惯一致）
   const cnt = $("closed-cnt");
   if (cnt) cnt.textContent = "（总 " + fmt2(sAll) + " 元 ＝ 场内 " + fmt2(sIn) + " ＋ 场外 " + fmt2(sOt) +
-    " · 共 " + rows.length + " 笔 · 按平台看卡内）";
+    " · 共 " + rows.length + " 笔 · 卡内按平台分段）";
   /* 券商原读数那一行的数据（2026-10-10 加 ✓，见 data.js CLOSED_ETF 注释 ✓）；
      没这块数据时整行不渲染 ✓（不硬凑） */
   const bt = (typeof CLOSED_ETF !== "undefined" && CLOSED_ETF) ? CLOSED_ETF : null;
@@ -4880,6 +4893,8 @@ function renderClosed() {
       '<span class="c-nm"><b>' + esc(r.name) + "</b>" +
         '<span class="c-code">' + esc(r.platform) + "</span>" +
         '<span class="c-code">' + esc(r.kind) + "</span>" +
+        (r.held ? '<span class="c-code c-held" title="与在持的 ' + esc(r.held) + " 是**同一只基金的不同份额类别 / 不同账户**"
+          + "（各自独立结算，勿合并成同一笔 ✗）—— 在持那一份见「场外净值水位」/「场内持仓」卡 ✓\">⇄ 在持同名</span>" : "") +
         '<div class="c-meta">' + esc(meta.join(" · ")) + "</div></span>" +
       '<span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>";
   };
@@ -4923,8 +4938,22 @@ function renderClosed() {
         '<span class="c-code">' + esc(g.kind) + '</span><span class="c-code">' + g.n + ' 笔</span>' +
         '<div class="c-meta">投入 ≈' + fmtYuan(g.c) + " 元 · 加权 " + pct(g.c ? g.s / g.c * 100 : 0) + "</div></span>" +
         '<span class="c-v ' + cls(g.s) + '">' + fmt2(g.s) + "</span></div>").join("") +
-    '<details class="closed-all"><summary>全部明细 ' + rows.length + " 笔（场内 ＋ 场外合一 · 按清仓日倒序）</summary>" +
-      rows.map(rowHtml).join("") + "</details>" +
+    /* 明细**按平台分段**（2026-10-16 用户要求 A）：段头给出该平台的笔数、场内/场外与**来源** ——
+       这两半口径不同（App 原读数 vs 本页推导），混在一个列表里按日期排就是"看不清哪行是谁"的根源 ✗。
+       段序沿用 plats（亏得多在上，与上面「按平台汇总」一致 ✓），段内按清仓日倒序 ✓。
+       ⚠ 分段只依据 data.js 两个块的来源，**不新增字段** ✗（平台信息已在块级；逐行再存一份必然漂移 ✗，
+         本仓库 cross-check 门禁防的就是这个）。 */
+    '<details class="closed-all"><summary>全部明细 ' + rows.length + " 笔（按平台分段 · 段内按清仓日倒序）</summary>" +
+      plats.map((g) => {
+        const members = rows.filter((r) => r.platform === g.p);
+        return '<div class="closed-row closed-sec" data-sec="' + esc(g.p) + '" data-sec-sum="' + g.s.toFixed(2)
+            + '" data-sec-n="' + g.n + '"><span class="c-nm"><b>' + esc(g.p) + "</b>" +
+            '<span class="c-code">' + esc(g.kind) + "</span>" +
+            '<span class="c-code">' + g.n + " 笔</span>" +
+            '<div class="c-meta">' + esc(secSrc(g.p)) + "</div></span>" +
+            '<span class="c-v ' + cls(g.s) + '">' + fmt2(g.s) + "</span></div>" +
+          members.map(rowHtml).join("");
+      }).join("") + "</details>" +
     qNote;
 }
 
