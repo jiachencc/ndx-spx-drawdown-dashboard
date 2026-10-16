@@ -92,8 +92,33 @@ export function validateModel(m) {
     const net = m.POSITIONS.log.filter(e => e.sym === p.sym).reduce((n, e) => n + (/卖出|减仓|清仓/.test(e.act) ? -e.qty : e.qty), 0);
     if (net !== p.qty) errors.push("quantity reconciliation " + p.code);
   }
+  /* 代码 → DEFAULT 报价字段（供 premiums 的算式校验用）：从 POSITIONS.hold 的 `idx` 推 ——
+     与 positions.html 的 `QUOTE_KEY` 是同一张映射 ✓，不在这里再抄第三份 ✗。
+     ⚠ 已清仓的 160644 / 513310 不在 hold 里 → 那两条只校验形状、不校验算式（覆盖 5 条里的 3 条 ✓）。 */
+  const ALIAS_OF = {};
+  for (const p of m.POSITIONS?.hold || []) {
+    if (p.idx) ALIAS_OF[p.code] = (p.idx === "ndx" ? "etfNdx" : p.idx === "spx" ? "etfSpx" : p.idx);
+  }
   for (const [code, p] of Object.entries(m.POSITIONS?.premiums || {})) {
     if (!Number.isFinite(p.pct) || !Number.isFinite(p.nav) || p.nav <= 0 || !isDate(p.navDate)) errors.push("premium invalid " + code);
+    /* ⚠ 2026-10-16 补三条（此前只校验形状，**算式与日期关系一条都没查** ✗）：
+       ① priceDate 必须合法；② **净值日不能晚于价格日** —— 取数脚本本来就挡了这一条
+          （fetch_and_update：「nav.FSRQ > quote.priceDate 直接算失败」✓），但手工改一次就可能写反，
+          而写反以后 pct 看着仍是个正常数，页面上完全看不出来 ✗；
+       ③ 两边**价格日相同**时才校验算式 `pct ≈ 收盘价 ÷ 净值 − 1`（口径见 fetch_and_update.mjs §premiums）——
+          滞后时 DEFAULT 的 close 已是新一天的价，拿它除旧净值必然对不上 ✗，那不是错、是「还没跑到」，
+          由 autoBlockIssues 的「premiums 价格日落后 > 2 天」那条管「能滞后多久」✓。 */
+    if (!isDate(p.priceDate)) errors.push("premium priceDate invalid " + code);
+    else if (p.navDate > p.priceDate) errors.push("premium navDate 晚于 priceDate " + code + "（两个日期写反了？）");
+    const alias = ALIAS_OF[code], q = alias ? (m.DEFAULT || {})[alias] : null;
+    if (q && isDate(q.priceDate)) {
+      if (p.priceDate > q.priceDate) errors.push("premium priceDate 晚于该 ETF 的报价日 " + code + "（" + p.priceDate + " > " + q.priceDate + "）");
+      else if (p.priceDate === q.priceDate && Number.isFinite(q.close)) {
+        const want = Math.round((q.close / p.nav - 1) * 100 * 10) / 10;
+        if (Math.abs(p.pct - want) > 0.15)
+          errors.push("premium pct 与「收盘价 ÷ 净值 − 1」不符 " + code + "（存 " + p.pct + "%，算式给 " + want + "%）");
+      }
+    }
   }
   /* 卖出行必须带 realized（券商逐笔「实现盈亏」）：持仓卡的「其中已落袋」与「本金与收益」卡的
      「已实现」都靠它求和 —— 缺失会被当成 0 静默少算（页面不报错、数字悄悄变小，看不出来）。
@@ -291,8 +316,20 @@ export function autoBlockIssues(model, dataSrc, posSrc) {
   if (snapLast && benchLast && diff(snapLast, benchLast) > 3)
     issues.push("AUTO 块陈旧：BENCH 最新日期 " + benchLast + " 落后最新快照日 " + snapLast +
       " 超过 3 天 —— scripts/sync-bench.mjs 那步多半坏了（走势图的「同节奏纳指」虚线会停在旧日期）");
-  /* ⚠️ 2026-10-16 删：原「NOWCAST 陈旧」检查（落后美股数据日 > 5 天就报）—— 该块与其写者
-     scripts/fetch-nowcast.mjs 已随页面模块一起移除 ✓，不再有第二个自动源可查。 */
+  /* premiums（场内溢价率，2026-10-16 加）：它是**唯一**没有陈旧断言的 AUTO 块 ✗
+     （ALT_BACKTEST 4 天 / FEES 7 天 / BENCH 3 天都有 ✓），于是滞后了不会有任何提示 ——
+     2026-10-16 正是靠读一句**过期注释**去判断它的状态、并连着复述了几次 ✗，所以要给它装牙。
+     判据：premiums 的 **priceDate** 落后场内行情日（DEFAULT.etfNdx.priceDate）超过 2 天。
+     阈值 2 天：净值晚 1~2 天是常态（那是 navDate 的事，形状校验里已保证 navDate ≤ priceDate ✓）；
+     而**价格日**来自与 DEFAULT 同一批腾讯日K、由同一步写入 —— 落后 1 天＝「手工落了一期、那步还没跑」的正常态 ✓，
+     落后 > 2 天则说明那步真没跑成（页面「溢价/折价」胶囊会比卡头那枚「场内 xx.xx」旧出好几天 ✗）。 */
+  const premDates = Object.entries(model?.POSITIONS?.premiums || {})
+    .map(([c, p]) => [c, p.priceDate]).filter(([, d]) => isDate(d));
+  const premOld = mkt ? premDates.filter(([, d]) => diff(mkt, d) > 2) : [];
+  if (premOld.length)
+    issues.push("AUTO 块陈旧：premiums 里 " + premOld.map(([c, d]) => c + " " + d).join("、") +
+      " 的**价格日**落后场内行情日 " + mkt + " 超过 2 天 —— scripts/fetch_and_update.mjs 的溢价那步多半没跑成" +
+      "（页面「溢价/折价」胶囊会明显旧于卡头的场内日期）");
   return issues;
 }
 
