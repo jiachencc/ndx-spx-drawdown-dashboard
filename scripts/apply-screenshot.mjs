@@ -239,6 +239,13 @@ for (const key of Object.keys(ETF_KEYS)) {
   const close = typeof input.etf[key] === "object" ? input.etf[key].close : input.etf[key];
   const given = typeof input.etf[key] === "object" ? input.etf[key].chg : undefined;
   const chg = Number.isFinite(given) ? r3(given) : r3((close / model.DEFAULT[key].close - 1) * 100);
+  /* ⚠ 2026-10-16 加提示（**当天真踩到**）：`etf` 只给数字时，chg 是**由文件里的旧 close 推**的 ——
+     复跑 / 补录同一期时 close 早已是新值 → 推出的 chg ＝ **0** ✗✗（当天其实涨了 1.578%），
+     而文件头那句「复跑/补录时要写 { close, chg } 才幂等」在踩的时候**不会给任何提示** ✗。
+     → 这里在「close 与文件现值相同 且 推出的 chg 为 0」时提示一句（**不报错**：真·平盘也是 0 ✓，
+       没有证据能区分，只能提醒）。 */
+  if (!Number.isFinite(given) && chg === 0 && close === model.DEFAULT[key].close)
+    tips.push(key + "：close 与文件现值相同 → 推出的 chg ＝ 0；**若这是复跑/补录**，请把 etf 写成 { close, chg }（chg 取 App 读数）✗");
   dataSrc = sub1(dataSrc, new RegExp("(" + key + ":\\s*\\{ close: )[-0-9.]+(, chg: )[-0-9.]+", "m"),
     "$1" + num(close, 3) + "$2" + num(chg, 3), key + " close/chg");
   dataSrc = sub1(dataSrc, new RegExp("(" + key + ":\\s*\\{[^\\n]*priceDate: \")[\\d-]+(\")", "m"), "$1" + input.date + "$2", key + " priceDate");
