@@ -189,6 +189,38 @@ export function crossIssues(model, html, diag = false) {
   return { issues, lines };
 }
 
+/* ⑥ 口径单一出处（2026-10-16 加，起因见 positions-logic.js 的文件头）：持仓页那三条判据
+   （本期已同步 / 场外当日合计的有效集合 /「组合已到」的日期）**只许定义在 positions-logic.js**：
+   每个消费方都必须调 POS_LOGIC，且**不许**再出现判据原文 —— 否则下次又漂，且漂了没人知道 ✗
+   （2026-10-16 那一次就是四处各写一份：页面 `>=`、录入器 `==`、门禁两处 `===` ✗）。
+   放 cross-check 里：它本来就是「同一份东西在几处各写一遍」的专门门禁 ✓。
+   实现注：**先去掉注释再查** —— 本仓库的注释里故意留着旧写法当反例，直接全文匹配会误报 ✗。 */
+export function singleSourceIssues(root) {
+  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+  const read = (f) => readFileSync(new URL(f, root), "utf8");
+  const inlineOf = (html) => [...html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).join("\n;\n");
+  const issues = [];
+  const lib = read("positions-logic.js");
+  for (const k of ["synced", "dayVals", "sumDay", "trendLastD"])
+    if (!new RegExp("\\b" + k + "\\s*\\(").test(lib)) issues.push("⑥ positions-logic.js 缺 POS_LOGIC." + k + "()");
+  const DUP = [
+    [/upd\s*\.\s*slice\(0,\s*10\)/, "upd.slice(0, 10)"],
+    [/startsWith\(input\.date\)/, "startsWith(input.date)"],
+    [/===\s*OC\.updated/, "=== OC.updated"],
+    [/(upd\s*>=\s*OTC\.updated|OTC\.updated\s*<=\s*upd)/, "upd >= OTC.updated"],
+  ];
+  const page = strip(inlineOf(read("positions.html")));
+  for (const [re, txt] of DUP)
+    if (re.test(page)) issues.push("⑥ positions.html 的内联脚本里又出现了判据原文「" + txt +
+      "」：应改调 POS_LOGIC.*（口径只能有一处，见 positions-logic.js ✓）");
+  for (const [f, need, label] of [["scripts/apply-screenshot.mjs", /LOGIC\.synced\(/, "upd 判定"],
+    ["scripts/dom-check.mjs", /LOGIC\.(sumDay|dayVals|trendLastD)\(/, "场外当日合计 / 组合末日"],
+    ["scripts/dom-check.mjs", /LOGIC\.synced\(|LOGIC\.dayVals\(/, "未更新只的判定"]]) {
+    if (!need.test(strip(read(f)))) issues.push("⑥ " + f + " 的「" + label + "」没有走 POS_LOGIC（" + need + "）：口径必须从 positions-logic.js 读 ✓");
+  }
+  return issues;
+}
+
 function main() {
   const diag = process.argv.includes("--diag");
   const root = new URL("../", import.meta.url);
@@ -196,10 +228,11 @@ function main() {
   // ⚠ 2026-09-27 起 SNAPSHOTS / OTC 在 positions-data.js（原先内联在 positions.html）
   const html = readFileSync(new URL("positions-data.js", root), "utf8");
   const { issues, lines } = crossIssues(model, html, diag);
+  const src = singleSourceIssues(root);
   if (diag) lines.forEach((l) => console.log("  " + l));
-  if (issues.length) {
-    console.error("交叉门禁未通过（同一份数据在几处不一致）：\n" + issues.map((s) => "  - " + s).join("\n"));
+  if (issues.length || src.length) {
+    console.error("交叉门禁未通过（同一份数据在几处不一致）：\n" + issues.concat(src).map((s) => "  - " + s).join("\n"));
     process.exitCode = 1;
-  } else console.log("交叉一致性：① 快照场外 ↔ OTC.funds · ② flow ↔ Δ成本+Δ现金 · ④ 场内快照 ↔ 报价×份数 · ⑤ 场外市值 ↔ nav.close —— 全部通过（③ 当日口径改由渲染层校验，见 dom-check）。");
+  } else console.log("交叉一致性：① 快照场外 ↔ OTC.funds · ② flow ↔ Δ成本+Δ现金 · ④ 场内快照 ↔ 报价×份数 · ⑤ 场外市值 ↔ nav.close · ⑥ 三条口径的唯一出处（positions-logic.js）—— 全部通过（③ 当日口径改由渲染层校验，见 dom-check）。");
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

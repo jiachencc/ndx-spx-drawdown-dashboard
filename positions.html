@@ -203,6 +203,11 @@ try {
 
 <script src="data.js"></script>
 <script src="positions-data.js"></script>
+<!-- 共享口径（2026-10-16 加）：「本期已同步」/ 场外当日合计的有效集合 /「组合已到」的日期，
+     三处判据原先在本页、scripts/apply-screenshot.mjs、scripts/dom-check.mjs 各写一份 → 一次更新里漂了 3 处 ✗。
+     现在只定义在这一个文件里，本页直接调用、脚本侧用 data-quality.mjs 的 readPosLogic() 读同一份源码 ✓。
+     ⚠ 只放判据不放数据；改它的同时要同步 scripts/lint.mjs 的 positions.inline 拼接顺序 ✗。 -->
+<script src="positions-logic.js"></script>
 <!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
      的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移，
      并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
@@ -1182,13 +1187,16 @@ function renderImpl() {
        顶部「· 同步 8/8」与「截至 …」已经表达，完整截图时刻仍在 title 里可查。
        行内只留「渠道 · 净值日」（净值日才是这一只的读数口径，QDII 逐只滞后的差异就在这儿）。
        长度从 ~144px 收到 ~90px，与场内那枚「场内 09.24」接近 —— 两列宽度也就齐了。 */
-    if (f.upd.slice(0, 10) >= OTC.updated)
+    if (POS_LOGIC.synced(f.upd, OTC.updated))
       return '<span class="date-chip otc" title="场外 App 截图：' + esc(f.upd) + '（状态栏时刻）· 渠道 ' + esc(ch) + esc(nav.title) + '">' +
         esc(ch) + esc(nav.text) + "</span>";
     /* 「待更」是状态、必须留；日期同样移进 title */
     return '<span class="date-chip stale" title="沿用 ' + md + ' 的截图旧值，待更新（渠道 ' + esc(ch) + '）' + esc(nav.title) + '">⚠ ' + esc(ch) + " 待更" + esc(nav.text) + "</span>";
   };
-  const syncCnt = OTC.funds.filter((f) => f.upd && f.upd.slice(0, 10) >= OTC.updated).length;   // 同 dayVals：≥ 快照日即算本期（含补录）
+  /* ⚠ 判据统一在 POS_LOGIC（positions-logic.js）✓。这里多一个 `f.upd &&`：
+     「没记截图时刻」的只**不算已同步**（进度条要如实少一个），但它**仍进当日合计**（见 dayVals 那条，
+     那种历史数据没有「待更」标记可用）—— 这条差异是既有的、自 2026-09-25 就有，不是这次引入的 ✗。 */
+  const syncCnt = OTC.funds.filter((f) => f.upd && POS_LOGIC.synced(f.upd, OTC.updated)).length;
   $("otc-updated").innerHTML = (OTC.updated ? otcTag() : "未记录") + freshBadge(OTC.updated) +
     ' <span class="sync-cnt' + (syncCnt === OTC.funds.length ? " ok" : "") + '" title="App 截图已同步 ' + syncCnt + "/" + OTC.funds.length + '（截图日与净值日非同一天属正常）">· 同步 ' + syncCnt + "/" + OTC.funds.length + "</span>";
   /* 场内报价核验：五只同日同状态时并成一句（原为逐只罗列 5 段、占三行），明细挂 title；
@@ -1286,7 +1294,7 @@ function renderImpl() {
      于是合计漏掉 +61.82 / −99.67（场外快显示 −760 而非 −798），页面还会一边写「场外 8 只」一边标「2 只未更新」。
      这条判定的原意是「截图日**早于**快照日的，其 day 是旧日期的值，不能混进来」→ 正确边界是「upd 日期 ≥ 快照日」，
      补录（晚于快照日）必须接受。 */
-  const dayVals = OTC.funds.map((f) => (Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) >= OTC.updated) ? f.day : null));
+  const dayVals = POS_LOGIC.dayVals(OTC.funds, OTC.updated);   // 判据在 positions-logic.js（与门禁同一份源码 ✓）
   const dayOtc = dayVals.filter((v) => v !== null).reduce((a, b) => a + b, 0);    // 当日：场外快照口径（场内为上一美股交易日，不混合）
   const dayMiss = dayVals.filter((v) => v === null).length;
   /* 未更新的是哪几只（2026-10-13 加 ✓）：悬停里点名 —— 原来只说「2 只本次未更新」是个黑盒 ✗
@@ -3471,7 +3479,12 @@ function buildTrendPts(todayVal, todayCost) {
   /* 今日估算：场内最新场内价估算 + 场外 OTC 快照 + 现金；与最后一期快照同日时省略 */
   const n = new Date();
   const td = n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0");
-  if (Number.isFinite(todayVal) && (!pts.length || pts[pts.length - 1].d < td))
+  /* 「今日估算点」的日期口径见 positions-logic.js 的 POS_LOGIC.trendLastD ——
+     结论句的「组合已到 X」与门禁的期望都走同一个函数 ✓（门禁原先写死「快照末日」，
+     落盘日 ≠ 跑门禁那天时必然误报 ✗）。同日不补点，故判据是严格大于 ✓。 */
+  const snapLast = pts.length ? pts[pts.length - 1].d : "";
+  const hasToday = Number.isFinite(todayVal);
+  if (hasToday && POS_LOGIC.trendLastD(snapLast, td, hasToday) === td && snapLast !== td)
     pts.push({ d: td, val: todayVal, cost: todayCost, isToday: true });
   for (let i = 1; i < pts.length; i++) {
     pts[i].flow = pts[i].isToday ? null

@@ -22,6 +22,10 @@ const dataJs = readFileSync(path.join(root, "data.js"), "utf8");
 /* 持仓页的 MANUAL 数据层（2026-09-27 从 positions.html 抽出）：它是纯 JS、无需抽取内联脚本，
    直接读全文 —— 但必须拼在 positions 的内联脚本**之前**，因为后者用到 OTC / OTC_LOG / SNAPSHOTS。 */
 const positionsDataJs = readFileSync(path.join(root, "positions-data.js"), "utf8");
+/* 持仓页的共享口径（2026-10-16 从 positions.html 抽出）：同样是纯 JS 常量文件，
+   按页面 <script> 的真实顺序拼进来 —— ⚠ 只改页面不改这里，等于门禁拼的运行时组合与浏览器不一致 ✗
+   （2026-10-12 漏拼 finance-data.js 就踩过这个坑：撞名只会在浏览器里暴露）。 */
+const positionsLogicJs = readFileSync(path.join(root, "positions-logic.js"), "utf8");
 const inlineOf = (file) => {
   const html = readFileSync(path.join(root, file), "utf8");
   return [...html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]).join("\n;\n");
@@ -40,7 +44,7 @@ const units = [
      data.js → positions-data.js → finance/finance-data.js → 内联（见其 <script> 顺序 ✓），
      此前这一单元漏拼了 finance-data ✗ → 顶层 const 撞名 / 解析失败**只会在浏览器里暴露** ✗，
      eslint 的 no-redeclare 抓不到（典型的"门禁以为守住了、其实没拼"）。 */
-  ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + financeDataJs + "\n;\n" + inlineOf("positions.html")],
+  ["positions.inline.js", dataJs + "\n;\n" + positionsDataJs + "\n;\n" + positionsLogicJs + "\n;\n" + financeDataJs + "\n;\n" + inlineOf("positions.html")],
   ["index.inline.js", dataJs + "\n;\n" + inlineOf("index.html")],
   ["finance-data.js", financeDataJs],
   ["finance.inline.js", financeDataJs + "\n;\n" + inlineOf("finance/index.html")],

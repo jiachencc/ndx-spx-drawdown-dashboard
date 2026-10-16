@@ -13,11 +13,17 @@
  * 退出码：0 = 全部通过；1 = 有断言失败或页面报错。
  */
 import { readFileSync } from "node:fs";
+import { readPosLogic } from "./data-quality.mjs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+/* 持仓页的共享口径（2026-10-16）：本文件里凡是「页面也该这么算」的判据，
+   一律用 POS_LOGIC（读 positions-logic.js 的同一份源码 ✓）——
+   此前这里自己写过 `upd === OTC.updated`（页面是 `>=`）与写死的「组合末日」，
+   把**正确的页面**判成错、还回滚了写盘 ✗。 */
+const LOGIC = readPosLogic(root);
 const VERBOSE = process.argv.includes("--verbose");
 
 /* jsdom 装在哪都可能：先常规解析，再回退到全局包目录（ESM 不认 NODE_PATH） */
@@ -210,14 +216,12 @@ const OC = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.matc
    ✗：10-12 期 015884 中欧未更新（已清仓在途、按用户指示本期不记），它的 day 仍是 10-08 那个净值日的 −192.26，
    算进来就会把副标里对的数判成错 ✗（副标写 +329＝7 只本周读到 App 的合计，原式给 137 ✗）。
    改为只累加「upd 日期 ＝ OTC.updated」的那些只 —— 与页面副标「App 快照 +X · 1 只未更新」同一口径 ✓。 */
-/* ⚠ 2026-10-16 修：这里原为**严格相等** `=== OC.updated`，与页面已经不是同一口径了 ✗ ——
-   页面 2026-09-25 起放宽为「upd **不早于**快照日即算本期」（positions.html 的 dayVals / syncBadge / syncCnt，
-   原话「晚于快照日的属**补录**」）；本文件上一行的注释还写着「与页面副标同一口径 ✓」，实际已经漂了 ✗。
-   实测场景：10-15 那期的 8 张截图是 10-16 02:34~11:14 拍的（跨零点补拍），页面把它们算作本期（场外 −2,093.25 ✓），
-   而本断言按 `===` 一只都不认 → 期望值成 0.00 → 把**正确的页面**判成错 ✗✗（apply-screenshot 的写盘被这条挡下并回滚）。
-   → 判据与 positions.html 的 dayVals 逐字一致：`!f.upd || upd.slice(0,10) >= OTC.updated` ✓ */
-const otcDayApp = OC.funds.filter((f) => !f.upd || String(f.upd).slice(0, 10) >= String(OC.updated).slice(0, 10))
-  .reduce((a, f) => a + (Number.isFinite(f.day) ? f.day : 0), 0);
+/* 场外当日合计的期望值：**直接调 POS_LOGIC**（positions-logic.js）✓ ——
+   本文件原来自写一份 `upd === OTC.updated`（严格相等），而页面 2026-09-25 起是「不早于快照日即算本期」，
+   两处口径已漂 ✗：实测 10-15 那期截图取自 10-16（跨零点补拍），页面算出场外 −2,093.25 ✓，
+   本断言却一只都不认、期望值成 0.00 → **把正确的页面判成错** ✗✗，还把 apply-screenshot 的写盘挡下回滚 ✗。
+   ⚠ 这一行现在**不再自己写判据**：口径改动只需改 positions-logic.js 一处 ✓（页面与门禁同时生效）。 */
+const otcDayApp = LOGIC.sumDay(OC.funds, OC.updated);
 /* ③b-0 预估值与「快照 day」只比**量级**（2026-10-03 改）：两者口径本就不同 ——
    快照 day 是"场内当日 ＋ 场外已公布"，页面合计是"场内估值 ＋ 场外预估补齐"，不该相等；
    但若差出半个场外，说明 beta / 窗口 / 对齐错了。（旧版是严格比相等，那是场外还是 App 快照时候的事。） */
@@ -921,17 +925,16 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     if (behind) {
       check("收益率视图图例标出基准末点（同期纳指（截至 " + md(bLast) + "））",
         legend.indexOf("截至 " + md(bLast)) >= 0, legend.slice(0, 80));
-      /* ⚠ 2026-10-16 修：页面 buildTrendPts 在「系统当日 > 快照末日」时会**补一个今日估算点**
-         （positions.html:3471~3475，该点 d ＝ 系统当日）→ 结论句「组合已到 X」写的是**今日**，不一定是快照末日 ✗。
-         旧断言写死 `snaps.at(-1).d`，只在「落盘日 ＝ 跑门禁那天」时刚好成立 ✓
-         （此前各期都是当晚落盘、当晚跑 → 一直没暴露 ✗）。10-15 那期为跨零点补拍、10-16 才落盘 → 必然误报 ✗。
-         → 期望改为「页面两个合法取值之一」：快照末日（今日估算不可得时 ✓）或系统当日（有今日点时 ✓）；
-           其余任何日期仍判错 ✓。 */
+      /* 期望值不再写死「快照末日」✗：页面 buildTrendPts 在「系统当日 > 快照末日」时会**补一个今日估算点**
+         （该点 d ＝ 系统当日），结论句「组合已到 X」写的就是它 ✓；当日估算不可得时才退回快照末日 ✓。
+         两个合法取值**都由页面同一函数 POS_LOGIC.trendLastD 给出**（positions-logic.js ✓）——
+         旧断言写死快照末日，只在「落盘日 ＝ 跑门禁那天」时刚好成立，10-15 那期（10-16 才落盘）必然误报 ✗。
+         其余任何日期仍判错 ✓。 */
       const snapLastD = snaps[snaps.length - 1].d;
       const todayISO = (() => { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); })();
-      const combD = (md(snapLastD) === md(todayISO)) ? md(snapLastD)
-        : ([md(snapLastD), md(todayISO)].find((x) => sum.indexOf("组合已到 " + x) >= 0) || "");
-      check("收益率视图结论句标出「基准截至 " + md(bLast) + " · 组合已到 " + (combD || md(snapLastD) + " 或 " + md(todayISO)) + "」",
+      const legit = [...new Set([LOGIC.trendLastD(snapLastD, todayISO, true), LOGIC.trendLastD(snapLastD, todayISO, false)])].map(md);
+      const combD = legit.find((x) => sum.indexOf("组合已到 " + x) >= 0) || "";
+      check("收益率视图结论句标出「基准截至 " + md(bLast) + " · 组合已到 " + (combD || legit.join(" 或 ")) + "」",
         sum.indexOf("基准截至 " + md(bLast)) >= 0 && combD !== "",
         sum.slice(0, 90));
       check("读数条在基准末点之后显「基准未到该日」，而非把上一日点位外推 ✗",
@@ -1068,7 +1071,11 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   check("当日盈亏副标**只留日期与缺口**（无算式 ✓ 且 ≤26 字 ✓），推导只放悬停 ✓",
     /快照\s*\d/.test(sub3) && !/＝/.test(sub3) && sub3.length <= 26,
     "副标（" + sub3.length + " 字）：" + sub3.slice(0, 60));
-  const stale = (O.funds || []).filter((f) => !(Number.isFinite(f.day) && (!f.upd || f.upd.slice(0, 10) >= (O.updated || ""))));
+  /* ⚠ 2026-10-16：这里原来自写第**四**份判据副本（`!f.upd || f.upd.slice(0,10) >= O.updated`）✗ —
+     与页面 / 录入器 / 门禁那三份同源，一改口径就漏这一处 ✗。改为直接问 POS_LOGIC ✓：
+     「当日无有效读数」＝ dayVals 里该位为 null ✓（与页面合计剔除的集合逐字同一判据 ✓）。 */
+  const dayValsO = LOGIC.dayVals(O.funds, O.updated);
+  const stale = (O.funds || []).filter((f, i) => dayValsO[i] === null);
   if (stale.length)
     check("当日盈亏悬停点名本次未更新的 " + stale.length + " 只（" + stale.map((f) => f.code).join(" / ") + " ✓，原来是黑盒 ✗）",
       stale.every((f) => tip3.indexOf(f.code) >= 0), "悬停尾部：" + tip3.slice(-80));

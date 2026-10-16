@@ -31,6 +31,7 @@ ndx_spx_dashboard_handoff/
 ├── handoff.md      ← 本文件（交接 + 部署指南）
 ├── index.html      ← 看板本体：结构 + CSS + 渲染逻辑（GitHub Pages 入口）
 ├── positions.html  ← 持仓水位页：结构 + 渲染逻辑（从看板页头「💼 持仓」进入）
+├── positions-logic.js ← **共享口径（单一出处，2026-10-16 加）**：持仓页那三条判据（本期已同步 / 场外当日合计的有效集合 /「组合已到」的日期）只定义在这里 —— 页面 `<script src>` 直接调，脚本用 `data-quality.mjs` 的 `readPosLogic()` 读同一份源码；`cross-check` 的 ⑥ 会拦「判据被抄回消费方」
 ├── positions.css   ← 持仓页的样式表（2026-09-27 从 positions.html 的内联 <style> 抽出，1,126 行）
 ├── positions-data.js ← 持仓页的 MANUAL 数据层：OTC / OTC_LOG / SNAPSHOTS（2026-09-27 从 positions.html 抽出，~780 行）
 ├── font.css        ← JetBrains Mono @font-face（base64 内嵌），index/positions 两页共享

@@ -51,7 +51,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { readModel } from "./data-quality.mjs";
+import { readModel, readPosLogic } from "./data-quality.mjs";
 
 const argv = process.argv.slice(2);
 const inputPath = argv.find((a) => !a.startsWith("--"));
@@ -66,6 +66,9 @@ const ROOT = new URL("../", import.meta.url);
    本脚本改的全在这三块里（OTC.updated / cash / funds、SNAPSHOTS 追加期间区块），
    故读写都指向数据文件；positions.html 本身不再被本脚本改。 */
 const DATA_PATH = new URL("data.js", ROOT), POSDATA_PATH = new URL("positions-data.js", ROOT);
+/* 持仓页的共享口径（2026-10-16）：`upd` 判定等一律走它，不在本脚本里再抄一份 ✗ ——
+   原先这里写 `startsWith(input.date)`、页面写 `>=`、门禁写 `===`，一次更新漂出三套 ✗。 */
+const LOGIC = readPosLogic(ROOT);
 const ETF_KEYS = { etfNdx: "ndx", etfSpx: "spx", kr: "kr", n225: "n225", hkus: "hkus" };
 const isDate = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -81,14 +84,12 @@ for (const f of input.otc || []) {
   if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(f.code + " 缺 navClose/navDate");
   /* upd 必须**不早于**本期快照日：页面按它判「已同步」，日期早了就会显示「N 只未更新」、
      并把该只的当日收益从合计里剔除（2026-09-23 自检时正是这样被 dom-check 抓到的 —— 沿用上期 upd 即翻车）。
-     ⚠ 2026-10-16 放宽（本脚本此前要求 `startsWith(input.date)`，比页面严 ✗ 且与「不伪造时间戳」冲突）：
-       · 页面 2026-09-25 起就是 `f.upd.slice(0,10) >= OTC.updated` 即算本期（positions.html 的 syncBadge / syncCnt，
-         原话「晚于快照日的属**补录**，不该标成『待更』」）—— 脚本没跟上，导致**跨零点截图**必被拒 ✗；
-       · 实测场景：10-15 那期的 8 张截图是 **10-16 02:34~11:14** 拍的（晚间没拍、第二天凌晨补拍是常态）。
-         此时唯一诚实的写法就是记真实时刻，而写 `2026-10-15 20:00` 属伪造时间戳 ✗（handoff 底线）。
-       → 判据与页面统一为「upd ≥ 快照日」，晚于快照日的原样记真、不假装成当天。 */
+     ⚠ 2026-10-16：判据**移到 positions-logic.js 的 POS_LOGIC.synced**（与页面、门禁同一份源码 ✓）——
+       此前本脚本要求 `startsWith(input.date)`、页面是 `>=`、dom-check 是 `===`，一次更新漂出三套 ✗。
+       晚于快照日的属**补录**（10-15 那期 8 张截图是 10-16 02:34~11:14 拍的，跨零点是常态 ✓），
+       唯一诚实的写法就是记真实时刻，写成当天属伪造时间戳 ✗（handoff 底线）。 */
   if (!f.upd) f.upd = input.date + " 20:00";
-  else if (String(f.upd).slice(0, 10) < input.date)
+  else if (!LOGIC.synced(f.upd, input.date))
     errors.push(f.code + " 的 upd（" + f.upd + "）早于本期 " + input.date + "：页面会当它没更新，当日合计会少算这一只");
 }
 for (const [k, e] of Object.entries(input.etf || {})) {

@@ -1,7 +1,21 @@
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 export const isDate = s => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s;
+/* 持仓页的**共享口径**（positions-logic.js 的 POS_LOGIC，2026-10-16 加）：
+   页面用 <script src> 直接调它，Node 侧用这里读**同一份源码** —— 同一条判据不再各写一份 ✓。
+   为什么放 data-quality：它是被 8 个脚本 import 的核心库，「页面与脚本读同一份」属于它的职责范围 ✓。
+   参数 root 接受 URL（`new URL("../", import.meta.url)`）或目录路径（path.resolve(...)）——两种入口都有先例 ✓。 */
+export function readPosLogic(root) {
+  const base = root instanceof URL ? root : pathToFileURL(String(root).replace(/[/\\]+$/, "") + "/");
+  const src = readFileSync(new URL("positions-logic.js", base), "utf8");
+  const m = src.match(/^const POS_LOGIC = \{[\s\S]*?^\};/m);
+  if (!m) throw new Error("positions-logic.js 里找不到行首的 POS_LOGIC 块（拆分/改名的同时请更新 lint.mjs 的拼接与 readPosLogic）");
+  const ctx = vm.createContext({});
+  vm.runInContext(m[0] + "\nthis.logic = POS_LOGIC;", ctx, { timeout: 500 });
+  return ctx.logic;
+}
 export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
