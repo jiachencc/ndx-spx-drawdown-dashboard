@@ -142,6 +142,31 @@ if (!/border:\s*1\.5px\s+solid\s+var\(--down\)/.test(sellBody))
   issues.push(".sell-mark b 的边框必须是**全色** var(--down) ✗ —— 空心圈的可见度只由边框色决定，" +
     "边框一淡化就直接掉到 2:1 以下（实测 --down-line 30% = 1.94:1）");
 
+/* ---- 快照明细图：条形填充与图内标注（2026-10-16 加）——
+   这两处原本是**硬编码**色 ✗：`.sa-bar.up/.down` 写的是深色调的 rgba(45,212,167,.78)（浅色底上只有 ~2:1 ✗）、
+   图内 9px 标注写死 #93a3bb（浅色底上 ~2.5:1 ✗，而它还是全页最小字号）。现在都走令牌，这里逐条看住 ✓ */
+const CHART = [
+  ["上涨条形", "#snap-attr .sa-chart-svg .sa-bar.up", 3],
+  ["下跌条形", "#snap-attr .sa-chart-svg .sa-bar.down", 3],
+];
+for (const [label, sel, need] of CHART) {
+  const body = rule(sel);
+  if (!body) { issues.push("找不到 " + sel + " —— 快照图被改名/删除，本条门禁已失效 ✗（请同步本文件）"); continue; }
+  const tok = (body.match(/fill:\s*var\((--[a-z0-9-]+)\)/i) || [])[1];
+  if (!tok) { issues.push(label + " 的 fill 不是令牌 ✗（写死字面值就不会随主题切换，浅色底上必然不够）—— 现值：" + body.trim()); continue; }
+  for (const theme of ["深色", "浅色"]) {
+    const c = RES[theme](tok), bg = RES[theme]("--card");
+    if (!c || !bg) continue;
+    const v = cr(c, bg);
+    rows.push([theme, label + " " + tok + "（图形）", v, need]);
+    if (v < need) issues.push(theme + "：" + label + "（" + tok + "）只有 " + f2(v) + ":1（图形要 ≥" + need + "）");
+  }
+}
+const chartTxt = rule("#snap-attr .sa-chart-svg text");
+if (!chartTxt) issues.push("找不到 #snap-attr .sa-chart-svg text 规则 —— 门禁失效 ✗");
+else if (!/fill:\s*var\(/.test(chartTxt))
+  issues.push("快照图内标注的 fill 不是令牌 ✗（原是 #93a3bb：浅色底 ~2.5:1，而它是全页最小的 9px 字号）—— 现值：" + chartTxt.trim());
+
 /* ---- 输出 ---- */
 if (diag || issues.length) {
   console.log("对比度实测（深/浅两套主题）：");

@@ -101,6 +101,11 @@ const openAttr = async (p) => {
   }, { timeout: 3000 }).catch(() => {});
 };
 
+/* --dark：用深色渲染（2026-10-16 加）。主题规则是「深色为基座、body.light 覆盖、默认跟随系统」，
+   而 **Playwright 默认 prefers-color-scheme = light** ✗ → 此前 20 条版面检查**只覆盖浅色**，
+   而用户日常主用的是深色 ✗（深色下的断行 / 溢出从没验过）。verify-all 因此跑两遍（浅 + 深）✓。
+   实现上刻意用「跑两遍」而不是把主题循环塞进本文件：断言名与既有文档都不用动 ✓。 */
+const dark = process.argv.includes("--dark");
 const browser = await chromium.launch();
 const errs = [];
 
@@ -117,7 +122,7 @@ const waitReady = (p) => p.waitForFunction(() => {
 /* ① 四档首屏（2026-10-13 加 414px ✓ —— 真机最常见的档位 ✓；
    上一轮只测 1440/760/380 ✗，而 380 恰好落在 2 列 ✓，401–430px 那一档**无人覆盖** ✗ → 折行漏了两天 ✗） */
 for (const w of [1440, 760, 414, 380]) {
-  const p = await browser.newPage({ viewport: { width: w, height: 1000 } });
+  const p = await browser.newPage({ viewport: { width: w, height: 1000 }, colorScheme: dark ? "dark" : "light" });
   p.on("pageerror", (e) => errs.push(w + "px " + e.message));
   await p.goto(page, { waitUntil: "load" });
   await waitReady(p);
@@ -142,7 +147,7 @@ for (const w of [1440, 760, 414, 380]) {
 
 /* ③④ 拖动缩放（那个 bug 的回归探针 ✓） */
 {
-  const p = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const p = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: dark ? "dark" : "light" });
   p.on("pageerror", (e) => errs.push("resize " + e.message));
   await p.goto(page, { waitUntil: "load" });
   await waitReady(p);
@@ -166,7 +171,7 @@ check("版面检查过程无 JS 报错", errs.length === 0, errs.slice(0, 2).joi
 let failed = 0;
 for (const c of checks) {
   if (!c.ok) failed++;
-  console.log((c.ok ? "  ✓ " : "  ✗ ") + c.name + (c.detail && !c.ok ? "   ← " + c.detail : ""));
+  console.log((c.ok ? "  ✓ " : "  ✗ ") + (dark ? "深色 · " : "") + c.name + (c.detail && !c.ok ? "   ← " + c.detail : ""));
 }
-console.log("\n版面校验：" + (checks.length - failed) + "/" + checks.length + " 通过（真实浏览器 · 1440/760/414/380 四档 ＋ 拖动缩放）");
+console.log("\n版面校验：" + (checks.length - failed) + "/" + checks.length + " 通过（真实浏览器 · " + (dark ? "深色" : "浅色") + " · 1440/760/414/380 四档 ＋ 拖动缩放）");
 process.exit(failed ? 1 : 0);

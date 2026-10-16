@@ -45,8 +45,12 @@ const steps = [
     : ["dom-check", null, "跳过：未找到 jsdom（npm i -g jsdom）"],
   /* 2026-10-09 加：dom-check 跑在 jsdom 里（没有布局 ✗），
      "元素撑破容器 / 页面横向溢出"这类**真实版面**问题它抓不到 ✗ —— 见 layout-check.mjs 头的由来 ✓ */
-  hasPlaywright() ? ["layout-check（真实版面 · 无横向溢出）", ["node", ["scripts/layout-check.mjs"]]]
+  /* ⚠ 2026-10-16：**深浅各跑一遍** —— 主题基座是深色、浅色是覆盖层，而 Playwright 默认跑浅色 ✗，
+     此前 20 条版面检查只覆盖浅色，用户主用的深色从没验过（同一天补的 check-contrast 管颜色、
+     这一条管版面：深色下的断行 / 溢出 ✓）。代价 ~3s，值得 ✓ */
+  hasPlaywright() ? ["layout-check 浅色（真实版面 · 无横向溢出）", ["node", ["scripts/layout-check.mjs"]]]
     : ["layout-check", null, "跳过：未找到全局 playwright"],
+  hasPlaywright() ? ["layout-check 深色（同上 · 用户主用主题）", ["node", ["scripts/layout-check.mjs", "--dark"]]] : null,
 ];
 if (DEEP) steps.push(["typecheck（深度）", ["node", ["scripts/typecheck.mjs"]]]);
 

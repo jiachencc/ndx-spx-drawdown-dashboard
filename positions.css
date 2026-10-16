@@ -667,7 +667,7 @@
        下方盛不下就翻到按钮上方、左右做视口夹取 —— 与 index 同一套行为（见本文件的 click 委托）。
      ⚠ 保留 white-space: pre-line：本页不少 tip 文案是多行的（逐只表的备注就是"一条一行"）。 */
   .tip-pop { position: fixed; z-index: 99999; width: min(340px, 92vw); max-height: 46vh; overflow-y: auto;
-    background: #1a2436; border: 1px solid #33415e; border-radius: 12px; padding: 10px 13px;
+    background: var(--pop-bg); border: 1px solid var(--pop-line); border-radius: 12px; padding: 10px 13px;   /* 2026-10-16：改用令牌（原先写死字面值、靠下面那条 body.light 覆盖兜着 ✗，两份定义迟早漂） */
     box-shadow: 0 14px 44px -8px rgba(0, 0, 0, .75), 0 0 0 1px rgba(91, 163, 255, .18);
     font-size: 11.5px; line-height: 1.65; color: var(--tx); white-space: pre-line;
     animation: tipIn .15s ease; backdrop-filter: blur(6px); }
@@ -1635,10 +1635,15 @@
      `width:100% ＋ height:auto` 让 box 与 viewBox 同比例 ✓ → 无留白 ✓ 整块命中区都有效 ✓。 */
   #snap-attr .sa-chart-svg { display: block; margin: 4px 0 3px; width: 100%; height: auto; }
   #snap-attr .sa-chart-svg .sa-bar { cursor: pointer; }
-  #snap-attr .sa-chart-svg .sa-bar.up { fill: rgba(45, 212, 167, .78); }
-  #snap-attr .sa-chart-svg .sa-bar.down { fill: rgba(224, 87, 107, .78); }
+  /* ⚠ 2026-10-16：原为硬编码 rgba(45,212,167,.78) / rgba(224,87,107,.78)（深色调的值 ✗）——
+     浅色底上那对 α 只有 ~2:1（图形要 3:1 ✗），且不随主题切换。改用语义令牌（浅色下它们已被
+     调深到达标值 ✓）：深色 9.36 / 6.13、浅色 5.35 / 4.79 ✓。条形从 78% 到全色在视觉上几乎无差 ✓ */
+  #snap-attr .sa-chart-svg .sa-bar.up { fill: var(--up); }
+  #snap-attr .sa-chart-svg .sa-bar.down { fill: var(--down); }
   #snap-attr .sa-chart-svg .sa-bar:hover, #snap-attr .sa-chart-svg .sa-bar:focus-visible { fill: var(--blue); }
-  #snap-attr .sa-chart-svg text { font-family: var(--mono); font-size: 9px; fill: #93a3bb !important; }
+  /* ⚠ 2026-10-16：原 fill 写死 #93a3bb —— 它在浅色底上只有 ~2.5:1（文字要 4.5 ✗），而这里是
+     9px 的**图内标注**（最小字号 ✗ 更该够对比度）→ 改用 --tx3（深色 5.39 / 浅色 5.25 ✓）✓ */
+  #snap-attr .sa-chart-svg text { font-family: var(--mono); font-size: 9px; fill: var(--tx3) !important; }
 
   /* ── 列头图的交互层（2026-10-09 第四步 B：A1~A4）──────────────────────────────────────
      命中测试规则：**装饰元素一律不吃指针** ✓（线 / 文字 / 折线 / 圆点 / 高亮圈 ✓），
