@@ -1166,9 +1166,9 @@
   .act-open { background: var(--up-bg); color: var(--green); border: 1px solid var(--up-line); }
   .act-close { background: var(--down-bg); color: var(--red); border: 1px solid var(--down-line); }
   .act-other { background: var(--card2); color: var(--tx2); border: 1px solid var(--line); }
-  /* 周小计行（展开卡内记录时按周聚合） */
-  .log-week { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); background: var(--card2); border: 1px dashed var(--line); border-radius: 8px; padding: 4px 10px; margin: 8px 0 2px; font-feature-settings: "tnum"; overflow-wrap: break-word; }
-  .log-week:first-child { margin-top: 2px; }
+  /* 月小计行（展开卡内记录时**按月**聚合；2026-10-16 由周改为月 —— 理由见 positions.html 的 monthOf 注释） */
+  .log-month { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx2); background: var(--card2); border: 1px dashed var(--line); border-radius: 8px; padding: 4px 10px; margin: 8px 0 2px; font-feature-settings: "tnum"; overflow-wrap: break-word; }
+  .log-month:first-child { margin-top: 2px; }
   /* ?debug 自检面板（仅 ?debug 访问时注入） */
   #dbg-panel { position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 90; max-width: 560px; margin: 0 auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-family: var(--mono); font-size: var(--fs-xs); line-height: 1.8; color: var(--tx); box-shadow: var(--panel-shadow); max-height: 46vh; overflow: auto; font-feature-settings: "tnum"; }
   #dbg-panel .dbg-head { font-weight: 700; font-size: var(--fs-sm); margin-bottom: 4px; }

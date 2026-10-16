@@ -385,7 +385,7 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
    ④ 日期悬停必须是**完整日期**：行上只写 MM.DD ✓，但这份台账跨年后就不知道是哪年了 ✗。 */
 {
   const cards4 = [...win.document.querySelectorAll("#pos-list > article")];
-  const longNote = [], noAmt = [], actWord = [], noFullDate = [];
+  const longNote = [], noAmt = [], actWord = [], noFullDate = [], moBad = [];
   let rows4 = 0;
   cards4.forEach((card, ci) => {
     const tag = "第 " + (ci + 1) + " 张卡";
@@ -404,10 +404,32 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
       if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day.getAttribute("title") || "")) noFullDate.push(tag + "：" + (day.getAttribute("title") || "无 title"));
     });
   });
+  /* ⑤ 月表头（2026-10-16 由「周小计」改为按月）：**笔数合计 ≡ 该容器流水行数** —— 分组最容易犯的
+     正是丢行与重复计入 ✗（当年按周分组时没这条，靠人眼；按月同样要盯）。
+     ⚠ 用 data-mo-n（精确值）比，不能拿显示值比 —— 它带千分位与加粗 ✗（同清仓卡分段那条 ✓）。
+     ⚠ 这一段必须**按容器遍历**：第一版我把它挂在「本行是容器第一个子元素」上 ✗ ——
+       而容器第一个子元素正是**月表头**，于是那段代码从未执行、断言永远"通过" ✗✗（反向测试时才发现：
+       把月表头改成只统计 1 行，门禁居然不报）。这正是本仓库最忌讳的"假绿门禁" ✗，故改写成按 .log-list 遍历 ✓。 */
+  cards4.forEach((card, ci) => {
+    const tag = "第 " + (ci + 1) + " 张卡";
+    [...card.querySelectorAll(".log-list")].forEach((list) => {
+      const moRows = [...list.querySelectorAll(".log-month[data-mo]")];
+      if (!moRows.length) return;
+      for (const mo of moRows) {
+        const v = mo.getAttribute("data-mo") || "";
+        if (!/^\d{4}-\d{2}$/.test(v)) moBad.push(tag + " 月份名没带年份：「" + v + "」✗（台账是长期的，跨年会歧义）");
+      }
+      const n = moRows.reduce((a, mo) => a + (parseInt(mo.getAttribute("data-mo-n"), 10) || 0), 0);
+      const rows = list.querySelectorAll(".log-item").length;
+      if (n !== rows) moBad.push(tag + " 月表头笔数合计 " + n + " ≠ 流水 " + rows + " 行");
+    });
+  });
   check("逐笔流水 " + rows4 + " 行：备注行内已截断（全文挂 title）", longNote.length === 0, longNote.slice(0, 3).join("；") || "全部截断 ✓");
   check("逐笔流水：每行都给了金额（≈ 元，口径同周小计）", noAmt.length === 0, noAmt.slice(0, 3).join("；") || "全部有金额 ✓");
   check("逐笔流水：买 / 卖用字形（▲ / ▼），不再逐行写「买入 / 卖出」", actWord.length === 0, actWord.slice(0, 3).join("；") || "已压缩 ✓");
   check("逐笔流水：日期悬停给完整日期（MM.DD 只用于显示）", noFullDate.length === 0, noFullDate.slice(0, 3).join("；") || "全部完整 ✓");
+  /* ⑤ 按月分组（2026-10-16 由「周小计」改来）：月份名带年份 ＋ 月表头笔数合计 ≡ 流水行数 */
+  check("逐笔流水：按月分组 —— 月份名带年份 ＋ 月表头笔数合计 ≡ 流水行数", moBad.length === 0, moBad.slice(0, 3).join("；") || "全部一致 ✓");
 }
 
 /* ③h 盈亏全程三条线（2026-10-04 加）：① chip 标签 ② 三个序列都在

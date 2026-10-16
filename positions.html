@@ -380,7 +380,7 @@ function logFee(e) {
 const feeOf = (e) => { const v = logFee(e); return v === null ? CONFIG.FEE_PER_SIDE : v; };
 /* 卖出净回款 ＝ 份数 × 成交价 − 单边费 —— 这个**原子量**只留这一处 ✓（此前散在 3 处 ✗）。
    ⚠ 另有两个「不含费的毛额」用法是**另一种口径**、刻意不并入 ✗：
-     · 周小计（weekRowHtml）报的是成交毛额（含费与否不含信息量）
+     · 月小计（monthRowHtml，2026-10-16 由周改为月）报的是成交毛额（含费与否不含信息量）
      · TWR 资金流（perFundCalcBase 的 etfFlow）沿用历史口径，改了会让 TWR 数变 ✗（见其注释） */
 const netProceedsOf = (e) => (e.qty || 0) * (e.cost || 0) - feeOf(e);
 /* 卖出判定：收「流水对象」或「动作字符串」均可（2026-10-12 收拢 —— ?debug 自检块此前又定义了一份只收字符串的 ✗） */
@@ -6677,10 +6677,10 @@ function logItemHtml(e, hideSym, pair) {
     '</span>' +
     (hideSym ? "" : '<span class="log-sym">' + e.sym + '</span>') +
     '<span class="log-nums">' + fmtQty(e.qty) + ' 份 @ ' + (e.cost !== undefined ? e.cost.toFixed(3) : "--") + " 元" +
-      /* ② 行内金额：原来只有「份数 @ 价」，金额得心算 ✗（而周小计里就有 ✓）。
-         口径与周小计**完全一致** ＝ 份数 × 成交价（**毛额、不含费**）→ 故标 ≈，含费值挂 title ✓ */
+      /* ② 行内金额：原来只有「份数 @ 价」，金额得心算 ✗（而月小计里就有 ✓）。
+         口径与月小计**完全一致** ＝ 份数 × 成交价（**毛额、不含费**）→ 故标 ≈，含费值挂 title ✓ */
       (e.cost !== undefined ? ' <b class="log-amt" title="≈' + fmtAbs2(e.qty * e.cost) + " 元 ＝ " + fmtQty(e.qty) + " 份 × " + e.cost.toFixed(4) +
-        ' 元（**毛额、不含费** —— 与周小计同口径 ✓）；含费的实际扣款见本行「成本价」那栏（带 ≈ 表示费用为估算 ✓）">≈' + fmtAbs2(e.qty * e.cost) + " 元</b>" : "") +
+        ' 元（**毛额、不含费** —— 与月小计同口径 ✓）；含费的实际扣款见本行「成本价」那栏（带 ≈ 表示费用为估算 ✓）">≈' + fmtAbs2(e.qty * e.cost) + " 元</b>" : "") +
       (cutPct === null ? "" : ' <i class="log-cut" title="减仓幅度：本次卖出 ' + fmtQty(e.qty) + " 份 ÷ 操作前 " + fmtQty(t.qtyBefore) + " 份\">−" + cutPct.toFixed(1) + "%</i>") +
       "</span>" +
     costChip +
@@ -6688,31 +6688,36 @@ function logItemHtml(e, hideSym, pair) {
     shortNote(e.note) +
   '</div>';
 }
-/* 周小计：ISO 周（周一起算），聚合该周买卖笔数与金额、资金净额。
- * 末尾一项是「资金净额」而非盈亏：同一周等量买入+卖出时它接近 0 甚至为负，
- * 但那是「净收回资金」，方向与盈亏相反——曾把 +43 的价差显示成「净投 −43」造成误读。
+/* 月小计（2026-10-16 由「周小计」改成按月 —— 用户问「按周好还是按月好」，量过之后按月 ✓）：
+ * ① 版面：按周时表头占 38~47%，其中 44~86% 的周表头**只盖 1 行** ✗（日经 7 个表头盖 8 行 ✗）；
+ *    按月 ＝ 5 个表头 / 占比 24~38% ✓。
+ * ② 语义（更要紧）：**场内是主动加仓、不是定投**，「某周没买」不构成异常 ✗ —— 那套节奏语义属于场外定投。
+ * ③ 一致性：全页其它时间单位本来就是月（账户统计的月度盈亏柱 · ACCT_STATS.monthly · 财务页月度账单 ·
+ *    券商对账单）→ 按月分组后，同一个月份名能在几处互相印证 ✓；「周」曾是全页唯一的周粒度 ✗。
+ * 末尾一项是「资金净额」而非盈亏：同月等量买入+卖出时它接近 0 甚至为负，
+ * 但那是「净收回资金」，方向与盈亏相反 —— 曾把 +43 的价差显示成「净投 −43」造成误读。
  * 用「净投入/净收回」正负措辞并去掉红绿着色，避免被当成亏赚。 */
-function weekOf(d) {
-  const t = Date.parse(d + "T00:00:00Z");
-  return new Date(t - (new Date(t).getUTCDay() + 6) % 7 * 86400000).toISOString().slice(0, 10);
-}
-const mdFmt = (d) => +d.slice(5, 7) + "." + +d.slice(8, 10);
-function weekRowHtml(entries, wk) {
-  const we = new Date(Date.parse(wk + "T00:00:00Z") + 6 * 86400000).toISOString().slice(0, 10);
+const monthOf = (d) => (d || "").slice(0, 7);   // "2026-10" —— **带年份**：台账是长期的，跨年后「10 月」会歧义 ✗
+function monthRowHtml(entries, mo) {
   /* isSellAct 用全局版（2026-10-12 收拢；此前本函数内又定义了一份 ✗） */
   const buys = entries.filter((e) => !isSellAct(e)), sells = entries.filter(isSellAct);
   const bAmt = buys.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
   const sAmt = sells.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
   const net = bAmt - sAmt;
-  let parts = "周 " + mdFmt(wk) + "–" + mdFmt(we);
+  let parts = mo;                                        // "2026-10"（带年份 ✓）
   if (buys.length) parts += ' · 买 ' + buys.length + ' 笔 <b class="up">+' + fmtAbs2(bAmt) + '</b>';
   if (sells.length) parts += ' · 卖 ' + sells.length + ' 笔 <b class="down">−' + fmtAbs2(sAmt) + '</b>';
   if (buys.length && sells.length) parts += " · " + (net >= 0 ? "净投入 " : "净收回 ") + "<b>" + fmtAbs2(net) + "</b>";
-  return '<div class="log-week" title="周小计：买卖金额为该周成交额；末项是资金净额（买入额−卖出额），' +
-    '「净收回」表示卖出多于买入、钱在往回收，不是盈亏。已实现盈亏见各行（券商先进先出口径），与本项不是同一件事。">' + parts + '</div>';
+  /* data-* 带**精确值**（笔数 / 买额 / 卖额）供门禁核对「月表头笔数合计 ≡ 该卡流水行数」——
+     分组最容易犯的正是丢行与重复计入 ✗；页面显示值带千分位与加粗，不能拿它比 ✗（同清仓卡分段那条 ✓） */
+  return '<div class="log-month" data-mo="' + mo + '" data-mo-n="' + entries.length + '"' +
+    ' data-mo-b="' + bAmt.toFixed(2) + '" data-mo-s="' + sAmt.toFixed(2) + '"' +
+    ' title="月小计：买卖金额为该月**成交毛额**（份数 × 成交价、不含费 ✓）；末项是资金净额（买入额 − 卖出额），' +
+    '「净收回」表示卖出多于买入、钱在往回收，不是盈亏。已实现盈亏见各行（券商先进先出口径），与本项不是同一件事。' +
+    '⚠ 刻意**不**引用券商对账单的月度盈亏 —— 那是含已实现与税费的口径，与本块的毛额不同名 ✗">' + parts + '</div>';
 }
 /* ================= 卡内操作记录（原独立「操作日志」模块并入持仓卡） =================
- * 每只场内标的在自己的卡里给出它自己的全部流水，按周分组（沿用 weekRowHtml 小计）。
+ * 每只场内标的在自己的卡里给出它自己的全部流水，**按月分组**（沿用 monthRowHtml 小计；2026-10-16 由周改为月）。
  * 折叠区默认收起：summary 先回答「这笔仓位现在赚亏多少」，展开才看逐笔明细。 */
 /* 单条回路行：日期区间 / 类别 / 份数 / 买→卖 / 价差% / 持有 / 净额
  * 一次卖出由多笔买入批次组成时，买入价与持有天数为加权值，批次构成挂在行悬停里 */
@@ -6732,7 +6737,7 @@ function swingRowHtml(x) {
 }
 /* 卡内操作记录：两段折叠区。
  * ① 波段回路——做T的复盘单位（配对表 + 回补提示 + 费用门槛）
- * ② 逐笔流水——原始记录，按周分组（沿用 weekRowHtml 小计）
+ * ② 逐笔流水——原始记录，按月分组（沿用 monthRowHtml 小计）
  * 注意：这里不显示该标的的浮盈——卡头 KPI 已有，避免同一数字出现两次（曾因此误把摊薄口径当重复计数）。 */
 /* ================= 操作体检（2026-09-27 加） =================
    用户要「给每只基金的操作打个分」。设计取舍先讲清楚，免得分数变成编的：
@@ -7107,10 +7112,10 @@ function posLogHtml(p, r, pl) {
     return '<span class="log-pair ' + (rs.every((x) => x.swing) ? "sw" : "tr") + '" title="' + esc(tip) + '">⇄' +
       rs.map((x) => roundMark(x.no)).join("") + "</span>";
   };
-  let html = "", wk = null;
+  let html = "", mo = null;
   entries.map((e, i) => ({ e, i })).sort((a, b) => (a.e.d < b.e.d ? 1 : a.e.d > b.e.d ? -1 : 0)).forEach(({ e, i }) => {
-    const w = e.d ? weekOf(e.d) : "";
-    if (w && w !== wk) { wk = w; html += weekRowHtml(entries.filter((x) => x.d && weekOf(x.d) === w), w); }
+    const m = monthOf(e.d);            // "2026-10"（无日期时为 ""，下面的 if 会跳过 ✓）
+    if (m && m !== mo) { mo = m; html += monthRowHtml(entries.filter((x) => monthOf(x.d) === m), m); }
     html += logItemHtml(e, true, pairBadge(i));
   });
   /* 全程成本价变化原来挂在这一行（「成本价 1.6294 → 1.5822」），2026-09-23 移到 KPI 第三格；
