@@ -865,42 +865,10 @@
   /* 场外卡口径小注 */
   .otc-note { font-size: var(--fs-xs); color: var(--tx3); margin-top: 8px; line-height: 1.6; border-top: 1px dashed var(--line-soft); padding-top: 7px; }
 
-  /* ---- 场外定投 · 操作记录（2026-10-04 加；见 positions.html 里 renderOtcLog 的注释）----
-     不照搬场内那种「一笔一行 + 备注」的研究型长表：场外 391 笔里 61% 是金额完全相同的机械定投，
-     照搬就是流水账。本块只留三样：体检表（静默 + 状态）、异常笔、可折叠的逐笔明细。 */
-  table.dca-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-xs); margin-top: 2px; }
-  table.dca-tbl th { text-align: left; font-weight: 700; color: var(--tx3); font-size: 10px; padding: 0 0 5px; border-bottom: 1px solid var(--line); }
-  table.dca-tbl th .e-th2 { font-weight: 400; color: var(--tx3); font-size: var(--fs-xxs); }
-  table.dca-tbl th.n, table.dca-tbl td.n { text-align: right; white-space: nowrap; padding-left: 12px; }
-  table.dca-tbl td { padding: 6px 0; border-bottom: 1px dashed var(--line-soft); vertical-align: top; }
-  table.dca-tbl tr.sum td { border-bottom: none; border-top: 1px solid var(--line); font-weight: 700; padding-top: 7px; }
-  table.dca-tbl .f-nm { font-weight: 600; color: var(--tx); }
-  /* 名字下第二行：笔数 / 异常数 / 末笔日 / 主力金额档（等宽，便于竖着比） */
-  table.dca-tbl .f-meta { display: block; font-size: 10px; color: var(--tx3); font-family: var(--mono); margin-top: 1px; }
-  table.dca-tbl .f-inv, table.dca-tbl .f-gain { font-family: var(--mono); }
-  /* ── 窄屏：场外定投表 → 卡片（2026-10-09 加；**复用** .chk-tbl 那一套约定，不另造）─────────────
-     为什么现在才做：桌面 3~4 列的表格在 390px 下每列只剩 ~90px，
-     「+22,611」这类数字与列名挤在一起、右对齐的列还会把数字推到贴边 ✗
-     做法与 .chk-tbl 完全同构（隐表头 → 行块化 → 单元格 inline-block → 预埋列名显示出来 ✓）：
-       · 名称行独占一行（它本来就有 f-nm + f-meta 两行 ✓）
-       · 数字列两列一行（50%），列名用小标签放在数字上方 → 手机上没有表头也能读 ✓
-     ⚠ 依赖渲染侧预埋 <i class="c-lb">列名</i>（与 .chk-tbl 同一个类名 ✓ 见 renderOtcLog）：
-       没预埋就像没表头一样认不出哪个数字是什么 ✗ */
-  table.dca-tbl .c-lb { display: none; }
-  @media (max-width: 767px) {
-    table.dca-tbl thead { display: none; }
-    table.dca-tbl, table.dca-tbl tbody, table.dca-tbl tr, table.dca-tbl td { display: block; }
-    table.dca-tbl tr { padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
-    table.dca-tbl td { padding: 0; border: none; }
-    table.dca-tbl td.n { display: inline-block; width: 50%; text-align: left; padding: 4px 0 0; white-space: normal; }
-    table.dca-tbl td.n .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); }
-    table.dca-tbl tr.sum { border-top: 1px solid var(--line); border-bottom: none; font-weight: 700; }
-    table.dca-tbl tr.sum td.n { width: 50%; }
-  }
   /* ── 窄屏：回本阶梯（.rb-tbl，5 列）→ 卡片（2026-10-09 加）
      ⚠ 2026-10-16：这一条原本同时管 .est-tbl（「场外当日预估 · 逐只拆解」）✓ —— 该模块整体下线后
        只留 .rb-tbl 这一半 ✓（`.c-lb` / `.e-mid` / `.e-nm` 等随之只剩这边在用）。
-     与 .dca-tbl 同构、与 .chk-tbl 同源（隐表头 → 行块化 → 数字列两列一行 + 预埋列名）✓
+     与 .chk-tbl 同源（隐表头 → 行块化 → 数字列两列一行 + 预埋列名）✓（原先还有一张 .dca-tbl 与它同构，2026-10-16 随「场外定投 · 操作记录」模块一起删除 ✓）
      ⚠ 这张表的数字列**桌面是右对齐**（.rb-tbl td.num），卡片模式下必须改左对齐 ——
        否则每格里"标签在左、数字被推到格子最右"会散架 ✗ */
   table.rb-tbl .c-lb { display: none; }
@@ -914,37 +882,13 @@
     /* 回本阶梯的「首列」是档位（0%（回本）/ +20%…）：它是这一格的**标题**，不加列名、整行占满 ✓ */
     table.rb-tbl tr.rb-more td { padding: 6px 0 0; color: var(--tx3); }
   }
+  /* 档位小胶囊：⚠ 类名里的 `dca-`（定投）是**历史** —— 它最早给「场外定投 · 操作记录」用，
+     那个模块 2026-10-16 删了 ✓，但现在由「场外净值水位」的档位胶囊（renderOtcLevel）与
+     demo/trace-demo.html 复用 → **改名会波及 demo，故保留类名**，只在此处注明实际用途 ✓ */
   .dca-chip { font-size: 9px; border-radius: 999px; padding: 0 5px; margin-left: 5px; border: 1px solid var(--line); color: var(--tx3); white-space: nowrap; }
   .dca-chip.ok { color: var(--green); }
   .dca-chip.warn { color: var(--warn); }
   .dca-chip.bad { color: var(--red); }
-  .dca-anom { margin-top: 9px; font-size: var(--fs-xs); color: var(--tx3); }
-  .dca-anom ul { margin: 3px 0 0; padding: 0; }
-  .dca-anom li { list-style: none; padding: 2px 0; font-family: var(--mono); font-size: 10px; }
-  .dca-funds { margin-top: 9px; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
-  .dca-funds > details { border-bottom: 1px dashed var(--line-soft); }
-  .dca-funds > details:last-child { border-bottom: none; }
-  .dca-funds > details > summary { cursor: pointer; font-size: var(--fs-xs); padding: 5px 0; color: var(--tx2); list-style: none; }
-  .dca-funds > details > summary::-webkit-details-marker { display: none; }
-  .dca-funds > details > summary::before { content: "▸ "; color: var(--tx3); }
-  .dca-funds > details[open] > summary::before { content: "▾ "; }
-  .dca-list { margin: 2px 0 6px; padding: 0; }
-  .dca-list li { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 10px; padding: 2px 0 2px 12px; color: var(--tx3); }
-  /* 备注与限购退回（2026-10-12 加）：这一行本来就有 6 列，再塞两列在 380px 下必然挤成一团 ✗
-     → 让它们**换行**到第二行（flex-wrap ✓）；备注给整行宽、限购信息留在首行末尾 ✓ */
-  .dca-list li .d-req { color: var(--warn); white-space: nowrap; }
-  .dca-list li .d-note { flex: 1 0 100%; color: var(--tx3); font-style: italic; }
-  .dca-list li .d-a { flex: 1; color: var(--tx2); }
-  .dca-list li .d-m { color: var(--tx2); }
-  .dca-list li .d-s { color: var(--warn); }
-  /* 逐笔盈亏（2026-10-04 加）：明细每行末两栏 —— 当日净值 / 该笔至今盈亏 */
-  .dca-list li .d-nav { color: var(--tx3); min-width: 52px; text-align: right; }
-  .dca-list li .d-pl { min-width: 52px; text-align: right; }
-  .dca-sec { margin-top: 10px; padding-top: 7px; border-top: 1px dashed var(--line-soft);
-    font-size: var(--fs-xs); color: var(--tx2); font-weight: 600; }
-  .dca-sec .e-th2 { font-weight: 400; color: var(--tx3); font-size: var(--fs-xxs); }
-  .dca-legend { font-size: 10px; color: var(--tx3); line-height: 1.6; margin: 2px 0 4px; }
-  @media (max-width: 400px) { .dca-list li { gap: 6px; } }
 
   /* ---- 场外净值水位（2026-10-04 加；见 positions.html 里 renderOtcLevel 的注释）----
      场内有「三点水位梯」，场外一直没有 —— 本块的轨道 ＝ 该只净值的 52 周区间（左低右高），
@@ -1795,10 +1739,10 @@
   /* 数据格（含合计列）比表头再小一档 → 取 mini（9px，与 .chk-tbl 的列内小标签同档 ✓）
      ⚠ **2026-10-09（用户：「数字字体也用统一的 JetBrains」）**：这里原来是"没设 font-family"
        → 继承正文的 --sans ✗，而全页其它数字都是 var(--mono)（= "JetBrains Mono", …）✓
-       （.pl-amt / .s-val / .rb-tbl td.num / .dca-tbl .f-inv / .sd-amt … 无一例外）
+       （.pl-amt / .s-val / .rb-tbl td.num / .sd-amt … 无一例外）
        → 补上 font-family: var(--mono) ＋ tnum，与它们**同一套** ✓
        为什么连 .mx-d（期列）一起管：td 上设置即覆盖它，而日期本来也该用等宽（与 .snap-date 同口径 ✓）
-       th（列名是文字）仍走 sans ✓ —— 与 .dca-tbl / .chk-tbl / .rb-tbl 的表头一致 ✓ */
+       th（列名是文字）仍走 sans ✓ —— 与 .chk-tbl / .rb-tbl 的表头一致 ✓ */
   #snap-attr table.sa-mx td { font-size: var(--chk-fs-mini); padding: 1.5px 5px;
     font-family: var(--mono); font-feature-settings: "tnum"; }
 
@@ -1812,10 +1756,10 @@
          · **散在句子里的计数**（.cnt 的 "13 只"、"合计（8 只 · 391 笔）"）—— 标签文字，跟着散文走 ✓
      ★ 为什么可以放心大范围套 mono：--mono 栈里**只有拉丁字体**（JetBrains Mono…），
        中文会自然回退到系统 CJK 字体 → 套上去只改数字与拉丁字母，**中文外观不变** ✓
-       （这也正是本页既有做法：.pl-amt / .s-val / .rb-tbl td.num / .dca-tbl .f-inv / .xr-tbl td.num 都这么用） */
+       （这也正是本页既有做法：.pl-amt / .s-val / .rb-tbl td.num / .xr-tbl td.num 都这么用） */
   .alt-row .alt-name i,
   .row1 .from i,
-  .otc-note b, .otc-note code, .dca-legend b,
+  .otc-note b, .otc-note code,
   .lvl-row .lvl-hd .dca-chip,
   .log-list .swing-hint .up, .log-list .swing-hint .down,
   .log-list .log-note,
@@ -1839,3 +1783,4 @@
   #snap-attr .sd-row { font-size: var(--chk-fs-mini); padding: 1px 0; }
   #snap-attr .sd-hint { font-size: var(--chk-fs-mini); }
   #snap-attr .sd-nm { flex-basis: 104px; }
+

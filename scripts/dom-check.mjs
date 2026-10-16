@@ -253,37 +253,6 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
     /券商 App/.test(dayTip) && /日收益/.test(dayTip), dayTip.slice(0, 110));
 }
 
-/* ③e 场外定投 · 操作记录（2026-10-04 加）：① 体检表覆盖全部场外基金 ② 逐笔明细的笔数 = OTC_LOG 总笔数
-   （在 391 行里漏一只基金、漏一批笔，肉眼根本看不出来 —— 只能这样数） */
-{
-  const tbl = win.document.querySelector("#otclog-card table.dca-tbl");
-  const bodyRows = tbl ? [...tbl.querySelectorAll("tbody tr")] : [];
-  const OCL = (() => {
-    const c = vm.createContext({});
-    vm.runInContext(dataSrc.match(/^const OTC_LOG = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC_LOG;", c, { timeout: 500 });
-    return c.o;
-  })();
-  const nFunds = OC.funds.length;
-  check("场外体检表 = " + nFunds + " 只 + 合计 1 行", bodyRows.length === nFunds + 1, "表内 " + bodyRows.length + " 行");
-  const logTotal = OC.funds.reduce((a, f) => a + ((OCL[f.code] || []).length), 0);
-  const listed = [...win.document.querySelectorAll("#otclog-card .dca-list li")].length;
-  check("逐笔明细笔数 = OTC_LOG 总笔数 " + logTotal, listed === logTotal, "明细里 " + listed + " 行");
-  /* 静默天数的基准日必须是场外快照日（用系统「今天」会让这张表每天自己变形） */
-  const note = win.document.querySelector("#otclog-card .otc-note");
-  check("体检表口径注写明基准日 " + OC.updated, !!note && note.textContent.indexOf(OC.updated) >= 0);
-  /* 用户要求：定投中的行要标出**当前定投额** —— 漏了就是个静默的体验回退（标签只剩状态）
-     ⚠ 2026-10-08 修正：原来还要求 liveChips.length > 0，那是把"录入那一天恰好有定投中的行"
-       当成了不变的真理 ✗ —— 场外定投自 08-30 起改为手动申购、末笔多在 09-29/30；
-       过国庆长假（7 天）后「静默 ≤7 天」的行**必然为 0**，门禁会在这种**正常状态**下报红
-       （本次录 10-08 数据时正是被它拦下的）。改为只要求"有则必须标出当前额" ✓
-       —— 那才是用户当初要防的回退点；并把 0 行的情况写进消息，不让它变成静默的假绿 ✓ */
-  const liveChips = [...win.document.querySelectorAll("#otclog-card .dca-chip.ok")];
-  check("定投中的行都标了当前定投额（" + liveChips.length + " 行）",
-    liveChips.every((el) => /元\/笔/.test(el.textContent)),
-    liveChips.length ? liveChips.map((el) => el.textContent.trim()).join(" / ")
-      : "当前没有「定投中」的行（末笔静默已 >7 天）—— 断言只要求「有则标出」");
-}
-
 /* ③f 场外净值水位（2026-10-04 加）：① 8 只一场不落 ② 现价标记的位置必须等于独立复算的区间位置
    —— 标记错位属于「数字对、图本身错」那类 bug，只有把 style.left 与数据复算一遍才抓得到 */
 {
@@ -299,26 +268,6 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
     if (!(Math.abs(has - want) <= 0.2)) bad.push(f.code + " 标记 " + has + "% vs 复算 " + want.toFixed(1) + "%");
   });
   check("水位标记 = 独立复算的区间位置（±0.2pp）", bad.length === 0, bad.join("；"));
-}
-
-/* ③g 场外逐笔盈亏（2026-10-04 加）：① 「定投 vs 一次性」表 = 有净值的只数 + 合计
-   ② 逐笔明细里带净值的行数 = 独立复算的「成功且非赎回、且 OTC_BUYNAV 覆盖该日期」的笔数
-   —— 查表漏一笔，那一笔的盈亏就静默消失，在 391 行里肉眼看不出来 */
-{
-  const card = win.document.querySelector("#otclog-card");
-  const tbls = card ? [...card.querySelectorAll("table.dca-tbl")] : [];
-  const rows = tbls[1] ? [...tbls[1].querySelectorAll("tbody tr")] : [];
-  const nPx = OC.funds.filter((f) => f.nav && Number.isFinite(f.nav.close)).length;
-  check("「定投 vs 一次性」表 = " + nPx + " 只 + 合计 1 行", rows.length === nPx + 1, "表内 " + rows.length + " 行");
-  const OBN = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC_BUYNAV = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC_BUYNAV;", c, { timeout: 500 }); return c.o; })();
-  const OCL2 = (() => { const c = vm.createContext({}); vm.runInContext(dataSrc.match(/^const OTC_LOG = \{[\s\S]*?^\};/m)[0] + "\nthis.o = OTC_LOG;", c, { timeout: 500 }); return c.o; })();
-  let expect = 0;
-  OC.funds.forEach((f) => {
-    const bn = OBN[f.code] || {};
-    (OCL2[f.code] || []).forEach((t) => { if (t.status === "成功" && !/赎回/.test(String(t.act)) && bn[t.d]) expect++; });
-  });
-  const listed = [...win.document.querySelectorAll("#otclog-card .dca-list li .d-nav")].filter((el) => el.textContent.trim() !== "—").length;
-  check("逐笔明细带净值的行数 = 独立复算 " + expect + " 笔", listed === expect, "明细里 " + listed + " 行");
 }
 
 /* ③h 盈亏全程三条线（2026-10-04 加）：① chip 标签 ② 三个序列都在
@@ -2086,28 +2035,6 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     chkFold ? "open=" + chkFold.open + " · 行数 " + chkFold.querySelectorAll("tbody tr").length : "体检表没有包成 details.chk-fold ✗");
 }
 
-/* ⑤b 场外明细的「备注 / 限购退回」（2026-10-12 加）────────────────────────────────
-   数据早就有（OTC_LOG 的 note / req / refund ✓），此前页面上看不见 ✗ —— 于是两件最常被追问的
-   事答不上来：「这笔几点成交 / 走哪家银行 / 为什么失败」「限购下计划投 1,000、实际成交 100、退回 900」。
-   断言口径是**逐笔逐值**：页面渲染出的备注条数 ≡ 数据里有 note 的笔数 ✓、限购条数 ≡ 有 req 的笔数 ✓
-   （抄漏一笔、或忘渲染某一类都会当场红 ✗），再抽一条失败原因要求真的印出来 ✓。 */
-{
-  const OTC_LOG_D = (() => { try { const c = vm.createContext({}); vm.runInContext(dataSrc + "\nthis.o = OTC_LOG;", c, { timeout: 800 }); return c.o; } catch (e) { return null; } })();
-  const logBox = win.document.getElementById("otclog-card");
-  const flat = OTC_LOG_D ? Object.keys(OTC_LOG_D).map((k) => OTC_LOG_D[k]).filter(Array.isArray).flat() : [];
-  const wantNote = flat.filter((t) => t && t.note).length;
-  const wantReq = flat.filter((t) => t && Number.isFinite(t.req)).length;
-  const gotNote = logBox ? logBox.querySelectorAll(".d-note").length : 0;
-  const gotReq = logBox ? logBox.querySelectorAll(".d-req").length : 0;
-  check("场外明细：对账单备注逐笔显示（" + gotNote + " / " + wantNote + " 条）",
-    wantNote > 0 && gotNote === wantNote, "数据 " + wantNote + " 条 · 页面 " + gotNote + " 条（逐笔对齐 ✓ 差一条即失败 ✗）");
-  check("场外明细：限购「计划 / 退回」逐笔显示（" + gotReq + " / " + wantReq + " 条）",
-    wantReq > 0 && gotReq === wantReq, "数据 " + wantReq + " 条 · 页面 " + gotReq + " 条");
-  const ltxt = logBox ? logBox.textContent : "";
-  check("场外明细：失败/撤单笔写明原因（页面上能看到「银行卡限额失败」）",
-    /银行卡限额失败/.test(ltxt) && /退回 900/.test(ltxt), /银行卡限额失败/.test(ltxt) ? "备注与退回都在 ✓" : "页面没出现失败原因 ✗");
-}
-
 /* ⑥ 决策看板 index.html（2026-10-12 第二批加）─────────────────────────────────────
    为什么现在补：它是**主决策出口** ✓，此前却是四页里唯一**零渲染断言**的一页 ✗ ——
    check-data 只验文件里的数据自洽、cross-check 只验跨文件同源，都看不见「渲染出来的数」✗
@@ -2197,4 +2124,5 @@ if (VERBOSE) console.log("\n读数条原文：" + readText);
 console.log("\nDOM 校验：" + (checks.length - failed) + "/" + checks.length + " 通过（快照 " + latest.d + " · 总资产 " + money(snapTotal) + " · 快照现金 " + money(snapCash) + " · 页面在用现金 " + otcCash + "）");
 dom.window.close();
 process.exit(failed ? 1 : 0);
+
 

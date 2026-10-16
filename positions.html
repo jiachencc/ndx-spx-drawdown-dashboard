@@ -57,7 +57,6 @@ try {
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-otclvl">水位</a>
-    <a class="sec-nav-link" href="#sec-otclog">场外</a>
     <a class="sec-nav-link" href="#sec-tools">工具</a>
     <a class="sec-nav-link" href="#sec-closed">清仓</a>
   </nav>
@@ -139,15 +138,6 @@ try {
   <div class="card" id="checkup-card"></div>
 
 
-  <!-- 场外定投 · 操作记录（2026-10-04 建）：用户问「场内那块能不能给场外也做一个、有必要吗」。
-       结论：能做（数据全在 OTC_LOG 里，391 笔，含 status —— 场内那 57 笔反而没有 status），
-       但**不照搬外形** —— 场内 57 笔每笔都有 note（对账单核对过程，研究性质），
-       而场外 391 笔里 100 元 × 240 笔 ＝ 61% 是金额完全相同的机械定投，照搬成「一笔一行」是流水账。
-       故本块只保留场内那块没有、而场外最要紧的三样：定投体检（静默天数 + 状态档）、
-       异常笔（撤单/失败/部分成功）、391 笔的可折叠明细（按基金分组的原生 <details>）。
-       投入 / 收益 / XIRR / TWR 不重复 —— 已在「本金与收益」卡（场内场外 13 只并列）。
-       位置：紧接场内那组（持仓 → 体检）之后，作为「场外」独立一组。
-       数据：全部来自已有 OTC_LOG，无新增抓取（下一步的「逐笔盈亏」需先存净值历史，见函数注释）。 -->
   <!-- 场外净值水位（2026-10-04 建）：用户问「场外持仓下一步能做什么」，我提了 ① 主题暴露 ② 同标的费率
        ③ 52 周位置 —— **查完发现 ①② 页面上其实已经都有了**：① 就是顶部「组合占比」配置图（renderAlloc
        按主题聚合、场内场外合并、tooltip 列出成员：纳指 39.7% / 标普 31.2% / 中韩 13.5%…）；
@@ -160,8 +150,6 @@ try {
   <h2 class="sec-title" id="sec-otclvl"><span aria-hidden="true">🌊</span> 场外净值水位 <span class="cnt" id="otc-lvl-cnt"></span></h2>
   <div class="card" id="otc-lvl-card"></div>
 
-  <h2 class="sec-title" id="sec-otclog"><span aria-hidden="true">🌐</span> 场外定投 · 操作记录 <span class="cnt" id="otclog-cnt"></span></h2>
-  <div class="card" id="otclog-card"></div>
 
   <!-- 「工具」（2026-09-30 合并）：① 标的替换回测 —— 差额来自溢价（波动、**不可控**）；
        ② 费率体检 —— 差额来自费率（确定、**可改**）。两块放一起读，才分得清「哪部分该动手、哪部分只能认」。
@@ -702,199 +690,6 @@ function implOtcRows() {
   });
 }
 
-/* ---- 场外定投 · 操作记录（2026-10-04 加）--------------------------------------------
- * 用户问「场内那块能不能给场外也做一个、有必要吗」。能做（数据全在 OTC_LOG：391 笔，含 status），
- * 但**不照搬外形** —— 场内 57 笔每笔都有 note（对账单的核对过程，研究性质）；
- * 场外 391 笔里 100 元 × 240 笔 ＝ 61% 是金额完全相同的机械定投 → 照搬成「一笔一行」是流水账 ✗。
- * 故本块只保留场内那块**没有**、而场外**最要紧**的三样：
- *   ① 静默天数：距最后一笔「成功」多少天 —— 「定投断了没有」此前只藏在 OTC_LOG 里，页面上看不见
- *      （实测：广发全球精选已停 79 天、中欧 41 天、博时 47 天，而仍在投的 4 只都是正的）
- *   ② 异常笔：撤单 / 失败 / 部分成功（场外有 status，场内反倒没有）
- *   ③ 逐笔明细：391 笔按基金分组的原生 <details>（默认收起，展开是零 JS 的浏览器行为）
- * 不重复的：投入 / 收益 / XIRR / TWR 已在「本金与收益」卡（场内场外 13 只并列）——
- *   此处只用「已成交投入」与「App 持仓收益」两栏做静默天数的上下文（口径差异见块末注释）。
- * ⚠ 基准日取 OTC.updated（场外快照日），**不用系统今天** —— 本页的日期纪律是「每个数字都要能指出
- *   它是哪天的」，用一个每天都在变的"今天"，这张表明天就会自己变形。
- * ④ 逐笔盈亏 / 定投 vs 一次性（2026-10-04 加）：每笔「申购日净值 → 今日净值」→ 逐笔盈亏，
- *    外加「同一笔钱：分批买 vs 首笔日一次性买」的对比表。
- *    实现：refresh-otc.mjs 原本就在抓近 52 周逐日净值，却只拿去算 hi/lo 就扔 ✗ →
- *    现在落成 **OTC_BUYNAV** 生成块（该脚本 --write 时整块重写），页面按日期查表，零新增请求。
- * ⚠ 与 App 的差额（申购费 ＋ 在途）**并排显示、不覆盖** —— 本页规矩是两套口径各自可追溯。 */
-function renderOtcLog() {
-  const box = $("otclog-card"), cnt = $("otclog-cnt");
-  if (!box) return;
-  if (typeof OTC_LOG === "undefined" || !OTC_LOG) {
-    box.innerHTML = '<div class="otc-note">未启用：positions-data.js 里没有 <b>OTC_LOG</b>。</div>';
-    if (cnt) cnt.textContent = "";
-    return;
-  }
-  const asOf = OTC.updated;                                          // 基准日＝场外快照日
-  const d5 = (d) => String(d || "").slice(5).replace("-", ".");                        // 2026-09-29 → 09-29
-  const daysTo = (d) => (d ? Math.round((Date.parse(asOf) - Date.parse(d)) / 864e5) : null);
-  /* 逐笔盈亏（2026-10-04）要用的两份输入：① 现价按 **App 口径**（市值 ÷ 份额）—— 这样逐笔盈亏之和
-     才能与 App 的「持仓收益」对照；② OTC_BUYNAV（净值为生成物，由 refresh-otc.mjs 写）。 */
-  const snapItems = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length)
-    ? ((SNAPSHOTS.filter((x) => x.items).at(-1) || {}).items || {}) : {};
-  const BN = (typeof OTC_BUYNAV === "undefined" || !OTC_BUYNAV) ? {} : OTC_BUYNAV;
-  const rows = OTC.funds.map((f) => {
-    const log = (OTC_LOG[f.code] || []).slice();
-    const ok = log.filter((t) => t.status === "成功");
-    const bad = log.filter((t) => t.status !== "成功");
-    const last = ok.map((t) => t.d).sort().pop() || null;
-    const first = log.map((t) => t.d).sort()[0] || null;
-    const inv = ok.reduce((a, t) => a + (/赎回/.test(t.act) ? -t.amt : t.amt), 0);
-    /* 当前定投额（2026-10-04 用户要求「在定投中就写上金额」）：
-       取**末尾连续同额**的定投笔，而不是历史众数 —— 实测两者常常不同：
-         华安 A/C 当前 5 元/笔（连续 4 笔），历史主流却是 100 元 ×43；
-         摩根当前 500 元/笔（连续 5 笔），历史主流 100 元 ×33；
-         广发纳指F 当前 30 元/笔（连续 6 笔），历史主流 100 元 ×51。
-       run = 该额已连续多少笔（用来证明这是"计划"，不是一次性误操作）。 */
-    const dc = ok.filter((t) => /定投/.test(t.act)).sort((a, b) => (a.d < b.d ? -1 : 1));
-    let cur = null;
-    if (dc.length) {
-      const lastD = dc[dc.length - 1];
-      let run = 1;
-      for (let i = dc.length - 2; i >= 0 && dc[i].amt === lastD.amt; i--) run++;
-      cur = { amt: lastD.amt, run, d: lastD.d };
-    }
-    /* ---- 逐笔盈亏 / 定投 vs 一次性（2026-10-04 加，依赖 OTC_BUYNAV）----------------
-       每笔：净值（该申购日或之前最近一个交易日，脚本解析并落库）→ 份额 = 金额 ÷ 净值
-             → 至今盈亏 = 份额 × 现价 − 金额（现价＝App 市值 ÷ 份额，与 App 读数同口径）。
-       ⚠ 不含申购费（费率只散在个别笔的对账单里，未结构化）→ 估出的份额会比 App 略多，
-         差额正好是「费率 ＋ 在途」，所以与 App 值**并排给**、不覆盖（差额见每只折叠标题）。
-       ⚠ 「分批 vs 一次性」：假设同一笔钱在**首笔日**一次性按当日净值买入 → 今天值多少；
-         差 = 实际 − 假设，正数＝分批买得更好（只衡量择时，不含费率）。 */
-    const ins = ok.filter((t) => !/赎回/.test(String(t.act))).sort((a, b) => (a.d < b.d ? -1 : 1));
-    const bnav = BN[f.code] || {};
-    const qtyApp = (snapItems[f.code] && snapItems[f.code].qty) ? snapItems[f.code].qty : null;
-    /* 现价用**公布净值**（不是 App「市值 ÷ 份额」）—— 后者把「已扣款、未确认份额」的在途也摊进了每份，
-       会让南方那类有在途的基金每一笔都虚高（实测 +3.3%）。用净值才是"一份值多少"。
-       ⚠ 于是「实际（分批）」与 App 市值之差 = 在途 ＋ 份额差（南方那两只正是有在途的），不再虚高。 */
-    const px = (f.nav && Number.isFinite(f.nav.close)) ? f.nav.close : null;
-    let amtIn = 0, shEst = 0, pnlEst = 0, navMiss = 0, navFirst = null;
-    ins.forEach((t) => {
-      const nav = bnav[t.d];
-      if (!nav) { navMiss++; return; }                                 // 窗口外 / 生成块没覆盖 → 不计入
-      if (navFirst === null) navFirst = nav;
-      amtIn += t.amt; shEst += t.amt / nav;
-      if (px) pnlEst += t.amt / nav * px - t.amt;
-    });
-    return { f, log, ok, bad, first, last, quiet: daysTo(last), inv, cur,
-      ins, bnav, px, qtyApp, amtIn, shEst, pnlEst, navMiss, navFirst,
-      shDiff: qtyApp ? (shEst / qtyApp - 1) : null,
-      pack: px ? shEst * px : null, lump: (px && navFirst) ? amtIn / navFirst * px : null };
-  }).sort((a, b) => (b.quiet === null ? -1 : b.quiet) - (a.quiet === null ? -1 : a.quiet));   // 停得最久的排最前
-  /* 档位是我定的**提示**阈值（不是官方口径）：≤7 天 定投中 · 8~30 偏慢 · >30 已停投 */
-  const st = (q) => q === null ? { k: "无成功笔", c: "warn" }
-    : q <= 7 ? { k: "定投中", c: "ok" } : q <= 30 ? { k: "偏慢", c: "warn" } : { k: "已停投", c: "bad" };
-  const nmOf = (f) => plDisplayName(f.name);
-  let h = '<table class="dca-tbl"><thead><tr><th>基金 <span class="e-th2">· 笔数 · 末笔</span></th>'
-    + '<th class="n">已成交投入</th><th class="n">App 持仓收益</th></tr></thead><tbody>';
-  rows.forEach((r) => {
-    const s = st(r.quiet);
-    const live = s.c === "ok";                                  // 定投中
-    /* 标签：定投中 → 补上**当前定投额**（用户要求）；其余状态只报状态（停投的金额已是历史） */
-    h += '<tr><td><span class="f-nm">' + esc(nmOf(r.f)) + '</span><span class="dca-chip ' + s.c + '">' + s.k
-      + (live && r.cur ? " · " + r.cur.amt + "元/笔" : "")
-      + (!live && r.quiet !== null ? " " + r.quiet + " 天" : "") + "</span>"
-      + '<span class="f-meta">' + r.ok.length + " 笔成功" + (r.bad.length ? " · " + r.bad.length + " 笔异常" : "")
-      + " · 末笔 " + d5(r.last)
-      /* ⚠ 这里必须跟着标签走：定投中给「该额连续 N 笔」（证明它是计划），否则给「末次定投」；
-         原来写的「主流 X元×N」是历史众数，会和当前额打架（华安 5 元/笔 vs 主流 100 元×43）。 */
-      + (live && r.cur ? " · 该额连续 " + r.cur.run + " 笔"
-        : r.cur ? " · 末次定投 " + r.cur.amt + "元（" + d5(r.cur.d) + "）"
-          : " · 无定投（仅申购 / 转换）") + "</span></td>"
-      /* 2026-10-09：给数字列预埋**手机列名**（.c-lb，与 .chk-tbl 同一约定 ✓）——
-         桌面 display:none 不占位、不改观感；≤767px 表格改卡片、表头隐去，靠它认出哪个数字是什么
-         （不预埋就只是"把表头隐掉"，数字会变成一串没有名字的金额） */
-      + '<td class="n f-inv"><i class="c-lb">已成交投入</i>' + fmtYuan(r.inv) + "</td>"
-      + '<td class="n f-gain ' + cls(r.f.pnl) + '"><i class="c-lb">App 持仓收益</i>' + fmtAmt(r.f.pnl) + "</td></tr>";
-  });
-  const totInv = rows.reduce((a, r) => a + r.inv, 0), totPnl = rows.reduce((a, r) => a + r.f.pnl, 0);
-  const totN = rows.reduce((a, r) => a + r.log.length, 0);
-  h += '<tr class="sum"><td>合计（' + rows.length + " 只 · " + totN + ' 笔）</td><td class="n f-inv"><i class="c-lb">已成交投入</i>' + fmtYuan(totInv)
-    + '</td><td class="n f-gain ' + cls(totPnl) + '"><i class="c-lb">App 持仓收益</i>' + fmtAmt(totPnl) + "</td></tr></tbody></table>";
-  /* 异常笔单列：定投扣款失败/撤单往往没人注意，但它是「计划有没有按计划跑」的直接证据 */
-  const bads = [];
-  rows.forEach((r) => r.bad.forEach((t) => bads.push({ t, f: r.f })));
-  bads.sort((a, b) => (a.t.d < b.t.d ? 1 : -1));
-  if (bads.length) {
-    h += '<div class="dca-anom"><b>异常笔 ' + bads.length + ' 笔</b>（不计入投入）<ul>'
-      + bads.map((x) => "<li>" + x.t.d + "　" + esc(nmOf(x.f)) + "　" + esc(x.t.act) + " " + x.t.amt.toFixed(2)
-        + '　<span class="warn">' + esc(x.t.status) + "</span></li>").join("") + "</ul></div>";
-  }
-  /* 逐笔明细：外面再套一层 .closed-all（默认收起 —— 体检表 + 异常笔才是要一眼看到的），
-     里面一只一个原生 details（也是收起）。两层都用浏览器原生行为，零 JS。 */
-  /* ---- 定投 vs 一次性（2026-10-04 加）：同一笔钱，分批买 vs 首笔日一次性买，今天各值多少 ----
-     这一张才是"逐笔盈亏"真正想回答的问题（每笔的盈亏在下面的明细里）。 */
-  const pairRows = rows.filter((r) => r.pack !== null && r.lump !== null);
-  if (pairRows.length) {
-    const sPack = pairRows.reduce((a, r) => a + r.pack, 0), sLump = pairRows.reduce((a, r) => a + r.lump, 0);
-    h += '<div class="dca-sec">定投 vs 一次性 <span class="e-th2">（同一笔钱：分批买入 · 首笔日一次性买入 → 都按今日现价折算）</span></div>';
-    h += '<table class="dca-tbl"><thead><tr><th>基金 <span class="e-th2">· 笔数 · 首笔</span></th>'
-      + '<th class="n">实际（分批）</th><th class="n">假设（一次性）</th><th class="n">差</th></tr></thead><tbody>';
-    pairRows.forEach((r) => {
-      const d = r.pack - r.lump;
-      h += '<tr><td><span class="f-nm">' + esc(nmOf(r.f)) + "</span>"
-        + '<span class="f-meta">' + r.ins.length + " 笔 · 首笔 " + d5(r.ins[0].d) + " · 首笔净值 " + r.navFirst
-        + (r.navMiss ? " · " + r.navMiss + " 笔无净值" : "") + "</span></td>"
-        + '<td class="n f-inv"><i class="c-lb">实际（分批）</i>' + fmtYuan(r.pack) + '</td><td class="n f-inv"><i class="c-lb">假设（一次性）</i>' + fmtYuan(r.lump) + "</td>"
-        + '<td class="n ' + cls(d) + '"><i class="c-lb">差</i>' + fmtAmt(d) + "</td></tr>";
-    });
-    h += '<tr class="sum"><td>合计（' + pairRows.length + " 只）</td>"
-      + '<td class="n f-inv"><i class="c-lb">实际（分批）</i>' + fmtYuan(sPack) + '</td><td class="n f-inv"><i class="c-lb">假设（一次性）</i>' + fmtYuan(sLump) + "</td>"
-      + '<td class="n ' + cls(sPack - sLump) + '"><i class="c-lb">差</i>' + fmtAmt(sPack - sLump) + "</td></tr></tbody></table>";
-  }
-  h += '<details class="closed-all dca-wrap"><summary>逐笔明细 · ' + totN + ' 笔（按基金展开）</summary><div class="dca-funds">'
-    + '<div class="dca-legend">每行：日期 · 类型 · 金额 · <b>当日净值</b> · <b>该笔至今盈亏</b>'
-    + '（净值＝该日或之前最近一个交易日的东财单位净值；未覆盖的笔显示「—」且不计入）</div>';
-  rows.forEach((r) => {
-    h += "<details><summary>" + esc(nmOf(r.f)) + " · " + r.log.length + " 笔 · " + fmtYuan(r.inv)
-      + (r.last ? " · 末笔 " + d5(r.last) : "")
-      /* 逐笔盈亏之和 vs App 持仓收益：差 = 申购费 ＋ 在途 ＋ 份额差 —— 并排给、不覆盖 */
-      + (r.px ? " · 逐笔盈亏 " + fmtAmt(r.pnlEst) + "（App " + fmtAmt(r.f.pnl) + "）" : "")
-      /* 逐笔份额 vs App 份额：两只对到 0.00%，南方差 +3.3%（与其已知的「已扣款未入成本」同源） */
-      + (r.shDiff !== null ? " · 份额 " + fmtPct(r.shDiff, 2) + " vs App" : "")
-      + '</summary><ol class="dca-list">'
-      + r.log.slice().sort((a, b) => (a.d < b.d ? 1 : -1)).map((t) => "<li>"
-        + '<span class="d-d">' + d5(t.d) + '</span><span class="d-a">' + esc(t.act) + "</span>"
-        + '<span class="d-m">' + t.amt.toFixed(2) + "</span>"
-        /* ⚠ 必须并上「成功」：撤单 / 失败的笔若其日期恰好与别的成功笔相同（BN 按日期存，会命中），
-           不判状态就会给一笔**已撤单的钱**算出盈亏 ✗（2026-10-04 dom-check 数出来 388 vs 385 才发现的）。 */
-        + '<span class="d-nav">' + (t.status === "成功" && r.bnav[t.d] ? r.bnav[t.d] : "—") + "</span>"
-        + (r.px && t.status === "成功" && r.bnav[t.d] ? '<span class="d-pl ' + cls(t.amt / r.bnav[t.d] * r.px - t.amt) + '">'
-          + fmtAmt2(t.amt / r.bnav[t.d] * r.px - t.amt) + "</span>" : "")
-        + (t.status === "成功" ? "" : '<span class="d-s">' + esc(t.status) + "</span>")
-        /* 对账单的「备注」与「限购退回」（2026-10-12 补）：数据一直都在（OTC_LOG 的 note / req / refund ✓），
-           只是此前只输出日期/类型/金额/净值/盈亏/状态 —— 于是两件最常被追问的事看不见：
-             · 这笔**几点成交、走哪家银行、为什么失败**（note，如「14:13 银行卡限额失败」「截图：14:51:48 招商银行」）
-             · 限购下**计划投多少、实际成交多少、退回多少**（req / refund，如 计划 1,000 → 成交 100 → 退回 900）
-           备注挂在 title 上给全文，行内按 380px 排版另起一行（见 .dca-list li .d-note） */
-        + (Number.isFinite(t.req) ? '<span class="d-req" title="限购：计划投入 ' + fmtAbs2(t.req) + " 元 · 实际成交 " + fmtAbs2(t.amt)
-          + " 元" + (Number.isFinite(t.refund) ? " · 退回 " + fmtAbs2(t.refund) + " 元" : "") + '">计划 ' + fmtAbs2(t.req)
-          + (Number.isFinite(t.refund) ? " · 退回 " + fmtAbs2(t.refund) : "") + "</span>" : "")
-        + (t.note ? '<span class="d-note" title="对账单备注：' + esc(t.note) + '">' + esc(t.note) + "</span>" : "")
-        + "</li>").join("")
-      + "</ol></details>";
-  });
-  h += "</div></details>";
-  /* 口径长文（2026-10-12 裁剪）：**给用户看的只留结论** ✓ ——
-     原先 1,300 字把「口径来源 / 静默定义 / 定投额取法 / 逐笔盈亏方法 / 方法验证 / 定投vs一次性 / 不含申购费」
-     七段全摊在卡底 ✗（其中"方法验证 0.00%""历史众数对比"属**自证与台账**，用户不需要 ✗）
-     → 可见部分压到 ≈150 字（结论）；推导、验证、取法细节全部移进 title（悬停可得 ✓，不占屏 ✓） */
-  h += '<div class="otc-note" title="' + esc(
-      "逐笔盈亏：净值 ＝ 该笔申购日或之前最近一个交易日的东财单位净值（近 52 周）；"
-      + "现价取最近公布净值，而非「App 市值 ÷ 份额」—— 后者把在途摊进每份，会让有在途的那几只每笔都虚高。"
-      + "「定投 vs 一次性」用同一套净值做相对对比（系统性偏差相互抵消），故只衡量择时、不含费率（费率见「工具 · 费率体检」）。"
-      + "「当前定投额」取末尾连续同额、不是历史众数（华安 A/C 当前 5 元/笔、历史主流 100 元×43；摩根当前 500 元/笔、主流 100 元×33），只对定投中的行标注。"
-    ) + '"><b>口径</b>：数据取自 App 的场外交易记录（<b>OTC_LOG</b>，' + totN + " 笔），无新增抓取。"
-    + "<b>静默</b>＝距最后一笔<b>成功</b>多少天，基准日为场外快照日 " + asOf + "（不是系统今天）；档位 ≤7 定投中 · 8~30 偏慢 · &gt;30 已停投，只作提醒。"
-    + "已成交投入 ＝ Σ「成功」笔金额（赎回 / 转换出作扣减）、<b>不含在途</b> —— 与「本金与收益」卡的「投入」差一个在途，两处口径不同是有意的。"
-    + "逐笔盈亏（每行末两栏）可与 App 持仓收益对照：差额 ＝ 申购费 ＋ 在途 ＋ 精度，两者并排给出、不互相覆盖。</div>";
-  box.innerHTML = h;
-  if (cnt) cnt.textContent = "（" + rows.length + " 只 · " + totN + " 笔 · 截至 " + d5(asOf) + "）";
-}
-
 /* ---- 场外净值水位（2026-10-04 加）------------------------------------------------------
  * 场内有「三点水位梯」（成本 / 现价 / 52 周最高），**场外 8 只一直没有** —— 本块补上，
  * 并多做一样场内没有的：轨道两端用上 nav.lo（52 周最低），于是两个点同时可读：
@@ -1147,7 +942,7 @@ function renderImpl() {
     otcA: "场外累计浮盈亏（**在持**口径，不含已兑现）＝ Σ八只 App「持仓成本」口径（各平台截图读数）：与逐笔流水（Σ「成功」笔）的差额共 ",
     otcB: "（已扣款、**尚未并入 App 成本** ✓ —— 副标那行「未并入成本」就是它 ✓）。"
       + "⚠ 与紧随其后的「市值里另有在途」**不是一个数** ✗（2026-10-13 点名，此前两个概念同名难分）："
-      + "上面那个＝还没进成本 ✗；下面那个＝**已进市值、只是还没变成份额** ✗（申购在途 / 个别待确认笔所致，逐笔见「场外定投与操作记录」卡）。⚠ 市值里另有在途 ",
+      + "上面那个＝还没进成本 ✗；下面那个＝**已进市值、只是还没变成份额** ✗（申购在途 / 个别待确认笔所致；逐笔含状态与在途笔的原始台账在 positions-data.js 的 OTC_LOG，2026-10-16 起页面不再单开一卡展示）。⚠ 市值里另有在途 ",
     otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
     day: "口径：**全部实际读数，不含任何估算** ✓（2026-10-13 用户决定：「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓）。"
       + "合计 ＝ 那一期快照的 day（落期时按券商 App 的当日总盈亏实读 ✓）；场外 ＝ 各平台 App「日收益」中**与快照同日**的那些之和 ✓；"
@@ -1242,7 +1037,6 @@ function renderImpl() {
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
   renderOtcLevel();          // 场外净值水位（52 周区间 + 成本点）
-  renderOtcLog();            // 场外定投 · 操作记录（391 笔体检 + 异常笔 + 可折叠明细）
   /* ===== 盈亏总览（左亏右盈发散条，按金额排序） ===== */
   const plRows = [];
   /* 场内行也带报价日徽章（对齐场外行的同步徽章）——否则单看一条盈亏无从判断是哪天的 */
@@ -7742,4 +7536,5 @@ bindTrendCrosshair();
 </script>
 </body>
 </html>
+
 
