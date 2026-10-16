@@ -270,6 +270,62 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
   check("水位标记 = 独立复算的区间位置（±0.2pp）", bad.length === 0, bad.join("；"));
 }
 
+/* ③f-2 场内「成本位置条」的编码（2026-10-16 加，起因是一次实测 —— 详见 positions.html 的 sz 注释）：
+   ① **绿点直径的分辨率**：原 base(5)+range(3)×份数/maxQ → 三只实测极差只有 2.4~2.9px，
+      「哪笔买得多」等于没画出来 ✗（改按 √金额 ＋ range 7 → 3.7~6.0px ✓）。
+      ⚠ 这条锁的正是「这个编码有没有分辨率」—— 改回线性映射、或把 range 调小，都会在这里报 ✗。
+   ② 轴上 3 条四分位刻度（轴就是「52周分位」，而那个数页面上到处在用，条上原先没有参照 ✗）。
+   ③ 两个游标**形状不同**（成本＝圆 · 现价＝竖线）—— 只靠颜色 +2px 直径，色盲/强光下会退化成两个圆 ✗。
+   ④ 图例**按需**渲染：没有卖出点就不该出现「卖出」项（三只在持标的当前卖出均为 0，摆着是死项 ✗）。
+   期望值一律由 data.js 的 POSITIONS.log 独立复算（不读页面中间量 ✓）。 */
+{
+  const POS2 = (() => {
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const POSITIONS = \{[\s\S]*?^\};/m);
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = POSITIONS;", c, { timeout: 500 }); return c.o;
+  })();
+  const holds = (POS2 && POS2.hold) || [], log = (POS2 && POS2.log) || [];
+  const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+  const buysOf = (sym) => log.filter((e) => e.sym === sym && e.cost !== undefined && !isSell(e));
+  const sellsOf = (sym) => log.filter((e) => e.sym === sym && e.cost !== undefined && isSell(e));
+  const cards = [...win.document.querySelectorAll("#pos-list > article")];
+  check("场内持仓卡 " + holds.length + " 张", cards.length === holds.length, "页面 " + cards.length + " 张");
+  const thin = [], tickBad = [], shapeBad = [], legendBad = [];
+  /* 绿点直径的最小可辨极差：抽成常量，免得**断言名与阈值各写一个数**（这种漂移本文件里出现过 ✗） */
+  const MIN_DOT_SPAN = 3.5;
+  cards.forEach((card, ci) => {
+    const sym = (holds[ci] || {}).sym || "(第 " + (ci + 1) + " 张)";
+    const buys = buysOf(sym), sells = sellsOf(sym);
+    const dots = [...card.querySelectorAll(".buy-mark b")].map((b) => parseFloat(b.style.width)).filter((x) => Number.isFinite(x));
+    const amts = buys.map((e) => Math.abs(e.qty) * (e.cost || 0));
+    const span = amts.length ? Math.max.apply(null, amts) / Math.max(1, Math.min.apply(null, amts)) : 0;
+    if (dots.length >= 2 && span >= 3) {
+      const range = Math.max.apply(null, dots) - Math.min.apply(null, dots);
+      /* MIN_DOT_SPAN：√ 映射本身就是压平的（极差不可能无限大），实测三只为 3.7 / 4.2 / 6.0px —
+         3.5 是「人眼在 8~12px 尺度上还能分辨」的下限 ✓，也是「编码塌掉」的分界（改回线性映射会掉到 2.4~2.9 ✗）。 */
+      if (range < MIN_DOT_SPAN) thin.push(sym + " 直径极差仅 " + range.toFixed(1) + "px（" + Math.min.apply(null, dots) + "~" + Math.max.apply(null, dots) + "px）");
+    }
+    if (card.querySelectorAll(".bar-tick").length !== 3) tickBad.push(sym + " " + card.querySelectorAll(".bar-tick").length + " 条");
+    /* ⚠ 形状用 **getComputedStyle** 读，不能用 getBoundingClientRect —— 本文件跑在 jsdom 里，
+       没有布局引擎，rect 恒为 0×0 ✗（2026-10-16 首次写这条时正是这样误报了三张卡）。
+       jsdom 的 getComputedStyle 能解析样式表里的 width/height/border-radius ✓（实测确认）。 */
+    const co = card.querySelector(".bar-marker.cost"), nw = card.querySelector(".bar-marker.now");
+    if (co && nw) {
+      const a = win.getComputedStyle(co), b = win.getComputedStyle(nw);
+      const aw = parseFloat(a.width), ah = parseFloat(a.height), bw = parseFloat(b.width), bh = parseFloat(b.height);
+      if (!(Math.abs(aw - ah) < 1.5 && /50%/.test(a.borderRadius)) || !(bh > bw * 3))
+        shapeBad.push(sym + "（成本 " + aw + "×" + ah + " 圆角 " + a.borderRadius + " · 现价 " + bw + "×" + bh + "）");
+    }
+    const lgN = card.querySelectorAll(".bar-legend > span").length;
+    const wantLg = 1 + (buys.length ? 1 : 0) + (sells.length ? 1 : 0);
+    if (lgN !== wantLg) legendBad.push(sym + " 图例 " + lgN + " 项（应 " + wantLg + "：区间" + (buys.length ? "＋买入" : "") + (sells.length ? "＋卖出" : "") + "）");
+  });
+  check("场内位置条：绿点直径极差 ≥ " + MIN_DOT_SPAN + "px（金额编码真的有分辨率）", thin.length === 0, thin.join("；") || "各卡极差都够 ✓");
+  check("场内位置条：每张卡 3 条四分位刻度（25/50/75%）", tickBad.length === 0, tickBad.join("；") || "全部 ✓");
+  check("场内位置条：成本＝圆 · 现价＝竖线（形状可区分，不只靠颜色）", shapeBad.length === 0, shapeBad.join("；") || "形状区分 ✓");
+  check("场内位置条：图例按需渲染（无卖出点则不出现「卖出」）", legendBad.length === 0, legendBad.join("；") || "图例项 ≡ 数据 ✓");
+}
+
 /* ③h 盈亏全程三条线（2026-10-04 加）：① chip 标签 ② 三个序列都在
    ③ **合计末值 = 独立复算**（ACCT_STATS.monthly ＋ 财务页 FIN_PL 的 5 个 fund 渠道）——
       这条最关键：数据跨文件（还跨页引用 finance-data.js），抄错 / 读错不会报错，只会画出一条似是而非的线 */

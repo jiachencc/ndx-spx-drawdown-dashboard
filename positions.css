@@ -738,6 +738,8 @@
   .lad-line .lad-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
   .lad-line .lad-item b { color: var(--tx); font-weight: 700; }
   .lad-line .lad-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; box-shadow: 0 0 0 3px var(--card); }
+  /* 现价那枚改成**竖线**（2026-10-16）：与条上游标的形状语言一致（成本＝圆 · 现价＝竖线）✓ */
+  .lad-line .lad-dot.lad-bar { width: 3px; height: 11px; border-radius: 2px; }
   .lad-name { font-size: var(--fs-xs); color: var(--tx3); flex: none; }
   .lad-val { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; }
   /* 关系链（2026-09-23）：三档由「并列罗列」改为按值排序的链 —— 跨度直接写在相邻两项之间，
@@ -774,6 +776,9 @@
   /* 胶囊轨道 + 内阴影质感（"轨道"而不是"色块"，配合游标 marker 读位置） */
   .bar-track { position: relative; height: 12px; border-radius: 999px; background: var(--line-soft); box-shadow: var(--shadow-inset); }
   .bar-track .seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; pointer-events: none; overflow: hidden; }
+  /* 四分位刻度（2026-10-16 加）：轴就是「52周分位」，25/50/75% 三档给它参照 ——
+     极淡（--tx3 的 45%）、不抢区间带与游标；写在 seg 之前，故压在它们之下 ✓ */
+  .bar-track .bar-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--tx3); opacity: .45; pointer-events: none; }
   /* 斜纹填充：盈亏区间有质感，且与纯色游标区分开 */
   .bar-track .seg.gain { background: repeating-linear-gradient(135deg, var(--up-fill) 0 4px, var(--up-bg) 4px 9px); }
   .bar-track .seg.loss { background: repeating-linear-gradient(135deg, var(--down-fill) 0 4px, var(--down-bg) 4px 9px); }
@@ -784,7 +789,10 @@
   .bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: none; padding: 0; margin: 0; cursor: pointer; }
   .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 0 2px var(--card), 0 0 9px var(--info-fill); }
   .bar-end { position: absolute; right: -2px; top: 50%; transform: translateY(-50%); width: 6px; height: 18px; border-radius: 3px; background: var(--yellow); box-shadow: 0 0 9px var(--warn-solid); }
-  .bar-marker.now { width: 14px; height: 14px; background: var(--tx); box-shadow: 0 0 0 2px var(--card), 0 0 12px var(--tx-glow2); }
+  /* 现价游标：**竖线**（2026-10-16 改）—— 原先与成本位同为圆点、只差颜色与 2px 直径 ✗，
+     色盲 / 强光 / 小屏下会退化成两个圆点；改后**形状本身**就能区分（成本＝实心青圆 · 现价＝贯穿竖线）✓。
+     20px 高 > 12px 轨道 → 上下各探出 4px，像一根"当前水位"的标尺 ✓；可点区仍走下面的 ::after（26×32）✓ */
+  .bar-marker.now { width: 3px; height: 20px; border-radius: 2px; background: var(--tx); box-shadow: 0 0 0 1px var(--card), 0 0 10px var(--tx-glow2); }
   .bar-marker.now::after, .bar-marker.cost::after { content: ""; position: absolute; left: -7px; top: -10px; width: 26px; height: 32px; }   /* 可点区从 26×42 缩到 26×32：上一版向上溢出 15px 刚好压在 .buy-layer 买点标记上，手机误触会先弹现价浮层 */
   .idx-pop {
     position: absolute; bottom: 18px; z-index: 50; width: max-content; max-width: 250px;
@@ -830,7 +838,13 @@
   .bar-track.pops { cursor: pointer; touch-action: manipulation; }
   .bar-track.pops::before { content: ""; position: absolute; inset: -7px 0; }
   button.bar-marker { pointer-events: none; }
-  .buy-mark b { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--up-fill); }
+  /* 买入点：实心圆 ＋ 竖线（同色，合起来像"图钉"）；**颜色深浅 ＝ 时间**（2026-10-16 改）——
+     原先时间走 element opacity（0.95 → 0.40），会把圆点、竖线、光晕**一起**压暗 ✗（最老的点在小屏上等同噪点）；
+     改后三档都是**不透明色**，复用既有语义阶梯（--up-line 30% / --up-fill 60% / --green 100%）✓，
+     竖线与光晕不再跟着变暗 ✓。档位由渲染侧按**笔序三分位**给（.t-old/.t-mid/.t-new），少于 3 笔一律 .t-new ✓ */
+  .buy-mark b { width: 6px; height: 6px; border-radius: 50%; background: var(--up-line); }
+  .buy-mark.t-mid b { background: var(--up-fill); }
+  .buy-mark.t-new b { background: var(--green); box-shadow: 0 0 5px var(--up-fill); }
   .buy-mark.flash b { animation: buyflash .5s ease-in-out 3; }
   @keyframes buyflash { 0%, 100% { transform: scale(1); box-shadow: 0 0 5px var(--up-fill); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--up-solid); } }
   .log-item.linkable { cursor: pointer; }
@@ -840,9 +854,16 @@
   /* 渠道＋口径日期：移到第二行左端（原来与名称同行，挤占名称宽度） */
   .pl-src { font-size: var(--fs-xxs); font-weight: 400; font-family: var(--sans); color: var(--tx3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .buy-mark i { width: 1.5px; background: var(--up-line); }
-  /* 卖出标记：红空心圈（与买入绿实心对称，空心=已离场）；不堆叠，笔数少时更清爽 */
-  .sell-mark b { border-radius: 50%; background: transparent; border: 1.5px solid var(--red); box-shadow: 0 0 4px var(--down-fill); box-sizing: border-box; }
+  .buy-mark.t-mid i { background: var(--up-fill); }
+  .buy-mark.t-new i { background: var(--green); }
+  /* 卖出标记：红**空心**圈（与买入绿实心对称，空心＝已离场）；不堆叠，笔数少时更清爽。
+     颜色深浅三档与买入侧同一套规则（2026-10-16）✓ */
+  .sell-mark b { border-radius: 50%; background: transparent; border: 1.5px solid var(--down-line); box-shadow: 0 0 4px var(--down-fill); box-sizing: border-box; }
   .sell-mark i { width: 1.5px; background: var(--down-line); }
+  .sell-mark.t-mid b { border-color: var(--down-fill); }
+  .sell-mark.t-mid i { background: var(--down-fill); }
+  .sell-mark.t-new b { border-color: var(--red); box-shadow: 0 0 5px var(--down-fill); }
+  .sell-mark.t-new i { background: var(--red); }
   .sell-mark.flash b { animation: sellflash .5s ease-in-out 3; }
   @keyframes sellflash { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--down-solid); } }
   .buy-tip { position: fixed; z-index: 60; transform: translate(-50%, -100%); background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: var(--fs-xs); font-family: var(--mono); color: var(--tx); white-space: nowrap; box-shadow: var(--tip-shadow); pointer-events: none; font-feature-settings: "tnum"; }

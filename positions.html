@@ -288,10 +288,13 @@ const fmtQty = (v) => Math.trunc(v).toLocaleString("en-US", { maximumFractionDig
 const CONFIG = {
   TIER_LOW: 35,
   TIER_HIGH: 65,
-  BUY_BIN: 2.5,
-  BUY_STACK_MAX: 3,
-  BUY_DOT_BASE: 5,
-  BUY_DOT_RANGE: 3,
+  BUY_BIN: 2.5,          // 买入点分箱宽（分位点）：同箱的点往上叠，避免完全重合
+  BUY_STACK_MAX: 3,      // 叠加上限（第 4 笔起与第 3 笔重合 —— 实测同箱最多 2~3 笔，够用 ✓）
+  BUY_DOT_BASE: 5,       // 圆点最小直径 px
+  /* ⚠ 2026-10-16：3 → 7，同时编码量由**份数**改**金额的平方根**（见 renderHold 里 sz 的注释）——
+     原先 base+range×qty/maxQ → 直径只有 5~8px，实测三只的极差仅 2.4~2.9px（人类在那个尺度上分辨不出 ✗），
+     等于「哪笔买得多」这个信息没画出来 ✗。改后极差 3.7~6.0px ✓。 */
+  BUY_DOT_RANGE: 7,
   TIP_CLAMP: 40,
   PREM_WARN: 3,
   PREM_HIGH: 8,
@@ -6194,21 +6197,33 @@ function holdCardHtml(row, i, ctx) {
     ? "浮盈垫：回调 " + Math.abs(backToCost * 100).toFixed(1) + "% 以内不伤本金"
     : "当前浮亏，需涨 " + fmtPct(backToCost) + " 回本";
   costInfos[i] = { idxAtCost: p.idxAtCost, gapCost: p.idxAtCost / hi - 1, cost: p.cost, qty: p.qty, r, pl, pct, sumTxt, cushionTxt, advice };
-  /* 买入位置分布（口径统一：绿点按当日成交价 cost 落位） */
+  /* 买入位置分布（口径统一：绿点按当日成交价 cost 落位）
+     ⚠ 2026-10-16 两处改（起因：用户问「成本轴与绿点的呈现能否更好」+ 实测）：
+       ① **大小改按金额的平方根**：原先 base + range×份数/maxQ，而份数跨价位不可比
+          （1.880 买的 1,000 份 ≠ 2.038 买的 1,000 份），且实测直径极差只有 2.4~2.9px ✗
+          —— 这张图要回答的是「我在哪个价位砸了多少钱」→ 金额才是对的量 ✓，√ 是为了不让小单挤在最小值上 ✓。
+       ② **时间维度改颜色深浅三档**（.t-old / .t-mid / .t-new）：原先走 element opacity 0.95→0.40，
+          最老的点（5px、四成透明度）在 390px 屏上等同噪点 ✗；改后三档都是**不透明色**（30% / 60% / 100% 的绿），
+          「越新越重」的读法保留、可见性不再牺牲 ✓。 */
   const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
   const buys = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.cost !== undefined && !isSell(e));
-  const maxQ = Math.max.apply(null, buys.map((e) => e.qty).concat([1]));
+  const amtOf = (e) => Math.abs(e.qty) * (e.cost || 0);
+  const maxAmt = Math.max.apply(null, buys.map(amtOf).concat([1]));
   const binCnt = {};
+  /* 三档按**笔序三分位**，不按日历跨度 —— 定投密集期与空窗期的「时间感」不该由日历决定 ✓。
+     少于 3 笔时不分档（两笔还分深浅只会让人以为数据有问题 ✗）。 */
+  const buyTier = (bi) => {
+    if (buys.length < 3) return "t-new";
+    const t = bi / (buys.length - 1);
+    return t < 0.34 ? "t-old" : t < 0.67 ? "t-mid" : "t-new";
+  };
   const buyMarks = buys.map((e, bi) => {
     const pc = Math.max(0, Math.min(100, pctOf(e.cost)));
     const bin = Math.round(pc / CONFIG.BUY_BIN);
     const lvl = Math.min(binCnt[bin] || 0, CONFIG.BUY_STACK_MAX);
     binCnt[bin] = (binCnt[bin] || 0) + 1;
-    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * e.qty / maxQ).toFixed(1);
-    /* 时间衰减：越早的买入点越淡（0.95 最新 → 0.4 最早），一眼看出建仓先后 */
-    const age = buys.length > 1 ? bi / (buys.length - 1) : 0;
-    const op = (0.95 - 0.55 * age).toFixed(2);
-    return '<button type="button" class="buy-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
+    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * Math.sqrt(amtOf(e) / maxAmt)).toFixed(1);
+    return '<button type="button" class="buy-mark ' + buyTier(bi) + '" style="left:' + pc.toFixed(1) + '%"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
       /* title 与 aria-label 都写：前者鼠标悬停即见（原先只有 aria-label，读屏能读、正常人看不到），
          后者给读屏；点击仍会定位到该买入点并闪烁（flashBuyMark） */
@@ -6216,15 +6231,17 @@ function holdCardHtml(row, i, ctx) {
       ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtQty(e.qty) + ' 份">' +
       '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
   }).join("");
-  /* 卖出标记：红空心圈，位置=成交价分位，大小∝份数；与买入点同处 buy-layer（颜色区分买/卖） */
+  /* 卖出标记：红空心圈，位置=成交价分位；与买入点同处 buy-layer（**形状＋颜色**双重区分买/卖 ✓）
+     ⚠ 2026-10-16 与买入侧同步改：大小按 **√金额**（原先份数线性、极差同样只有几 px ✗）、
+       时间维度按**颜色深浅三档**（原先 opacity，与买入侧同一问题 ✗）。
+       卖出侧保留 +1px 补偿：空心圈比实心点显轻，等大时看着更小 ✓。 */
   const sells = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.cost !== undefined && isSell(e));
-  const maxQS = Math.max.apply(null, sells.map((e) => Math.abs(e.qty)).concat([1]));
+  const maxAmtS = Math.max.apply(null, sells.map(amtOf).concat([1]));
   const sellMarks = sells.map((e, si) => {
     const pc = Math.max(0, Math.min(100, pctOf(e.cost)));
-    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * Math.abs(e.qty) / maxQS + 1).toFixed(1);
-    const age = sells.length > 1 ? si / (sells.length - 1) : 0;
-    const op = (0.95 - 0.35 * age).toFixed(2);   // 时间衰减幅度小于买入，保证卖出点始终可见
-    return '<button type="button" class="sell-mark" style="left:' + pc.toFixed(1) + '%;opacity:' + op + '"' +
+    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * Math.sqrt(amtOf(e) / maxAmtS) + 1).toFixed(1);
+    const tier = sells.length < 3 ? "t-new" : (si / (sells.length - 1)) < 0.34 ? "t-old" : (si / (sells.length - 1)) < 0.67 ? "t-mid" : "t-new";
+    return '<button type="button" class="sell-mark ' + tier + '" style="left:' + pc.toFixed(1) + '%"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + Math.abs(e.qty) + '"' +
       ' title="' + e.d + ' 卖出 ' + fmtQty(Math.abs(e.qty)) + ' 份 @ ' + e.cost + ' 元"' +
       ' aria-label="' + e.d + ' 卖出 ' + e.cost + ' 元 ' + fmtQty(Math.abs(e.qty)) + ' 份">' +
@@ -6251,7 +6268,9 @@ function holdCardHtml(row, i, ctx) {
   };
   const ladNodes = [
     { v: p.idxAtCost, html: '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(3) + ' 元）"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtIdx(p.idxAtCost) + '</b></span>' },
-    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b></span>' },
+    /* ⚠ 2026-10-16：现价那枚点改**竖线**（class lad-bar）—— 与条上「成本＝圆 · 现价＝竖线」的新形状语言对齐 ✓
+       （原先三档读数里三个点都是圆点、只靠颜色区分 ✗，色盲/强光下与成本那枚难分） */
+    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot lad-bar" style="background:var(--tx)"></i>现价 <b>' + fmtIdx(m.close) + '</b></span>' },
     { v: hi, html: '<span class="lad-item" title="52 周最高' + (m.athDate ? "（" + m.athDate + "）" : "") + '"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtIdx(hi) + '</b>' + athStr + '</span>' },
   ].sort((x, y) => x.v - y.v);
   /* DCA 回撤加仓档 chip（成本口径：现价较成本每跌破一档即提示；POSITIONS.strategy.dipTiers 可覆盖 CONFIG 默认档） */
@@ -6438,7 +6457,13 @@ function holdCardHtml(row, i, ctx) {
     '</div>' +
     '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
-      '<div class="bar-track pops">' + seg +
+      /* 四分位刻度（2026-10-16 加）：这条轴的横轴就是「52周分位」，而这个数页面上到处在用
+         （胶囊「52周分位 64%」、体检表、归因），条上原先却只有两端两个价格 ✗ → 加 25/50/75% 三条极淡刻度，
+         成本位落在哪一档不必再靠目测 ✓。刻度无 z-index、且写在 seg 之前 → 压在区间带与游标之下 ✓ */
+      '<div class="bar-track pops">' +
+        '<span class="bar-tick" style="left:25%" title="52周分位 25%"></span>' +
+        '<span class="bar-tick" style="left:50%" title="52周分位 50%"></span>' +
+        '<span class="bar-tick" style="left:75%" title="52周分位 75%"></span>' + seg +
         '<span class="bar-end"></span>' +
         '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
@@ -6446,13 +6471,20 @@ function holdCardHtml(row, i, ctx) {
       '<div class="bar-labels"><span>' + fmtIdx(lo) + '</span><span>' + fmtIdx(hi) + '</span></div>' +
       /* 图例去掉「成本/现价/高点」三项（2026-09-23）：它们已在上面 .lad-line 里逐项给出、配色与条上标记一致 → 图例只留条上独有的两类点 */
       /* 去掉「历次买入」后面的星号（2026-09-23）：星号只在 title 里有解释，移动端没有悬停 → 说明挪进 ? 里 */
-      '<div class="bar-legend"><span>52周区间</span><span title="历次买入成交价的位置，含已减仓部分；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入</span><span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span></div>' +
+      /* 图例**按需**渲染（2026-10-16）：三只在持标的的卖出笔数都是 0（卖出都发生在已清仓的中韩/港美上，
+         而卡片只为在持标的渲染）→ 红圈与「卖出」这一项当前**永不出现在页面上**，摆着是死项 ✗。有数据才画 ✓ */
+      '<div class="bar-legend"><span>52周区间</span>' +
+        (buys.length ? '<span title="历次买入成交价的位置，含已减仓部分。⚠ 两个编码（2026-10-16 改）：**点越大＝那笔金额越大**（面积按 √ 缩放）、**颜色越深＝越新**（三档：浅/中/深）；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入</span>' : "") +
+        (sells.length ? '<span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span>' : "") +
+      "</div>" +
     '</div>' +
     '<div class="strat-row">' + strat + chipDip +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
       '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>' +
       '规则：<b>' + ruleTxt + '</b>（见 data.js POSITIONS.strategy）；未触发时本行只显示「未触发」，不重复规则。<br>' +
       '条上的<b>绿点/红圈</b>是历次买入/卖出的成交价位置（<b>含已减仓的部分</b>，所以可能落在成本位下方）；当前持仓的成本分布看青色「成本」位。<br>' +
+      '绿点/红圈的两个编码（2026-10-16 改）：<b>点越大＝那笔金额越大</b>（面积按 √ 缩放，份数跨价位不可比故不用份数）、<b>颜色越深＝越新</b>（三档：浅 / 中 / 深；少于 3 笔时不分档）。<br>' +
+      '轴上的三条淡刻度是 <b>52 周分位 25 / 50 / 75%</b> —— 与胶囊里那个「52周分位」是同一把尺子。<br>' +
       '卡内市值/浮盈按<b>场内现价</b>（含溢价）估算；「溢价/折价（近似）」＝场内收盘价 ÷ 基金<b>最近公布</b>的单位净值 − 1：' +
       'QDII 净值晚 1~2 个交易日才出、两个数不同日，故为近似；正＝溢价（场内买贵了）、负＝折价。</div>' +
     '</div>' +
