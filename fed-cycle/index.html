@@ -30,15 +30,17 @@
   <div class="sec">
     <div class="sec-title">近三次的共性 <span class="mute" style="font-weight:400">2004–06 · 2015–18 · 2022–23，样本只有 3，当参考不当规律</span></div>
     <div class="card">
+      <!-- 2026-10-17 压缩：原来 6 条 × 3~5 行 ≈ 25 行连续文字，是全页最重的阅读负担。
+           现在每条只留「结论 + 1 个数字」，完整推导放 title（悬停可见）。 -->
       <div class="glossary">
-        <div><b>期间不亏但颠簸</b><span>9 个「期间收益」里 8 个为正（+5.3%~+69.2%），但期间最大回撤 −7.7%~−40.4%——终点不亏，过程要能扛 15%~30% 的水。</span></div>
-        <div><b>结束后 12 个月全涨</b><span>9/9 为正（+12.3%~+62.8%）。跌得深的弹得更高：费半三次都是期间回撤最深、12 个月反弹最强（−40.4% → +38.0%）。</span></div>
-        <div><b>头 3 个月是分岔口</b><span>约 1/3 概率先探底 5%~14%（2022 三指数全负，即「−9.4%」那一次）。确定性在 6~12 月维度（三次全部为正），不在头 3 个月。</span></div>
-        <div><b>高点多在周期后段</b><span>「快加完了」的预期提前推高行情，末次加息落地后常歇一段（2022 标普开盘即高点是特例）。</span></div>
-        <div><b>回撤位置无规律</b><span>三次的最深回撤分别在周期早段/中段/末端，位置不可预判；回本普遍要 3 个月~1 年——任何时点买入都要做好这个预算。</span></div>
-        <div><b>定投赢在过程</b><span>XIRR 只比一次性高 2~3 个点（且部分是算法效应），但最深浮亏几乎减半（一次性扛 −22.8%~−40.4%，定投 −14.4%~−24.4%）——买的是「拿得住」。</span></div>
+        <div><b>期间不亏但颠簸</b><span>8/9 为正，但过程要扛 15~30% 回撤</span></div>
+        <div><b>结束后一年全涨</b><span>9/9 为正；跌得深的弹得更高</span></div>
+        <div><b>头 3 个月分岔</b><span>1/3 概率先探底，确定性在 6~12 月</span></div>
+        <div><b>高点在周期后段</b><span>末次加息落地后常歇一段</span></div>
+        <div><b>回撤位置无规律</b><span>早/中/末段都出现过，回本要 3 个月~1 年</span></div>
+        <div><b>定投赢在过程</b><span>XIRR 高 2~3pp，最深浮亏几乎减半</span></div>
       </div>
-      <div class="note">三条反面：① 样本只有 3 次，统计上是轶事不是定律；② 「结束后 12 个月」看不见更远的尾部——2004 周期结束后一年 +18%，之后 2008 腰斩，2018 那次 +27.9% 之后是 2020-03 熔断；③ 三次的起点利率都 ≤1%，2026 这次从 3.75% 起步（见上方「少数派」卡），规律外推要打折。</div>
+      <div class="note">样本只有 3 次，统计上是轶事不是定律；三次起点利率都 ≤1%，本次 3.75% 起步——外推要打折。另「结束后 12 个月」看不到更远的尾部：2004 周期一年 +18%，随后 2008 腰斩。</div>
     </div>
   </div>
 
@@ -59,8 +61,9 @@
         <button class="chip" data-span="21">首月</button>
         <button class="chip" data-span="63">首季</button>
       </div>
-      <div id="charts"></div>
+      <!-- 图例上移（2026-10-17）：原来在图下去、三张图之后，看第一张时根本不知道哪条线是哪个周期 -->
       <div class="legend" id="legend"></div>
+      <div id="charts"></div>
     </div>
   </div>
 
@@ -536,17 +539,21 @@ $('sec-cycles').innerHTML = CYCLES.slice().reverse().map((c) => {
         + '<div class="s">3个月末 ' + pct(o.x.mo.m3) + '<br>6个月末 ' + pct(o.x.mo.m6) + '</div></div>').join('') + '</div>'
     : '<div class="under">这个周期还没走完，暂时没有"加息后一年"的数据。</div>';
   const dca = a.filter((o) => o.x.dca && o.x.dca.post && o.x.lump && o.x.lump.post);
+  /* 2026-10-17：这块默认折叠。同一结论（定投 vs 一次性）在 6 张卡里重复 6 次，
+     上方「定投 vs 一次性」区块已有全局汇总表；摘要行直接给「几赢几输」，展开才看细节。
+     另：差额单位从「个点」改成 pp —— 三格宽度下「定投赢 9.3 个点」会折成「…个 / 点」，数字被劈开。 */
+  const dcaWins = dca.filter((o) => o.x.dca.post.xirr > o.x.lump.post.xirr).length;
   const dcaBlk = dca.length
-    ? '<div class="blk"><div class="blk-h">如果当时按月定投 <em>同样的钱：分月投 vs 第一天一次投</em></div>'
+    ? '<details class="blk-fold"><summary>如果当时按月定投 <em>定投 vs 一次性 · ' + dcaWins + ' 赢 ' + (dca.length - dcaWins) + ' 输</em></summary>'
       + '<div class="kvs">' + dca.map((o) => {
           const d = o.x.dca.post.xirr * 100, l = o.x.lump.post.xirr * 100, diff = d - l;
           return '<div class="kv"><div class="t">' + o.label + '</div>'
-            + '<div class="v ' + cls(diff) + '">' + (diff >= 0 ? '定投高 ' : '一次性高 ') + Math.abs(diff).toFixed(1) + ' 个点</div>'
+            + '<div class="v ' + cls(diff) + '">' + (diff >= 0 ? '定投高 ' : '一次性高 ') + Math.abs(diff).toFixed(1) + 'pp</div>'
             + '<div class="s">定投 ' + pct(d) + '<br>一次性 ' + pct(l) + '</div></div>';
         }).join('') + '</div>'
       + '<div class="under">比的是<b>年化收益率</b>（计入每笔钱的投入时间，两者可比）。'
       + '最深浮亏：定投 ' + dca.map((o) => pct(o.x.dca.seg.worst)).join(' / ')
-      + '；一次性买入则要扛指数 ' + dca.map((o) => pct(o.x.dd)).join(' / ') + '。</div></div>'
+      + '；一次性买入则要扛指数 ' + dca.map((o) => pct(o.x.dd)).join(' / ') + '。</div></details>'
     : '';
   return '<div class="cyc-card">'
     + '<div class="cyc-head"><h3>' + c.name + '</h3>'
