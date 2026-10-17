@@ -7,6 +7,16 @@
 > **2026-09-14 更新**：上述 129.97 残差已查清并修正——该 130 元系 **2 笔定投（100 + 30，App 限购致日额度由 100 降至 30）在 09-10 确认入成本**，而快照的 `cost` 沿用 09-09 的 22,100 未同步，App 的 `pl` 却已按新成本计。已改为 `cost: 22230`，残差 −0.03。独立对账印证归属：09-09→09-10 区间「场外成本增量 1,007.09」与「推导资金进出 1,007.06」吻合，且**该 130 必须计入才平**。全历史审计现已通过，自动更新解除阻断。
 > **CAPE 亦已核实**：`/api/sp500/pe.json` 同时含 `pe`（滚动 PE，末点可滞后数月：27.89 @2026-03-01）与 `cape`（席勒，41.09 @2026-09-11）两条序列，原 `cape` 字段**误取了 `pe` 序列**。现改为显式取 `cape` 并带日期校验，现值 27.9 → 41.09。
 > **门控分级（2026-09-14）**：`required` 只保留核心行情（`ndx`/`spx`/`vix`/`tnx`）——**核心不可用才关闭动作结论**；`fg`/估值家族/`putcall`/`tnx2`/`fx`/`monthly` 属 advisory，失效时**只在其所属规则旁标注**（`evaluateDecision` 返回 `health`/`degraded`，每条规则带 `inputs` 与 `warning`，页面用 `esc()` 转义后渲染）。理由：CNN 恐贪被反爬拦截（旧接口直接回 418「I'm a teapot. You're a bot.」）、估值源末点常滞后数周——若任一辅助源失效即整页变黑，看板会变成砖头，预警变墙纸。估值家族 `maxDays` 由 7 改为 45（按**源的发布节奏**，不按日频卡）。`tnx2` 改取**美国财政部官方收益率曲线 CSV**（Yahoo 无 2 年期代码，`^UST2Y` 一直是 404，该字段此前从未真实更新过）；新增**新浪 `gb_$ndx` / `gb_$inx` 与 Yahoo 收盘价互校**（差异 >0.5% 则记录原因，不阻断更新）。`sourceHealth` 在沿用旧值时改为显示真实原因而非笼统的「抓取失败」。
+> **2026-10-17 数据新鲜度（用户原话：「目前点位落后 1 天 我实际无感知」）**：五处修复 ——
+> ① **页面学会说「落后」**：`renderStale()` 原按**自然日**算、≤3 天就隐藏 chip，`sourceHealth` 的 `ndx/spx maxDays=1` 又把「落后 1 个交易日」当有效期 → 定时任务漏跑一整天也不报警（10-17 就是靠肉眼发现「纳指点位不对」才查出来）。新增 `expectedLastTradingDay()`：按纽约 **17:00**（收盘 + 1h 缓冲）+ **NYSE 假日规则**（元旦/MLK/总统日/耶稣受难日/阵亡将士/六月节/独立日/劳动节/感恩节/圣诞，规则现算、零维护）推「此刻应到哪个交易日」，落后 ≥1 个交易日时页头常驻 `⚠️ 行情停在 10-15，落后 1 个交易日（应有 10-16 收盘）`；`dom-check` 用 5 个边界 + 一次「把 `asOf.us` 退到 7 天前必报」锁住。
+> ② **CI 补跑 + 失败可见**：`update-data.yml` 加第二个 cron `0 2 * * 2-6`（北京 10:00），单次漏跑还有第二次机会；`if: failure()` 写 error annotation + Step Summary。原设计「失败只发邮件」在手机上等于没有。
+> ③ **页头自助入口**：`🔄 刷新`（`?t=` 绕过 CDN/浏览器缓存，**不重抓行情**）+ 时间条下「数据没更新？去 GitHub 手动触发」深链（`workflow_dispatch` 早已存在；匿名访客没有 write 权限，点了只会提示无权限，所以链接公开是安全的）。
+> ④ **crosscheck 假警告修复**：新浪 `gb_$ndx` 的报价时间戳是**北京时间**（10-17 05:30 = 美东 10-16 17:30），旧代码直接 `slice(0,10)` → `asOf` 比美东「今天」晚一天 → 常年显示「未核验」✗。新增 `sinaTimestampToET()` 换算美东日期；`test-dashboard` 的合成时间戳同步改为「北京 = 交易日 +1 天」。
+> ⑤ 同日把 10-16 行情补进 `data.js`（NDX **29187.55 −2.50%** / SPX **7659.44 −1.09%**），并重跑 `fetch-fees` / `alt-etf-backtest` / `sync-bench` 三个 AUTO 块。**VIX / TNX 仍是 10-15**（本机 Yahoo 双 host + stooq 全 403、新浪 `gb_$vix` 为空）→ `retained` 并标注，未伪造。
+> **2026-10-17 数据源复核与重构（用户：代理已开，逐个列接口/请求量/打分）**：实测 11 个在用源 + 5 个备选（完整表格见对话记录）。关键结论：Yahoo **429 / 403 是 IP 限流、不是网络**；stooq 已改成 **Cloudflare JS 挑战**（彻底不可用）；财政部 CSV 本机 30~60s 超时；CNN 418；其余正常。据此做了 P0–P3 ——
+> ① **VIX 改取 CBOE 官方 `VIX_History.csv`**（1990 至今、收盘当天即更新；实测 10-16 = **19.99**），Yahoo 仅作兜底 → 本机不再 `retained`；② **TNX 加 FRED `DGS10` 兜底**（T+1）、**TNX2 加 FRED `DGS2` 兜底**（财政部 8s 超时后立刻转向）；③ **删除 stooq 腿**（JS 挑战页，每次白花 4 个请求）；④ **Yahoo 降级为单 host 单次**（原来 2 host × 3 重试，10 个请求里 9 个白跑）；⑤ **SPX 加 CBOE `SPX_History.csv` 交叉校验**（1975 至今，与腾讯/新浪三方 0.00% 互证）；⑥ **CAPE 加 multpl.com 兜底**（口径不同，`source` 名里明写 fallback，不和主源混成一个）。
+> 效果：一次日更请求数 **33 → 27**（−18%），失败重试等待从 ~10s 降到 ~1s；VIX 10-16 19.99、TNX 10-15 5.10（FRED）、TNX2 10-16 4.74（财政部）全部落盘。
+> **增量更新评估：不值得做** —— CBOE CDN 对 Range 返回 **307**、响应头无 ETag；腾讯/东财接口不支持条件请求；每天总下载约 1.9MB，在 GitHub Actions 上不计量、耗时占比 <2s。真要再省，唯一有量的是 **ALT_BACKTEST 降频**（44 请求/天、与每日信号无关），收益只是 CI 少跑 20 秒，非必要。
 > **仍未实施：公开/私有数据隔离**，切勿公开当前私有持仓。下文旧版本与全局 `macroAsOf`/归因无假设等描述为历史背景，以本段和现有实现为准。
 > 看板性质：个人投资决策辅助单页（深色金融终端风，已支持浅色主题一键切换）。**不构成投资建议。**
 
@@ -49,7 +59,7 @@ ndx_spx_dashboard_handoff/
 ## 3. 核心约定（改数据前必读，避免破坏模型）
 
 ### 3.1 数据源与口径
-- **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。**三级降级链（2026-09-27 补上第三条腿）**：Yahoo（10y）→ stooq（10y）→ **腾讯 `usfqkline`（`usNDX` / `usINX`，≈1000 根 / 4 年）**。腾讯这条与项目里场内 ETF 日K 用**同一个接口**，已逐点核对与 Yahoo 完全一致（2026-09-22 高 30770.63 = `ath`、09-25 收 30608.13 = `close`；新浪 `gb_$ndx` 30608.1343 第三方互证）。⚠ 但它只给 ≈4 年 → `ath` / `athDate` / `days` 会退化成「4 年最高」，因此脚本把 `Tencent usNDX qfq (≈4y window, not 10y)` 写进 `SOURCE_META.source`、`methodology` 同步改写 → **「数据有效性」面板会直接显示这条降级原因**（不允许静默降级）。VIX / TNX **刻意不接腾讯**：实测 `usVIX` 停在 2026-09-15 的 21.67（过期 10 天且与现值 15.x 差很大）、`usTNX` 不存在 → 接了反而把好数据换成过期值；这两项拿不到时照旧 `retained`，并在引用它的规则旁标注。
+- **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。**二级降级链（2026-10-17 删掉 stooq）**：Yahoo（10y，单 host 单次尝试）→ **腾讯 `usfqkline`（`usNDX` / `usINX`，≈1000 根 / 4 年）**。腾讯这条与项目里场内 ETF 日K 用**同一个接口**，已逐点核对与 Yahoo 完全一致（2026-09-22 高 30770.63 = `ath`、09-25 收 30608.13 = `close`；新浪 `gb_$ndx` 30608.1343 第三方互证）。⚠ 但它只给 ≈4 年 → `ath` / `athDate` / `days` 会退化成「4 年最高」，因此脚本把 `Tencent usNDX qfq (≈4y window, not 10y)` 写进 `SOURCE_META.source`、`methodology` 同步改写 → **「数据有效性」面板会直接显示这条降级原因**（不允许静默降级）。VIX / TNX **刻意不接腾讯**：实测 `usVIX` 停在 2026-04-15 的 21.67（与现值差很远）、`usTNX` 不存在 → 接了反而把好数据换成过期值。**2026-10-17 起换源**：VIX 主源 = **CBOE 官方 `VIX_History.csv`**（1990 至今、当天收盘即更新、不吃 429），Yahoo 仅兜底；TNX = Yahoo ^TNX，兜底 **FRED `DGS10`**（T+1）；TNX2 = 财政部曲线，兜底 **FRED `DGS2`**。三者都拿不到时照旧 `retained`，并在引用它的规则旁标注。
 - **年内最大回撤 `ddYtd`**：脚本从 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
 - **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值（peFwd/peTtm/cape/pePct + NDX 的 ndxPeFwd/ndxPePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json` + `/api/ndx/forward-pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位；`ndxPePct` 口径同法但样本自 2001 年起（NDX 远期PE 数据起点）。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
 - **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
@@ -62,7 +72,7 @@ ndx_spx_dashboard_handoff/
 - `thresholds` 与触发器矩阵（`renderTriggers`）强耦合，改阈值需同步核对文案。
 
 ### 3.3 数据更新（2026-08-27 起自动化）
-**AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN/CBOE/historyofmarket，每个交易日收盘后（UTC 21:47）跑 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)，自动重算 MA50/MA200/RSI/52周低/ATH 并提交。GitHub 定时任务可能延迟数小时，脚本有 `intraday` 判断兜底，晚跑数据仍正确。失败保留旧值；盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
+**AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN/CBOE/historyofmarket，每个交易日收盘后跑两次 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)——主跑 `47 21 * * 1-5`（UTC 21:47 = 北京次日 05:47）、补跑 `0 2 * * 2-6`（UTC 02:00 = 北京 10:00），自动重算 MA50/MA200/RSI/52周低/ATH 并提交。GitHub 定时任务可能延迟数小时，脚本有 `intraday` 判断兜底，晚跑数据仍正确。失败保留旧值；`if: failure()` 会写 error annotation + Summary（2026-10-17 加，起因是一次漏跑静默一整天）。盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
 
 **人工只需维护 MANUAL 区三件事**：
 1. `epsGrowth`（盈利增速预期）——无免费 API，按你的信息源数日一更。
@@ -334,7 +344,8 @@ curl -s "https://jiachencc.github.io/ndx-spx-drawdown-dashboard/?t=$(date +%s)" 
 - [x] ~~NDX 滞后 1 天~~：脚本现在直接抓 ^NDX / ^GSPC 官方指数，不再 QQQ 推导。
 - [x] ~~MONTHLY 无提醒机制~~：月度涨跌幅已由脚本按日 K 自动聚合（2026-08-28 起），不再是人工项。
 - [ ] **监控 Actions 健康度**：偶尔瞄一眼仓库 Actions 页 `update-data` 是否绿；连续红叉按 §3.3 兜底流程转人工。
-- [ ] **行情抓取只在定时跑、push 不触发**：`update-data` 的 cron = `47 21 * * 1-5`（北京 05:47），`git push` 只跑校验 → 推送当天的场内报价需按截图手填（见 §3.3 SOP **第 6 步**）。可选优化：给 workflow 加 `push` 触发（或 `workflow_dispatch`），让推完即刷；未加之前按 SOP 手填。
+- [ ] **行情抓取只在定时跑、push 不触发**：`update-data` 的 cron = `47 21 * * 1-5` ＋ `0 2 * * 2-6`（北京 05:47 / 10:00），`git push` 只跑校验 → 推送当天的场内报价需按截图手填（见 §3.3 SOP **第 6 步**）。`workflow_dispatch` 已有，可在 Actions 页手动 Run workflow；页面时间条下方也给了深链。
+- [ ] **2026-10-17 05:47 那次为何没有提交**：本地 `git log` 最新 CI 提交停在 `69ae1b5 10-15 23:54`、`data.js` 的 `asOf.local` 仍为 `2026-10-16 07:53`；本机 GitHub 直连不通，Actions 日志未看。页面侧现在会自动报「落后 N 个交易日」，但**根因未查**（Yahoo 403？validate 失败？push 失败？）—— 开代理后看一眼。
 - [ ] **（下一步 · 第 4 件）场外 day/value 改为按净值序列自动推导**：day = Δ净值 × 份额、value = 净值 × 份额，净值序列天天基金接口现成（AUTO 的 premiums 就是这么抓的）。收益最大 —— 截图只需再给「份额 / 成本 / 是否在途」，且不再有「N/8 只」的半天状态（2026-09-23 摩根 20:26 迟到就是这么来的）。**但**它改变「App 读数 = 地面真值」的依赖方式：先定口径（费与在途的尾差怎么处理、与 App 读数如何对账、以谁为准），再加对账门禁，然后再动代码。
 - [ ] 收尾小件（随时可做，都不紧急）：录入器输出给注释里的数字加千分位、结尾提示「DEFAULT 五行的行尾注释与 `OTC.updated` 的注释仍写着上期日期」。（~~清掉 `positionLadderFills()` 空转函数~~ 2026-10-12 复核：**不是死码**——`applyTheme` 的 rAF、`fonts.ready`、`observeLadders`、resize、RO 共 6 个调用点，负责水位梯填充的像素定位，勿删。）
 - [x] ~~已知现象（不用改数）：定时刷新覆盖手填价后实时总资产与当期快照差百元级~~（2026-09-24 处理）：那次前复权伪差**未出现**（09-23 收盘刷新后仍是 1.728，与手填一致），但暴露了另一条更细的：`DEFAULT.chg` 从手填的 3 位小数被刷成 2 位（0.817 → 0.82），使「场内当日估」偏 5 元 → `dom-check` 的当日断言误报（9/10）。已把该断言**拆成两条**：合计给宽容差（max(10 元, 0.01% 总资产)，覆盖 chg 舍入误差），场外那一段单独对「快照 items 推的场外当日」给严容差（5 元）—— 后者才是有效的那条，因为它拿**历史留档**当基准，而不是与页面自己的数据源比（那样永远自洽）。实测：把一只场外的 day 改 10.74 元，只有它拦得住。

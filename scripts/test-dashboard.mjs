@@ -191,7 +191,7 @@ test("OHLC null filtering preserves alignment; unordered dates rejected", () => 
 /* 2026-09-27：Yahoo ^NDX/^GSPC 全 403、stooq 被 JS 挑战页拦住 → 加腾讯兜底。
    钉住三件事：① 降级顺序 Yahoo → stooq → 腾讯；② 腾讯的 bar 能喂给 metrics；
    ③ 「只有 ≈4 年窗口」必须写进 source —— 数据健康区靠它提示用户，不允许静默降级。 */
-test("index fallback: Yahoo → stooq → Tencent, with the shorter window disclosed", async () => {
+test("index fallback: Yahoo → Tencent（stooq 已于 2026-10-17 移除）, shorter window disclosed", async () => {
   const saved = globalThis.fetch, asked = [];
   const b = syntheticBars();
   const tencentBars = b.dates.map((d, i) => [d, "1", String(b.close[i]), String(b.high[i]), String(b.low[i])]);
@@ -205,7 +205,8 @@ test("index fallback: Yahoo → stooq → Tencent, with the shorter window discl
   };
   try {
     const raw = await series("^NDX", "^ndx");
-    assert.deepEqual([...new Set(asked)], ["yahoo", "stooq", "tencent"], "must degrade in that order");
+    assert.deepEqual([...new Set(asked)], ["yahoo", "tencent"], "Yahoo 失败后直接走腾讯");
+    assert.ok(!asked.includes("stooq"), "stooq 已被 Cloudflare JS 挑战拦死，不该再请求它 ✗");
     assert.match(raw.source, /Tencent usNDX/);
     assert.match(raw.source, /not 10y/, "the ≈4-year window must be disclosed in provenance");
     const m = metrics(raw); assert.ok(m.rows.length >= 260, "fallback bars must satisfy the metrics minimum");
@@ -300,6 +301,15 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
       if (u.includes("historyofmarket")) return new Response(JSON.stringify(u.includes("/sp500/pe.json")
         ? { updated: "2026-09-11", pe: [{ date: "2026-03-01", value: 27.89 }], cape: [{ date: "2026-09-04", value: 40 }, { date: "2026-09-11", value: 41.09 }] }
         : { current: { forward: 20, trailing: 25, date: "2026-09-11" }, forward: [{ date: "2026-09-04", value: 19 }, { date: "2026-09-11", value: 20 }] }));
+      /* 官方 CSV 源（2026-10-17 加）：CBOE 指数历史 / FRED。
+         CBOE 的 SPX 值必须与合成日K最后一点一致，否则 crosscheck 会按「偏差 >0.5%」失败。 */
+      if (u.includes("cdn.cboe.com")) {
+        const b = syntheticBars(), iso = b.dates.at(-1), [y, m, d] = iso.split("-"), mdY = m + "/" + d + "/" + y;
+        if (u.includes("VIX_History")) return new Response("DATE,OPEN,HIGH,LOW,CLOSE\n" + mdY + ",1,1,1," + b.close.at(-1) + "\n");
+        if (u.includes("SPX_History")) return new Response("DATE,SPX\n" + mdY + "," + b.close.at(-1) + "\n");
+      }
+      if (u.includes("fred.stlouisfed.org")) return new Response("observation_date,DGS10\n");   // 空表：模拟 FRED 也拿不到 → tnx retained
+      if (u.includes("multpl.com")) return new Response("<td>Sep 11, 2026</td><td>&#x2002;\n40.5</td>");
       if (u.includes("cboe")) return new Response('\\"selectedDate\\":\\"2026-09-11\\",\\"name\\":\\"TOTAL PUT/CALL RATIO\\",\\"value\\":\\"0.9\\"');   // 新版 RSC 页面：转义引号 + selectedDate
       if (u.includes("ifzq")) {
         const sym = new URL(u).searchParams.get("param").split(",")[0];
@@ -311,7 +321,11 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
       if (u.includes("home.treasury.gov")) return new Response('Date,"1 Mo","2 Mo","3 Mo","6 Mo","1 Yr","2 Yr","3 Yr","5 Yr","7 Yr","10 Yr","20 Yr","30 Yr"\n09/11/2026,4,3.9,3.8,3.7,3.6,3.55,3.6,3.7,3.9,4.2,4.8,4.9\n09/10/2026,4,3.9,3.8,3.7,3.6,3.5,3.6,3.7,3.9,4.2,4.8,4.9');
       if (u.includes("hq.sinajs.cn")) {
         const b = syntheticBars(), last = b.close.at(-1), day = b.dates.at(-1);
-        return new Response('var hq_str_gb_$ndx="NDX,' + last + ',0.91,' + day + ' 05:30:00,1";\nvar hq_str_gb_$inx="SPX,' + last + ',0.86,' + day + ' 04:46:29,1";');
+        /* 新浪报价时间戳是**北京时间**：美股 day 收盘（美东 16:00）→ 北京 day+1 05:30。
+           必须按这个语义造数据，否则 crosscheck.asOf 会比日K早一天（2026-10-17 的假警告就是这个：
+           旧代码直接 slice(0,10) 得到北京日期，sourceHealth 按美东日期比较 → 永远「未核验」✗）。 */
+        const bj = new Date(Date.parse(day + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
+        return new Response('var hq_str_gb_$ndx="NDX,' + last + ',0.91,' + bj + ' 05:30:00,1";\nvar hq_str_gb_$inx="SPX,' + last + ',0.86,' + bj + ' 04:46:29,1";');
       }
       throw new Error("Unexpected test network URL");
     };
@@ -327,6 +341,11 @@ test("updater transaction: partial source failure, no-change, invalid candidate 
     assert.match(updatedSrc, /\/\/ MANUAL：盈利增速预期，无免费源，人工维护/);
     assert.ok(updatedSrc.includes("// AUTO：美股 " + syntheticBars().dates.at(-1) + " 收盘（" + now.toISOString().slice(0, 16) + "Z 抓取）"), "stamp comment must be refreshed");
     assert.match(updatedSrc, /premiums: \{ \/\/ AUTO：场内溢价率/);
+    // VIX 现在优先取 CBOE 官方 CSV（2026-10-17），不再依赖 Yahoo。
+    assert.equal(updated.SOURCE_META.vix.status, "ok", JSON.stringify(updated.SOURCE_META.vix));
+    assert.equal(updated.SOURCE_META.vix.asOf, "2026-09-11");
+    assert.equal(updated.DEFAULT.vix, syntheticBars().close.at(-1));
+    assert.match(updated.SOURCE_META.vix.source, /CBOE/);
     assert.equal(updated.SOURCE_META.tnx.status, "retained"); assert.equal(updated.DEFAULT.tnx, base.DEFAULT.tnx);
     // CAPE must come from the `cape` series, not the lagging `pe` series (27.89 vs 41.09).
     assert.equal(updated.SOURCE_META.cape.status, "ok");

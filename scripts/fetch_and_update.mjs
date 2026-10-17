@@ -10,17 +10,31 @@ import { join } from "node:path";
 import { readModel, validateModel, metrics, monthly, createRecorder, stableBusiness, replaceConst, replaceMember, atomicWrite, auditFiles, isDate } from "./data-quality.mjs";
 const ROOT = new URL("../", import.meta.url);
 const HEADERS = { "User-Agent": "Mozilla/5.0", Accept: "application/json,text/csv,text/html,*/*" };
+/* 新浪 gb_$ndx 的报价时间戳是**北京时间**（例「2026-10-17 05:30:00」= 美东 10-16 17:30）。
+   `sourceHealth` 用**美东**日期判新鲜度 → 直接 slice(0,10) 会得到「明天」，被判定「未核验」✗。
+   2026-10-17 实测：crosscheck 每天其实都跑成功，却常年显示未核验（假警告）。
+   这里换算成美东日期再存；时间戳没有时区，按 +08:00 解析。 */
+function sinaTimestampToET(s) {
+  const m = String(s || "").match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
+  if (!m) return "";
+  const t = Date.parse(m[1] + "T" + m[2] + "+08:00");
+  if (!Number.isFinite(t)) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(t));
+}
 
+/* retries 可覆盖（2026-10-17 加）：Yahoo 现在按 IP 限流（429），默认 3 次重试 × 2 个 host
+   会白跑 6 次、多等十几秒；对「已知不可靠、且有兜底」的源传 retries:1 立刻转向下一个。 */
 export async function get(url, options = {}) {
+  const { retries = 3, timeout = 15000, ...init } = options;
   let last;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < retries; i++) {
     try {
-      const r = await fetch(url, { ...options, headers: { ...HEADERS, ...options.headers }, signal: AbortSignal.timeout(15000) });
+      const r = await fetch(url, { ...init, headers: { ...HEADERS, ...init.headers }, signal: AbortSignal.timeout(timeout) });
       if (!r.ok) { const error = new Error("HTTP " + r.status); error.retry = r.status === 429 || r.status >= 500; throw error; }
       return r;
     } catch (e) {
       last = e;
-      if (!e.retry || i === 2) break;
+      if (!e.retry || i === retries - 1) break;
       await new Promise(resolve => setTimeout(resolve, (i + 1) * 1000));
     }
   }
@@ -67,30 +81,56 @@ export async function tencentSeries(symbol) {
     source: "Tencent " + code + " qfq (≈4y window, not 10y)",
   };
 }
-export async function series(symbol, fallback, range = "10y") {
+/* Yahoo 单次尝试（2026-10-17 改）：此前对 query1 / query2 各重试 3 次 ——
+   实测两个 host 同时 429，一次日更的 10 个请求里 9 个白跑（占全部请求约 30%）。
+   现在只试 query1 一次，失败立刻交给腾讯；Yahoo 恢复时仍会自动回到它。 */
+async function yahooQuote(symbol, range = "10y", retries = 1) {
   const auth = await yahooAuth();
-  for (const host of ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]) {
-    try {
-      const q = auth.crumb ? "&crumb=" + encodeURIComponent(auth.crumb) : "";
-      const j = await json("https://" + host + "/v8/finance/chart/" + encodeURIComponent(symbol) + "?range=" + range + "&interval=1d" + q, { headers: auth.cookie ? { Cookie: auth.cookie } : {} });
-      const r = j?.chart?.result?.[0], quote = r?.indicators?.quote?.[0];
-      if (!Array.isArray(r?.timestamp) || !quote?.close) throw new Error("chart payload empty");
-      return { dates: r.timestamp.map(ts => new Date(ts * 1000).toISOString().slice(0, 10)), close: quote.close, high: quote.high, low: quote.low, source: "Yahoo " + symbol };
-    } catch (e) { console.warn("source warning:", symbol, host, e.message); }
-  }
-  // stooq 不再直接抛：它挂掉时下面还有腾讯（原来是 stooq 一失败整个 series 就失败）。
-  try {
-    const text = await (await get("https://stooq.com/q/d/l/?s=" + encodeURIComponent(fallback) + "&i=d")).text();
-    if (/^Date,/.test(text)) {
-      const rows = text.trim().split(/\r?\n/).slice(1).map(r => r.split(","));
-      return { dates: rows.map(r => r[0]), close: rows.map(r => +r[4]), high: rows.map(r => +r[2]), low: rows.map(r => +r[3]), source: "Stooq " + fallback };
-    }
-    console.warn("source warning:", symbol, "stooq non-CSV payload (JS challenge page?)");
-  } catch (e) { console.warn("source warning:", symbol, "stooq", e.message); }
+  const q = auth.crumb ? "&crumb=" + encodeURIComponent(auth.crumb) : "";
+  const j = await json("https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(symbol) + "?range=" + range + "&interval=1d" + q,
+    { headers: auth.cookie ? { Cookie: auth.cookie } : {}, retries });
+  const r = j?.chart?.result?.[0], quote = r?.indicators?.quote?.[0];
+  if (!Array.isArray(r?.timestamp) || !quote?.close) throw new Error("chart payload empty");
+  return { dates: r.timestamp.map(ts => new Date(ts * 1000).toISOString().slice(0, 10)), close: quote.close, high: quote.high, low: quote.low, source: "Yahoo " + symbol };
+}
+export async function series(symbol, _fallback, range = "10y") {
+  try { return await yahooQuote(symbol, range); }
+  catch (e) { console.warn("source warning:", symbol, "yahoo", e.message); }
+  /* stooq 已于 2026-10-17 移除：它改成了 Cloudflare JS 挑战（返回 HTML 而不是 CSV），
+     本机与 CI 都过不去，每次还白花 1 个请求 + 1 次重试；留着只让日志更吵。 */
   try { return await tencentSeries(symbol); }
   // 错误信息保持**短**：它会经 SOURCE_META.error 显示到页面上（`sourceHealth.text` 限 48 字符），
   // 冗长的句子会把窄屏标签撑爆；每个源具体的失败原因已经由上面的 console.warn 写进日志。
   catch { throw new Error("no index provider available"); }
+}
+/* ===== 官方 CSV 源（2026-10-17 加） =====
+   CBOE（官方指数）：VIX_History.csv 1990 至今、SPX_History.csv 1975 至今，收盘后当天即更新
+   （实测 10-16 收盘 VIX 19.99 / SPX 7659.44 都已在文件末尾）→ 比 Yahoo ^VIX 更权威，也不吃 429。
+   FRED（圣路易斯联储）：DGS10 / DGS2 / VIXCLS，CSV 直出、无需 key，但按 T+1 发布。
+   两者都只取**最后一行带日期的有效值**，日期自己校验，绝不拿抓取时钟冒充来源日期。 */
+async function cboeCsv(name) {
+  const text = await (await get("https://cdn.cboe.com/api/global/us_indices/daily_prices/" + name + "_History.csv", { retries: 2 })).text();
+  const lines = text.trim().split(/\r?\n/);
+  if (!/^DATE/i.test(lines[0] || "")) throw new Error("CBOE non-CSV payload");
+  const head = lines[0].split(",").map(s => s.replace(/^"?|"?$/g, "").trim().toUpperCase());
+  const col = head.indexOf("CLOSE") >= 0 ? head.indexOf("CLOSE") : head.length - 1;
+  for (let i = lines.length - 1; i > 0; i--) {
+    const cells = lines[i].split(",");
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((cells[0] || "").trim());
+    const v = +cells[col];
+    if (m && Number.isFinite(v) && v > 0) return { value: v, date: m[3] + "-" + m[1] + "-" + m[2] };
+  }
+  throw new Error("no dated CBOE close");
+}
+async function fredSeries(id) {
+  const text = (await (await get("https://fred.stlouisfed.org/graph/fredgraph.csv?id=" + id, { retries: 1 })).text()).replace(/^\uFEFF/, "");
+  const lines = text.trim().split(/\r?\n/);
+  for (let i = lines.length - 1; i > 0; i--) {
+    const [date, val] = lines[i].split(",");
+    const v = +val;
+    if (isDate(date) && Number.isFinite(v) && v > 0) return { value: v, date };
+  }
+  throw new Error("no dated FRED observation");
 }
 export function sourceDate(value) {
   if (typeof value === "string") { const s = value.slice(0, 10); if (isDate(s)) return s; }
@@ -168,7 +208,7 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   if (core === 2) next.RECENT = { asOf: recent.ndx.asOf === recent.spx.asOf ? recent.ndx.asOf : null, ndx: recent.ndx, spx: recent.spx };
   // Independent cross-check of the two core closes. Non-blocking by design: a mismatch is
   // information to surface, not a reason to publish stale numbers instead.
-  if (core === 2) await attempt(["crosscheck"], "Sina gb_$ndx / gb_$inx", async () => {
+  if (core === 2) await attempt(["crosscheck"], "Sina + CBOE SPX", async () => {
     const res = await get("https://hq.sinajs.cn/list=gb_$ndx,gb_$inx", { headers: { Referer: "https://finance.sina.com.cn" } });
     const bytes = new Uint8Array(await res.arrayBuffer());
     let text; try { text = new TextDecoder("gbk").decode(bytes); } catch { text = new TextDecoder().decode(bytes); }
@@ -176,15 +216,27 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
       const head = "hq_str_" + sym + "=\"", at = text.indexOf(head);
       if (at < 0) return null;
       const body = text.slice(at + head.length), parts = body.slice(0, body.indexOf("\"")).split(",");
-      return { close: parseFloat(parts[1]), date: (parts[3] || "").slice(0, 10) };
+      return { close: parseFloat(parts[1]), date: sinaTimestampToET(parts[3]) };
     };
     const ndx = grab("gb_$ndx"), spx = grab("gb_$inx");
     if (!ndx || !spx || !isDate(ndx.date) || !isDate(spx.date)) throw new Error("Sina quote unavailable");
-    const devs = [["NDX", d.ndx.close / ndx.close - 1], ["SPX", d.spx.close / spx.close - 1]].map(([k, v]) => [k, v * 100]);
+    const devs = [["NDX(Sina)", d.ndx.close / ndx.close - 1], ["SPX(Sina)", d.spx.close / spx.close - 1]].map(([k, v]) => [k, v * 100]);
+    const notes = [];
+    /* CBOE 官方 SPX CSV（1975 至今）作为第二把尺子：只在**与本次行情同日**时参与比较 ——
+       拿不同日期的收盘互比没有意义。它失败不阻断（新浪仍是必需的那条）。 */
+    try {
+      const c = await cboeCsv("SPX");
+      const sameDay = c.date === rec.meta.spx?.asOf;
+      if (sameDay) devs.push(["SPX(CBOE)", (d.spx.close / c.value - 1) * 100]);
+      else notes.push("CBOE 日期 " + c.date + " ≠ 行情日 " + (rec.meta.spx?.asOf || "?"));
+    } catch { notes.push("CBOE 不可用"); }
     const worst = devs.reduce((a, x) => Math.abs(x[1]) > Math.abs(a[1]) ? x : a);
-    if (!Number.isFinite(worst[1])) throw new Error("Sina parse failed");
-    if (Math.abs(worst[1]) > 0.5) throw new Error(worst[0] + " close differs " + worst[1].toFixed(2) + "% from Sina");
-    rec.success("crosscheck", ndx.date, "Sina gb_$ndx / gb_$inx", { deltaPct: rounded(worst[1], 3), compared: devs.map(x => x[0] + " " + x[1].toFixed(2) + "%").join(", ") });
+    if (!Number.isFinite(worst[1])) throw new Error("cross-check parse failed");
+    if (Math.abs(worst[1]) > 0.5) throw new Error(worst[0] + " close differs " + worst[1].toFixed(2) + "%");
+    rec.success("crosscheck", ndx.date, "Sina gb_$ndx / gb_$inx + CBOE SPX_History.csv", {
+      deltaPct: rounded(worst[1], 3),
+      compared: devs.map(x => x[0] + " " + x[1].toFixed(2) + "%").join(", ") + (notes.length ? " · " + notes.join(" · ") : ""),
+    });
   });
   // Mixed dates are never advertised as one fully synchronized snapshot.
   if (core === 2 && rec.meta.ndx.asOf === rec.meta.spx.asOf) {
@@ -200,23 +252,50 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   d.asOf = { us: coreDate, et: (d.intraday ? clockNY : "16:00") + " " + zone, local: now.toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }) };
   d.macroAsOf = null; // Legacy compatibility only: UI reads SOURCE_META, never this global flag.
   await Promise.all([
-    ...[["vix", "^VIX", "^vix"], ["tnx", "^TNX", "^tnx"]].map(([key, symbol, fallback]) => attempt([key], "Yahoo/Stooq", async () => {
-      const raw = await seriesProvider(symbol, fallback, "5d"), point = latest(raw);
-      accept(key, rounded(point.value, 3), point.date, raw.source);
-    })),
-    // Yahoo has no 2-year constant-maturity ticker (^UST2Y is 404), so read the official curve.
-    attempt(["tnx2"], "US Treasury par yield curve", async () => {
-      const year = dayNY.slice(0, 4);
-      const csv = (await (await get("https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/" + year
-        + "/all?type=daily_treasury_yield_curve&field_tdr_date_value=" + year + "&page&_format=csv")).text()).replace(/^\uFEFF/, "");
-      const lines = csv.trim().split(/\r?\n/);
-      const cols = lines[0].split(",").map(s => s.replace(/^"|"$/g, "").trim());
-      const col = cols.indexOf("2 Yr");
-      if (col < 0) throw new Error("2 Yr column missing");
-      const row = lines.slice(1).map(l => l.split(",")).find(c => c.length > col && /^\d{2}\/\d{2}\/\d{4}$/.test((c[0] || "").trim()));
-      if (!row || !(+row[col] > 0)) throw new Error("dated 2Y observation missing");
-      const [mm, dd, yyyy] = row[0].trim().split("/");
-      accept("tnx2", rounded(+row[col], 3), yyyy + "-" + mm + "-" + dd, "US Treasury par yield curve (US government work)");
+    /* VIX：CBOE 官方 CSV 优先（当天更新、不受 429 影响），Yahoo ^VIX 兜底。
+       2026-10-17 起不再走 series()：腾讯没有可信的 VIX 代码（usVIX 停在 04-15 的 21.67）。 */
+    attempt(["vix"], "CBOE VIX / Yahoo", async () => {
+      try {
+        const p = await cboeCsv("VIX");
+        accept("vix", rounded(p.value, 3), p.date, "CBOE VIX_History.csv (official)");
+      } catch (e) {
+        console.warn("source warning: VIX CBOE", e.message);
+        const raw = await yahooQuote("^VIX", "5d"), point = latest(raw);
+        accept("vix", rounded(point.value, 3), point.date, raw.source);
+      }
+    }),
+    /* 10Y：Yahoo ^TNX 优先，FRED DGS10 兜底（T+1 发布，但稳定、无需 key）——
+       本机实测 Yahoo 全 429；没有兜底时 tnx 会天天 retained（页面只能标陈旧）。 */
+    attempt(["tnx"], "Yahoo ^TNX / FRED DGS10", async () => {
+      try {
+        const raw = await yahooQuote("^TNX", "5d"), point = latest(raw);
+        accept("tnx", rounded(point.value, 3), point.date, raw.source);
+      } catch (e) {
+        console.warn("source warning: TNX Yahoo", e.message);
+        const p = await fredSeries("DGS10");
+        accept("tnx", rounded(p.value, 3), p.date, "FRED DGS10 (T+1)");
+      }
+    }),
+    /* 2Y：财政部官方曲线优先（当天），FRED DGS2 兜底（T+1）。
+       ⚠ 财政部站点本机实测 30~60s 全超时，所以这里把超时压到 8s、不重试，失败立刻转向 FRED。 */
+    attempt(["tnx2"], "US Treasury / FRED DGS2", async () => {
+      try {
+        const year = dayNY.slice(0, 4);
+        const csv = (await (await get("https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/" + year
+          + "/all?type=daily_treasury_yield_curve&field_tdr_date_value=" + year + "&page&_format=csv", { retries: 1, timeout: 8000 })).text()).replace(/^\uFEFF/, "");
+        const lines = csv.trim().split(/\r?\n/);
+        const cols = lines[0].split(",").map(s => s.replace(/^"|"$/g, "").trim());
+        const col = cols.indexOf("2 Yr");
+        if (col < 0) throw new Error("2 Yr column missing");
+        const row = lines.slice(1).map(l => l.split(",")).find(c => c.length > col && /^\d{2}\/\d{2}\/\d{4}$/.test((c[0] || "").trim()));
+        if (!row || !(+row[col] > 0)) throw new Error("dated 2Y observation missing");
+        const [mm, dd, yyyy] = row[0].trim().split("/");
+        accept("tnx2", rounded(+row[col], 3), yyyy + "-" + mm + "-" + dd, "US Treasury par yield curve (US government work)");
+      } catch (e) {
+        console.warn("source warning: TNX2 Treasury", e.message);
+        const p = await fredSeries("DGS2");
+        accept("tnx2", rounded(p.value, 3), p.date, "FRED DGS2 (T+1)");
+      }
     }),
     attempt(["fx"], "Frankfurter", async () => {
       const j = await json("https://api.frankfurter.app/latest?from=USD&to=CNY");
@@ -242,12 +321,25 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   // /sp500/pe.json carries two monthly series: `pe` (trailing; its last point can lag months) and
   // `cape` (Shiller cyclically adjusted). Take `cape` explicitly — the dashboard previously showed
   // the wrong series (pe 27.89 @2026-03-01 instead of cape 41.09 @2026-09-11).
-  await attempt(["cape"], "History of Market sp500 (CAPE)", async () => {
-    const j = await json("https://historyofmarket.com/api/sp500/pe.json");
-    const point = (j.cape || []).filter(p => Number.isFinite(p.value)).at(-1);
-    const asOf = sourceDate(point?.date);
-    if (!isDate(asOf) || !Number.isFinite(point?.value) || !(point.value > 0)) throw new Error("dated CAPE observation missing");
-    accept("cape", point.value, asOf, "History of Market sp500 (CAPE series, CC BY 4.0)");
+  await attempt(["cape"], "History of Market / multpl.com", async () => {
+    try {
+      const j = await json("https://historyofmarket.com/api/sp500/pe.json");
+      const point = (j.cape || []).filter(p => Number.isFinite(p.value)).at(-1);
+      const asOf = sourceDate(point?.date);
+      if (!isDate(asOf) || !Number.isFinite(point?.value) || !(point.value > 0)) throw new Error("dated CAPE observation missing");
+      accept("cape", point.value, asOf, "History of Market sp500 (CAPE series, CC BY 4.0)");
+    } catch (e) {
+      console.warn("source warning: CAPE", e.message);
+      /* multpl.com 兜底（2026-10-17 加）：HTML 月度表，首行就是最新值。
+         ⚠ 与 historyofmarket 的口径不完全一致（实测同日 40.54 vs 41.87，差约 3%），
+         所以 source 名里明写 fallback —— 不让两个口径在溯源里悄悄混成一个。 */
+      const text = await (await get("https://www.multpl.com/shiller-pe/table/by-month", { retries: 1 })).text();
+      const m = text.match(/<td>\s*([A-Z][a-z]{2} \d{1,2}, \d{4})\s*<\/td>\s*<td>[^<]*?([\d.]+)\s*<\/td>/);
+      if (!m) throw new Error("multpl CAPE parse failed");
+      const t = Date.parse(m[1] + " UTC");
+      if (!Number.isFinite(t)) throw new Error("multpl date invalid");
+      accept("cape", +m[2], new Date(t).toISOString().slice(0, 10), "multpl.com Shiller PE (fallback, different methodology)");
+    }
   });
   await attempt(["putcall"], "CBOE", async () => {
     const text = (await (await get("https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone")).text()).replaceAll('\\"', '"');
