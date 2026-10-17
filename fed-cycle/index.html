@@ -406,10 +406,21 @@ function chartScrub(e) {
   if (!el || !el._geo || !el._labels) return;
   const g = el._geo, ro = el.parentElement.querySelector(".chart-readout");
   const rect = el.getBoundingClientRect();
-  let n = Math.round((e.clientX - rect.left - g.mL) / ((g.W - g.mL - g.mR) || 1) * g.xMax);
+  /* 2026-10-17 修（用户反馈「2026 最后一个点选不中，读数停在 10.15」）：
+     ① 原来直接拿 layout 宽度 g.W 换算，但 getBoundingClientRect 是**视觉坐标** ——
+        页面一旦缩放（手机双指/系统字号），两者不等，越靠右偏得越多；改用 rect.width 归一化。
+     ② 最后一点原本只在右边缘 ~6px 内算得到，手指拖到最右时浏览器手势还会吃掉几像素 →
+        读数永远停在倒数第二格。补一条「贴右边缘 10px 直接取末点」的吸附。 */
+  const scale = (rect.width / (g.W || 1)) || 1;
+  const xIn = (e.clientX - rect.left) / scale;
+  let n = Math.round((xIn - g.mL) / ((g.W - g.mL - g.mR) || 1) * g.xMax);
+  if (xIn >= g.W - g.mR - 10) n = g.xMax;
   n = Math.max(0, Math.min(g.xMax, n));
   const marks = el._marks || T0_MARKS(g.xMax);
-  const ms = marks.find(([m]) => Math.abs(m - n) <= 4);
+  /* 2026-10-17 修（用户反馈「2026 最后一个点选不中，只到 10.15」）：
+     根因不是命中范围，而是**里程碑吸附** —— 最后一格 n=xMax(22) 距「1月」里程碑(21) 只有 1 个交易日，
+     落在 ±4 吸附窗里就被吸回 21，读数永远显示倒数第二根的日期。末点不参与吸附。 */
+  const ms = n >= g.xMax ? null : marks.find(([m]) => Math.abs(m - n) <= 4);
   let t = n, head;
   if (el._mode === "cyc" && el._split !== null && el._split !== undefined) {
     if (ms) { t = ms[0]; head = "<b>结束后 " + ms[1] + "</b>"; }
