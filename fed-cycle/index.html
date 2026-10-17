@@ -51,6 +51,14 @@
     <div class="sec-title">走势对比 <span class="mute" style="font-weight:400">所有周期起点对齐到 T+0</span></div>
     <div class="card">
       <div class="chips" id="view-chips"></div>
+      <!-- 叠加视图的横轴缩放（2026-10-17 加）：2026 周期只有 23 个交易日，
+           全程轴是 342 天，它只占最左 6.7% —— 加「首月/首季」才能和历次同期并排比较。 -->
+      <div class="chips" id="span-chips">
+        <span class="mute" style="font-size:11px;align-self:center;margin-right:2px;">叠加范围</span>
+        <button class="chip on" data-span="0">全程</button>
+        <button class="chip" data-span="21">首月</button>
+        <button class="chip" data-span="63">首季</button>
+      </div>
       <div id="charts"></div>
       <div class="legend" id="legend"></div>
     </div>
@@ -319,7 +327,20 @@ function chartBox(el, seriesList, yMin, yMax, xMax, opts) {
   }
   seriesList.forEach((s) => {
     if (!s.pts || !s.pts.length) return;
-    svg += '<polyline points="' + s.pts.map((p) => px(p.n).toFixed(1) + ',' + py(p.v).toFixed(1)).join(' ') + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.strong ? 2 : 1.3) + '" stroke-linejoin="round" opacity="' + (s.alpha || 1) + '"/>';
+    /* 截断到当前横轴范围（2026-10-17）：「首月/首季」档下超出 xMax 的点不画，
+       否则 px() 会把它们推到画布右侧之外，polyline 会在边缘糊成一条竖线。 */
+    const pts = s.pts.filter((p) => p.n <= xMax);
+    if (!pts.length) return;
+    svg += '<polyline points="' + pts.map((p) => px(p.n).toFixed(1) + ',' + py(p.v).toFixed(1)).join(' ') + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.strong ? 2 : (s.dash ? 1.8 : 1.3)) + '" stroke-linejoin="round"'
+      + (s.dash ? ' stroke-dasharray="5 3"' : '') + ' opacity="' + (s.alpha || 1) + '"/>';
+  });
+  /* 进行中周期的末端点（2026-10-17）：2026 只有 22 根、叠在 342 根长的轴里只占最左一小段，
+     不标末端几乎看不出来 —— 画一个实心点表示「数据到此为止」。 */
+  seriesList.filter((s) => s.dash && s.pts && s.pts.length).forEach((s) => {
+    const pts = s.pts.filter((p) => p.n <= xMax);
+    if (!pts.length) return;
+    const p = pts[pts.length - 1];
+    svg += '<circle cx="' + px(p.n).toFixed(1) + '" cy="' + py(p.v).toFixed(1) + '" r="3" fill="' + s.color + '" stroke="var(--bg)" stroke-width="1.2"/>';
   });
   /* 十字线 + 各序列吸附圆点（默认隐藏，pointer 事件驱动；几何参数存 el._geo 供换算） */
   svg += '<line class="xh" x1="' + mL + '" y1="' + mT + '" x2="' + mL + '" y2="' + (H - mB) + '" stroke="var(--tx3)" stroke-width="1" style="display:none"/>';
@@ -331,27 +352,44 @@ function chartBox(el, seriesList, yMin, yMax, xMax, opts) {
   return svg;
 }
 let view = 'all';
+let allSpan = 0;   // 叠加视图横轴：0 = 全程 / 21 = 首月 / 63 = 首季（2026-10-17 加）
+/* 叠加视图的序列集（2026-10-17 改）：
+   原来只叠 `!ongoing` 的已结束周期，进行中的 2026 完全不出现（用户问「全部叠加好像没有 2026」）。
+   现在把进行中的也叠上，但用**虚线**区分 —— 它的曲线只有 22 个交易日，实线会被误读成"走完了"。
+   颜色索引接着已结束周期排，保证与图例一一对应。 */
+function allSeriesOf(k) {
+  const done = CYCLES.filter((c) => !c.ongoing), live = CYCLES.filter((c) => c.ongoing);
+  return [
+    ...done.map((c, i) => { const x = c.idx[k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85, label: c.id } : null; }),
+    ...live.map((c, i) => { const x = c.idx[k]; return x ? { pts: x.curve, color: PALETTE[(done.length + i) % PALETTE.length], alpha: .95, dash: true, label: c.id + "（进行中）" } : null; }),
+  ].filter(Boolean);
+}
 function renderCharts() {
   const done = CYCLES.filter((c) => !c.ongoing);
   const box = $('charts');
+  /* 叠加范围只对「全部叠加」有意义；单周期视图的横轴由该周期的数据长度决定 */
+  $('span-chips').style.display = view === 'all' ? '' : 'none';
   if (view === 'all') {
-    /* 每个指数一张图，叠加全部已结束周期 —— 看"同一个指数在历次加息中的路径差异" */
-    const xMax = Math.max.apply(null, done.map((c) => Math.max.apply(null, IDX.map(([k]) => (c.idx[k] ? c.idx[k].curve.length : 0)))));
+    /* 每个指数一张图，叠加历次周期 —— 看"同一个指数在历次加息中的路径差异"。
+       2026（进行中）也叠进来，用虚线区分（见 allSeriesOf）。 */
+    const fullMax = Math.max.apply(null, done.map((c) => Math.max.apply(null, IDX.map(([k]) => (c.idx[k] ? c.idx[k].curve.length : 0)))));
+    const xMax = allSpan ? Math.min(allSpan, fullMax) : fullMax;
+    /* y 轴按**当前横轴范围**取值域（2026-10-17）：首月档下若仍用全程的 ±50%，波动会被压成一条细带 */
+    const yRangeOf = (series) => {
+      const vs = series.flatMap((s) => s.pts.filter((p) => p.n <= xMax).map((p) => p.v)).concat([0]);
+      return [Math.floor(Math.min.apply(null, vs) / 10) * 10, Math.ceil(Math.max.apply(null, vs) / 10) * 10];
+    };
     box.innerHTML = IDX.map(([k, label, color]) => {
-      const all = done.map((c) => c.idx[k]).filter(Boolean);
-      const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
-      const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
-      const series = done.map((c, i) => { const x = c.idx[k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85 } : null; }).filter(Boolean);
-      return '<div class="chart"><div class="chart-h"><b style="color:' + color + '">' + label + '</b><span>' + all.length + ' 个周期叠加</span></div>'
+      const series = allSeriesOf(k);
+      return '<div class="chart"><div class="chart-h"><b style="color:' + color + '">' + label + '</b><span>' + series.length + ' 个周期叠加</span></div>'
         + '<div class="cbox" data-idx="' + k + '"></div><div class="chart-readout">拖动曲线，读同一时点各周期的涨跌 · 竖线＝1/3/6/9/12 月</div></div>';
     }).join('');
-    $('legend').innerHTML = done.map((c, i) => '<span><i style="border-color:' + PALETTE[i % PALETTE.length] + '"></i>' + c.id + '</span>').join('')
-      + '<span class="mute">同色＝同一周期</span>';
+    $('legend').innerHTML = allSeriesOf(IDX[0][0]).map((s) => '<span><i style="border-color:' + s.color + '"></i>' + s.label + '</span>').join('')
+      + '<span class="mute">虚线＝进行中</span>';
     $$('.cbox').forEach((el) => {
       const k = el.dataset.idx;
-      const all = done.map((c) => c.idx[k]).filter(Boolean);
-      const vs = all.flatMap((x) => x.curve.map((p) => p.v)).concat([0]);
-      const yMin = Math.floor(Math.min.apply(null, vs) / 10) * 10, yMax = Math.ceil(Math.max.apply(null, vs) / 10) * 10;
+      const series = allSeriesOf(k);
+      const [yMin, yMax] = yRangeOf(series);
       el._draw = { k, yMin, yMax, xMax };
     });
   } else {
@@ -377,7 +415,7 @@ function drawCharts() {
   $$('.cbox').forEach((el) => {
     const d = el._draw; if (!d) return;
     if (d.k) {
-      const series = done.map((c, i) => { const x = c.idx[d.k]; return x ? { pts: x.curve, color: PALETTE[i % PALETTE.length], alpha: .85, label: c.id } : null; }).filter(Boolean);
+      const series = allSeriesOf(d.k);
       el.innerHTML = chartBox(el, series, d.yMin, d.yMax, d.xMax, { xStep: 120, title: d.k });
       el._labels = series; el._mode = "all";
     } else {
@@ -396,6 +434,13 @@ $('view-chips').addEventListener('click', (e) => {
   const b = e.target.closest('.chip'); if (!b) return;
   view = b.dataset.v;
   Array.prototype.forEach.call($('view-chips').children, (x) => x.classList.toggle('on', x === b));
+  renderCharts();
+});
+/* 叠加范围切换（2026-10-17）：全程 / 首月 / 首季 —— 首月档下 2026 的 23 个点才占总宽度的 1/1 */
+$('span-chips').addEventListener('click', (e) => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  allSpan = +b.dataset.span || 0;
+  Array.prototype.forEach.call($('span-chips').querySelectorAll('.chip'), (x) => x.classList.toggle('on', x === b));
   renderCharts();
 });
 renderCharts();
