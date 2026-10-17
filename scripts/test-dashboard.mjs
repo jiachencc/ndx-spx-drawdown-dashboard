@@ -99,7 +99,10 @@ test("an advisory input degrades its own rule instead of blanking the dashboard"
   assert.equal(s.healthy, true);
   assert.equal(s.invalid.length, 0);
   assert.ok(s.degraded.some(h => h.key === "pePct"), "pePct must be reported as degraded");
-  assert.match(s.status, /降级输入/);
+  /* 2026-10-17：降级名单从 status 移除（标题只留结论，名单统一交给「数据有效性」面板）。
+     这里改为断言：plain 里给出数量，且 status 不再塞名单。 */
+  assert.match(s.plain, new RegExp(s.degraded.length + " 项辅助输入"));
+  assert.ok(!/降级输入/.test(s.status), "status 不该再拼降级名单（手机上是 5 行黄色大字）");
   assert.match(s.exits[2].warning, /PE分位|PE 分位|SPX PE/);
   assert.equal(s.exits[0].warning, "", "T+1 depends on NDX alone");
 });

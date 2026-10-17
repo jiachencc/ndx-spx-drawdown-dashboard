@@ -3675,7 +3675,7 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
     { id: "T+1", inputs: ["ndx"], band: "+" + R.t1Ytd + "% / 距高点", title: "停止大额定投", plain: "意思：今年涨得够多、或已经很贴近历史高点，规则建议先停下大笔加仓。注意是「停止加仓」，不是卖出。", hit: (ytd >= R.t1Ytd - 1e-9 || distAth < R.t1NearHigh - 1e-9) && distAth <= R.t1PauseAbove + 1e-9,
       detail: "YTD ≥" + R.t1Ytd + "% 或距高点 <" + R.t1NearHigh + "%；距高点 >" + R.t1PauseAbove + "% 时暂停此档（无持久状态，不模拟滞回）。", unmet: distAth > R.t1PauseAbove ? "距高点 >" + R.t1PauseAbove + "%，此档暂停" : "YTD 尚差 " + Math.max(0, R.t1Ytd - ytd).toFixed(2) + "pp；距高点须 <" + R.t1NearHigh + "%（当前 " + distAth.toFixed(2) + "%）" },
     { id: "T+2", inputs: ["ndx"], band: "+" + R.t2Ytd + "%", title: "兑现浮盈 15–20%", plain: "意思：涨幅到了高位，规则建议分批卖出、先把一部分浮盈落袋（约 15–20%）。", hit: ytd >= R.t2Ytd - 1e-9,
-      detail: "YTD ≥" + R.t2Ytd + "%。规则阈值，历史有效性待独立回测。（原「或恐贪 ≥85」臂随 CNN 恐贪源停更一并移除。）", unmet: "YTD 尚差 " + Math.max(0, R.t2Ytd - ytd).toFixed(2) + "pp" },
+      detail: "YTD ≥" + R.t2Ytd + "%。规则阈值，历史有效性待独立回测。", unmet: "YTD 尚差 " + Math.max(0, R.t2Ytd - ytd).toFixed(2) + "pp" },
     { id: "T+3", inputs: ["pePct", "ndx"], band: R.t3PePct + "分位 + RSI", title: "兑现至仓位下限", plain: "意思：估值已经极端贵、动能也过热，规则建议卖到事先设好的仓位下限。", hit: d.pePct >= R.t3PePct && d.ndx.rsi >= R.t3Rsi,
       detail: "SPX PE分位 ≥" + R.t3PePct + "% 且 NDX RSI ≥" + R.t3Rsi + "（跨市场组合规则）。", unmet: "PE分位 " + d.pePct + "/" + R.t3PePct + "；RSI " + d.ndx.rsi + "/" + R.t3Rsi + "；两项均须满足" },
     { id: "T+4", inputs: ["peFwd", "tnx"], band: "ERP < " + R.t4Erp, title: "降杠杆转防御", plain: "意思：股票的隐含收益率（1÷远期PE）已经低于国债利率——承担了股票风险却拿不到额外补偿，所以规则建议降低风险敞口。它跟赚没赚钱无关，也不是止盈。", hit: erp < R.t4Erp,
@@ -3707,8 +3707,13 @@ function evaluateDecision(d, now = new Date(), meta = SOURCE_META) {
     : entry === "unconfirmed" ? "意思：回撤已到加仓档，但确认条件不足，规则建议再等一等。"
     : entry === "observe" ? "意思：已进入关注区，还不到加仓档，只观察。"
     : "意思：还没到任何档位，按原计划持有即可。")
-    + (degraded.length ? " 另有 " + degraded.length + " 项数据当前拿不到（" + degraded.map(h => h.label).join("、") + "），依赖它们的规则已在下方单独标注；结论照给，但请留意。" : "");
+    /* 2026-10-17 精简：原来这里把 5 个降级项的名字全列一遍，而同一个名单在
+       banner 标题、决策依据底部、「数据有效性」面板、估值卡底部又各出现一次。
+       现在只说**数量**，明细统一交给「数据有效性」面板（一处维护、一处阅读）。 */
+    + (degraded.length ? " 另有 " + degraded.length + " 项辅助输入当前拿不到，依赖它们的规则已在下方单独标注；结论照给，但请留意。" : "");
   return { dd, ytd, distAth, erp, rules: R, level, confirmations, count, bandReady, exits, exit, healthy, invalid, entry, health, core, advisory, degraded, plain,
-    status: base + (degraded.length ? "；降级输入：" + degraded.map(h => h.label).join("、") : "") };
+    /* 标题只留结论（2026-10-17 改）：降级名单移出标题 —— 它属于数据质量，不属于决策结论，
+       且长标题在手机上会折成 5 行黄色大字。 */
+    status: base };
 }
 

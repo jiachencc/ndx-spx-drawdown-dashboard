@@ -51,6 +51,12 @@
   }
   .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
   a.theme-btn { text-decoration: none; }
+  /* 手机只留图标（2026-10-17）：4 个文字按钮在 390px 下会各占一行，首屏白吃约 120px。
+     图标 + aria-label 仍可读屏；≥481px 维持原样。 */
+  @media (max-width: 480px) {
+    .theme-btn .btn-lbl { display: none; }
+    .theme-btn { padding: 6px 9px; }
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
   :focus:not(:focus-visible) { outline: none; }
@@ -144,8 +150,9 @@
   .asof-cn { font-size: 11.5px; color: var(--tx3); margin-top: 3px; line-height: 1.5; }
   /* 卡片视觉层级：决策级强调 / 背景级降权 */
   .card-hi {
-    border-color: rgba(91,163,255,.32);
-    box-shadow: 0 4px 30px -12px rgba(91,163,255,.2), 0 4px 24px -12px rgba(0,0,0,.45);
+    /* 2026-10-17：.32 在深色底上几乎看不出「决策级」层级 → 提到 .44，阴影同步加深 */
+    border-color: rgba(91,163,255,.44);
+    box-shadow: 0 4px 30px -12px rgba(91,163,255,.26), 0 4px 24px -12px rgba(0,0,0,.45);
   }
   .card-hi .card-title { color: var(--tx); }
   .card-lo { opacity: .82; }
@@ -370,7 +377,8 @@
     border-radius: 999px; padding: 1px 8px; line-height: 1.65; }
   .st-on { background: rgba(242,109,125,.16); color: var(--red); border: 1px solid rgba(242,109,125,.4); }
   .st-near { background: rgba(247,193,78,.13); color: var(--yellow); border: 1px solid rgba(247,193,78,.4); }
-  .st-off { background: rgba(143,160,186,.1); color: var(--tx2); border: 1px solid var(--line); }
+  /* 2026-10-17：深色下 --line(#232e44) 的描边几乎与底色同色，灰胶囊像「禁用态」→ 提亮描边 */
+  .st-off { background: rgba(143,160,186,.1); color: var(--tx2); border: 1px solid color-mix(in srgb, var(--tx3) 38%, transparent); }
   /* 「远离」态：用虚线边框区分「观察」，不再依赖 opacity（透明度差在深色下几乎不可辨） */
   .st-far { background: transparent; color: var(--tx3); border: 1px dashed var(--line); }
   .tp-on { background: rgba(45,212,167,.16); color: var(--green); border: 1px solid rgba(45,212,167,.4); }
@@ -497,7 +505,9 @@
   .hist-med { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
   .hist-med .med-bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--card2); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
   .hist-med .med-bar i { position: absolute; top: -2px; height: 12px; width: 2.5px; background: var(--yellow); border-radius: 1px; }
-  .hist-med .med-bar .med-txt { position: absolute; top: -18px; transform: translateX(-50%); font-size: 10px; color: var(--yellow); font-family: var(--mono); }
+  /* 中位数刻度（2026-10-17 加）：灰、比当前值高一点 —— 与黄色的「当前」竖线区分开，
+     不再把当前值冒充成中位数（旧版 med-txt 就是拿 pct(ndxDD) 渲染的 ✗）。 */
+  .hist-med .med-bar .med-mark { background: var(--tx3); top: -4px; height: 16px; width: 1.5px; }
   .hist-cagr {
     display: flex; align-items: center; gap: 16px; margin-top: 12px;
     padding: 10px 14px; border-radius: 10px; flex-wrap: wrap;
@@ -638,10 +648,10 @@
     <div class="sub">NDX · SPX · 回撤监控 → 加减仓决策</div>
   </div>
   <div class="meta">
-    <button class="theme-btn" id="refresh-btn" type="button" aria-label="强制刷新页面（绕过 CDN / 浏览器缓存）" title="强制重新拉取 data.js（绕过缓存），不会重新抓行情"><span aria-hidden="true">🔄</span> 刷新</button>
-    <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页"><span aria-hidden="true">💼</span> 持仓</a>
-    <a class="theme-btn" href="fed-cycle/" aria-label="查看美联储加息周期三指数回测看板"><span aria-hidden="true">📈</span> 加息周期</a>
-    <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span> 深色</button>
+    <button class="theme-btn" id="refresh-btn" type="button" aria-label="强制刷新页面（绕过 CDN / 浏览器缓存）" title="强制重新拉取 data.js（绕过缓存），不会重新抓行情"><span aria-hidden="true">🔄</span><span class="btn-lbl">刷新</span></button>
+    <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页"><span aria-hidden="true">💼</span><span class="btn-lbl">持仓</span></a>
+    <a class="theme-btn" href="fed-cycle/" aria-label="查看美联储加息周期三指数回测看板"><span aria-hidden="true">📈</span><span class="btn-lbl">加息周期</span></a>
+    <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span><span class="btn-lbl">深色</span></button>
     <span class="chip">💵 USD/CNY <b id="meta-fx">--</b></span>
     <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)"><span aria-hidden="true">🔶</span> 美股盘中快照 · 正式收盘数据待更新</span>
     <span class="chip chip-stale" id="stale-chip" style="display:none"></span>
@@ -814,12 +824,8 @@
       <div class="m-bar"><div class="m-fill" id="spx-ma200b" style="width:0%;background:var(--green);"></div></div>
       <div class="m-marks"><span>-5%</span><span>0</span><span>+8%</span></div>
     </div>
-    <div class="ma-state" id="ma-state">
-      <span class="ma-chip" data-k="ndx-ma50">--</span>
-      <span class="ma-chip" data-k="ndx-ma200">--</span>
-      <span class="ma-chip" data-k="spx-ma50">--</span>
-      <span class="ma-chip" data-k="spx-ma200">--</span>
-    </div>
+    <!-- 2026-10-17 删：4 个 ma-chip（NDX MA50 跌破 / …）与上面 4 行百分比的符号完全重复，
+         正负号已经说明站上/跌破 —— 同一事实不必说两遍。文字结论仍由下方 note-trend 给。 -->
     <div class="meter" style="margin-top:4px;">
       <div class="m-head"><span class="m-label"><span aria-hidden="true">🧩</span> 市场广度 · NDX 相对 SPX (YTD)<button class="hint-i" type="button" aria-label="查看释义" data-h="breadth">?</button></span><span class="m-val" id="brd-val">--</span></div>
       <div class="m-bar"><div class="m-fill" id="brd-bar" style="width:0%;background:var(--green);"></div></div>
@@ -831,7 +837,7 @@
 
   <div class="card">
     <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">💰</span> 估值锚<span class="src-tag auto">AUTO</span></div>
-    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 配色方向：本卡 <b>红=偏贵/风险</b>（回撤区红色代表便宜/机会，方向相反）</div>
+    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 本卡：<b>红=偏贵/过热</b>（回撤区红色=便宜/机会，方向相反）</div>
     <div class="meter">
       <div class="m-head"><span class="m-label">SPX 远期PE 分位<button class="hint-i" type="button" aria-label="查看释义" data-h="pepct">?</button></span><span class="m-val" id="val-pepct">--</span></div>
       <div class="m-bar"><div class="m-fill" id="val-pepctb" style="width:0%;background:linear-gradient(90deg,var(--yellow),var(--red));"></div></div>
@@ -872,7 +878,7 @@
 
   <div class="card">
     <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">🌡️</span> 情绪温度<span class="src-tag auto">AUTO</span></div>
-    <div class="dir-hint"><span aria-hidden="true">⚠️</span> 配色方向：本卡 <b>红=过热/风险</b>（回撤区红色代表便宜/机会，方向相反）</div>
+    <!-- 2026-10-17 删：与「估值锚」卡上那条配色说明一字不差地重复，同一页说一遍就够。 -->
     <div class="meter">
       <div class="m-head"><span class="m-label">VIX 恐慌指数<button class="hint-i" type="button" aria-label="查看释义" data-h="vix">?</button></span><span class="m-val" id="sent-vix">--</span></div>
       <div class="m-bar"><div class="m-fill" id="sent-vixb" style="width:0%;background:var(--green);"></div></div>
@@ -897,16 +903,13 @@
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span><span aria-hidden="true">💱</span> 汇率 & 压力测试<span class="src-tag auto">AUTO</span><button class="hint-i" type="button" aria-label="查看释义" data-h="stress">?</button></div>
+    <div class="card-title"><span class="bar" aria-hidden="true" style="background:#ff9843"></span><span aria-hidden="true">💱</span> 汇率<span class="src-tag auto">AUTO</span></div>
     <div class="idx-name" style="margin-bottom:4px;"><span>USD/CNY</span></div>
     <div class="fx-num" id="fx-num" style="color:var(--cyan)">--</div>
     <div class="idx-change" id="fx-chg">人民币升值吃掉 QDII 收益的风险敞口</div>
-    <div class="stress">
-      <div class="stress-row"><b>NDX -10%</b> <span class="s-desc">--</span></div>
-      <div class="stress-row"><b>NDX -15%</b> <span class="s-desc">--</span></div>
-      <div class="stress-row"><b>NDX -25%</b> <span class="s-desc">--</span></div>
-      <div class="stress-row"><b>NDX -35%</b> <span class="s-desc">--</span></div>
-    </div>
+    <!-- 2026-10-17 删「压力测试」4 行：NDX -15/-25/-35% 对应的 26,657 / 23,521 / 20,385
+         与「回撤深度尺」卡上的三个点位是同一组数（同一页出现两遍）；-10% 也不参与任何规则。
+         卡名同步从「汇率 & 压力测试」改为「汇率」。 -->
   </div>
 </div>
 
@@ -920,13 +923,13 @@
       <tr><td class="h-desc">2020 疫情</td><td style="color:var(--red)">-30.1%</td><td>~33 天</td></tr>
       <tr><td class="h-desc">2022 加息熊市</td><td style="color:var(--red)">-35.7%</td><td>~253 天</td></tr>
       <tr><td class="h-desc">2025 技术性回调</td><td style="color:var(--yellow)">-13.7%</td><td>~70 天</td></tr>
-      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (2026-09)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
+      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
     </table>
     <div class="hist-med">
-      <span>近10年中位数回撤<button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
+      <span>近10年中位数回撤 <b id="med-num" style="font-family:var(--mono);color:var(--tx2);">--</b><button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
       <div class="med-bar">
+        <i id="med-mark" class="med-mark" style="left:0%;"></i>
         <i id="med-dot" style="left:0%;"></i>
-        <span class="med-txt" id="med-val" style="left:0%;">--</span>
       </div>
       <span style="color:var(--yellow);font-family:var(--mono);" id="hist-rank">--</span>
     </div>
@@ -935,8 +938,8 @@
       <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
       <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
     </div>
-    <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> <b>年内回撤是常态</b>：标普500 自 1928 年以来，<b>年内平均最大回撤 -16.2%</b>，而多数年份年末仍收正——当前的年内回撤（NDX <b id="hist-ddytd">--</b>）放在百年尺度只是寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
-    <div class="note">当前回撤 <b id="hist-rank-txt">--</b>：在近 10 年属于 <b>普通技术性回调</b>，纳指历史上有 30%+ 交易日处于 -5% 以下。真正的加仓窗口（-15% 以下）出现频率约 12%，需耐心等。<b style="color:var(--green)">长期看，NDX 年化 +16% 是"回撤早晚会修复"的底气</b>。</div>
+    <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> 标普500 自 1928 年以来<b>年内平均最大回撤 -16.2%</b>，多数年份年末仍收正 —— 当前 NDX 年内回撤 <b id="hist-ddytd">--</b> 属寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
+    <div class="note">当前 <b id="hist-rank-txt">--</b> 属<b>普通技术性回调</b>；真正的加仓窗口（-15% 以下）约 12% 的交易日出现，需耐心等。</div>
   </div>
 
 <!-- ======= DCA zero indicator ======= -->
@@ -1108,15 +1111,6 @@ function renderAll() {
   setMeter("ndx-ma200", ndx200, -5, 8);
   setMeter("spx-ma50", spx50, -3, 3);
   setMeter("spx-ma200", spx200, -5, 8);
-  /* MA state chips（±0.5% 内视为纠缠） */
-  const maMap = { "ndx-ma50": ndx50, "ndx-ma200": ndx200, "spx-ma50": spx50, "spx-ma200": spx200 };
-  document.querySelectorAll(".ma-chip").forEach(ch => {
-    const dev = maMap[ch.dataset.k];
-    const k = ch.dataset.k.toUpperCase().replace("-", " ");
-    const state = dev > 0.5 ? "站上" : (dev < -0.5 ? "跌破" : "纠缠");
-    ch.textContent = k + " " + state;
-    ch.className = "ma-chip " + (dev > 0.5 ? "on-up" : (dev < -0.5 ? "on-down" : ""));
-  });
   /* breadth: NDX 相对 SPX 的 YTD 强弱 */
   const brd = ytdOf(ndx) - ytdOf(spx);
   const brdTxt = (brd >= 0 ? "+" : "") + brd.toFixed(2) + "pp";
@@ -1201,20 +1195,6 @@ function renderAll() {
     (D.tnx2 >= D.tnx ? "倒挂 🔴" : "正斜率") + "、Put/Call " + pc.toFixed(2) + " " + (pc > 1.1 ? "防御" : (pc < 0.7 ? "贪婪" : "中性")) +
     " → " + (D.tnx2 < D.tnx && pc >= 0.7 && D.vix < 30 ? "无系统性风险信号" : "存在风险信号，注意控制加仓节奏") + "。";
 
-  /* stress test — 与 thresholds 耦合，改阈值时文案自动同步 */
-  const stressDefs = [
-    [-10, "-10.0%"],
-    [th.t2, "DCA 档"],
-    [th.t3, "重仓档"],
-    [th.t4, "历史级"]
-  ];
-  const sRows = document.querySelectorAll(".stress-row b");
-  const sDescs = document.querySelectorAll(".stress-row .s-desc");
-  stressDefs.forEach((d, i) => {
-    sRows[i].textContent = "NDX " + d[0] + "%";
-    sDescs[i].textContent = "→ " + fmt0(priceAt(ndx, d[0])) + " 点（" + d[1] + "）";
-  });
-
   /* scale stats */
   $("sstat-buy").textContent = fmt0(priceAt(ndx, th.t2));
   $("sstat-buy2").textContent = fmt0(priceAt(ndx, th.t3));
@@ -1259,15 +1239,19 @@ function setMeter(prefix, val, min, max) {
 function renderHist(ndxDD) {
   $("hist-cur").textContent = pct(ndxDD);
   $("hist-cur-days").textContent = D.ndx.days + " 天";
+  /* 2026-10-17 修：原来中位数标签与游标都用**当前回撤**渲染 —— 等于把「当前值」冒充成
+     「近10年中位数」✗（图上写 −6.93%，真实中位数是 −7.50%）。现在分开：
+       med-mark（灰竖线）= 中位数、med-dot（黄竖线）= 当前回撤。 */
   const median = -7.5;
   const deeper = ndxDD < median;
+  $("med-num").textContent = pct(median);
   $("hist-rank").textContent = deeper ? "当前 低于中位" : "当前 高于中位";
   $("hist-rank").style.color = deeper ? "var(--red)" : "var(--yellow)";
-  /* dot position on 0 ~ -40 scale */
-  const pos = Math.min(100, Math.max(2, (ndxDD - (-40)) / 40 * 100));
-  $("med-dot").style.left = pos + "%";
-  $("med-val").style.left = pos + "%";
-  $("med-val").textContent = pct(ndxDD);
+  const posOf = v => Math.min(98, Math.max(2, (v - (-40)) / 40 * 100));
+  $("med-mark").style.left = posOf(median) + "%";
+  $("med-dot").style.left = posOf(ndxDD) + "%";
+  /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
+  $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
   $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd) : "--";   // 年内回撤基准对照（数据驱动）
 }
@@ -1372,7 +1356,8 @@ function renderTriggers(ndxDD) {
         <div class="trig-right">${stateHtml}<div class="trig-dist">${distTxt}</div></div>
       </div>`;
   });
-  box.innerHTML = html + '<div class="note" style="margin-top:10px;">历史统计为旧版固定文案，原始样本与生成脚本待核验，不参与规则计算，也不代表未来胜率。所称口径：NDX 2016-2026 独立下跌段、触发后 60 个交易日。</div>';
+  /* 2026-10-17：这句是「口径与限制」而不是决策结论，正文里压成一行折叠件（默认收起）。 */
+  box.innerHTML = html + '<details class="note" style="margin-top:10px;"><summary style="cursor:pointer;color:var(--tx3);">统计口径与限制</summary>历史统计为旧版固定文案，原始样本与生成脚本待核验，不参与规则计算，也不代表未来胜率。所称口径：NDX 2016-2026 独立下跌段、触发后 60 个交易日。</details>';
 }
 
 /* ================= Condition check ================= */
@@ -1383,7 +1368,9 @@ function renderConds() {
   /* 资格条件：回撤档位（与触发矩阵联动） */
   /* 图标与文字解耦：图标 aria-hidden（纯装饰），文字带语义，避免读屏朗读 emoji 名 */
   const ddIcon = dd <= th.t4 ? "⚫" : dd <= th.t3 ? "🔴" : dd <= th.t2 ? "🟠" : dd <= th.t1 ? "🟡" : "🟢";
-  const ddWord = dd <= th.t4 ? th.t4 + "% 第四档" : dd <= th.t3 ? th.t3 + "% 第三档" : dd <= th.t2 ? th.t2 + "% 加仓档" : dd <= th.t1 ? th.t1 + "% 关注" : "待机区";
+  /* 2026-10-17 改：原来写「当前 ⚠ -5%（关注 -6.93%）」—— 读者会把 -5% 当成当前回撤 ✗。
+     现在先给回撤数值，再用一句人话说明它越过了哪条线。 */
+  const ddWord = dd <= th.t4 ? "已达 " + th.t4 + "% 历史级" : dd <= th.t3 ? "已达 " + th.t3 + "% 重仓档" : dd <= th.t2 ? "已达 " + th.t2 + "% 加仓档" : dd <= th.t1 ? "已越过 " + th.t1 + "% 关注线" : "仍在 " + th.t1 + "% 以内";
   const ddBand = '<span aria-hidden="true">' + ddIcon + '</span> ' + ddWord;
   const state = evaluateDecision(D);
   const qualified = state.level >= 2;
@@ -1408,7 +1395,7 @@ function renderConds() {
       <div style="font-size:16px;width:24px;flex-shrink:0;"><span aria-hidden="true">${qualified ? "✅" : "⬜"}</span></div>
       <div class="trig-info">
         <div class="t-title" style="font-size:12.5px;">资格条件 · 回撤档位已触发</div>
-        <div class="t-desc">当前 ${ddBand}（距高点 ${dd.toFixed(2)}%）</div>
+        <div class="t-desc">回撤 ${dd.toFixed(2)}%（${ddBand}）</div>
       </div>
       <span class="trig-state ${qualified ? "st-on" : "st-off"}">${!state.healthy ? "数据受限" : qualified ? "已到档" : "未到档"}</span>
     </div>`;
@@ -1521,7 +1508,8 @@ function drawRecent() {
   const iNow = recentHover === null ? n - 1 : Math.min(recentHover, n - 1);   // 夹住：hover 索引永远落在当前区间内
   let s = "";
   [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
-    s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
+    /* 深色下 --line-soft(#1c2538) 压在 #121826 卡片上几乎看不见（2026-10-17 改）→ 提一档用 --line */
+    s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line)" stroke-dasharray="2 4"/>'
       + '<text x="' + (mL - 7) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + fmt(t) + "</text>";
   });
   /* 参考线（2026-09-27 加）：让这张图从「看形态」变成「看位置」—— 直接对着加仓时机说话。
@@ -1559,8 +1547,8 @@ function drawRecent() {
     s += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" stroke="' + r.color +
       '" stroke-width="1" stroke-dasharray="5 4" opacity=".7"/>' +
       (r.side === "l"
-        ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono)">' + ttl + r.label + "</text>"
-        : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono)">' + ttl + r.label + "</text>");
+        ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">' + ttl + r.label + "</text>"
+        : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">' + ttl + r.label + "</text>");
   });
   s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.8" stroke-linejoin="round" points="'
     + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
@@ -1652,7 +1640,8 @@ function renderRecentStats() {
   }
   const rets = [];
   for (let i = 1; i < n; i++) rets.push(cs[i] / cs[i - 1] - 1);
-  const upN = rets.filter((r) => r > 0).length, dnN = rets.filter((r) => r < 0).length;
+  /* 2026-10-17 精简：原来的「32 涨 / 32 跌 · 共 64 个交易日」对决策没有帮助（涨跌天数不等于趋势强弱），
+     已删除；「区间位置」也去掉「0 = 最低 · 100 = 最高」这种常识性解释。 */
   const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
   const sd = Math.sqrt(rets.reduce((a, r) => a + (r - avg) ** 2, 0) / (rets.length - 1));
   const vol = sd * Math.sqrt(252) * 100;
@@ -1669,10 +1658,8 @@ function renderRecentStats() {
       "（" + md(pts[iTrough].d) + "）；" + (last >= cs[iPeak] ? "最新收盘已回到峰之上" : "最新收盘仍低于峰 " + sg((last / cs[iPeak] - 1) * 100))) +
     item("区间最低", f2(lo), "", md(pts[iLo].d) + " · 距现价 " + sg((last / lo - 1) * 100),
       "区间内最低收盘 " + f2(lo) + "（" + md(pts[iLo].d) + "）；距现价 = 最新收盘相对它高出多少") +
-    item("区间位置", pos.toFixed(0) + "%", "", "0 = 最低 · 100 = 最高",
-      "最新收盘在区间 [最低 " + f2(lo) + ", 最高 " + f2(hi) + "] 里的分位；越接近 100 = 越贴近一个月来的高位") +
-    item("涨跌", upN + " 涨 / " + dnN + " 跌", "", "共 " + rets.length + " 个交易日",
-      "区间内上涨 / 下跌天数（平盘不计），样本 " + rets.length + " 个交易日") +
+    item("区间位置", pos.toFixed(0) + "%", "", "",
+      "最新收盘在区间 [最低 " + f2(lo) + ", 最高 " + f2(hi) + "] 里的分位；越接近 100 = 越贴近区间高位") +
     item("年化波动", vol.toFixed(1) + "%", "", "日 σ " + (sd * 100).toFixed(2) + "%",
       "日收益的样本标准差 × √252；样本只有 " + rets.length + " 个交易日，只是近月尺度的粗估，不代表长期波动率") +
     item("最大单日", sg(rets[iUp] * 100), "up", md(pts[iUp + 1].d) + " · 最差 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）",
@@ -1841,9 +1828,11 @@ function renderSourceHealth() {
   /* 人工维护项单列（2026-10-12 加）：epsGrowth 这类没有自动源、也没抓取时刻 ✓ ——
      把它算进「在有效期」会误导（它根本没有"有效期"可言 ✗），所以从计数里摘出来单独写 ✓。 */
   const manual = ok.filter(h => h.status === "manual");
+  /* 2026-10-17 精简：折叠行的 summary 只留**数量**（原来把降级项名字全列出来，首屏占 3 行）；
+     具体是哪些、为什么降级，展开后逐行都有（下方 root 已按项渲染）。 */
   $("source-summary").textContent = "数据有效性 " + (ok.length - manual.length) + "/" + all.length + " 在有效期"
     + (manual.length ? " · 人工维护 " + manual.length + " 项" : "")
-    + (bad.length ? " · 降级 " + bad.length + " 项：" + bad.map(h => h.label).join("、") : "");
+    + (bad.length ? " · 降级 " + bad.length + " 项" : "");
   /* 降级项逐行给出原因；有效项压成一行 chips（日期缩到 MM-DD，来源与抓取时刻移到悬停）。 */
   const root = $("source-rows"); root.replaceChildren();
   const provenance = h => h.source + " · 最近成功抓取 " + (SOURCE_META[h.key]?.fetchedAt || "未记录");
@@ -1893,10 +1882,13 @@ function renderSourceHealth() {
     const card = $(id)?.closest(".card"); if (!card) return;
     let note = card.querySelector(".source-health-note");
     if (!note) { note = document.createElement("div"); note.className = "source-health-note note"; card.appendChild(note); }
+    /* 2026-10-17 精简：这里原先把每个降级项的**完整口径**（源末点 + 滞后 N 个交易日 + 发布节奏）
+       全量铺在卡片底部 —— 估值卡因此多了约 20 行灰字，而同样的话在页首「数据有效性」里已经有一份。
+       现在只留「名称 + 源日期 + ⚠」，完整原因统一去面板看（一处维护、一处阅读）。 */
     note.textContent = ks.map(k => { const h = sourceHealth(k);
-      /* 人工维护项单独写（2026-10-12 加）：它 usable ✓ 但没有 asOf ✗，照原样会印成「EPS预期（人工） —」✗ */
-      if (h.status === "manual") return h.label + "（" + h.text + "）";
-      return h.usable ? h.label + " " + (h.asOf || "—").slice(5) : "⚠ " + h.label + "（" + h.text + "）"; }).join(" · ");
+      if (h.status === "manual") return h.label;   // label 本身已含「（人工）」，别拼第二遍
+      return h.label + " " + (h.asOf || "—").slice(5) + (h.usable ? "" : " ⚠");
+    }).join(" · ");
   });
 }
 
@@ -2161,7 +2153,7 @@ const themeBtn = $("theme-toggle");
 function applyTheme(mode) {
   const light = mode === "light";
   document.body.classList.toggle("light", light);
-  themeBtn.innerHTML = light ? '<span aria-hidden="true">☀️</span> 切深色' : '<span aria-hidden="true">🌙</span> 切浅色';
+  themeBtn.innerHTML = light ? '<span aria-hidden="true">☀️</span><span class="btn-lbl">切深色</span>' : '<span aria-hidden="true">🌙</span><span class="btn-lbl">切浅色</span>';
   // 重新绘制依赖主题色的 SVG（drawScale 读取 body.light 选色）
   if (typeof D !== "undefined") drawScale(ddOf(D.ndx), ddOf(D.spx));
 }
