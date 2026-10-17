@@ -24,6 +24,16 @@ const get = async (u, accept = 'application/json') => {
   if (!r.ok) throw new Error(u + ' → HTTP ' + r.status);
   return r.text();
 };
+/* 新浪报价时间戳是**北京时间**（"2026-10-17 05:30:00" = 美东 10-16 17:30）。
+   直接 slice(0,10) 会把「数据日」写成抓取日的次日 ✗ —— 页面「数据截至」因此比真实收盘晚一天。
+   （主看板 fetch_and_update.mjs 的 sinaTimestampToET 是同一处修复，2026-10-17。） */
+const sinaDateToET = (s) => {
+  const m = String(s || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
+  if (!m) return '';
+  const t = Date.parse(m[1] + 'T' + m[2] + '+08:00');
+  if (!Number.isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(t));
+};
 
 /* ── 标普 500 ── */
 const sp = JSON.parse(await get('https://historyofmarket.com/api/sp500/price.json'));
@@ -97,7 +107,7 @@ try {
     const body = text.slice(at + head.length);
     const f = body.slice(0, body.indexOf('"')).split(',');
     if (!f[1] || !(+f[1] > 0)) return null;
-    return { name: f[0], price: +f[1], chgPct: +f[2], asOf: (f[3] || '').slice(0, 10) };
+    return { name: f[0], price: +f[1], chgPct: +f[2], asOf: sinaDateToET(f[3]) };
   };
   quotes = { ndx: pick('gb_$ndx'), spx: pick('gb_$inx'), sox: pick('gb_$sox') };
   const ok = Object.keys(quotes).filter((k) => quotes[k]);
@@ -150,8 +160,15 @@ for (const k of Object.keys(S3)) {
   } catch (e) { console.log('  补末梢 ' + k + ' 失败：' + e.message); }
 }
 
+/* 「数据截至」写**最后一根日线的日期**，不是抓取日（2026-10-17 修）。
+   抓取在 UTC 凌晨 / 北京清晨跑时，抓取日比美股交易日早一天 → 页面会显示
+   「数据截至 10-17」而实际只有 10-16 收盘（与 quotes.asOf 的北京时间问题同源）。 */
+const lastDate = (a) => (Array.isArray(a) && a.length ? a[a.length - 1].d : null);
+const dataDate = [lastDate(idx.ndx), lastDate(idx.sox), lastDate(spx)].filter(Boolean).sort().at(-1)
+  || new Date().toISOString().slice(0, 10);
+console.log('  数据截至 ' + dataDate + '（末根日线；抓取时刻见页脚 builtAt）');
 fs.writeFileSync('fed-data.json', JSON.stringify({
-  fetchedAt: new Date().toISOString().slice(0, 10),
+  fetchedAt: dataDate,
   source: {
     spx: { name: 'History of Market', url: 'https://historyofmarket.com/api/sp500/price.json', license: 'CC BY 4.0' },
     ndx: { name: 'Nasdaq', url: 'https://api.nasdaq.com/api/quote/NDX/historical', license: 'Nasdaq 官方' },
