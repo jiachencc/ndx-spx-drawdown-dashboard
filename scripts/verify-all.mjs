@@ -50,7 +50,12 @@ const steps = [
      这一条管版面：深色下的断行 / 溢出 ✓）。代价 ~3s，值得 ✓ */
   hasPlaywright() ? ["layout-check 浅色（真实版面 · 无横向溢出）", ["node", ["scripts/layout-check.mjs"]]]
     : ["layout-check", null, "跳过：未找到全局 playwright"],
-  hasPlaywright() ? ["layout-check 深色（同上 · 用户主用主题）", ["node", ["scripts/layout-check.mjs", "--dark"]]] : null,
+  /* ⚠ 2026-10-17 修：这里原来漏写 else 分支（`: null`），CI 上没有全局 playwright →
+     steps 里出现 null → 下面 map 解构直接 TypeError，**整个 validate job 9 秒挂掉**。
+     本地有 playwright、永远走 true 分支，所以本地一直是绿的 ✗（连挂 4 次 CI 才被发现）。
+     现在与上一条同款：缺依赖就给带 skip 说明的三元组，绝不返回 null。 */
+  hasPlaywright() ? ["layout-check 深色（同上 · 用户主用主题）", ["node", ["scripts/layout-check.mjs", "--dark"]]]
+    : ["layout-check 深色", null, "跳过：未找到全局 playwright"],
 ];
 if (DEEP) steps.push(["typecheck（深度）", ["node", ["scripts/typecheck.mjs"]]]);
 
@@ -59,6 +64,14 @@ console.log("═══ 门禁总检（scripts/verify-all.mjs）═══");
 /* ⚠ 并行跑（2026-10-12 提速 ✓）：各门禁互不依赖、都只读文件/各自起进程 ✓ ——
    墙钟 ≈ 最慢那项、而不是相加 ✓（串行时 dom-check 2.9s ＋ layout-check 6.7s ＝ 9.6s ✗ → 并行 ≈ 6.7s ✓）。
    结果仍按**原顺序**打印（不按完成先后 ✗），失败项照旧收集、任一非 0 整体 exit 1 ✓ —— 判定力一分没减 ✓。 */
+/* 防御（2026-10-17）：三元漏写 else 会产生 null → map 解构 TypeError，
+   而原报错只给一行 "object null is not iterable"，完全看不出是哪一项 ✗。
+   现在先点名，把「静默崩」变成「指名道姓」。 */
+const badSteps = steps.filter((s) => !Array.isArray(s));
+if (badSteps.length) {
+  console.error("  ✗ 门禁清单里有无效项（多半是三元表达式漏写 else 分支）：" + JSON.stringify(badSteps));
+  process.exit(1);
+}
 const results = await Promise.all(steps.map(([name, cmd, skip]) => new Promise((resolve) => {
   if (skip) return resolve({ name, skip });
   const t0 = Date.now();
