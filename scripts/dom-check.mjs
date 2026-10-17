@@ -2244,6 +2244,47 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     to15 <= 1e-9 ? /已到档/.test(t15) : near2(numOf("ndx-to15"), to15),
     "页面「" + t15 + "」vs 复算 " + to15.toFixed(2) + "pp");
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
+  /* ⑦ 数据新鲜度（2026-10-17 加）—— 起因：10-17 定时任务没跑，页面停在 10-15 却完全无提示 ✗，
+     用户是靠肉眼发现「纳指点位不对」才查出来的。这里锁两件事：
+     ① expectedLastTradingDay 的边界（收盘前不算当天 / 收盘后算当天 / 周末与 NYSE 假日回退）；
+     ② 页头确实有「刷新」按钮与手动 Run workflow 的入口。 */
+  {
+    const exp = iw.expectedLastTradingDay;
+    const cases = [
+      ["周五 15:00 EDT 未收盘", new Date("2026-10-16T15:00:00-04:00"), "2026-10-15"],
+      ["周五 18:00 EDT 已收盘", new Date("2026-10-16T18:00:00-04:00"), "2026-10-16"],
+      ["周六", new Date("2026-10-17T12:00:00-04:00"), "2026-10-16"],
+      ["感恩节 18:00", new Date("2026-11-26T18:00:00-05:00"), "2026-11-25"],
+      ["独立日（周六）18:00", new Date("2026-07-04T18:00:00-04:00"), "2026-07-02"],
+    ];
+    const bad = cases.filter(([, when, want]) => typeof exp !== "function" || exp(when) !== want)
+      .map(([name, when, want]) => name + " → " + (typeof exp === "function" ? exp(when) : "无函数") + "（应 " + want + "）");
+    check("决策看板：「应有最新交易日」按纽约收盘 + NYSE 假日推导（" + cases.length + " 个边界）",
+      bad.length === 0, bad.join("；") || "逐档一致 ✓");
+    /* 落后时必须**真的显示**（不只是函数算对）：把 asOf.us 临时退到 7 天前，
+       断言页头 chip 出现、读数 = 复算的交易日差，然后恢复原值。 */
+    try {
+      const want = exp();
+      const probe = exp(new Date(Date.now() - 7 * 86400000));
+      const lag = iw.businessDaysBetweenET(probe, want);
+      const saved = iw.eval("D.asOf.us");
+      iw.eval("D.asOf.us = " + JSON.stringify(probe));
+      iw.renderStale();
+      const chip = idoc.getElementById("stale-chip");
+      const shown = !!chip && chip.style.display !== "none" && chip.textContent.indexOf("落后 " + lag + " 个交易日") >= 0;
+      const txt = chip ? chip.textContent : "缺 #stale-chip";
+      iw.eval("D.asOf.us = " + JSON.stringify(saved));
+      iw.renderStale();
+      check("决策看板：行情落后时页头常驻提示（asOf 退到 " + probe + " → 应报 " + lag + " 个交易日）",
+        lag >= 1 && shown, "「" + txt + "」");
+    } catch (e) {
+      check("决策看板：行情落后时页头常驻提示", false, e.message);
+    }
+    const rb = idoc.getElementById("refresh-btn"), mr = idoc.getElementById("manual-run");
+    check("决策看板：页头有「刷新」按钮与手动 Run workflow 入口（落后时能自助）",
+      !!rb && !!mr && /actions\/workflows\/update-data\.yml/.test(mr.href || ""),
+      !rb ? "缺 #refresh-btn" : !mr ? "缺 #manual-run" : "链接指向 " + (mr.href || ""));
+  }
   /* ⑦ 数据有效性面板的两条文案契约（2026-10-12 加，用户当天直接看到并问上来「有效期好像很多没更新」）：
      ① 人工维护项（SOURCE_META 里 status: "manual"，如 epsGrowth）**不许**再被报成「未核验来源日期」✗
         —— 它没有自动源、本来就没有"核验日"可言，混在可疑源里会让整块面板失真 ✗；

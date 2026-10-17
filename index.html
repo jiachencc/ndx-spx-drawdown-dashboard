@@ -308,6 +308,8 @@
     background: color-mix(in srgb, var(--yellow) 10%, transparent); }
   .asof-legend { font-size: 10.5px; color: var(--tx3); margin-top: 6px; padding: 0 2px;
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .asof-link { color: var(--blue); text-decoration: none; border-bottom: 1px dotted currentColor; }
+  .asof-link:hover { color: var(--tx); }
   .idx-close { font-family: var(--mono); font-size: 30px; font-weight: 700; margin: 8px 0 3px; }
   .idx-change { font-size: 12px; font-family: var(--mono); margin-bottom: 12px; }
   .drawdown-box { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
@@ -636,12 +638,13 @@
     <div class="sub">NDX · SPX · 回撤监控 → 加减仓决策</div>
   </div>
   <div class="meta">
+    <button class="theme-btn" id="refresh-btn" type="button" aria-label="强制刷新页面（绕过 CDN / 浏览器缓存）" title="强制重新拉取 data.js（绕过缓存），不会重新抓行情"><span aria-hidden="true">🔄</span> 刷新</button>
     <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页"><span aria-hidden="true">💼</span> 持仓</a>
     <a class="theme-btn" href="fed-cycle/" aria-label="查看美联储加息周期三指数回测看板"><span aria-hidden="true">📈</span> 加息周期</a>
     <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span> 深色</button>
     <span class="chip">💵 USD/CNY <b id="meta-fx">--</b></span>
     <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)"><span aria-hidden="true">🔶</span> 美股盘中快照 · 正式收盘数据待更新</span>
-    <span class="chip chip-stale" id="stale-chip" style="display:none"><span aria-hidden="true">⚠️</span> 数据过期 <b id="stale-days">0</b> 天</span>
+    <span class="chip chip-stale" id="stale-chip" style="display:none"></span>
   </div>
 </div>
 
@@ -653,6 +656,8 @@
     <span class="src-tag auto">AUTO</span>行情·宏观·估值·Put/Call·月度涨跌幅：每日自动更新
     <span style="opacity:.4">|</span>
     <span class="src-tag manual">MANUAL</span>盈利预期·日历：人工维护
+    <span style="opacity:.4">|</span>
+    <a class="asof-link" id="manual-run" href="https://github.com/jiachencc/ndx-spx-drawdown-dashboard/actions/workflows/update-data.yml" target="_blank" rel="noopener noreferrer" title="需要 GitHub 登录且对该仓库有写权限；匿名访客只能查看运行记录，不能触发">数据没更新？去 GitHub 手动触发</a>
   </div>
 </div>
 
@@ -1726,16 +1731,105 @@ function renderRecentStats() {
   });
 })();
 
+/* ===== 应有最新交易日（2026-10-17 加） =====
+   起因：2026-10-17 早上 05:47 的定时任务没跑成，页面停在 10-15，但两道判据都认为正常：
+     · 本函数原来按**自然日**算，≤3 天就隐藏 chip（为周末留的宽容）；
+     · sourceHealth 的 ndx/spx maxDays=1，把「落后 1 个交易日」也算有效期。
+   结果用户完全无感知 ✗（当天是靠人工发现「点位不对」才查出来的）。
+   现在改为问「**此刻应该已经到哪个交易日**」，再与 DEFAULT.asOf.us 比：
+     · 纽约 17:00 之后且当天是交易日 → 应有当天收盘；否则退到上一个交易日（早盘/盘中不误报）。
+     · 节假日按 NYSE 规则现算（零维护）：元旦 / MLK / 总统日 / 耶稣受难日 / 阵亡将士 /
+       六月节 / 独立日 / 劳动节 / 感恩节 / 圣诞；周六顺延前一日、周日顺延后一日。
+     · 半日市（感恩节次日、平安夜）未单独建模 —— 一年只有两天，且 13:00 就收盘，实际不会误报。
+   ⚠ 只用本地时间 + Intl 时区换算，不请求任何外部时间接口（零依赖）。 */
+function nyseEaster(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return new Date(Date.UTC(y, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1));
+}
+function nthWeekdayUTC(y, month, weekday, n) {
+  const first = new Date(Date.UTC(y, month - 1, 1));
+  const offset = (weekday - first.getUTCDay() + 7) % 7;
+  return new Date(Date.UTC(y, month - 1, 1 + offset + (n - 1) * 7));
+}
+function lastWeekdayUTC(y, month, weekday) {
+  const d = new Date(Date.UTC(y, month, 0));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() - weekday + 7) % 7));
+  return d;
+}
+function observedUTC(d) {
+  const w = d.getUTCDay();
+  if (w === 6) d.setUTCDate(d.getUTCDate() - 1);
+  else if (w === 0) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+const isoUTC = d => d.toISOString().slice(0, 10);
+const NYSE_HOLIDAYS = new Map();
+function nyseHolidaySet(year) {
+  let s = NYSE_HOLIDAYS.get(year);
+  if (s) return s;
+  s = new Set();
+  const add = d => s.add(isoUTC(d));
+  add(observedUTC(new Date(Date.UTC(year, 0, 1))));        // 元旦（周六 → 前一年 12/31）
+  add(nthWeekdayUTC(year, 1, 1, 3));                        // MLK：1 月第 3 个周一
+  add(nthWeekdayUTC(year, 2, 1, 3));                        // 总统日：2 月第 3 个周一
+  const good = nyseEaster(year); good.setUTCDate(good.getUTCDate() - 2); add(good);  // 耶稣受难日
+  add(lastWeekdayUTC(year, 5, 1));                          // 阵亡将士：5 月最后一个周一
+  add(observedUTC(new Date(Date.UTC(year, 5, 19))));         // 六月节
+  add(observedUTC(new Date(Date.UTC(year, 6, 4))));          // 独立日
+  add(nthWeekdayUTC(year, 9, 1, 1));                         // 劳动节：9 月第 1 个周一
+  add(nthWeekdayUTC(year, 11, 4, 4));                        // 感恩节：11 月第 4 个周四
+  add(observedUTC(new Date(Date.UTC(year, 11, 25))));        // 圣诞
+  NYSE_HOLIDAYS.set(year, s);
+  return s;
+}
+function isNyseHoliday(iso) {
+  const y = +String(iso).slice(0, 4);
+  /* 查相邻年：周六的元旦会顺延到**上一年** 12/31（那条记在上一年集合里）。 */
+  return nyseHolidaySet(y).has(iso) || nyseHolidaySet(y - 1).has(iso) || nyseHolidaySet(y + 1).has(iso);
+}
+function expectedLastTradingDay(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23"
+  }).formatToParts(now);
+  const g = t => (parts.find(p => p.type === t) || {}).value;
+  const todayET = g("year") + "-" + g("month") + "-" + g("day");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(todayET)) return null;
+  const hourET = Number(g("hour")) % 24;
+  const d = new Date(todayET + "T00:00:00Z");
+  const trading = dt => { const w = dt.getUTCDay(); return w !== 0 && w !== 6 && !isNyseHoliday(isoUTC(dt)); };
+  /* 收盘 16:00 + 1 小时缓冲：17:00 之前不要求当天数据（早盘/盘中/刚收盘尚未落库）。 */
+  if (!(trading(d) && hourET >= 17)) d.setUTCDate(d.getUTCDate() - 1);
+  while (!trading(d)) d.setUTCDate(d.getUTCDate() - 1);
+  return isoUTC(d);
+}
+function businessDaysBetweenET(from, to) {
+  if (!from || !to || from >= to) return 0;
+  let n = 0;
+  const d = new Date(from + "T00:00:00Z"), end = Date.parse(to + "T00:00:00Z");
+  while (d.getTime() < end) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const w = d.getUTCDay();
+    if (w !== 0 && w !== 6 && !isNyseHoliday(isoUTC(d))) n++;
+  }
+  return n;
+}
+
 function renderStale() {
   const sc = $("stale-chip");
   if (!sc) return;
   const lc = $("live-chip");
   if (lc) lc.style.display = D.intraday ? "" : "none";
-  const d = new Date(D.date + "T12:00:00");
-  const days = Math.floor((new Date() - d) / 86400000);
-  if (!isFinite(days) || days <= 3) { sc.style.display = "none"; return; }
+  const have = (D.asOf && D.asOf.us) || D.date;
+  const want = expectedLastTradingDay();
+  const lag = businessDaysBetweenET(have, want);
+  if (!Number.isFinite(lag) || lag <= 0) { sc.style.display = "none"; return; }
   sc.style.display = "";
-  $("stale-days").textContent = days;
+  sc.textContent = "⚠️ 行情停在 " + String(have).slice(5) + "，落后 " + lag + " 个交易日（应有 " + want.slice(5) + " 收盘）";
+  sc.title = "数据来源日期 " + have + " · 按纽约时间应已到 " + want + " 收盘；若遇交易所临时休市请忽略";
 }
 
 /* Provider-supplied strings (a retained source's error, a cross-check mismatch) reach the DOM. */
@@ -2080,6 +2174,15 @@ themeBtn.addEventListener("click", () => {
   const next = document.body.classList.contains("light") ? "dark" : "light";
   applyTheme(next);
   try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+});
+/* 页头「刷新」（2026-10-17 加）：只解决**缓存**问题（CDN / 浏览器把旧 data.js 留在本地），
+   不是重新抓行情 —— 真抓数要么等 05:47 定时任务，要么去 GitHub 手动 Run workflow（链接在时间条下）。
+   ⚠ 不能动态重载 data.js：它是普通 script、顶层 const，重复加载会 Duplicate declaration 报错。 */
+const refreshBtn = $("refresh-btn");
+if (refreshBtn) refreshBtn.addEventListener("click", () => {
+  const u = new URL(location.href);
+  u.searchParams.set("t", Date.now().toString(36));
+  location.replace(u.toString());
 });
 renderAll();
 </script>

@@ -4,7 +4,13 @@ name: update-data
 
 on:
   schedule:
+    # 主跑：UTC 21:47 = 北京次日 05:47（美股 16:00 收盘后 5 小时 47 分）
     - cron: "47 21 * * 1-5"
+    # 补跑：UTC 02:00 = 北京 10:00（同日早上的第二次机会）。
+    # 2026-10-17 事故：主跑那次没留下任何提交，页面静默停在 10-15 一整天；
+    # 单点定时 + 失败只发邮件，用户手机上根本感知不到 → 加一次纯冗余的重跑。
+    # 无业务变化时 fetch_and_update 自己不会提交（stableBusiness），不会产生空提交。
+    - cron: "0 2 * * 2-6"
   workflow_dispatch:
   push:
     paths:
@@ -100,3 +106,18 @@ jobs:
           git add data.js fed-cycle/fed-data.js
           git commit -m "data(auto): validated source update"
           git push
+
+      # 失败可见化（2026-10-17 加）：此前抓数/校验失败只会让整条 workflow 变红，
+      # 通知默认只发邮件；手机上不打开 GitHub 就完全无感知（10-17 就是这么静默停了一天的）。
+      # 这里额外写一条 error annotation + Summary，至少在看 Actions 时一眼能读到「该怎么办」。
+      - name: Failure notice
+        if: failure()
+        run: |
+          echo "::error::update-data 失败：行情可能仍停在上一交易日。请到 Actions → update-data → Run workflow 手动补跑。"
+          {
+            echo "### update-data 失败"
+            echo ""
+            echo "行情数据可能仍停在上一交易日（页面页头会显示「行情停在 MM-DD，落后 N 个交易日」）。"
+            echo ""
+            echo "处理：先看上面失败的步骤 → 修复后点本页右上角 Run workflow 重跑。"
+          } >> "$GITHUB_STEP_SUMMARY"
