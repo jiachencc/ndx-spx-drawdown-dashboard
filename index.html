@@ -51,12 +51,8 @@
   }
   .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
   a.theme-btn { text-decoration: none; }
-  /* 手机只留图标（2026-10-17）：4 个文字按钮在 390px 下会各占一行，首屏白吃约 120px。
-     图标 + aria-label 仍可读屏；≥481px 维持原样。 */
-  @media (max-width: 480px) {
-    .theme-btn .btn-lbl { display: none; }
-    .theme-btn { padding: 6px 9px; }
-  }
+  /* 2026-10-18：撤掉「手机只留图标」—— 用户反馈「几个图标看不懂是什么」。
+     同时移除汇率 chip 与「刷新」按钮，按钮从 4 个降到 3 个，390px 下文字能排下。 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
   :focus:not(:focus-visible) { outline: none; }
@@ -648,11 +644,9 @@
     <div class="sub">NDX · SPX · 回撤监控 → 加减仓决策</div>
   </div>
   <div class="meta">
-    <button class="theme-btn" id="refresh-btn" type="button" aria-label="强制刷新页面（绕过 CDN / 浏览器缓存）" title="强制重新拉取 data.js（绕过缓存），不会重新抓行情"><span aria-hidden="true">🔄</span><span class="btn-lbl">刷新</span></button>
     <a class="theme-btn" href="positions.html" aria-label="查看持仓水位页"><span aria-hidden="true">💼</span><span class="btn-lbl">持仓</span></a>
     <a class="theme-btn" href="fed-cycle/" aria-label="查看美联储加息周期三指数回测看板"><span aria-hidden="true">📈</span><span class="btn-lbl">加息周期</span></a>
     <button class="theme-btn" id="theme-toggle" type="button" aria-label="切换浅色/深色主题"><span aria-hidden="true">🌙</span><span class="btn-lbl">深色</span></button>
-    <span class="chip">💵 USD/CNY <b id="meta-fx">--</b></span>
     <span class="chip" id="live-chip" style="display:none;background:rgba(255,191,0,.15);color:#ffbf00;border-color:rgba(255,191,0,.4)"><span aria-hidden="true">🔶</span> 美股盘中快照 · 正式收盘数据待更新</span>
     <span class="chip chip-stale" id="stale-chip" style="display:none"></span>
   </div>
@@ -1081,7 +1075,6 @@ function renderAll() {
 
   /* meta */
   $("footer-updated").textContent = D.asOf.local + " · 数据=美东 " + D.asOf.us + (D.intraday ? " 盘中" : " 16:00 收盘");   // 盘中时不再误写「16:00 收盘」
-  $("meta-fx").textContent = D.fx.toFixed(2);
   renderAsOf();
   $("fx-num").textContent = D.fx.toFixed(2);
 
@@ -2166,15 +2159,6 @@ themeBtn.addEventListener("click", () => {
   const next = document.body.classList.contains("light") ? "dark" : "light";
   applyTheme(next);
   try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
-});
-/* 页头「刷新」（2026-10-17 加）：只解决**缓存**问题（CDN / 浏览器把旧 data.js 留在本地），
-   不是重新抓行情 —— 真抓数要么等 05:47 定时任务，要么去 GitHub 手动 Run workflow（链接在时间条下）。
-   ⚠ 不能动态重载 data.js：它是普通 script、顶层 const，重复加载会 Duplicate declaration 报错。 */
-const refreshBtn = $("refresh-btn");
-if (refreshBtn) refreshBtn.addEventListener("click", () => {
-  const u = new URL(location.href);
-  u.searchParams.set("t", Date.now().toString(36));
-  location.replace(u.toString());
 });
 renderAll();
 </script>

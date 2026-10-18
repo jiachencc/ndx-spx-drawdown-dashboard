@@ -2292,10 +2292,12 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     } catch (e) {
       check("决策看板：行情落后时页头常驻提示", false, e.message);
     }
-    const rb = idoc.getElementById("refresh-btn"), mr = idoc.getElementById("manual-run");
-    check("决策看板：页头有「刷新」按钮与手动 Run workflow 入口（落后时能自助）",
-      !!rb && !!mr && /actions\/workflows\/update-data\.yml/.test(mr.href || ""),
-      !rb ? "缺 #refresh-btn" : !mr ? "缺 #manual-run" : "链接指向 " + (mr.href || ""));
+    /* 2026-10-18：页头「刷新」按钮已移除（用户：只是重载页面，看不懂、可去掉）。
+       真正的自助入口是时间条下方那条 GitHub Run workflow 深链 —— 只断言它还在。 */
+    const mr = idoc.getElementById("manual-run");
+    check("决策看板：时间条下方保留「去 GitHub 手动触发」深链（数据没更新时能自助）",
+      !!mr && /actions\/workflows\/update-data\.yml/.test(mr.href || ""),
+      !mr ? "缺 #manual-run" : "链接指向 " + (mr.href || ""));
   }
   /* ⑦ 数据有效性面板的两条文案契约（2026-10-12 加，用户当天直接看到并问上来「有效期好像很多没更新」）：
      ① 人工维护项（SOURCE_META 里 status: "manual"，如 epsGrowth）**不许**再被报成「未核验来源日期」✗
