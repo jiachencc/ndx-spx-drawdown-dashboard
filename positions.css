@@ -1829,6 +1829,12 @@
 /* ===== 各标的累计盈亏（2026-10-18 加） =====
    .trend-readout 是 flex-column，里面直接放多个 <b> 会被拆成多行（每只一行，占掉 1/3 屏）✗
    → 这里改成块级 + 行内流，让「日期 + 各只」排在同一段里自然换行。 */
-#hh-readout { display: block; text-align: center; font-size: 10.5px; line-height: 1.75; padding: 7px 8px; }
-#hh-readout b { font-family: var(--mono); }
+/* 2026-10-18 改：固定高度 + 5 个等宽槽位（原来按内容长短变 1~3 行，
+   读数区高度一变就把图表顶动，鼠标相对坐标跟着变 → 索引抖动 → 上蹿下跳）。 */
+#hh-readout { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap;
+  height: 30px; padding: 0 4px; margin-bottom: 6px; overflow: hidden; font-size: 10.5px; }
+#hh-readout .hh-date { color: var(--tx3); font-size: 9.5px; white-space: nowrap; flex: 0 0 auto; }
+#hh-readout .hh-cell { font-family: var(--mono); font-size: 10px; min-width: 50px; flex: 0 0 auto;
+  text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#hh-readout .hh-cell-ph { opacity: .72; text-decoration: underline dotted; text-underline-offset: 2px; }
 #hh-sum { font-size: 10.5px; }
