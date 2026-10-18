@@ -1523,6 +1523,30 @@ function saMatrixHtml(C) {
    ▸ pts ＝ [{d, p, c}]（旧 → 新 ✓ —— 列表是新→旧 ✓，图反过来才读得顺 ✓）；
      evs ＝ [{d, cost, buy, title}]（**只有场内**能画点 ✓：OTC_LOG 不带成交净值 ✗，场外只画两条线 ✓）。
    ▸ w 由调用方量好传进来（页面里量的是 .sa-detail-box ✓，与列头图同一套做法 ✓）。 */
+/* 买卖点聚类（2026-10-18）：缩略图只有 ~340px 宽、跨 80 个交易日，
+   相邻两天只差 4px 而圆点直径 8px → 密集买入时点会叠成一团。
+   规则：同一天，或「≤3 个自然日 且 价差 <0.5%」→ 合并成一个点；
+   合并点半径随笔数微增，tooltip 把每一笔的日期/价格列全。 */
+function clusterEvs(list) {
+  const out = [];
+  list.slice().sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0)).forEach((e) => {
+    const last = out[out.length - 1];
+    if (last && last.buy === e.buy) {
+      const gap = (Date.parse(e.d) - Date.parse(last.d)) / 86400000;
+      const near = gap <= 3 && Math.abs(e.cost - last.cost) / (last.cost || 1) < 0.005;
+      if (gap === 0 || near) {
+        last.n += 1;
+        last.cost = (last.cost * (last.n - 1) + e.cost) / last.n;
+        last.items.push(e);
+        last.title = last.d + " 起 " + last.n + " 笔：" + last.items.map((x) => mdOf(x.d) + " @" + fpx(x.cost)).join(" · ");
+        return;
+      }
+    }
+    out.push({ d: e.d, cost: e.cost, buy: e.buy, n: 1, items: [e], title: e.title });
+  });
+  return out;
+}
+
 function traceSparkSvg(w, pts, evs, opt) {
   opt = opt || {};
   const h = 116, mL = 46, mR = 12, mT = 10, mB = 18;
@@ -1552,10 +1576,16 @@ function traceSparkSvg(w, pts, evs, opt) {
      现在先画灰点、再画买卖点，实心圆永远在最上层。 */
   pts.forEach((x) => { if (Number.isFinite(x.p)) svg += '<circle cx="' + X(x.d).toFixed(1) + '" cy="' + Y(x.p).toFixed(1)
     + '" r="2" style="fill:var(--tx2)"/>'; });
-  evs.forEach((e) => {
+  /* 分级半径（2026-10-18）：首笔/最近一笔最大（呼应「从哪开始、买到哪」），
+     合并点次之（带上角标数字），常规笔最小 —— 密集时主次仍清楚。 */
+  evs.forEach((e, i) => {
     if (!Number.isFinite(e.cost)) return;
-    svg += '<circle cx="' + X(e.d).toFixed(1) + '" cy="' + Y(e.cost).toFixed(1) + '" r="4" style="fill:'
+    const edge = (i === 0 || i === evs.length - 1);
+    const r = edge ? 5 : (e.n > 1 ? 4.5 : 3.5);
+    const cx = X(e.d).toFixed(1), cy = Y(e.cost).toFixed(1);
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" style="fill:'
       + (e.buy ? "var(--up)" : "var(--down)") + ';stroke:var(--card);stroke-width:1.6"><title>' + esc(e.title || "") + "</title></circle>";
+    if (e.n > 1) svg += '<text x="' + cx + '" y="' + (+cy + 3).toFixed(1) + '" text-anchor="middle" style="fill:var(--card);font:700 7px var(--mono);pointer-events:none">' + e.n + "</text>";
   });
   svg += '<text x="' + mL + '" y="' + (h - 4) + '" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + mdOf(pts[0].d) + "</text>"
     + '<text x="' + (w - mR) + '" y="' + (h - 4) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">'
@@ -1741,10 +1771,10 @@ function saDetailView(C) {
       .filter((x) => Number.isFinite(x.p) || Number.isFinite(x.c));
     const evRaw = exch ? (((typeof POSITIONS !== "undefined" && POSITIONS.log) || []))
       .filter((e) => (e.sym === nm || e.sym === code) && e.d > C.baseD && e.d <= lastD) : [];
-    const evs = evRaw.filter((e) => Number.isFinite(e.cost)).map((e) => ({ d: e.d, cost: e.cost, buy: !isSellAct(e),
+    const evs = clusterEvs(evRaw.filter((e) => Number.isFinite(e.cost)).map((e) => ({ d: e.d, cost: e.cost, buy: !isSellAct(e),
       title: e.d + " " + (e.act || "成交") + (e.qty ? " " + fmtQty(e.qty) + " 份" : "")
         + (Number.isFinite(e.cost) ? " @" + fpx(e.cost) : "")
-        + (Number.isFinite(e.realized) ? "（已实现 " + fmtAmt(e.realized) + "）" : "") }));
+        + (Number.isFinite(e.realized) ? "（已实现 " + fmtAmt(e.realized) + "）" : "") })));
     const ops = exch ? evRaw.length
       : (((typeof OTC_LOG !== "undefined" && OTC_LOG && OTC_LOG[code]) || []).filter((e) => e.d > C.baseD && e.d <= lastD).length);
     const boxEl = $("snap-attr") ? $("snap-attr").querySelector(".sa-detail-box") : null;
