@@ -2899,7 +2899,7 @@ function renderHoldHist() {
   /* 十字线（默认隐藏） */
   s += '<line class="hh-xh" x1="' + mL + '" y1="' + mT + '" x2="' + mL + '" y2="' + (H2 - mB) + '" stroke="var(--tx3)" stroke-width="1" style="display:none"/></svg>';
   box.innerHTML = s;
-  box._xh = null;   // 重建后旧节点失效，下次读取时重新取
+  box._xh = null; box._rect = null;   // 重建后旧节点/旧尺寸失效，下次读取时重新取
   box._geo = { W, H: H2, mL, mR, mT, mB, n: dates.length, dates };
 
   /* 图例：点击切换显隐 */
@@ -2918,6 +2918,16 @@ function renderHoldHist() {
   $("hh-sum").innerHTML = "在持 <b>" + items.filter((x) => !x.closed).length + "</b> 只 · 已清仓 <b>" + items.filter((x) => x.closed).length +
     "</b> 只 · 实线＝真实浮盈；点线＝假设没卖（原份额 × 原成本）· <b>*</b> 已清仓";
 
+  /* 读数区**一次性建好**（2026-10-18）：pointermove 里只改 textContent，
+     绝不重建 innerHTML —— 与资产走势同一条铁律（那边 2222 行写着「会闪、会冲掉滚动位置」）。 */
+  $("hh-readout").innerHTML = '<span class="hh-date">--</span>' + H.items.map((it, i) => {
+    const col = HH_COLORS[i % HH_COLORS.length];
+    return '<span class="hh-cell"><i>' + esc(it.name.slice(0, 2)) + '</i><b style="color:' + col + '">—</b></span>';
+  }).join("");
+  const ro = $("hh-readout");
+  box._cells = Array.prototype.slice.call(ro.querySelectorAll(".hh-cell"));
+  box._bs = box._cells.map((c) => c.querySelector("b"));
+  box._date = ro.firstElementChild;
   hhHover = null;
   renderHoldHistReadout();
 }
@@ -2927,40 +2937,49 @@ function renderHoldHistReadout(ev) {
   if (!box || !ro || !box._geo) return;
   const g = box._geo, H = (typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null;
   if (!H) return;
-  let i = g.n - 1;
+  let i = g.n - 1, xRaw = null;
   if (ev) {
-    const r = box.getBoundingClientRect(), sc = (r.width / (g.W || 1)) || 1;
-    const x = (ev.clientX - r.left) / sc;
-    i = Math.round((x - g.mL) / ((g.W - g.mL - g.mR) || 1) * (g.n - 1));
+    /* rect 缓存（2026-10-18）：getBoundingClientRect 每次都会强制重排，
+       原来每帧调一次是手机上发涩的主因。进入图表/按下时取一次，滚动或重绘时失效。 */
+    const r = box._rect || (box._rect = box.getBoundingClientRect());
+    const sc = (r.width / (g.W || 1)) || 1;
+    xRaw = (ev.clientX - r.left) / sc;                       // 连续坐标：十字线跟着手指走
+    i = Math.round((xRaw - g.mL) / ((g.W - g.mL - g.mR) || 1) * (g.n - 1));
     i = Math.max(0, Math.min(g.n - 1, i));
   }
   /* 同一格不重复重绘（2026-10-18）：pointermove 每秒几十次，无谓的 innerHTML 重建本身
      就会带来 reflow；索引没变时直接返回，抖动和卡顿都少一半。 */
-  if (ev && i === hhHover) return;
-  hhHover = i;
   const d = g.dates[i];
   const xh = box._xh || (box._xh = box.querySelector(".hh-xh"));
   if (xh) {
-    const x = (g.mL + (i / (g.n - 1 || 1)) * (g.W - g.mL - g.mR)).toFixed(1);
-    xh.style.display = ""; xh.setAttribute("x1", x); xh.setAttribute("x2", x);
+    /* 连续跟随（2026-10-18）：原来钉在格心，93 格 → 每 3.7px 跳一下，手感一顿一顿。
+       现在十字线跟手指走，读数才按格更新（文字没必要每像素刷）。 */
+    const xc = Math.max(g.mL, Math.min(g.W - g.mR, xRaw === null ? g.W - g.mR : xRaw)).toFixed(1);
+    xh.style.display = ""; xh.setAttribute("x1", xc); xh.setAttribute("x2", xc);
   }
+  /* 索引没变就到此为止（2026-10-18）：十字线已在上面按连续坐标挪过，
+     这里只挡「读数文字」的重写 —— 否则同格内每帧都重写 5 个 textContent。 */
+  if (ev && i === hhHover) return;
+  hhHover = i;
   /* 固定 5 个槽位（2026-10-18）：原来按「今天有几只有持仓」动态拼文本，
      行数在 1~3 行之间跳 → 读数区高度变化 → 图表被顶动 → 鼠标相对坐标变 → 索引再跳，形成抖动。
      现在结构恒定：日期 + 5 个等宽数字格，没值印「—」，靠颜色对应图例。 */
-  const cells = H.items.map((it, i) => {
-    const col = HH_COLORS[i % HH_COLORS.length];
+  if (box._date) box._date.textContent = d.slice(5);
+  const spans = box._cells || [];
+  H.items.forEach((it, i) => {
+    const sp = spans[i]; if (!sp) return;
     const p = it.pts.find((q) => q[0] === d);
     const ph = (it.phantom || []).find((q) => q[0] === d);
-    let v = "—", cls = "hh-cell";
+    let v = "—", isPh = false;
     if (p && p[2] > 0) v = hhV(hhNum(p));
-    else if (ph) { v = hhV(hhNum(ph)); cls += " hh-cell-ph"; }
+    else if (ph) { v = hhV(hhNum(ph)); isPh = true; }
+    const b = (box._bs && box._bs[i]) || sp.querySelector("b");
+    if (b && b.textContent !== v) b.textContent = v;          // 值没变就不碰 DOM
+    if (sp.classList.contains("hh-cell-ph") !== isPh) sp.classList.toggle("hh-cell-ph", isPh);
     const off = hhHidden.has(it.code);
-    /* 名称直接印在数字上方（2026-10-18）：只靠颜色对应图例，读者要来回扫 —— 两行格子省掉这步 */
-    return '<span class="' + cls + '" style="opacity:' + (off ? 0.4 : 1) + '" title="' + esc(it.name) + (cls.indexOf("hh-cell-ph") >= 0 ? "（假设持有）" : "") + '">'
-      + '<i>' + esc(it.name.slice(0, 2)) + '</i>'
-      + '<b style="color:' + (off ? "var(--tx3)" : col) + '">' + v + "</b></span>";
-  }).join("");
-  ro.innerHTML = '<span class="hh-date">' + d.slice(5) + "</span>" + cells;
+    const wantOpacity = off ? "0.4" : "1";
+    if (sp.style.opacity !== wantOpacity) sp.style.opacity = wantOpacity;
+  });
 }
 
 /* 手机滑动优化（2026-10-18）：pointermove 一秒几十次，每次都调 getBoundingClientRect（强制重排）
@@ -2969,6 +2988,11 @@ function renderHoldHistReadout(ev) {
 (function bindHhMove() {
   const box = $("hh-box");
   if (!box) return;
+  const dropRect = () => { box._rect = null; };
+  box.addEventListener("pointerenter", dropRect);
+  box.addEventListener("pointerdown", dropRect);
+  window.addEventListener("scroll", dropRect, { passive: true });
+  window.addEventListener("resize", dropRect);
   let raf = 0, last = null;
   box.addEventListener("pointermove", (ev) => {
     last = ev;
