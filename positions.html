@@ -2859,6 +2859,8 @@ function renderHoldHist() {
   });
   if (lo < 0 && hi > 0) s += '<line x1="' + mL + '" y1="' + py(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(0).toFixed(1) + '" stroke="var(--tx3)" stroke-width="1"/>';
 
+  const closedByDate = {};
+  items.filter((x) => x.closed).forEach((x) => { (closedByDate[x.closedDate] = closedByDate[x.closedDate] || []).push(x.code); });
   const geo = [];
   items.forEach((it, i) => {
     if (!vis[i]) return;
@@ -2883,7 +2885,11 @@ function renderHoldHist() {
         const cx = px(idxOf.get(holdLast[0])), cy = py(hhNum(holdLast));
         s += '<line x1="' + cx.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + py(0).toFixed(1) + '" stroke="' + col + '" stroke-width="1" stroke-dasharray="2 2" opacity=".5"/>'
           + '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="4" style="fill:' + col + ';stroke:var(--card);stroke-width:1.6"/>'
-          + '<text x="' + (cx > W - 62 ? (cx - 6).toFixed(1) : (cx + 6).toFixed(1)) + '" y="' + (cy - 7).toFixed(1) + '" text-anchor="' + (cx > W - 62 ? "end" : "start") + '" fill="' + col + '" style="font:9px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px">清仓 ' + String(it.closedDate || "").slice(5) + "</text>";
+          /* 同一天清仓的多只只标一个日期（2026-10-18）：港美/中韩都是 10-09，
+             原来各画一遍「清仓 10-09」，两条标签上下叠着互相压线。 */
+          + (closedByDate[it.closedDate] && closedByDate[it.closedDate][0] === it.code
+            ? '<text x="' + (cx > W - 62 ? (cx - 6).toFixed(1) : (cx + 6).toFixed(1)) + '" y="' + (cy - 7).toFixed(1) + '" text-anchor="' + (cx > W - 62 ? "end" : "start") + '" fill="' + col + '" style="font:9px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px">清仓 ' + String(it.closedDate || "").slice(5) + (closedByDate[it.closedDate].length > 1 ? "（" + closedByDate[it.closedDate].length + " 只）" : "") + "</text>"
+            : "");
       }
       /* ③ 延续段末端：假设没卖到今天的浮盈 */
       const pe = (it.phantom || []).filter(inRange).at(-1);

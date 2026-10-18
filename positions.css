@@ -1864,3 +1864,8 @@
    ② 禁止横向溢出，避免图表把页面撑出左右滚动。 */
 #hh-box { touch-action: pan-y; overscroll-behavior-x: contain; }
 #hh-box svg { display: block; }
+
+/* 导航右侧渐隐（2026-10-18）：.sec-nav 是横向滚动的，但右边缘直接裁切，看不出还能滑。
+   mask 不影响点击，只在视觉上提示「后面还有」。 */
+.sec-nav { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
