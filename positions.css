@@ -1238,7 +1238,9 @@
   /* 时间范围组**紧跟**视图组自然顺排（不再 margin-left:auto 顶到最右）。
      原因：auto 边距 + 10px 左内边距 + 1px 分隔线共占 11px，420px 实测「全部」正好被挤出第一行，
      孤零零占掉第二行右端。去掉后六个 chip 一行放得下（含 20px 余量），真挤不下时也是左对齐折行。 */
-  .trend-bar .trend-chips + .trend-chips { margin-left: 8px; }
+  /* 2026-10-18：两组 chips 强制分两行（用户：金额/盈亏全程… 和 近5次/近10次… 分开并对齐）。
+     原来靠 margin-left 顺排，390px 下第二组被挤到行尾、与第一组对不齐 ✗ */
+  .trend-bar .trend-chips + .trend-chips { margin-left: 0; flex-basis: 100%; }
   .tchip { font-size: var(--fs-xs); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--tx2); cursor: pointer; font-family: var(--mono); white-space: nowrap; }
   /* 窄屏把 chip 与间距各收 1~2px：六个 chip 在 375~390px 也能排成一行（原先差约 7px 会折行） */
   @media (max-width: 480px) {
