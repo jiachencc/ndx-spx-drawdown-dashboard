@@ -1840,12 +1840,14 @@
    读数区高度一变就把图表顶动，鼠标相对坐标跟着变 → 索引抖动 → 上蹿下跳）。 */
 #hh-readout { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap;
   height: 36px; padding: 0 4px; margin-bottom: 6px; overflow: hidden; font-size: 10.5px; }
-#hh-readout .hh-date { color: var(--tx3); font-size: 9.5px; white-space: nowrap; flex: 0 0 auto; }
-#hh-readout .hh-cell { flex: 0 0 auto; min-width: 56px; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 1px; white-space: nowrap; }
+/* 日期列固定窄宽（2026-10-18）：原来 5 格 × min-width 56 + gap 6 在 390px 下总宽溢出，
+   justify-content:center 会把**两侧同时**裁掉 —— 用户截图里左侧日期只剩「-27」✗ */
+#hh-readout .hh-date { color: var(--tx3); font-size: 9px; white-space: nowrap; flex: 0 0 34px; text-align: left; }
+#hh-readout .hh-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px; white-space: nowrap; overflow: hidden; }
 #hh-readout .hh-cell i { font-style: normal; font-size: 9px; color: var(--tx3); line-height: 1; }
-#hh-readout .hh-cell b { font-family: var(--mono); font-size: 10px; line-height: 1.15;
-  font-weight: 600; font-variant-numeric: tabular-nums; }
+#hh-readout .hh-cell b { font-family: var(--mono); font-size: 9.5px; line-height: 1.15;
+  font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.2px; }
 #hh-readout .hh-cell-ph { opacity: .8; }
 #hh-readout .hh-cell-ph i::after { content: "*"; color: var(--tx3); }
 #hh-sum { font-size: 10.5px; }
