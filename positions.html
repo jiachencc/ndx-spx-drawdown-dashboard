@@ -1537,12 +1537,13 @@ function clusterEvs(list) {
       if (gap === 0 || near) {
         last.n += 1;
         last.cost = (last.cost * (last.n - 1) + e.cost) / last.n;
+        last.amt = (last.amt || 0) + (e.amt || 0);
         last.items.push(e);
         last.title = last.d + " 起 " + last.n + " 笔：" + last.items.map((x) => mdOf(x.d) + " @" + fpx(x.cost)).join(" · ");
         return;
       }
     }
-    out.push({ d: e.d, cost: e.cost, buy: e.buy, n: 1, items: [e], title: e.title });
+    out.push({ d: e.d, cost: e.cost, buy: e.buy, amt: e.amt || 0, n: 1, items: [e], title: e.title });
   });
   return out;
 }
@@ -1559,6 +1560,20 @@ function traceSparkSvg(w, pts, evs, opt) {
   const Y = (v) => mT + (hi + pad - v) / ((hi + pad) - (lo - pad)) * (h - mT - mB);
   const poly = (k) => pts.filter((x) => Number.isFinite(x[k]))
     .map((x) => X(x.d).toFixed(1) + "," + Y(x[k]).toFixed(1)).join(" ");
+  /* 阶梯折线（2026-10-18）：摊薄成本只会在**成交那一刻**跳变，两个快照点之间不该斜着连。
+     原来画成斜线，视觉上像「成本在慢慢下移」；改成 step-after（先水平、再垂直）后，
+     每次买入/卖出造成的成本跳变一目了然。价格线仍用普通折线（价格是连续变化的）。 */
+  const stepPoly = (k) => {
+    const arr = pts.filter((x) => Number.isFinite(x[k]));
+    if (arr.length < 2) return "";
+    const out = [];
+    arr.forEach((x, i) => {
+      const x0 = X(x.d).toFixed(1);
+      if (i > 0) out.push(x0 + "," + Y(arr[i - 1][k]).toFixed(1));   // 水平段
+      out.push(x0 + "," + Y(x[k]).toFixed(1));                       // 垂直段终点
+    });
+    return out.join(" ");
+  };
   let svg = '<svg viewBox="0 0 ' + w + " " + h + '" width="' + w + '" height="' + h + '">';
   [0, 0.5, 1].forEach((f) => {
     const v = (hi + pad) - f * ((hi + pad) - (lo - pad));
@@ -1567,7 +1582,7 @@ function traceSparkSvg(w, pts, evs, opt) {
       + '<text x="' + (mL - 5) + '" y="' + (Y(v) + 3.5).toFixed(1)
       + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + v.toFixed(4) + "</text>";
   });
-  const pl = poly("p"), cl = poly("c");
+  const pl = poly("p"), cl = stepPoly("c");
   if (pl) svg += '<polyline points="' + pl + '" style="fill:none;stroke:var(--tx2);stroke-width:1.5"/>';
   if (cl) svg += '<polyline points="' + cl + '" style="fill:none;stroke:var(--tx3);stroke-width:1.3;stroke-dasharray:5 4"/>';
   /* ⚠ 绘制顺序（2026-10-18 修）：原来先画买卖点（r=4 绿/红）、后画价格点（r=2 灰），
@@ -1580,8 +1595,12 @@ function traceSparkSvg(w, pts, evs, opt) {
      合并点次之（带上角标数字），常规笔最小 —— 密集时主次仍清楚。 */
   evs.forEach((e, i) => {
     if (!Number.isFinite(e.cost)) return;
-    const edge = (i === 0 || i === evs.length - 1);
-    const r = edge ? 5 : (e.n > 1 ? 4.5 : 3.5);
+    /* 半径编码（2026-10-18）：由「是否合并」改为**买入金额**三档 —— 合并情况用角标数字表达。
+       金额才是「哪笔重仓」的关键信息；首笔/最近一笔再 +0.8 作为锚点。 */
+    const amt = e.amt || 0;
+    let r = amt >= 30000 ? 5 : (amt >= 10000 ? 4 : 3);
+    if (e.n > 1) r += 0.5;
+    if (i === 0 || i === evs.length - 1) r += 0.8;
     const cx = X(e.d).toFixed(1), cy = Y(e.cost).toFixed(1);
     svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" style="fill:'
       + (e.buy ? "var(--up)" : "var(--down)") + ';stroke:var(--card);stroke-width:1.6"><title>' + esc(e.title || "") + "</title></circle>";
@@ -1771,7 +1790,7 @@ function saDetailView(C) {
       .filter((x) => Number.isFinite(x.p) || Number.isFinite(x.c));
     const evRaw = exch ? (((typeof POSITIONS !== "undefined" && POSITIONS.log) || []))
       .filter((e) => (e.sym === nm || e.sym === code) && e.d > C.baseD && e.d <= lastD) : [];
-    const evs = clusterEvs(evRaw.filter((e) => Number.isFinite(e.cost)).map((e) => ({ d: e.d, cost: e.cost, buy: !isSellAct(e),
+    const evs = clusterEvs(evRaw.filter((e) => Number.isFinite(e.cost)).map((e) => ({ d: e.d, cost: e.cost, buy: !isSellAct(e), amt: (+e.qty || 0) * (+e.cost || 0),
       title: e.d + " " + (e.act || "成交") + (e.qty ? " " + fmtQty(e.qty) + " 份" : "")
         + (Number.isFinite(e.cost) ? " @" + fpx(e.cost) : "")
         + (Number.isFinite(e.realized) ? "（已实现 " + fmtAmt(e.realized) + "）" : "") })));
