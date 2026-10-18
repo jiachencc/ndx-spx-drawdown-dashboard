@@ -2830,7 +2830,7 @@ function renderHoldHist() {
   }).join("");
 
   $("hh-sum").innerHTML = "在持 <b>" + items.filter((x) => !x.closed).length + "</b> 只 · 已清仓 <b>" + items.filter((x) => x.closed).length +
-    "</b> 只 · 实线＝真实浮盈（终止于清仓日，末端实心点＝卖点）；点线＝假设没卖（原份额 × 原成本）继续到今天";
+    "</b> 只 · 实线＝真实浮盈；点线＝假设没卖（原份额 × 原成本）· <b>*</b> 已清仓";
 
   hhHover = null;
   renderHoldHistReadout();
@@ -2869,7 +2869,10 @@ function renderHoldHistReadout(ev) {
     if (p && p[2] > 0) v = hhFmt(p[1]);
     else if (ph) { v = hhFmt(ph[1]); cls += " hh-cell-ph"; }
     const off = hhHidden.has(it.code);
-    return '<span class="' + cls + '" style="color:' + (off ? "var(--tx3)" : col) + ';opacity:' + (off ? 0.4 : 1) + '" title="' + esc(it.name) + (cls.indexOf("hh-cell-ph") >= 0 ? "（假设持有）" : "") + '">' + v + "</span>";
+    /* 名称直接印在数字上方（2026-10-18）：只靠颜色对应图例，读者要来回扫 —— 两行格子省掉这步 */
+    return '<span class="' + cls + '" style="opacity:' + (off ? 0.4 : 1) + '" title="' + esc(it.name) + (cls.indexOf("hh-cell-ph") >= 0 ? "（假设持有）" : "") + '">'
+      + '<i>' + esc(it.name.slice(0, 2)) + '</i>'
+      + '<b style="color:' + (off ? "var(--tx3)" : col) + '">' + v + "</b></span>";
   }).join("");
   ro.innerHTML = '<span class="hh-date">' + d.slice(5) + "</span>" + cells;
 }
