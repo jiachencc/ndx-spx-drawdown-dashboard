@@ -88,6 +88,11 @@ jobs:
         continue-on-error: true
         run: sh fed-cycle/update.sh
 
+      # 各标的累计盈亏曲线（2026-10-18 加）：5 只 × 1 次日K，写 data.js 的 HOLD_HIST
+      - name: Per-holding P&L history (HOLD_HIST)
+        continue-on-error: true
+        run: node scripts/fetch-hold-history.mjs
+
       - name: Fill missing benchmark levels (BENCH)
         continue-on-error: true
         run: node scripts/sync-bench.mjs

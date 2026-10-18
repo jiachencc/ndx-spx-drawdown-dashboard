@@ -99,6 +99,17 @@ try {
          是不是可以单开一个模块了」✓，选了零算法改动的那条路：同页升格 ＋ 导航入口 ＋ 深链 #sec-attr ✓。
          它带来的新契约：两个视图同一时刻只显示一个、**连标题一起切** ✓（实现在 setSnapView ✓）。
        其余相对顺序未动 —— 那是 2026-09-24 定的（清仓历史归拢到末尾）。 -->
+  <!-- 各标的累计盈亏（2026-10-18 加）：资产走势看账户总量，这张看**每只自己的浮盈曲线** ——
+       解决「App 只给当日/累计，看不到过程」，清仓标的也保留（末端标注「若持有至今」）。
+       数据 = data.js 的 HOLD_HIST（scripts/fetch-hold-history.mjs 写）。 -->
+  <h2 class="sec-title" id="sec-holdhist"><span aria-hidden="true">🧭</span> 各标的累计盈亏 <span class="cnt" id="hh-cnt"></span></h2>
+  <div class="card trend-card" id="hh-card">
+    <div class="trend-sum" id="hh-sum"></div>
+    <div class="trend-readout" id="hh-readout">移动或滑动查看各标的当日浮盈 · 点击图例可隐藏某只</div>
+    <div id="hh-box"></div>
+    <div class="trend-legend" id="hh-legend"></div>
+  </div>
+
   <h2 class="sec-title" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
   <div class="view-switch" id="snap-switch" role="tablist" aria-label="快照对比视图">
     <button class="vs-btn on" data-view="log" role="tab" aria-selected="true">逐期明细</button>
@@ -2719,6 +2730,124 @@ function trendXhair(mT, yBot) {
    靠"渲染出来到底几条线"的检查才发现；这类静默降级正是本页最该防的）。 */
 const pnlHasOtc = () => { try { return buildPnlSeries().hasOtc; } catch (e) { return false; } };
 const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "收益率"], ["dd", "回撤"]];
+/* ===== 各标的累计盈亏（2026-10-18 加） =====
+   数据 = HOLD_HIST（脚本从 POSITIONS.log + 腾讯前复权日K 重建）。
+   一张图 5 条线：在持实线、已清仓虚线并在末端标「若持有至今」。
+   ⚠ 口径：曲线是**浮动盈亏**（(收盘 − 当时摊薄成本) × 当时份额），不是收益率、也不是价格。 */
+const HH_COLORS = ["var(--cyan)", "var(--blue)", "var(--green)", "var(--yellow)", "var(--red)"];
+let hhHidden = null;      // Set<code>：被图例关掉的标的
+let hhHover = null;       // 当前读数索引
+
+function hhFmt(v) { return (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)).toLocaleString("en-US"); }
+
+function renderHoldHist() {
+  const H = (typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null;
+  const box = $("hh-box"), card = $("hh-card"), secTitle = $("sec-holdhist");
+  if (!box || !card) return;
+  if (!H || !Array.isArray(H.items) || !H.items.length) {
+    card.style.display = "none"; if (secTitle) secTitle.style.display = "none"; return;
+  }
+  card.style.display = ""; if (secTitle) secTitle.style.display = "";
+  $("hh-cnt").textContent = H.asOf ? "截至 " + H.asOf.slice(5) : "";
+
+  const items = H.items;
+  hhHidden = hhHidden || new Set();
+  const dates = [...new Set(items.flatMap((it) => it.pts.map((p) => p[0])))].sort();
+  const idxOf = new Map(dates.map((d, i) => [d, i]));
+  const valOf = items.map((it) => new Map(it.pts.map((p) => [p[0], p])));
+  const vis = items.map((it) => !hhHidden.has(it.code));
+  const allV = items.flatMap((it) => it.pts.map((p) => p[1])).concat([0]);
+  const lo = Math.min(...allV), hi = Math.max(...allV), pad = (hi - lo) * 0.1 || 1000;
+  const yHi = hi + pad, yLo = lo - pad;
+
+  const W = (box.clientWidth || 360), H2 = W < 560 ? 210 : 240;
+  const mL = 54, mR = 16, mT = 14, mB = 26;
+  const px = (i) => mL + (i / (dates.length - 1 || 1)) * (W - mL - mR);
+  const py = (v) => mT + (yHi - v) / ((yHi - yLo) || 1) * (H2 - mT - mB);
+
+  let s = '<svg width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + " " + H2 + '" role="img" aria-label="各标的累计盈亏走势">';
+  /* 网格（2026-10-18）：有 0 就用「上界 / 0 / 下界」三档 —— 中间一条若不是 0，读者会把
+     「+1,876」当成盈亏分界（截图里就出现过）。没有 0 时才退化成等分。 */
+  const ticks = (yLo < 0 && yHi > 0) ? [yHi, 0, yLo] : [yHi, (yHi + yLo) / 2, yLo];
+  ticks.forEach((t) => {
+    s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
+      + '<text x="' + (mL - 6) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:10px var(--mono)">' + hhFmt(t) + "</text>";
+  });
+  if (lo < 0 && hi > 0) s += '<line x1="' + mL + '" y1="' + py(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(0).toFixed(1) + '" stroke="var(--tx3)" stroke-width="1"/>';
+
+  const geo = [];
+  items.forEach((it, i) => {
+    if (!vis[i]) return;
+    const pts = it.pts.map((p) => px(idxOf.get(p[0])).toFixed(1) + "," + py(p[1]).toFixed(1)).join(" ");
+    const col = HH_COLORS[i % HH_COLORS.length];
+    s += '<polyline points="' + pts + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.5 : 2) + ';opacity:' + (it.closed ? 0.75 : 1) + '"'
+      + (it.closed ? ' stroke-dasharray="4 3"' : "") + ' stroke-linejoin="round"/>';
+    const lastP = it.pts.at(-1), lx = px(idxOf.get(lastP[0])), ly = py(lastP[1]);
+    if (it.closed) {
+      s += '<circle cx="' + lx.toFixed(1) + '" cy="' + ly.toFixed(1) + '" r="3.6" fill="var(--card)" style="stroke:' + col + ';stroke-width:2"/>'
+        /* 标签放点的**正下方**（2026-10-18）：原来锚在左侧，文字向左延伸会压到旁边的曲线 ✗；
+           末端点靠右时改成右对齐，否则「若持有 −10,184」会被画布裁掉（实测只露出 −10,18…）。 */
+        + '<text x="' + (lx > W - 72 ? (lx - 4).toFixed(1) : lx.toFixed(1)) + '" y="' + (ly + 13).toFixed(1) + '" text-anchor="' + (lx > W - 72 ? "end" : "middle") + '" fill="' + col + '" style="font:9px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px">若持有 ' + hhFmt(it.ifHeld || 0) + "</text>";
+    } else {
+      s += '<circle cx="' + lx.toFixed(1) + '" cy="' + ly.toFixed(1) + '" r="3" style="fill:' + col + '"/>';
+    }
+    geo.push({ it, col, i });
+  });
+  /* 十字线（默认隐藏） */
+  s += '<line class="hh-xh" x1="' + mL + '" y1="' + mT + '" x2="' + mL + '" y2="' + (H2 - mB) + '" stroke="var(--tx3)" stroke-width="1" style="display:none"/></svg>';
+  box.innerHTML = s;
+  box._geo = { W, H: H2, mL, mR, mT, mB, n: dates.length, dates };
+
+  /* 图例：点击切换显隐 */
+  $("hh-legend").innerHTML = items.map((it, i) => {
+    const col = HH_COLORS[i % HH_COLORS.length], off = hhHidden.has(it.code);
+    const tail = it.closed ? "已实现 " + hhFmt(it.realized) : hhFmt(it.pl);
+    return '<span data-code="' + esc(it.code) + '" role="button" tabindex="0" style="cursor:pointer;opacity:' + (off ? 0.35 : 1) + '">'
+      + '<i style="border-top:2px ' + (it.closed ? "dashed" : "solid") + " " + col + '"></i>' + esc(it.name)
+      + ' <b style="font-family:var(--mono);color:' + col + '">' + tail + "</b></span>";
+  }).join("");
+
+  $("hh-sum").innerHTML = "在持 <b>" + items.filter((x) => !x.closed).length + "</b> 只 · 已清仓 <b>" + items.filter((x) => x.closed).length +
+    "</b> 只 · 曲线＝每日浮动盈亏（不是收益率）；虚线终止于清仓日，末端数字＝若持有至今";
+
+  hhHover = null;
+  renderHoldHistReadout();
+}
+
+function renderHoldHistReadout(ev) {
+  const box = $("hh-box"), ro = $("hh-readout");
+  if (!box || !ro || !box._geo) return;
+  const g = box._geo, H = (typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null;
+  if (!H) return;
+  let i = g.n - 1;
+  if (ev) {
+    const r = box.getBoundingClientRect(), sc = (r.width / (g.W || 1)) || 1;
+    const x = (ev.clientX - r.left) / sc;
+    i = Math.round((x - g.mL) / ((g.W - g.mL - g.mR) || 1) * (g.n - 1));
+    i = Math.max(0, Math.min(g.n - 1, i));
+  }
+  hhHover = i;
+  const d = g.dates[i];
+  const xh = box.querySelector(".hh-xh");
+  if (xh) {
+    const x = (g.mL + (i / (g.n - 1 || 1)) * (g.W - g.mL - g.mR)).toFixed(1);
+    xh.style.display = ""; xh.setAttribute("x1", x); xh.setAttribute("x2", x);
+  }
+  const parts = H.items.filter((it) => !hhHidden.has(it.code)).map((it) => {
+    const p = it.pts.find((q) => q[0] === d);
+    return p ? esc(it.name) + ' <b style="font-family:var(--mono)">' + hhFmt(p[1]) + "</b>" : null;
+  }).filter(Boolean);
+  ro.innerHTML = d + (parts.length ? "　" + parts.join(" · ") : "　（该日无持仓）");
+}
+
+$("hh-box") && $("hh-box").addEventListener("pointermove", renderHoldHistReadout);
+$("hh-legend") && $("hh-legend").addEventListener("click", (e) => {
+  const el = e.target.closest("[data-code]"); if (!el) return;
+  const c = el.getAttribute("data-code");
+  if (hhHidden.has(c)) hhHidden.delete(c); else hhHidden.add(c);
+  renderHoldHist();
+});
+
 function renderTrendViews() {
   const el = $("trend-views");
   if (!el) return;
@@ -3333,6 +3462,7 @@ function renderTrend(todayVal, todayCost) {
   renderTrendViews();
   renderTrendLegend();
   renderTrendKpis(pts);
+  renderHoldHist();   // 各标的累计盈亏（2026-10-18 加）
   $("trend-cnt").innerHTML = "(快照 " + snaps.length + " 期" + (pts.length && pts[pts.length - 1].isToday ? " + 今日" : "") + " · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   if (!snaps.length) {   // 空态：教学态引导，而非空白
     $("trend-cnt").textContent = "";

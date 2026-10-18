@@ -709,6 +709,17 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     gotIn !== null && Math.abs(gotIn - sums.in) <= 1, "组小计 " + gotIn + " vs 复算 " + sums.in.toFixed(2));
   check("快照对比「场外」分组小计 = 复算 " + money(sums.ot),
     gotOt !== null && Math.abs(gotOt - sums.ot) <= 1, "组小计 " + gotOt + " vs 复算 " + sums.ot.toFixed(2));
+  /* 各标的累计盈亏（2026-10-18 加）：5 条线 = 3 在持实线 + 2 已清仓虚线，
+     清仓标的的图例必须印「已实现」而不是浮盈（口径不同，混了就会被读成「还在赚」✗） */
+  {
+    const doc = gs[0] && gs[0].ownerDocument;
+    const lines = doc ? doc.querySelectorAll("#hh-box polyline") : [];
+    const dashed = doc ? doc.querySelectorAll("#hh-box polyline[stroke-dasharray]") : [];
+    const lg = doc && doc.getElementById("hh-legend") ? doc.getElementById("hh-legend").textContent : "";
+    check("各标的累计盈亏：5 条线（3 在持实线 + 2 清仓虚线）· 清仓图例印「已实现」",
+      lines.length === 5 && dashed.length === 2 && /已实现/.test(lg),
+      "线 " + lines.length + " 条（虚线 " + dashed.length + "）· 图例「" + lg.replace(/\s+/g, " ").slice(0, 48) + "」");
+  }
 }
 
 /* ⑤ 走势卡读数条：最新一期的总资产与浮盈亏（renderTrend 的成本口径含现金）
