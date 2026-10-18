@@ -312,8 +312,8 @@ const fmtQty = (v) => Math.trunc(v).toLocaleString("en-US", { maximumFractionDig
 const CONFIG = {
   TIER_LOW: 35,
   TIER_HIGH: 65,
-  BUY_BIN: 2.5,          // 买入点分箱宽（分位点）：同箱的点往上叠，避免完全重合
-  BUY_STACK_MAX: 3,      // 叠加上限（第 4 笔起与第 3 笔重合 —— 实测同箱最多 2~3 笔，够用 ✓）
+  BUY_BIN: 1.5,          // 买入点分箱宽（分位点）：同箱的点往上叠 —— 2026-10-18 由 2.5 收窄，横向先分开
+  BUY_STACK_MAX: 4,      // 叠加上限（2026-10-18 由 3 提到 4，配合加高的 buy-layer 与 10px 步长）
   BUY_DOT_BASE: 5,       // 圆点最小直径 px
   /* ⚠ 2026-10-16：3 → 7，同时编码量由**份数**改**金额的平方根**（见 renderHold 里 sz 的注释）——
      原先 base+range×qty/maxQ → 直径只有 5~8px，实测三只的极差仅 2.4~2.9px（人类在那个尺度上分辨不出 ✗），
@@ -6523,7 +6523,7 @@ function holdCardHtml(row, i, ctx) {
          后者给读屏；点击仍会定位到该买入点并闪烁（flashBuyMark） */
       ' title="' + e.d + ' 买入 ' + fmtQty(e.qty) + ' 份 @ ' + e.cost + ' 元"' +
       ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtQty(e.qty) + ' 份">' +
-      '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (3 + lvl * 8) + 'px"></i></button>';
+      '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (4 + lvl * 10) + 'px"></i></button>';
   }).join("");
   /* 卖出标记：红空心圈，位置=成交价分位；与买入点同处 buy-layer（**形状＋颜色**双重区分买/卖 ✓）
      ⚠ 2026-10-16 与买入侧同步改：大小按 **√金额**（原先份数线性、极差同样只有几 px ✗）、
