@@ -2752,11 +2752,13 @@ function renderHoldHist() {
 
   const items = H.items;
   hhHidden = hhHidden || new Set();
-  const dates = [...new Set(items.flatMap((it) => it.pts.map((p) => p[0])))].sort();
+  /* 横轴日期并集（2026-10-18）：要把 phantom（假设没卖的延续段）也含进去，
+     否则清仓后的几天不会出现在 x 轴上，延续线会被压在最后一格里 */
+  const dates = [...new Set(items.flatMap((it) => it.pts.map((p) => p[0]).concat((it.phantom || []).map((p) => p[0]))))].sort();
   const idxOf = new Map(dates.map((d, i) => [d, i]));
   const valOf = items.map((it) => new Map(it.pts.map((p) => [p[0], p])));
   const vis = items.map((it) => !hhHidden.has(it.code));
-  const allV = items.flatMap((it) => it.pts.map((p) => p[1])).concat([0]);
+  const allV = items.flatMap((it) => it.pts.map((p) => p[1]).concat((it.phantom || []).map((p) => p[1]))).concat([0]);
   const lo = Math.min(...allV), hi = Math.max(...allV), pad = (hi - lo) * 0.1 || 1000;
   const yHi = hi + pad, yLo = lo - pad;
 
@@ -2778,18 +2780,38 @@ function renderHoldHist() {
   const geo = [];
   items.forEach((it, i) => {
     if (!vis[i]) return;
-    const pts = it.pts.map((p) => px(idxOf.get(p[0])).toFixed(1) + "," + py(p[1]).toFixed(1)).join(" ");
     const col = HH_COLORS[i % HH_COLORS.length];
-    s += '<polyline points="' + pts + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.5 : 2) + ';opacity:' + (it.closed ? 0.75 : 1) + '"'
+    const xy = (p) => px(idxOf.get(p[0])).toFixed(1) + "," + py(p[1]).toFixed(1);
+    /* ①「假设没卖」的延续段（2026-10-18 加）：更淡的点线，从清仓日接上原摊薄成本继续走 ——
+       先画它，再画真实曲线盖在上面，视觉层次不会反过来。 */
+    if (it.closed && Array.isArray(it.phantom) && it.phantom.length) {
+      const holdLast = it.pts.at(-1);   // 清仓日那一点 qty=0，但记了当日浮盈（脚本 2026-10-18 改）
+      const seq = holdLast ? [[holdLast[0], holdLast[1]]].concat(it.phantom) : it.phantom;
+      s += '<polyline points="' + seq.map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:1.4;opacity:.42" stroke-dasharray="2 3" stroke-linejoin="round"/>';
+      const pe = seq.at(-1);
+      s += '<circle cx="' + px(idxOf.get(pe[0])).toFixed(1) + '" cy="' + py(pe[1]).toFixed(1) + '" r="2.6" style="fill:' + col + ';opacity:.5"/>';
+    }
+    s += '<polyline points="' + it.pts.map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.6 : 2) + ';opacity:' + (it.closed ? 0.9 : 1) + '"'
       + (it.closed ? ' stroke-dasharray="4 3"' : "") + ' stroke-linejoin="round"/>';
-    const lastP = it.pts.at(-1), lx = px(idxOf.get(lastP[0])), ly = py(lastP[1]);
     if (it.closed) {
-      s += '<circle cx="' + lx.toFixed(1) + '" cy="' + ly.toFixed(1) + '" r="3.6" fill="var(--card)" style="stroke:' + col + ';stroke-width:2"/>'
-        /* 标签放点的**正下方**（2026-10-18）：原来锚在左侧，文字向左延伸会压到旁边的曲线 ✗；
-           末端点靠右时改成右对齐，否则「若持有 −10,184」会被画布裁掉（实测只露出 −10,18…）。 */
-        + '<text x="' + (lx > W - 72 ? (lx - 4).toFixed(1) : lx.toFixed(1)) + '" y="' + (ly + 13).toFixed(1) + '" text-anchor="' + (lx > W - 72 ? "end" : "middle") + '" fill="' + col + '" style="font:9px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px">若持有 ' + hhFmt(it.ifHeld || 0) + "</text>";
+      /* ② 清仓点（2026-10-18 强化）：原来是「曲线末端的空心小圆」，用户反馈「找不到」✗ →
+         改成 实心点 + 一条落到 0 轴的竖虚线 + 「清仓 10-09」标签。 */
+      const holdLast = it.pts.at(-1);   // 清仓日那一点 qty=0，但记了当日浮盈（脚本 2026-10-18 改）
+      if (holdLast) {
+        const cx = px(idxOf.get(holdLast[0])), cy = py(holdLast[1]);
+        s += '<line x1="' + cx.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + py(0).toFixed(1) + '" stroke="' + col + '" stroke-width="1" stroke-dasharray="2 2" opacity=".5"/>'
+          + '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="4" style="fill:' + col + ';stroke:var(--card);stroke-width:1.6"/>'
+          + '<text x="' + (cx > W - 62 ? (cx - 6).toFixed(1) : (cx + 6).toFixed(1)) + '" y="' + (cy - 7).toFixed(1) + '" text-anchor="' + (cx > W - 62 ? "end" : "start") + '" fill="' + col + '" style="font:9px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px">清仓 ' + String(it.closedDate || "").slice(5) + "</text>";
+      }
+      /* ③ 延续段末端：假设没卖到今天的浮盈 */
+      const pe = (it.phantom || []).at(-1);
+      if (pe) {
+        const ex = px(idxOf.get(pe[0]));
+        s += '<text x="' + (ex > W - 74 ? (ex - 4).toFixed(1) : ex.toFixed(1)) + '" y="' + (py(pe[1]) + 13).toFixed(1) + '" text-anchor="' + (ex > W - 74 ? "end" : "middle") + '" fill="' + col + '" style="font:9px var(--mono);opacity:.8;paint-order:stroke;stroke:var(--card);stroke-width:3px">若持有 ' + hhFmt(pe[1]) + "</text>";
+      }
     } else {
-      s += '<circle cx="' + lx.toFixed(1) + '" cy="' + ly.toFixed(1) + '" r="3" style="fill:' + col + '"/>';
+      const lp = it.pts.at(-1);
+      s += '<circle cx="' + px(idxOf.get(lp[0])).toFixed(1) + '" cy="' + py(lp[1]).toFixed(1) + '" r="3" style="fill:' + col + '"/>';
     }
     geo.push({ it, col, i });
   });
@@ -2808,7 +2830,7 @@ function renderHoldHist() {
   }).join("");
 
   $("hh-sum").innerHTML = "在持 <b>" + items.filter((x) => !x.closed).length + "</b> 只 · 已清仓 <b>" + items.filter((x) => x.closed).length +
-    "</b> 只 · 曲线＝每日浮动盈亏（不是收益率）；虚线终止于清仓日，末端数字＝若持有至今";
+    "</b> 只 · 实线＝真实浮盈（终止于清仓日，末端实心点＝卖点）；点线＝假设没卖（原份额 × 原成本）继续到今天";
 
   hhHover = null;
   renderHoldHistReadout();
@@ -2835,7 +2857,10 @@ function renderHoldHistReadout(ev) {
   }
   const parts = H.items.filter((it) => !hhHidden.has(it.code)).map((it) => {
     const p = it.pts.find((q) => q[0] === d);
-    return p ? esc(it.name) + ' <b style="font-family:var(--mono)">' + hhFmt(p[1]) + "</b>" : null;
+    if (p && p[2] > 0) return esc(it.name) + ' <b style="font-family:var(--mono)">' + hhFmt(p[1]) + "</b>";
+    /* 清仓日之后的日期只有 phantom（假设没卖）—— 括号标出来，别让人以为是真持仓 */
+    const ph = (it.phantom || []).find((q) => q[0] === d);
+    return ph ? esc(it.name) + ' <b style="font-family:var(--mono)">' + hhFmt(ph[1]) + "</b>（假设持有）" : null;
   }).filter(Boolean);
   ro.innerHTML = d + (parts.length ? "　" + parts.join(" · ") : "　（该日无持仓）");
 }

@@ -713,12 +713,13 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
      清仓标的的图例必须印「已实现」而不是浮盈（口径不同，混了就会被读成「还在赚」✗） */
   {
     const doc = gs[0] && gs[0].ownerDocument;
-    const lines = doc ? doc.querySelectorAll("#hh-box polyline") : [];
-    const dashed = doc ? doc.querySelectorAll("#hh-box polyline[stroke-dasharray]") : [];
+    const solid = doc ? doc.querySelectorAll("#hh-box polyline:not([stroke-dasharray])") : [];
+    const real = doc ? doc.querySelectorAll('#hh-box polyline[stroke-dasharray="4 3"]') : [];
+    const phantom = doc ? doc.querySelectorAll('#hh-box polyline[stroke-dasharray="2 3"]') : [];
     const lg = doc && doc.getElementById("hh-legend") ? doc.getElementById("hh-legend").textContent : "";
-    check("各标的累计盈亏：5 条线（3 在持实线 + 2 清仓虚线）· 清仓图例印「已实现」",
-      lines.length === 5 && dashed.length === 2 && /已实现/.test(lg),
-      "线 " + lines.length + " 条（虚线 " + dashed.length + "）· 图例「" + lg.replace(/\s+/g, " ").slice(0, 48) + "」");
+    check("各标的累计盈亏：3 实线 + 2 清仓虚线 + 2 条「假设没卖」延续线 · 清仓图例印「已实现」",
+      solid.length === 3 && real.length === 2 && phantom.length === 2 && /已实现/.test(lg),
+      "实线 " + solid.length + " / 清仓虚线 " + real.length + " / 延续线 " + phantom.length + " · 图例「" + lg.replace(/\s+/g, " ").slice(0, 40) + "」");
   }
 }
 

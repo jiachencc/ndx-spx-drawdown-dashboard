@@ -59,7 +59,7 @@ for (const m of MAP) {
   catch (e) { console.log("  ⚠ " + m.name + " 价格抓取失败：" + e.message + "（保留旧值）"); continue; }
 
   let qty = 0, cost = 0, realized = 0, ti = 0;
-  let closedDate = null, qtyAtClose = 0, closePx = null, lastSellRealized = null;
+  let closedDate = null, qtyAtClose = 0, closePx = null, avgAtClose = null, lastSellRealized = null;
   const pts = [];
   for (const bar of px) {
     while (ti < trades.length && trades[ti].d <= bar.d) {
@@ -70,12 +70,18 @@ for (const m of MAP) {
         if (Number.isFinite(+t.realized)) { realized += +t.realized; lastSellRealized = +t.realized; }
         else realized += (c - avg) * sell;
         cost -= avg * sell; qty -= sell;
-        if (qty <= 1e-6) { qty = 0; cost = 0; closedDate = bar.d; qtyAtClose = sell; closePx = c; }
+        if (qty <= 1e-6) { qty = 0; closedDate = bar.d; qtyAtClose = sell; closePx = c; avgAtClose = avg; cost = 0; }
       }
       ti++;
     }
     if (qty > 0) pts.push([bar.d, Math.round((bar.c - cost / qty) * qty), Math.round(qty), +((cost / qty)).toFixed(4)]);
-    else if (closedDate && pts.length) { pts.push([bar.d, 0, 0, 0]); break; }
+    /* 清仓日（2026-10-18 改）：不再补一个 (date, 0) 的归零点 —— 那会让曲线在末端垂直掉到 0，
+       读者以为「收益消失了」，也接不上后面的「假设没卖」延续段。
+       改为记录清仓当日的**浮盈**（份额已归零，用清仓份额 × 原摊薄成本算），曲线在此终止。 */
+    else if (closedDate && pts.length) {
+      if (bar.d === closedDate) pts.push([bar.d, Math.round((bar.c - avgAtClose) * qtyAtClose), 0, +avgAtClose.toFixed(4)]);
+      break;
+    }
   }
   if (!pts.length) { console.log("  跳过 " + m.name + "：重建后没有持仓日"); continue; }
 
@@ -89,12 +95,21 @@ for (const m of MAP) {
   const realizedFinal = closed && lastSellRealized !== null ? lastSellRealized : realized;
   /* 「若持有至今」：清仓时的份额 ×（最新价 − 清仓价）—— 负数 = 不清会更亏 */
   const ifHeld = closed && closePx !== null ? Math.round(qtyAtClose * (lastBar.c - closePx)) : null;
+  /* 「假设没卖」的延续线（2026-10-18 加）：清仓后用**原份额 × 原摊薄成本**继续算浮盈，
+     曲线因此不断 —— 用户要看的正是「不清会怎样」，而不只是末端一个数字。 */
+  const phantom = [];
+  if (closed && avgAtClose !== null && qtyAtClose > 0) {
+    for (const bar of px) {
+      if (bar.d <= closedDate) continue;
+      phantom.push([bar.d, Math.round((bar.c - avgAtClose) * qtyAtClose)]);
+    }
+  }
   items.push({
     code: m.code, name: m.name, idx: m.idx,
     first: pts[0][0], last: lastPt[0],
     closed, closedDate, realized: Math.round(realizedFinal), ifHeld,
     qty: lastPt[2], avg: lastPt[3], pl: lastPt[1],
-    pts,
+    pts, phantom,
   });
   if (!asOf || lastBar.d > asOf) asOf = lastBar.d;
   console.log("  " + m.name.padEnd(18) + pts[0][0] + " → " + lastPt[0] + "  " + pts.length + " 日" +
