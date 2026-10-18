@@ -184,11 +184,14 @@
     color: var(--tx2); font-size: var(--fs-xs); line-height: 1.6; display: flex; gap: 8px; align-items: flex-start;
   }
   .privacy b { color: var(--tx); }
-  .src-line { font-size: var(--fs-xs); color: var(--tx3); margin: 10px 2px; line-height: 1.7; }
-  /* 内联 style 抽取为类，避免主题切换时内联颜色不跟随 */
-  .src-sep { opacity: .4; }
-  .src-status { margin-top: 6px; overflow-wrap: anywhere; }
-  .src-status-inline { margin-top: 6px; }
+  /* 2026-10-18 重排：flex 换行 + 每组不可拆（原来纯文本流，断行落在「场/内行情」这种词中间 ✗）。
+     竖线分隔符改成相邻组之间的左边框 —— 换行后不会出现悬空的「|」。 */
+  .src-line { font-size: var(--fs-xs); color: var(--tx3); margin: 10px 2px; line-height: 1.6;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  .src-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  /* 不用 border-left 做分隔（2026-10-18）：换行后它会在行首留一根悬空的竖线 ✗。
+     改纯间距 —— MANUAL / AUTO / SNAP 三个彩色标签本身已经是最好的分隔符。 */
+  .src-status, .src-status-inline { flex: 1 0 100%; margin-top: 4px; overflow-wrap: anywhere; }
   .src-muted { color: var(--tx3); }
   .src-tag { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; vertical-align: 1px; }
   .src-tag.auto { background: var(--up-bg); color: var(--green); border: 1px solid var(--up-line); }

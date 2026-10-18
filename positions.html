@@ -36,12 +36,13 @@ try {
     <div><b>隐私提醒</b>：本页含<b>市值与盈亏金额</b>，仅供本人使用，请勿公开分享。</div>
   </div>
 
+  <!-- 2026-10-18 重排：原来是「纯文本 + inline 元素 + 竖线」混排，手机上会在任意字符处断行
+       （实测「AUTO 场 / 内行情」被拆成两行、三组信息挤成一坨）。现在每组包成 .src-item
+       （inline-flex + nowrap），换行只发生在组之间；两块状态各自独占一行。 -->
   <div class="src-line">
-    <span class="src-tag manual" title="人工维护：买卖后更新">MANUAL</span> 场外快照 <b id="otc-updated">--</b>
-    &nbsp;<span class="src-sep">|</span>&nbsp;
-    <span class="src-tag auto" title="随主看板 data.js 自动抓取">AUTO</span> 场内行情 <b id="pos-asof">--</b>
-    &nbsp;<span class="src-sep">|</span>&nbsp;
-    <span class="src-tag manual" title="静态快照：各基金净值日见卡片">SNAP</span> 场外净值
+    <span class="src-item"><span class="src-tag manual" title="人工维护：买卖后更新">MANUAL</span>场外快照 <b id="otc-updated">--</b></span>
+    <span class="src-item"><span class="src-tag auto" title="随主看板 data.js 自动抓取">AUTO</span>场内行情 <b id="pos-asof">--</b></span>
+    <span class="src-item"><span class="src-tag manual" title="静态快照：各基金净值日见卡片">SNAP</span>场外净值</span>
     <div id="pos-source-health" role="status" class="src-status"></div>
     <div id="reconciliation-warning" role="status" class="src-status-inline"></div>
   </div>
