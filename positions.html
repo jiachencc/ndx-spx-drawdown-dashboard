@@ -2819,7 +2819,7 @@ function renderHoldHist() {
       const pe = seq.at(-1);
       s += '<circle cx="' + px(idxOf.get(pe[0])).toFixed(1) + '" cy="' + py(pe[1]).toFixed(1) + '" r="2.6" style="fill:' + col + ';opacity:.5"/>';
     }
-    s += '<polyline points="' + it.pts.filter(inRange).map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.6 : 2) + ';opacity:' + (it.closed ? 0.9 : 1) + '"'
+    s += '<polyline points="' + it.pts.filter(inRange).map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.3 : 1.5) + ';opacity:' + (it.closed ? 0.9 : 1) + '"'
       + (it.closed ? ' stroke-dasharray="4 3"' : "") + ' stroke-linejoin="round"/>';
     if (it.closed) {
       /* ② 清仓点（2026-10-18 强化）：原来是「曲线末端的空心小圆」，用户反馈「找不到」✗ →
@@ -3794,7 +3794,17 @@ function renderRateView(box, pts) {
   /* BENCH 有缺口时（首个基准日不是首期），把组合线也平移到该点归零，保证两条线同起点 */
   const firstBench = pts.findIndex((p) => benchRateAt(p.d) !== null);
   if (firstBench > 0 && navT) { const s0 = ser[firstBench]; ser.forEach((v, i) => { ser[i] = v - s0; }); }
-  const rs = ser.concat([0]);
+  /* 基准线先算（2026-10-18 修）：原来 y 域只取组合线（ser）+ 0，纳指线一旦跑得比组合更远，
+     就会画出图表顶部 —— 用户报「同期纳指线好像超出高度了」。y 域必须把基准值也算进来。 */
+  const bi = [];
+  let b0 = null;
+  pts.forEach((p, i) => {
+    const b = benchRateAt(p.d);
+    if (b === null) return;
+    if (b0 === null) b0 = b;
+    bi.push({ i: i, b: (1 + b) / (1 + b0) - 1 });
+  });
+  const rs = ser.concat([0]).concat(bi.map((o) => o.b));
   let lo = Math.min.apply(null, rs), hi = Math.max.apply(null, rs);
   const pad = (hi - lo) * 0.18 || 0.01;
   lo -= pad; hi += pad;
@@ -3804,15 +3814,6 @@ function renderRateView(box, pts) {
   trendLayout = { px: px, py: py, pts: pts, mode: "rate" };
   if ($("trend-cnt")) $("trend-cnt").innerHTML = "(快照 " + pts.length + " 期 · TWR 口径 · 最新 " + (mdOf(snapAsOf()) || "未记录") + ")";
   const zeroY = Y(0);
-  /* 基准线：同样「相对起点」的收益率，起点取第一个有基准的日期 —— 与组合线零点是同一个点 */
-  const bi = [];
-  let b0 = null;
-  pts.forEach((p, i) => {
-    const b = benchRateAt(p.d);
-    if (b === null) return;
-    if (b0 === null) b0 = b;
-    bi.push({ i: i, b: (1 + b) / (1 + b0) - 1 });
-  });
   let svg = trendSvgOpen(W, H, "净值走势（TWR）：当前 " + fmtPct(ser[ser.length - 1], 2));
   [hi, (hi + lo) / 2, lo].forEach((tv) => {
     const y = Y(tv).toFixed(1);
