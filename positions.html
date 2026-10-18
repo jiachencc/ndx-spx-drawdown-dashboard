@@ -33,7 +33,7 @@ try {
 
   <div class="card privacy">
     <span aria-hidden="true">🔒</span>
-    <div><b>隐私提醒</b>：本页含<b>市值与盈亏金额</b>，仅供本人使用，请勿公开分享。</div>
+    <div><b>隐私提醒</b>：含<b>市值与盈亏</b>，请勿公开分享</div>
   </div>
 
   <!-- 2026-10-18 重排：原来是「纯文本 + inline 元素 + 竖线」混排，手机上会在任意字符处断行
@@ -312,7 +312,7 @@ const fmtQty = (v) => Math.trunc(v).toLocaleString("en-US", { maximumFractionDig
 const CONFIG = {
   TIER_LOW: 35,
   TIER_HIGH: 65,
-  BUY_BIN: 1.5,          // 买入点分箱宽（分位点）：同箱的点往上叠 —— 2026-10-18 由 2.5 收窄，横向先分开
+  BUY_BIN: 2.0,          // 买入点分箱宽（分位点）：2026-10-18 由 2.5 收窄到 1.5 后又调回 2.0 —— 1.5 太窄，8 月那波仍挨在一起；2.0 让「同价位 ±2%」归为一箱
   BUY_STACK_MAX: 4,      // 叠加上限（2026-10-18 由 3 提到 4，配合加高的 buy-layer 与 10px 步长）
   BUY_DOT_BASE: 5,       // 圆点最小直径 px
   /* ⚠ 2026-10-16：3 → 7，同时编码量由**份数**改**金额的平方根**（见 renderHold 里 sz 的注释）——
@@ -754,8 +754,7 @@ function renderOtcLevel() {
       + '<span class="dca-chip ' + b.c + '">' + b.k + " " + (r.pos * 100).toFixed(0) + "%</span></div>"
       + '<div class="n f-gain ' + cls(r.f.pnl) + '">' + fmtAmt(r.f.pnl) + "</div>"
       + '<div class="lvl-meta">' + (r.costNav ? "成本 " + r.costNav.toFixed(4) + " → 现价 " + r.n.close : "成本净值不可得（快照缺份额）")
-      + " · 52 周 " + r.n.lo + "~" + r.n.hi + " · 距高 " + fmtPct(r.dist / 100, 1)
-      + (r.f.nav.closeDate ? " · 净值日 " + String(r.f.nav.closeDate).slice(5).replace("-", ".") : "") + "</div>"
+      + " · 距高 " + fmtPct(r.dist / 100, 1) + "</div>"
       + '<div class="lvl-track" title="52 周区间 ' + r.n.lo + " ~ " + r.n.hi
       + (r.over ? "（" + r.over + "）" : "") + "\n现价 " + r.n.close + " 在 " + (r.pos * 100).toFixed(1) + "% 处"
       + (r.cpos !== null ? "；成本净值 " + r.costNav.toFixed(4) + " 在 " + (r.cpos * 100).toFixed(1) + "% 处" : "")
@@ -1116,7 +1115,9 @@ function renderImpl() {
      原注释写"这 13 行"已过期 —— 显示的数字是现算的 所以页面没错，只是注释没跟上）。
      口径同前：±0.5 元内算持平。 */
   const plWin = plRows.filter((x) => x.pl > 0.5).length, plLoss = plRows.filter((x) => x.pl < -0.5).length;
-  $("pl-cnt").innerHTML = "(" + plRows.length + " 项持仓 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span> · " + etfTag() + " · " + otcTag() + (clearedN ? " · 已清仓 " + clearedN + " 笔另列" : "") + ")";
+  /* 2026-10-18 精简：原来还拼了 etfTag()/otcTag() 两个带日期的标签，整行折成两行；
+     行内每行本就带着自己的信源与净值日（场内 10.16 / 博时·净值 10.15），标题不必再说一遍。 */
+  $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span>" + (clearedN ? " · 已清仓 " + clearedN + " 笔另列" : "") + ")";
   $("pl-list").innerHTML =
     plRows.map((x) => {
       const zero = Math.abs(x.pl) < 0.5;
@@ -7487,8 +7488,10 @@ function layoutAllocLabels() {
   bar.querySelectorAll(".alloc-seg").forEach((s) => {
     const w = +s.dataset.w || 0;
     const px = bw * w / 100;
+    /* 2026-10-18：中等宽度改为显示**短名**（日经 11% ≈ 38px 放不下「日经 11%」，
+       原来就退化成只有一个「11%」，看不出是谁）——名称比百分比重要，图例里有精确值。 */
     s.textContent = px >= 62 ? (s.dataset.short || "") + " " + Math.round(w) + "%"
-      : px >= 26 ? Math.round(w) + "%" : "";
+      : px >= 30 ? (s.dataset.short || "") : px >= 22 ? Math.round(w) + "%" : "";
   });
 }
 window.addEventListener("resize", layoutAllocLabels);

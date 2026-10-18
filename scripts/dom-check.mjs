@@ -958,7 +958,10 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   };
   const heldKeys = [...new Set((P.hold || []).map((h) => QK[h.idx] || h.idx))];
   const want = fmt(heldKeys.map(dayOf));
-  const chip = win.document.querySelector("#pl-cnt .date-chip.etf");
+  /* 2026-10-18：盈亏总览标题精简，不再重复 etfTag()（行内每行已带信源与净值日）；
+     徽标只留在顶部状态行 #pos-asof —— 断言跟着改指向那里，语义不变（同一个 etfTag()）。 */
+  const chip = win.document.querySelector("#pl-cnt .date-chip.etf")
+    || win.document.querySelector("#pos-asof .date-chip.etf");
   const got = chip ? chip.textContent.replace(/\s+/g, "") : "";
   check("场内徽标 ≡ 持有市场「自动源核验日 vs 本页在用报价日」的较新者（应为 " + want + "）",
     got.indexOf(want) >= 0, "徽标「" + got + "」· 持有市场 " + heldKeys.join("/") + " 应得 " + want);
