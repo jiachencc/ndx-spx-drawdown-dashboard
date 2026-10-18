@@ -191,7 +191,10 @@
   .src-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   /* 不用 border-left 做分隔（2026-10-18）：换行后它会在行首留一根悬空的竖线 ✗。
      改纯间距 —— MANUAL / AUTO / SNAP 三个彩色标签本身已经是最好的分隔符。 */
-  .src-status, .src-status-inline { flex: 1 0 100%; margin-top: 4px; overflow-wrap: anywhere; }
+  /* 2026-10-18：原来空容器也占一整行（实测 375px 下 #pos-source-health 空着吃掉 30px 高度，
+     把整块从 3 行撑成 4 行）→ 空态直接不显示。 */
+  .src-status, .src-status-inline { flex: 1 0 100%; margin-top: 2px; overflow-wrap: anywhere; }
+  .src-status:empty, .src-status-inline:empty { display: none; }
   .src-muted { color: var(--tx3); }
   .src-tag { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; vertical-align: 1px; }
   .src-tag.auto { background: var(--up-bg); color: var(--green); border: 1px solid var(--up-line); }
