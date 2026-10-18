@@ -1546,13 +1546,17 @@ function traceSparkSvg(w, pts, evs, opt) {
   const pl = poly("p"), cl = poly("c");
   if (pl) svg += '<polyline points="' + pl + '" style="fill:none;stroke:var(--tx2);stroke-width:1.5"/>';
   if (cl) svg += '<polyline points="' + cl + '" style="fill:none;stroke:var(--tx3);stroke-width:1.3;stroke-dasharray:5 4"/>';
+  /* ⚠ 绘制顺序（2026-10-18 修）：原来先画买卖点（r=4 绿/红）、后画价格点（r=2 灰），
+     买入日若刚好是快照日，灰点会盖在绿点正中间 → 看起来是「绿环 + 空心」；
+     非快照日的买入点则保持实心 —— 这就是用户看到「有的实心有的空心」的原因 ✗
+     现在先画灰点、再画买卖点，实心圆永远在最上层。 */
+  pts.forEach((x) => { if (Number.isFinite(x.p)) svg += '<circle cx="' + X(x.d).toFixed(1) + '" cy="' + Y(x.p).toFixed(1)
+    + '" r="2" style="fill:var(--tx2)"/>'; });
   evs.forEach((e) => {
     if (!Number.isFinite(e.cost)) return;
     svg += '<circle cx="' + X(e.d).toFixed(1) + '" cy="' + Y(e.cost).toFixed(1) + '" r="4" style="fill:'
-      + (e.buy ? "var(--up)" : "var(--down)") + ';stroke:var(--card);stroke-width:2"><title>' + esc(e.title || "") + "</title></circle>";
+      + (e.buy ? "var(--up)" : "var(--down)") + ';stroke:var(--card);stroke-width:1.6"><title>' + esc(e.title || "") + "</title></circle>";
   });
-  pts.forEach((x) => { if (Number.isFinite(x.p)) svg += '<circle cx="' + X(x.d).toFixed(1) + '" cy="' + Y(x.p).toFixed(1)
-    + '" r="2" style="fill:var(--tx2)"/>'; });
   svg += '<text x="' + mL + '" y="' + (h - 4) + '" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + mdOf(pts[0].d) + "</text>"
     + '<text x="' + (w - mR) + '" y="' + (h - 4) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">'
     + mdOf(pts[pts.length - 1].d) + "</text>";
