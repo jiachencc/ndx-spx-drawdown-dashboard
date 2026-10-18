@@ -845,7 +845,7 @@
   .bar-legend { display: flex; gap: 10px; margin-top: 6px; font-size: var(--fs-xxs); color: var(--tx3); flex-wrap: wrap; opacity: .85; }
   .bar-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
   /* 买入位置分布 */
-  .buy-layer { position: relative; height: 38px; margin-bottom: 1px; }
+  .buy-layer { position: relative; height: 52px; margin-bottom: 1px; }
   .buy-layer:empty { display: none; }
   .buy-mark, .sell-mark { position: absolute; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; background: none; border: none; padding: 0; cursor: pointer; }
   .bar-track.pops { cursor: pointer; touch-action: manipulation; }
@@ -855,9 +855,14 @@
      原先时间走 element opacity（0.95 → 0.40），会把圆点、竖线、光晕**一起**压暗 ✗（最老的点在小屏上等同噪点）；
      改后三档都是**不透明色**，复用既有语义阶梯（--up-line 30% / --up-fill 60% / --green 100%）✓，
      竖线与光晕不再跟着变暗 ✓。档位由渲染侧按**笔序三分位**给（.t-old/.t-mid/.t-new），少于 3 笔一律 .t-new ✓ */
-  .buy-mark b { width: 6px; height: 6px; border-radius: 50%; background: var(--up-line); box-shadow: inset 0 0 0 1px var(--up); }
-  .buy-mark.t-mid b { background: var(--up-fill); box-shadow: inset 0 0 0 1px var(--up); }
-  .buy-mark.t-new b { background: var(--green); box-shadow: 0 0 5px var(--up-fill); }
+  /* 2026-10-18 改：三档「空心 / 半透明 / 实心」容易被读成**两个类别**（用户：有的实心有的空心 ✗）。
+     统一实心，只用**透明度**表示新旧 —— 同一形状的不同阶段，不会被误读。 */
+  .buy-mark b { width: 6px; height: 6px; border-radius: 50%;
+    background: color-mix(in srgb, var(--up) 58%, transparent);
+    box-shadow: inset 0 0 0 1px var(--up); }
+  .buy-mark.t-old b { background: color-mix(in srgb, var(--up) 58%, transparent); box-shadow: inset 0 0 0 1px var(--up); }
+  .buy-mark.t-mid b { background: color-mix(in srgb, var(--up) 80%, transparent); box-shadow: inset 0 0 0 1px var(--up); }
+  .buy-mark.t-new b { background: var(--up); box-shadow: inset 0 0 0 1px var(--up), 0 0 5px var(--up-fill); }
   .buy-mark.flash b { animation: buyflash .5s ease-in-out 3; }
   @keyframes buyflash { 0%, 100% { transform: scale(1); box-shadow: 0 0 5px var(--up-fill); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--up-solid); } }
   .log-item.linkable { cursor: pointer; }
