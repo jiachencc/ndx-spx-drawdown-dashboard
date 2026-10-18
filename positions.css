@@ -1849,3 +1849,10 @@
 #hh-readout .hh-cell-ph { opacity: .8; }
 #hh-readout .hh-cell-ph i::after { content: "*"; color: var(--tx3); }
 #hh-sum { font-size: 10.5px; }
+
+/* ===== 各标的累计盈亏：手机滑动优化（2026-10-18） =====
+   ① touch-action: pan-y —— 垂直滚动交给浏览器，横向拖动才归图表。
+      不设的话浏览器要等约 300ms 判断手势归属，滑动会明显「粘手」。
+   ② 禁止横向溢出，避免图表把页面撑出左右滚动。 */
+#hh-box { touch-action: pan-y; overscroll-behavior-x: contain; }
+#hh-box svg { display: block; }

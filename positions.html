@@ -2899,6 +2899,7 @@ function renderHoldHist() {
   /* 十字线（默认隐藏） */
   s += '<line class="hh-xh" x1="' + mL + '" y1="' + mT + '" x2="' + mL + '" y2="' + (H2 - mB) + '" stroke="var(--tx3)" stroke-width="1" style="display:none"/></svg>';
   box.innerHTML = s;
+  box._xh = null;   // 重建后旧节点失效，下次读取时重新取
   box._geo = { W, H: H2, mL, mR, mT, mB, n: dates.length, dates };
 
   /* 图例：点击切换显隐 */
@@ -2938,7 +2939,7 @@ function renderHoldHistReadout(ev) {
   if (ev && i === hhHover) return;
   hhHover = i;
   const d = g.dates[i];
-  const xh = box.querySelector(".hh-xh");
+  const xh = box._xh || (box._xh = box.querySelector(".hh-xh"));
   if (xh) {
     const x = (g.mL + (i / (g.n - 1 || 1)) * (g.W - g.mL - g.mR)).toFixed(1);
     xh.style.display = ""; xh.setAttribute("x1", x); xh.setAttribute("x2", x);
@@ -2962,7 +2963,19 @@ function renderHoldHistReadout(ev) {
   ro.innerHTML = '<span class="hh-date">' + d.slice(5) + "</span>" + cells;
 }
 
-$("hh-box") && $("hh-box").addEventListener("pointermove", renderHoldHistReadout);
+/* 手机滑动优化（2026-10-18）：pointermove 一秒几十次，每次都调 getBoundingClientRect（强制重排）
+   并重建读数 DOM，滚动时明显发涩。改为 requestAnimationFrame 合并 —— 一帧只算一次，且只处理最新事件；
+   passive 让浏览器不必等 handler 返回就滚动。 */
+(function bindHhMove() {
+  const box = $("hh-box");
+  if (!box) return;
+  let raf = 0, last = null;
+  box.addEventListener("pointermove", (ev) => {
+    last = ev;
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = 0; if (last) renderHoldHistReadout(last); });
+  }, { passive: true });
+})();
 /* 筛选事件（2026-10-18）：时间档位 / 金额·收益率 —— 切换后整图重绘（y 轴跟着范围走） */
 (function bindHhChips() {
   const r = $("hh-range"), m = $("hh-mode");
