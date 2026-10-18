@@ -1544,8 +1544,8 @@ function traceSparkSvg(w, pts, evs, opt) {
       + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + v.toFixed(4) + "</text>";
   });
   const pl = poly("p"), cl = poly("c");
-  if (pl) svg += '<polyline points="' + pl + '" style="fill:none;stroke:var(--tx2);stroke-width:2"/>';
-  if (cl) svg += '<polyline points="' + cl + '" style="fill:none;stroke:var(--tx3);stroke-width:2;stroke-dasharray:5 4"/>';
+  if (pl) svg += '<polyline points="' + pl + '" style="fill:none;stroke:var(--tx2);stroke-width:1.5"/>';
+  if (cl) svg += '<polyline points="' + cl + '" style="fill:none;stroke:var(--tx3);stroke-width:1.3;stroke-dasharray:5 4"/>';
   evs.forEach((e) => {
     if (!Number.isFinite(e.cost)) return;
     svg += '<circle cx="' + X(e.d).toFixed(1) + '" cy="' + Y(e.cost).toFixed(1) + '" r="4" style="fill:'
@@ -1935,7 +1935,7 @@ function saDetailView(C) {
     if (segPts.length > 1) segsOut.push(segPts);
     segsOut.forEach((pts) => {
       const dAttr = pts.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ");
-      g += '<polyline class="sa-line" points="' + dAttr + '" fill="none" style="stroke:' + tcol + ';stroke-width:1.6"/>';
+      g += '<polyline class="sa-line" points="' + dAttr + '" fill="none" style="stroke:' + tcol + ';stroke-width:1.4"/>';
     });
     /* 顶点圆点（每个拐点一个**视觉锚点** ✓；命中靠下面的透明带 ✓ —— 2px 的圆点根本点不中 ✗） */
     ser.forEach((x, i) => {
@@ -3499,7 +3499,7 @@ function renderDdView(box, pts) {
       '<text x="' + (mL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">' + (tv * 100).toFixed(1) + "%</text>";
   });
   svg += '<polygon points="' + px.map((x, i) => P(x) + "," + P(py[i])).join(" ") + " " + P(px[px.length - 1]) + "," + P(zeroY) + " " + P(px[0]) + "," + P(zeroY) + '" style="fill:var(--down)" opacity=".14"/>' +
-    trendPoly(px, py, P, 'style="stroke:var(--down);stroke-width:2"') +
+    trendPoly(px, py, P, 'style="stroke:var(--down);stroke-width:1.5"') +
     trendZeroAxis(mL, W, mR, P, zeroY);
   /* 峰值点加一圈空心环（替代原先「峰值→谷底」的斜向虚线：那条线横穿填充区，
      读起来像水印，且起点日期在结论行里已有，不必在图上再画一条线）。 */
@@ -3615,7 +3615,7 @@ function renderTrend(todayVal, todayCost) {
       baseLabel = { x: bx, txt: bTxt };
     }
   }
-  svg += trendPoly(px, py, P, 'style="stroke:var(--blue)" stroke-width="2"');
+  svg += trendPoly(px, py, P, 'style="stroke:var(--blue)" stroke-width="1.5"');
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (p.isToday ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="' + (p.isToday ? "fill:var(--card);stroke:var(--blue)" : "fill:var(--blue);stroke:var(--card)") + ';stroke-width:2" tabindex="0" role="button" aria-label="' +
@@ -3753,10 +3753,10 @@ function renderPnlView(box) {
       const arr = pair[1];
       if (arr.length < 2) return;
       svg += '<polyline class="pnl-comp" points="' + arr.map((p) => P(XD(p.d)) + "," + P(Y(p.pl))).join(" ") +
-        '" fill="none" style="stroke:var(--' + pair[0] + ');stroke-width:2;stroke-dasharray:5 4"/>';
+        '" fill="none" style="stroke:var(--' + pair[0] + ');stroke-width:1.4;stroke-dasharray:5 4"/>';
     });
   }
-  svg += trendPoly(px, py, P, 'style="stroke:var(--blue);stroke-width:2"');
+  svg += trendPoly(px, py, P, 'style="stroke:var(--blue);stroke-width:1.5"');
   pts.forEach((p, i) => {
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + (i === deepI ? TREND_GEO.dotBig : TREND_GEO.dot) +
       '" style="fill:var(--' + col(p.pl) + ');stroke:var(--card);stroke-width:2" tabindex="0" role="button" aria-label="' +
@@ -3829,7 +3829,7 @@ function renderRateView(box, pts) {
     const lb = bi[bi.length - 1];
     svg += '<text x="' + P(Math.max(mL + 20, px[lb.i] - 4)) + '" y="' + P(Math.min(H - mB - 2, Y(lb.b) + 13)) + '" text-anchor="end" style="fill:var(--tx3);font:var(--fs-xxs) var(--mono)">纳指 ' + fmtPct(lb.b, 2) + "</text>";
   }
-  svg += trendPoly(px, py, P, 'style="stroke:var(--blue);stroke-width:2"');
+  svg += trendPoly(px, py, P, 'style="stroke:var(--blue);stroke-width:1.5"');
   pts.forEach((p, i) => {
     const r = ser[i];
     svg += '<circle class="trend-dot" data-i="' + i + '" cx="' + P(px[i]) + '" cy="' + P(py[i]) + '" r="' + TREND_GEO.dot + '"' +

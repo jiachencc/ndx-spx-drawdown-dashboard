@@ -1550,12 +1550,12 @@ function drawRecent() {
         ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">' + ttl + r.label + "</text>"
         : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">' + ttl + r.label + "</text>");
   });
-  s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.8" stroke-linejoin="round" points="'
+  s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.5" stroke-linejoin="round" points="'
     + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
   /* 钉住 A：从 A 到当前点重描一段紫色（这就是「两点变化率」的可视化），并在 A 上画个圆点 */
   if (Number.isInteger(recentPin)) {
     const a = Math.min(recentPin, iNow), b = Math.max(recentPin, iNow);
-    if (b > a) s += '<polyline fill="none" stroke="var(--purple)" stroke-width="2.6" stroke-linejoin="round" points="'
+    if (b > a) s += '<polyline fill="none" stroke="var(--purple)" stroke-width="2.2" stroke-linejoin="round" points="'
       + pts.slice(a, b + 1).map((p, k) => px(a + k).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
     s += '<circle cx="' + px(recentPin).toFixed(1) + '" cy="' + py(pts[recentPin].c).toFixed(1) + '" r="3.6" fill="var(--purple)"/>';
   }
