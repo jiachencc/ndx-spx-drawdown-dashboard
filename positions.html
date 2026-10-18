@@ -105,6 +105,19 @@ try {
   <h2 class="sec-title" id="sec-holdhist"><span aria-hidden="true">🧭</span> 各标的累计盈亏 <span class="cnt" id="hh-cnt"></span></h2>
   <div class="card trend-card" id="hh-card">
     <div class="trend-sum" id="hh-sum"></div>
+    <!-- 筛选（2026-10-18 加）：时间档位 + 金额/收益率口径。
+         收益率是刚需：5 只本金差 4 倍（纳指 16 万 / 日经 4.8 万），金额图看不出谁表现好。 -->
+    <div class="trend-bar">
+      <div class="trend-chips" id="hh-range">
+        <button class="tchip on" type="button" data-r="all">全部</button>
+        <button class="tchip" type="button" data-r="3m">近3月</button>
+        <button class="tchip" type="button" data-r="1m">近1月</button>
+      </div>
+      <div class="trend-chips" id="hh-mode">
+        <button class="tchip on" type="button" data-m="amount">金额</button>
+        <button class="tchip" type="button" data-m="rate">收益率</button>
+      </div>
+    </div>
     <div class="trend-readout" id="hh-readout">移动或滑动查看各标的当日浮盈 · 点击图例可隐藏某只</div>
     <div id="hh-box"></div>
     <div class="trend-legend" id="hh-legend"></div>
@@ -2737,8 +2750,18 @@ const TREND_VIEWS = [["amount", "金额"], ["pnl", "盈亏全程"], ["rate", "�
 const HH_COLORS = ["var(--cyan)", "var(--blue)", "var(--green)", "var(--yellow)", "var(--red)"];
 let hhHidden = null;      // Set<code>：被图例关掉的标的
 let hhHover = null;       // 当前读数索引
+let hhRange = "all";      // all / 3m / 1m —— 按最后 N 个交易日截取（与主看板走势口径一致）
+let hhMode = "amount";    // amount = 浮盈金额 / rate = 相对成本的收益率
 
 function hhFmt(v) { return (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)).toLocaleString("en-US"); }
+/* 收益率口径（2026-10-18）：p = [日期, 浮盈, 份额, 摊薄成本, 成本基数]。
+   5 只本金差 4 倍，金额图看不出「谁表现好」—— 收益率才可比。 */
+function hhRate(p) { return p[4] > 0 ? (p[1] / p[4]) * 100 : 0; }
+function hhNum(p) { return hhMode === "rate" ? hhRate(p) : p[1]; }
+function hhV(v) {
+  if (hhMode !== "rate") return hhFmt(v);
+  return Math.abs(v) < 0.05 ? "0%" : (v > 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
+}
 
 function renderHoldHist() {
   const H = (typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null;
@@ -2754,12 +2777,17 @@ function renderHoldHist() {
   hhHidden = hhHidden || new Set();
   /* 横轴日期并集（2026-10-18）：要把 phantom（假设没卖的延续段）也含进去，
      否则清仓后的几天不会出现在 x 轴上，延续线会被压在最后一格里 */
-  const dates = [...new Set(items.flatMap((it) => it.pts.map((p) => p[0]).concat((it.phantom || []).map((p) => p[0]))))].sort();
+  const allDates = [...new Set(items.flatMap((it) => it.pts.map((p) => p[0]).concat((it.phantom || []).map((p) => p[0]))))].sort();
+  /* 时间档位（2026-10-18）：按最后 N 个交易日截取（近1月=21、近3月=63），与主看板走势口径一致。
+     ⚠ y 轴必须按**范围内**的值重算 —— 否则近1月的波动会被全程范围压成一条细带（fed-cycle 首月档踩过）。 */
+  const span = hhRange === "1m" ? 21 : hhRange === "3m" ? 63 : 0;
+  const dates = span ? allDates.slice(Math.max(0, allDates.length - span)) : allDates;
   const idxOf = new Map(dates.map((d, i) => [d, i]));
-  const valOf = items.map((it) => new Map(it.pts.map((p) => [p[0], p])));
   const vis = items.map((it) => !hhHidden.has(it.code));
-  const allV = items.flatMap((it) => it.pts.map((p) => p[1]).concat((it.phantom || []).map((p) => p[1]))).concat([0]);
-  const lo = Math.min(...allV), hi = Math.max(...allV), pad = (hi - lo) * 0.1 || 1000;
+  const inRange = (p) => idxOf.has(p[0]);
+  const allV = items.flatMap((it) => it.pts.filter(inRange).map(hhNum).concat((it.phantom || []).filter(inRange).map(hhNum))).concat([0]);
+  const lo = Math.min(...allV), hi = Math.max(...allV);
+  const pad = (hi - lo) * 0.12 || (hhMode === "rate" ? 2 : 1000);
   const yHi = hi + pad, yLo = lo - pad;
 
   const W = (box.clientWidth || 360), H2 = W < 560 ? 210 : 240;
@@ -2773,7 +2801,7 @@ function renderHoldHist() {
   const ticks = (yLo < 0 && yHi > 0) ? [yHi, 0, yLo] : [yHi, (yHi + yLo) / 2, yLo];
   ticks.forEach((t) => {
     s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line-soft)" stroke-dasharray="2 4"/>'
-      + '<text x="' + (mL - 6) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:10px var(--mono)">' + hhFmt(t) + "</text>";
+      + '<text x="' + (mL - 6) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:10px var(--mono)">' + hhV(t) + "</text>";
   });
   if (lo < 0 && hi > 0) s += '<line x1="' + mL + '" y1="' + py(0).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(0).toFixed(1) + '" stroke="var(--tx3)" stroke-width="1"/>';
 
@@ -2781,37 +2809,37 @@ function renderHoldHist() {
   items.forEach((it, i) => {
     if (!vis[i]) return;
     const col = HH_COLORS[i % HH_COLORS.length];
-    const xy = (p) => px(idxOf.get(p[0])).toFixed(1) + "," + py(p[1]).toFixed(1);
+    const xy = (p) => px(idxOf.get(p[0])).toFixed(1) + "," + py(hhNum(p)).toFixed(1);
     /* ①「假设没卖」的延续段（2026-10-18 加）：更淡的点线，从清仓日接上原摊薄成本继续走 ——
        先画它，再画真实曲线盖在上面，视觉层次不会反过来。 */
     if (it.closed && Array.isArray(it.phantom) && it.phantom.length) {
       const holdLast = it.pts.at(-1);   // 清仓日那一点 qty=0，但记了当日浮盈（脚本 2026-10-18 改）
-      const seq = holdLast ? [[holdLast[0], holdLast[1]]].concat(it.phantom) : it.phantom;
+      const seq = (holdLast ? [[holdLast[0], holdLast[1], holdLast[2], holdLast[3], holdLast[4]]].concat(it.phantom) : it.phantom).filter(inRange);
       s += '<polyline points="' + seq.map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:1.4;opacity:.42" stroke-dasharray="2 3" stroke-linejoin="round"/>';
       const pe = seq.at(-1);
       s += '<circle cx="' + px(idxOf.get(pe[0])).toFixed(1) + '" cy="' + py(pe[1]).toFixed(1) + '" r="2.6" style="fill:' + col + ';opacity:.5"/>';
     }
-    s += '<polyline points="' + it.pts.map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.6 : 2) + ';opacity:' + (it.closed ? 0.9 : 1) + '"'
+    s += '<polyline points="' + it.pts.filter(inRange).map(xy).join(" ") + '" fill="none" style="stroke:' + col + ';stroke-width:' + (it.closed ? 1.6 : 2) + ';opacity:' + (it.closed ? 0.9 : 1) + '"'
       + (it.closed ? ' stroke-dasharray="4 3"' : "") + ' stroke-linejoin="round"/>';
     if (it.closed) {
       /* ② 清仓点（2026-10-18 强化）：原来是「曲线末端的空心小圆」，用户反馈「找不到」✗ →
          改成 实心点 + 一条落到 0 轴的竖虚线 + 「清仓 10-09」标签。 */
       const holdLast = it.pts.at(-1);   // 清仓日那一点 qty=0，但记了当日浮盈（脚本 2026-10-18 改）
       if (holdLast) {
-        const cx = px(idxOf.get(holdLast[0])), cy = py(holdLast[1]);
+        const cx = px(idxOf.get(holdLast[0])), cy = py(hhNum(holdLast));
         s += '<line x1="' + cx.toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + py(0).toFixed(1) + '" stroke="' + col + '" stroke-width="1" stroke-dasharray="2 2" opacity=".5"/>'
           + '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="4" style="fill:' + col + ';stroke:var(--card);stroke-width:1.6"/>'
           + '<text x="' + (cx > W - 62 ? (cx - 6).toFixed(1) : (cx + 6).toFixed(1)) + '" y="' + (cy - 7).toFixed(1) + '" text-anchor="' + (cx > W - 62 ? "end" : "start") + '" fill="' + col + '" style="font:9px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px">清仓 ' + String(it.closedDate || "").slice(5) + "</text>";
       }
       /* ③ 延续段末端：假设没卖到今天的浮盈 */
-      const pe = (it.phantom || []).at(-1);
+      const pe = (it.phantom || []).filter(inRange).at(-1);
       if (pe) {
         const ex = px(idxOf.get(pe[0]));
-        s += '<text x="' + (ex > W - 74 ? (ex - 4).toFixed(1) : ex.toFixed(1)) + '" y="' + (py(pe[1]) + 13).toFixed(1) + '" text-anchor="' + (ex > W - 74 ? "end" : "middle") + '" fill="' + col + '" style="font:9px var(--mono);opacity:.8;paint-order:stroke;stroke:var(--card);stroke-width:3px">若持有 ' + hhFmt(pe[1]) + "</text>";
+        s += '<text x="' + (ex > W - 74 ? (ex - 4).toFixed(1) : ex.toFixed(1)) + '" y="' + (py(hhNum(pe)) + 13).toFixed(1) + '" text-anchor="' + (ex > W - 74 ? "end" : "middle") + '" fill="' + col + '" style="font:9px var(--mono);opacity:.8;paint-order:stroke;stroke:var(--card);stroke-width:3px">若持有 ' + hhV(hhNum(pe)) + "</text>";
       }
     } else {
       const lp = it.pts.at(-1);
-      s += '<circle cx="' + px(idxOf.get(lp[0])).toFixed(1) + '" cy="' + py(lp[1]).toFixed(1) + '" r="3" style="fill:' + col + '"/>';
+      s += '<circle cx="' + px(idxOf.get(lp[0])).toFixed(1) + '" cy="' + py(hhNum(lp)).toFixed(1) + '" r="3" style="fill:' + col + '"/>';
     }
     geo.push({ it, col, i });
   });
@@ -2823,7 +2851,11 @@ function renderHoldHist() {
   /* 图例：点击切换显隐 */
   $("hh-legend").innerHTML = items.map((it, i) => {
     const col = HH_COLORS[i % HH_COLORS.length], off = hhHidden.has(it.code);
-    const tail = it.closed ? "已实现 " + hhFmt(it.realized) : hhFmt(it.pl);
+    /* 图例跟随口径（2026-10-18）：收益率模式下清仓项用「已实现 ÷ 累计买入」，
+       在持项用当前浮盈率 —— 否则图里是百分比、图例是金额，又要心算对照 */
+    const tail = it.closed
+      ? "已实现 " + (hhMode === "rate" ? ((it.realized / (it.invested || 1)) * 100).toFixed(1) + "%" : hhFmt(it.realized))
+      : hhV(hhNum(it.pts.at(-1)));
     return '<span data-code="' + esc(it.code) + '" role="button" tabindex="0" style="cursor:pointer;opacity:' + (off ? 0.35 : 1) + '">'
       + '<i style="border-top:2px ' + (it.closed ? "dashed" : "solid") + " " + col + '"></i>' + esc(it.name)
       + ' <b style="font-family:var(--mono);color:' + col + '">' + tail + "</b></span>";
@@ -2866,8 +2898,8 @@ function renderHoldHistReadout(ev) {
     const p = it.pts.find((q) => q[0] === d);
     const ph = (it.phantom || []).find((q) => q[0] === d);
     let v = "—", cls = "hh-cell";
-    if (p && p[2] > 0) v = hhFmt(p[1]);
-    else if (ph) { v = hhFmt(ph[1]); cls += " hh-cell-ph"; }
+    if (p && p[2] > 0) v = hhV(hhNum(p));
+    else if (ph) { v = hhV(hhNum(ph)); cls += " hh-cell-ph"; }
     const off = hhHidden.has(it.code);
     /* 名称直接印在数字上方（2026-10-18）：只靠颜色对应图例，读者要来回扫 —— 两行格子省掉这步 */
     return '<span class="' + cls + '" style="opacity:' + (off ? 0.4 : 1) + '" title="' + esc(it.name) + (cls.indexOf("hh-cell-ph") >= 0 ? "（假设持有）" : "") + '">'
@@ -2878,6 +2910,22 @@ function renderHoldHistReadout(ev) {
 }
 
 $("hh-box") && $("hh-box").addEventListener("pointermove", renderHoldHistReadout);
+/* 筛选事件（2026-10-18）：时间档位 / 金额·收益率 —— 切换后整图重绘（y 轴跟着范围走） */
+(function bindHhChips() {
+  const r = $("hh-range"), m = $("hh-mode");
+  if (r) r.addEventListener("click", (e) => {
+    const b = e.target.closest(".tchip"); if (!b || !b.dataset.r) return;
+    hhRange = b.dataset.r;
+    Array.prototype.forEach.call(r.children, (x) => x.classList.toggle("on", x === b));
+    renderHoldHist();
+  });
+  if (m) m.addEventListener("click", (e) => {
+    const b = e.target.closest(".tchip"); if (!b || !b.dataset.m) return;
+    hhMode = b.dataset.m;
+    Array.prototype.forEach.call(m.children, (x) => x.classList.toggle("on", x === b));
+    renderHoldHist();
+  });
+})();
 $("hh-legend") && $("hh-legend").addEventListener("click", (e) => {
   const el = e.target.closest("[data-code]"); if (!el) return;
   const c = el.getAttribute("data-code");
