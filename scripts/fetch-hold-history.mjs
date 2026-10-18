@@ -58,13 +58,13 @@ for (const m of MAP) {
   try { px = await bars(m.code); }
   catch (e) { console.log("  ⚠ " + m.name + " 价格抓取失败：" + e.message + "（保留旧值）"); continue; }
 
-  let qty = 0, cost = 0, realized = 0, ti = 0;
+  let qty = 0, cost = 0, realized = 0, invested = 0, ti = 0;   // invested = 累计买入金额（清仓时算实现收益率的分母）
   let closedDate = null, qtyAtClose = 0, closePx = null, avgAtClose = null, lastSellRealized = null;
   const pts = [];
   for (const bar of px) {
     while (ti < trades.length && trades[ti].d <= bar.d) {
       const t = trades[ti], q = +t.qty || 0, c = +t.cost || 0;
-      if (/买|建仓/.test(String(t.act || ""))) { cost += q * c; qty += q; }
+      if (/买|建仓/.test(String(t.act || ""))) { cost += q * c; qty += q; invested += q * c; }
       else if (qty > 0) {
         const avg = cost / qty, sell = Math.min(q, qty);
         if (Number.isFinite(+t.realized)) { realized += +t.realized; lastSellRealized = +t.realized; }
@@ -74,12 +74,12 @@ for (const m of MAP) {
       }
       ti++;
     }
-    if (qty > 0) pts.push([bar.d, Math.round((bar.c - cost / qty) * qty), Math.round(qty), +((cost / qty)).toFixed(4)]);
+    if (qty > 0) pts.push([bar.d, Math.round((bar.c - cost / qty) * qty), Math.round(qty), +((cost / qty)).toFixed(4), Math.round(cost)]);   // [日期, 浮盈, 份额, 摊薄成本, 成本基数]
     /* 清仓日（2026-10-18 改）：不再补一个 (date, 0) 的归零点 —— 那会让曲线在末端垂直掉到 0，
        读者以为「收益消失了」，也接不上后面的「假设没卖」延续段。
        改为记录清仓当日的**浮盈**（份额已归零，用清仓份额 × 原摊薄成本算），曲线在此终止。 */
     else if (closedDate && pts.length) {
-      if (bar.d === closedDate) pts.push([bar.d, Math.round((bar.c - avgAtClose) * qtyAtClose), 0, +avgAtClose.toFixed(4)]);
+      if (bar.d === closedDate) pts.push([bar.d, Math.round((bar.c - avgAtClose) * qtyAtClose), 0, +avgAtClose.toFixed(4), Math.round(avgAtClose * qtyAtClose)]);
       break;
     }
   }
@@ -101,13 +101,13 @@ for (const m of MAP) {
   if (closed && avgAtClose !== null && qtyAtClose > 0) {
     for (const bar of px) {
       if (bar.d <= closedDate) continue;
-      phantom.push([bar.d, Math.round((bar.c - avgAtClose) * qtyAtClose)]);
+      phantom.push([bar.d, Math.round((bar.c - avgAtClose) * qtyAtClose), Math.round(qtyAtClose), +avgAtClose.toFixed(4), Math.round(avgAtClose * qtyAtClose)]);
     }
   }
   items.push({
     code: m.code, name: m.name, idx: m.idx,
     first: pts[0][0], last: lastPt[0],
-    closed, closedDate, realized: Math.round(realizedFinal), ifHeld,
+    closed, closedDate, realized: Math.round(realizedFinal), invested: Math.round(invested), ifHeld,
     qty: lastPt[2], avg: lastPt[3], pl: lastPt[1],
     pts, phantom,
   });
