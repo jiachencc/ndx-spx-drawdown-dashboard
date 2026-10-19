@@ -4700,7 +4700,10 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
      2026-09-23 再加一条：**渠道已被名称包含时不再重复标** —— 手机上「华安纳指C / 华安」里那个
      「/ 华安」白占 ~40px，正是把名称挤成「华…」的主因；「日本精选 / 支付宝」这种不重复的照旧保留。
      完整渠道名一直在 .n 的 title 里（src.f），信息没丢。 */
-  const srcRedundant = src.s.length >= 2 && name.indexOf(src.s) === 0;
+  /* ⚠ 2026-10-19：新加快照里个别 code 可能查不到展示名（name 为 undefined），
+     原来直接 name.indexOf 会抛 TypeError、整块「快照对比」渲染中断 ✗ → 兜底用 code。 */
+  const nm = name || (typeof otcName === "function" ? otcName(code) : "") || code;
+  const srcRedundant = src.s.length >= 2 && nm.indexOf(src.s) === 0;
   const srcTag = (hideSrc || srcRedundant) ? "" : '<span class="snap-src">' + esc(src.s) + "</span>";
   /* 逐只净值日不再占版面（2026-09-23）：场外 8 只里 7 只是同一天，分组头已写「净值日 09.21~09.22 混排」，
      逐条重复只让名称列更窄。日期改挂进 .n 的 title（悬停可查，信息不丢）。 */
