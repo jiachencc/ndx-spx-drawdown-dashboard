@@ -948,14 +948,16 @@
      与「账户年度排行」第三版同一套版式（手机上轨道独占整行，点才不会挤在一起）。 */
   .lvl-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 10px; color: var(--tx3); margin: 2px 0 7px; align-items: center; }
   .lvl-legend b.lvl-mk { position: static; display: inline-block; transform: none; margin: 0 2px; vertical-align: -1px; }
-  .lvl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "hd val" "meta meta" "track track"; column-gap: 8px; row-gap: 3px;
+  /* 2026-10-20：轨道由「独占第三行」改为与成本行并排 —— 原来每只 3 行视觉高度，
+     7 只白白多出 7 行（≈130px）。现在两行：名称+盈亏 / 成本+轨道。 */
+  .lvl-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px;
+    grid-template-areas: "hd val" "meta track"; column-gap: 8px; row-gap: 3px;
     padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }
   .lvl-row:last-child { border-bottom: none; }
   .lvl-hd { grid-area: hd; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .lvl-row .n { grid-area: val; font-family: var(--mono); font-size: var(--fs-sm); }
   .lvl-meta { grid-area: meta; font-size: 10px; color: var(--tx3); font-family: var(--mono); line-height: 1.5; }
-  .lvl-track { grid-area: track; position: relative; height: 5px; background: var(--card2); border-radius: 3px; margin: 4px 0 1px; }
+  .lvl-track { grid-area: track; position: relative; height: 5px; background: var(--card2); border-radius: 3px; margin: 0; align-self: center; }
   .lvl-mk { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%); box-sizing: border-box; }
   .lvl-mk.now { background: var(--tx); border: 2px solid var(--card); }
   .lvl-mk.cost { background: var(--card); border: 2px solid var(--cyan); }
