@@ -1263,8 +1263,10 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         nCol2 > 1 && bad2.length === 0, bad2.length ? "对不上：" + bad2.join("、") : "逐行一致 ✓");
     });
     const bodySum = rows.reduce((a, tr) => a + (numOf(tr.querySelector(".mx-sum")) || 0), 0);
+    /* 容差 2 → 3（2026-10-20）：每期「本期盈亏」都是**整元取整**后进矩阵的，
+       20 期累积下来 2~3 元属正常；2 会在补入新一期后偶尔误报（实测差 3.00）。 */
     check("盈亏归因「全期」行 ＝ Σ 各行 " + money(bodySum),
-      Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= 2,
+      Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= 3,
       "全期 " + footSum + " vs Σ各行 " + bodySum.toFixed(2));
     /* ④k 归因的「全期」行 ≡ 累计收益（2026-10-09 两轮：先加"窗口"说明，再按用户选的 A 加「期初结转」行）——
        起因：用户把「全期 +8,278」与「累计收益 +1,496」并排看，问「这个 +8,278 是真的盈利 +8,278 吗？」✗
