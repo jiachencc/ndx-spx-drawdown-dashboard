@@ -76,25 +76,33 @@ async function main() {
 
   const items = {};
   let hit = 0, miss = 0;
-  for (const [name, code] of Object.entries(CODE)) {
+  /* 5 只并行（2026-10-20）：原来串行 for，每只 40 页分页请求 × 5 只共 200 次、
+     实测 10.4 秒；并行后 ≈2 秒（各只之间无依赖，写入时也不互相覆盖）。 */
+  const jobs = await Promise.all(Object.entries(CODE).map(async ([name, code]) => {
     const rows = log.filter((e) => e.sym === name && isDate(e.d) && Number.isFinite(+e.cost));
-    if (!rows.length) continue;
+    if (!rows.length) return null;
     let nav;
     try {
       nav = await navSeries(code);
     } catch (e) {
-      console.error("  ⚠ " + name + " 净值抓取失败：" + e.message + "（该只跳过）");
-      continue;
+      return { name, err: e.message };
     }
     const out = {};
+    let h = 0, m = 0;
     for (const e of rows) {
       const n = navAt(nav, e.d);
-      if (!n) { miss++; continue; }
+      if (!n) { m++; continue; }
       out[e.d] = Math.round(((+e.cost / n.nav) - 1) * 1000) / 10;   // 保留 1 位小数
-      hit++;
+      h++;
     }
-    if (Object.keys(out).length) items[name] = out;
-    console.log("  " + name.padEnd(18) + Object.keys(out).length + " 笔");
+    return { name, out, h, m };
+  }));
+  for (const r of jobs) {
+    if (!r) continue;
+    if (r.err) { console.error("  ⚠ " + r.name + " 净值抓取失败：" + r.err + "（该只跳过）"); continue; }
+    hit += r.h; miss += r.m;
+    if (Object.keys(r.out).length) items[r.name] = r.out;
+    console.log("  " + r.name.padEnd(18) + Object.keys(r.out).length + " 笔");
   }
 
   const asOf = log.map((e) => e.d).filter(isDate).sort().at(-1) || null;
