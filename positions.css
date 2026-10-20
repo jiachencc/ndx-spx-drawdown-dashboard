@@ -1458,8 +1458,9 @@
     .sum-grid { grid-template-columns: repeat(2, 1fr); }   /* 末格跨 2 列＝整行，见 .sum-grid .sum-cell:last-child */
     .sum-cell { padding: 8px 4px; }
     .sum-cell .s-val { font-size: var(--fs-md); }
-    .pl-nm { font-size: var(--fs-sm); }   /* 更窄的机型各收一号，行高更紧凑 */
-    .pl-amt { font-size: var(--fs-md); }
+    /* 2026-10-20：这里原来只降了名称，忘了金额 → 手机上「名称 12 / 金额 13」两号并存，
+       用户看出「明细里的字比别处大」。金额同步降到 --fs-sm，靠 700 字重维持强调。 */
+    .pl-nm, .pl-amt { font-size: var(--fs-sm); }
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
     .snap-part { grid-template-columns: 58px 1fr auto; }   /* 与 .snap-line 同步收窄，保持一致 */
     /* 本金与收益三格条：窄屏每格只剩 ~106px，把内边距与运算符列收紧，保住数值列（最长 7 字符 ≈ 55px） */
