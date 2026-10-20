@@ -11,18 +11,30 @@
  *      playwright 需全局安装 → 缺了就打印"跳过 + 原因"，不让环境问题挡住提交 ✓
  *   ③ 逐项报时与结论；任一非 0 → 整体 exit 1（钩子据此拦提交）
  *
- * 用法：node scripts/verify-all.mjs [--deep]      （--deep 追加 typecheck）
+ * 用法：
+ *   node scripts/verify-all.mjs              全量（pre-commit / CI 用）
+ *   node scripts/verify-all.mjs --data       只跑数据类（≈0.6s）：改 data.js / positions-data.js 时用
+ *   node scripts/verify-all.mjs --ui         只跑浏览器类（≈12s）：改 HTML/CSS 时用
+ *   node scripts/verify-all.mjs --deep       追加 typecheck
+ *
+ * 为什么要分层（2026-10-20 加）：全量 12 项里 dom-check 4.3s ＋ layout-check ×2 共 8.2s，
+ * 而改一个快照数字只需要前 8 项（0.6s）—— 当天录两期数据跑了 12 次全量，白等约 2 分钟 ✗。
+ * pre-commit 仍走全量，分层只用于**开发过程中的自检**。
  */
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 const DEEP = process.argv.includes("--deep");
+const DATA_ONLY = process.argv.includes("--data");
+const UI_ONLY = process.argv.includes("--ui");
+/* 浏览器类（慢）：dom-check 走 jsdom、layout-check 走真实 Chromium ×2 主题 */
+const isUiStep = (name) => /^(dom-check|layout-check)/.test(name);
 const has = (cmd) => { try { execFileSync("sh", ["-c", "command -v " + cmd], { stdio: "ignore" }); return true; } catch (e) { return false; } };
 const hasPlaywright = () => { try { const gp = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim(); return existsSync(gp + "/playwright"); } catch (e) { return false; } };
 /* jsdom：dom-check 的真依赖（2026-10-12 加 —— 见下面 dom-check 那一步的注释 ✓） */
 const hasJsdom = () => { try { const gp = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim(); return existsSync(gp + "/jsdom") || existsSync("node_modules/jsdom"); } catch (e) { return false; } };
 
-const steps = [
+let steps = [
   ["check-data（schema ＋ 全部历史快照）", ["node", ["scripts/check-data.mjs"]]],
   ["check-finance（财务矩阵四条恒等式）", ["node", ["scripts/check-finance.mjs"]]],
   ["check-fed（加息周期看板数据）", ["node", ["scripts/check-fed.mjs"]]],
@@ -57,10 +69,12 @@ const steps = [
   hasPlaywright() ? ["layout-check 深色（同上 · 用户主用主题）", ["node", ["scripts/layout-check.mjs", "--dark"]]]
     : ["layout-check 深色", null, "跳过：未找到全局 playwright"],
 ];
+if (DATA_ONLY) steps = steps.filter((st) => !isUiStep(st[0]));
+if (UI_ONLY) steps = steps.filter((st) => isUiStep(st[0]));
 if (DEEP) steps.push(["typecheck（深度）", ["node", ["scripts/typecheck.mjs"]]]);
 
 let fail = 0;
-console.log("═══ 门禁总检（scripts/verify-all.mjs）═══");
+console.log("═══ 门禁总检（scripts/verify-all.mjs" + (DATA_ONLY ? " · 仅数据类" : UI_ONLY ? " · 仅浏览器类" : "") + "）═══");
 /* ⚠ 并行跑（2026-10-12 提速 ✓）：各门禁互不依赖、都只读文件/各自起进程 ✓ ——
    墙钟 ≈ 最慢那项、而不是相加 ✓（串行时 dom-check 2.9s ＋ layout-check 6.7s ＝ 9.6s ✗ → 并行 ≈ 6.7s ✓）。
    结果仍按**原顺序**打印（不按完成先后 ✗），失败项照旧收集、任一非 0 整体 exit 1 ✓ —— 判定力一分没减 ✓。 */
