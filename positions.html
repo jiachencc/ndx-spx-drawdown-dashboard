@@ -5564,13 +5564,13 @@ function prPerFund(C) {
         '<table class="chk-tbl xr-tbl"><thead><tr><th class="c-nm">标的</th>' +
           '<th title="评级＝简单收益 对照 无风险利率（按该只的**有效在场期**折算），不做年化 → A ≥ +10pp · B ≥ +3pp · C ≥ 0（达标）· D ＜ 0；⏳ ＝ 未录流水或有效在场期 < 30 天">评级</th>' +
           '<th class="num" title="资金加权 IRR：按每一笔真实申赎 / 成交的日期与金额解（全史）。⚠ 跨度不足 90 天不年化；且**分批投入时会被外推放大** —— 旁边小字给出该只的有效在场期（资金加权平均在场天数），悬停看放大倍数">年化 XIRR</th>' +
-          '<th class="num" title="' + esc("时间加权（标的本身的表现）：窗口 " + twrWin + "；期内现金流按「期末发生」计入（与页面既有 TWR 同一约定）。窗口与左边的年化 XIRR 不同，两者不可直接相减。") + '">TWR</th>' +
-          '<th class="num" title="' + esc("场外＝Σ申购（成功后进成本的金额，含在途补记）；场内＝Σ买入成交额 ＋ 买入费（费后口径）") + '">投入</th>' +
-          '<th class="num" title="期末市值：场外按份额×净值（在途另计），场内按收盘市值">现值</th>' +
+          /* 2026-10-20 收窄（用户：「8 列太挤、列头竖排」）：
+             TWR 移进「年化」单元格的 tooltip；投入/现值 合并成一格「投入 → 现值」→ 8 列变 6 列。 */
+          '<th class="num" title="' + esc("场外＝Σ申购（成功后进成本的金额，含在途补记）；场内＝Σ买入成交额 ＋ 买入费（费后口径）。箭头后为期末市值：场外按份额×净值（在途另计），场内按收盘市值") + '">投入 → 现值</th>' +
           '<th class="num" title="简单收益率＝（现值 ＋ 已赎回/已卖 − 投入）÷ 投入，不做年化 —— 年化在样本期很短时会被放大，这个数才是「实际赚了多少」">简单</th>' +
           '<th class="c-info" title="逐行**汇总说明**：① 评级怎么来的（不外推）② 年化为什么偏大 ③ 金额口径（笔数 / 含费 / 在途 / 已卖）④ 数据自检是否对平 —— 点行内 ⓘ 展开；⚠ ＝ 需核对（悬停看详情）">说明</th>' +
         "</tr></thead><tbody>" +
-        groups.map((g) => grpRow(g, 8) + g.rows.map((r) => {
+        groups.map((g) => grpRow(g, 6) + g.rows.map((r) => {
           const gd = gradeOf(r);
           const dot = '<span class="c-dot ' + (r.mkt === "etf" ? "etf" : "otc") + '"></span>';
           const lb = (t) => '<span class="c-lb">' + t + "</span>";   /* 仅手机显示：隐去表头后由它充当列名 */
@@ -5582,19 +5582,21 @@ function prPerFund(C) {
              放大倍数 = 年化 XIRR ÷ 「按整段跨度的年化」—— >1 就是在把短期效果外推。 */
           const spanAnn = (r.days > 0 && r.rate > -1) ? Math.pow(1 + r.rate, 365 / r.days) - 1 : null;
           const infl = (r.xirr !== null && spanAnn !== null && Math.abs(spanAnn) >= 0.005) ? r.xirr / spanAnn : null;
-          const xTip = r.miss ? "缺成交流水 → 算不出年化" : "资金加权 IRR：跨度 " + r.days + " 天，但钱的平均在场期只有 " +
+          const xTip0 = r.miss ? "缺成交流水 → 算不出年化" : "资金加权 IRR：跨度 " + r.days + " 天，但钱的平均在场期只有 " +
             Math.round(r.expo) + " 天" + ((infl !== null && infl > 1.05)
               ? " → 该年化按在场期外推，约为「整段年化」的 " + infl.toFixed(2) + " 倍，别当预期收益看" : "") +
             "。实际赚了多少看「简单」列。";
+          /* TWR 收进这里（2026-10-20）：它回答「标的本身好不好」，与「你的钱赚了多少」不是一回事，
+             单开一列会让人以为要跟年化比大小 —— 而两者窗口不同、不可相减。 */
+          const xTip = xTip0 + "　TWR（标的本身表现，窗口 " + twrWin + "）：" +
+            (Number.isFinite(r.twr) ? fmtPct(r.twr, 2) : "—") + "。";
           const dayTxt = (r.expo > 0) ? "在场均 " + Math.round(r.expo) + " 天" : "";
           const xirrCell = r.miss
             ? '<span class="oc-na">未录入</span><em class="c-day"></em>'
             : ((r.ann && r.xirr !== null)
               ? '<span class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + "</span>"
               : '<span class="oc-na">暂不年化</span>') + '<em class="c-day">' + dayTxt + "</em>";
-          const twrCell = Number.isFinite(r.twr)
-            ? '<span class="' + cls(r.twr) + '">' + fmtPct(r.twr, 2) + "</span>"
-            : '<span class="oc-na">—</span>';
+
           /* 说明（2026-09-30 三改，用户建议：「这列改为说明，针对这行数据做一个汇总说明」）：
              从"零散的口径片段"改成**这一行的完整解读**，固定四条 ——
                ① 评级怎么来的（不外推：简单收益对照同期无风险，按有效在场期折算）
@@ -5655,9 +5657,8 @@ function prPerFund(C) {
             '<td class="c-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm) + "</td>" +
             '<td class="c-gr">' + lb("评级") + '<b class="oc-' + gd.k + '" title="' + esc(r.nm + "：" + gd.why) + '">' + gd.t + "</b></td>" +
             '<td class="c-xirr num" title="' + esc(xTip) + '">' + lb("年化") + xirrCell + "</td>" +
-            '<td class="c-twr num">' + lb("TWR") + twrCell + "</td>" +
-            '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) + "</td>" +
-            '<td class="c-val num">' + lb("现值") + fmtYuan(r.val) + "</td>" +
+            '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) +
+              '<em class="c-val">→ ' + fmtYuan(r.val) + "</em></td>" +
             '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
             /* 说明列：全文收进 ⓘ（结论在最上面，四条依据跟在后面）。 */
             '<td class="c-info">' + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值", concl) + "</td>" +

@@ -156,14 +156,25 @@ const closedGap = closedGapTo(null);
 
 /* ③ 汇总卡：总资产 与 累计收益 = 最新快照的读数 */
 const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
+/* ⚠ 2026-10-20：每个交易日收盘后、用户还没提供当日快照之前，CI 会先把场内 ETF 报价更新到当天。
+   此时页面汇总卡显示的是「今日估值」（用新报价 × 份数），**天然不等于**昨日快照的 total ——
+   原来三条断言因此每天晚上必红一次（并非页面错）。报价领先快照时跳过这三条，并打印原因。 */
+const quoteDay = (readFileSync(path.join(root, "data.js"), "utf8")
+  .match(/etfNdx:\s*\{[^}]*?priceDate:\s*"([\d-]+)"/) || [])[1] || null;
+const quoteAhead = !!(quoteDay && latest && latest.d && quoteDay > latest.d);
+const QUOTE_AHEAD = quoteAhead;
+if (quoteAhead) {
+  console.log("  · 跳过汇总卡三条断言：场内报价 " + quoteDay + " 已领先快照 " + latest.d +
+    "，页面汇总卡显示的是今日估值（等当日快照录入后自然对齐）");
+}
 /* 总资产容差放到 3：页面是「快照逐只市值取整后求和」，与 App 总读数天然差 1 元以内 */
-check("汇总卡总资产 = 最新快照 " + money(snapTotal), near(sumText, snapTotal, 3), sumText.slice(0, 140));
+check("汇总卡总资产 = 最新快照 " + money(snapTotal), quoteAhead || near(sumText, snapTotal, 3), quoteAhead ? "（报价已领先快照，跳过）" : sumText.slice(0, 140));
 /* ⚠ 2026-10-09 改口径（用户选 A）：汇总卡那格由「浮盈亏」改为「累计收益（含已实现）」——
    快照 pl 是**摊薄口径的在持浮盈亏**（＝券商 App 的浮动盈亏），全额清仓后它不含已兑现那部分 ✗；
    真·累计收益 = pl − closedGap ✓（10-09：19,988.31 − 18,492.00 = +1,496 ✓）。
    closedGap 由本文件独立复算（读 data.js 的 POSITIONS.log），不读页面中间量 ✓。 */
 check("汇总卡累计收益 = 最新快照 pl − 全额清仓已实现 " + money(latest.pl - closedGap),
-  near(sumText, latest.pl - closedGap), sumText.slice(0, 140));
+  quoteAhead || near(sumText, latest.pl - closedGap), quoteAhead ? "（报价已领先快照，跳过）" : sumText.slice(0, 140));
 /* ③-2 汇总卡「本金」（2026-10-12 加）：页面上本金有**两条实现路径** ✗ ——
      实时路径（renderImpl：Σ摊薄成本 ＋ 现金 ＋ 清仓修正）与快照路径（snapCost：总资产 − pl 或
      裸成本 ＋ closedCostGap）—— 同一公式、两个输入源，任一漂移这里就红 ✓。
@@ -761,8 +772,9 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     "页面 data-principal=" + gp + " · 期望 " + wantP.toFixed(2) + "（差 " + (gp - wantP).toFixed(2) + "）");
   /* 累计收益容差 3：它的两个组成里「市值」取页面**实时报价** ✗、这里取快照 items.val（当日收盘读数），
      两者天然差 1 元级（与 ③ 的总资产断言同一来源、同一容差 ✓）。成本那一侧是静态数，故上面用 0.05 ✓。 */
+  /* 同上前提：报价领先快照时，页面按今日估值算 pl，与快照口径天然不同 → 跳过 */
   check("汇总卡累计收益 = Σ逐只 pl ＋ 全额清仓已实现 " + money(wantPl),
-    Number.isFinite(gpl) && Math.abs(gpl - wantPl) < 3,
+    QUOTE_AHEAD || (Number.isFinite(gpl) && Math.abs(gpl - wantPl) < 3),
     "页面 data-pl=" + gpl + " · 期望 " + wantPl.toFixed(2) + "（差 " + (gpl - wantPl).toFixed(2) + "）");
 }
 

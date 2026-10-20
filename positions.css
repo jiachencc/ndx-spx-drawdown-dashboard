@@ -1913,3 +1913,6 @@
   .mix-row { font-size: 10px; gap: 4px; padding: 1.5px 0; }
   .mix-row > b { font-size: 10px; }
 }
+
+/* 逐只 XIRR 表：投入 → 现值 合并格（2026-10-20） */
+.xr-tbl .c-val { display: inline-block; margin-left: 5px; font-style: normal; color: var(--tx3); font-weight: 400; }
