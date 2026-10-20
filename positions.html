@@ -1543,7 +1543,8 @@ function clusterEvs(list) {
         last.cost = (last.cost * (last.n - 1) + e.cost) / last.n;
         last.amt = (last.amt || 0) + (e.amt || 0);
         last.items.push(e);
-        last.title = last.d + " 起 " + last.n + " 笔：" + last.items.map((x) => mdOf(x.d) + " @" + fpx(x.cost)).join(" · ");
+        /* ⚠ 不能用 fpx（它定义在 renderImpl 的局部作用域里，这里是模块级函数，2026-10-20 踩到） */
+        last.title = last.d + " 起 " + last.n + " 笔：" + last.items.map((x) => mdOf(x.d) + " @" + (+x.cost).toFixed(4)).join(" · ");
         return;
       }
     }
