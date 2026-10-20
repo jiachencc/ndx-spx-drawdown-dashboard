@@ -1085,7 +1085,9 @@
     .chk-tbl .c-buy, .chk-tbl .c-cost, .chk-tbl .c-swing { display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; }
     .chk-tbl .c-note { display: block; margin-top: 5px; padding: 0; border: none; font-size: var(--chk-fs-mini); }
     /* 手机上隐去表头，所以列内小标签显示出来、并独立成行（与数字上下对齐，比挤在数字前更好认） */
-    .chk-tbl .c-lb { display: block; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); margin-bottom: 1px; }
+    /* 2026-10-20：列名由 block 改 inline —— 原来「买点」独占一行、数值在下一行，
+       10 行白白多出 10 行高度。改成同行后「买点 C 79% / 成本 D 77% → 46%」一行读完。 */
+    .chk-tbl .c-lb { display: inline; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); margin-right: 3px; }
   }
   /* ===== 逐只 XIRR 与 TWR / 逐只体检：改成**真表格**（2026-09-30，参照「操作体检」）========
      起因：用户两次反馈「表格还是对不齐」。根因是旧版把细节写成一路「 · 」连成的自由文本，
@@ -1916,3 +1918,10 @@
 
 /* 逐只 XIRR 表：投入 → 现值 合并格（2026-10-20） */
 .xr-tbl .c-val { display: inline-block; margin-left: 5px; font-style: normal; color: var(--tx3); font-weight: 400; }
+
+/* 操作体检：手机上隐藏 c-gap（2026-10-20）
+   「D 77% → 46% −32」在 160px 宽的半格里会折成两行，反而更乱；
+   而「−32」这个数在说明行已经写成「成本位高于现价位 32 个百分点」，不必重复。 */
+@media (max-width: 767px) {
+  .chk-tbl .c-gap { display: none; }
+}

@@ -7280,11 +7280,11 @@ function renderCheckup() {
      → 包一层 details（复用 .rebound 的观感与「展开 ▾ / 收起 ▴」提示）；
      open 状态由 applyAutoFold() 按屏宽决定（≥481px 默认展开，保持桌面原有观感）。 */
   box.innerHTML = '<details class="rebound chk-fold auto-fold"><summary>操作体检表 · ' + data.length
-    + ' 只（买点 / 成本位 / 调仓）<span class="rebound-cnt">越差的越靠前 · 只描述已发生的操作</span></summary>'
+    + ' 只（买点 / 成本位）<span class="rebound-cnt">越差的越靠前 · 只描述已发生的操作</span></summary>'
     + '<table class="chk-tbl"><thead><tr><th class="c-nm">标的</th>'
     + '<th class="c-buy" title="各笔申购 / 成交价在「52周低 ~ 历史高」里的分位，取算术平均（一笔一票）。越靠底部越好；⚠ 上涨趋势里偏高是必然，只作参考。悬停任一行可看金额加权口径">买点</th>'
     + '<th title="成本位 → 现价位（都是该标的 52 周区间里的分位）。相减即为原来的 pp 值：箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈），向左 = 套牢。与市场涨跌无关">成本</th>'
-    + '<th>调仓</th><th class="c-note">说明</th></tr></thead><tbody>' +
+    + '<th class="c-note">说明</th></tr></thead><tbody>' +
     data.map((r) => {
       const d = r.d;
       const buy = d.avgB === null
@@ -7316,19 +7316,9 @@ function renderCheckup() {
           + (out || d.gap === null ? "" : '<em class="c-gap">' + (d.gap >= 0 ? "+" : "−") + Math.abs(Math.round(d.gap)) + "</em>")
           + "</span>";
       }
-      let swing;
-      if (d.isOtc) {
-        /* ⚠ 三种情况必须分开写（2026-09-27 用户问到才发现的缺陷）：
-             ① 该渠道**根本没有流水记录**（支付宝 2 只：摩根 / 中欧）→「无记录」
-             ② 有记录、也赎回过的 →「赎回 N 笔」（场外赎回只有笔数、没有实现盈亏 → 不给档位）
-             ③ 有记录、但从未卖出 →「—」（这才是"本项不适用"）
-           原来 ①③ 共用「—」，把"没有记录"伪装成了"没有卖出" */
-        const log = (typeof OTC_LOG !== "undefined" && OTC_LOG[r.p.code]) || [];
-        const s = log.filter((e) => /赎回/.test(String(e.act)));
-        if (!log.length) swing = '<b class="oc-na" title="该渠道（支付宝）没有记录任何操作流水，本项无从评 —— 不是「没有卖出」">无记录</b>';
-        else if (s.length) swing = '<b class="oc-na" title="场外赎回记录只有笔数、没有实现盈亏 → 只报事实、不给档位">赎回 ' + s.length + " 笔</b>";
-        else swing = na("有 " + log.length + " 笔申购 / 定投记录、从未卖出 → 本项不适用（不是 0 分）");
-      } else swing = d.sells.length ? gb(d.gSwing) + " " + fmtAmt(d.realized) : na("没有卖出记录 → 本项不适用（不是 0 分）");
+      /* 「调仓」列已删（2026-10-20）：10 只里 9 只都是「—」或「无记录」——
+         场外全是申购、场内只有中韩清过仓，这一列对当前持仓几乎没有信息量；
+         清仓那笔的完整复盘在下方「清仓历史」卡里。 */
       return "<tr>" +
         '<td class="c-nm"><span class="c-dot ' + (r.otc ? "otc" : "etf") + '" title="' + (r.otc ? "场外基金" : "场内 ETF") + '"></span>' +
           esc(d.isOtc ? plDisplayName(r.p.sym) : r.p.sym) +
@@ -7340,9 +7330,9 @@ function renderCheckup() {
             + '⚠ 这**不代表没操作过**；排序仍按成本那一项走，不因数据少而放宽或加重。">ⓘ</span>' : "") + "</td>" +
         '<td class="c-buy"><i class="c-lb">买点</i>' + buy + "</td>" +
         '<td class="c-cost"><i class="c-lb">成本</i>' + cost + "</td>" +
-        '<td class="c-swing"><i class="c-lb">调仓</i>' + swing + "</td>" +
-        /* 说明：多个问题**各占一行**（原来用「 · 」挤成一坨，手机和桌面都难扫） */
-        '<td class="c-note">' + esc(d.note).replace(/ · /g, "<br>") + "</td>" +
+        /* 说明：多个问题**各占一行**；「买点均位 X%」这条删掉（2026-10-20）——
+           它和左列的「买点 C 79%」说的是同一件事，10 行里重复 10 次 ✗ */
+        '<td class="c-note">' + esc(d.note).split(" · ").filter((x) => !/^买点均位/.test(x)).join("<br>") + "</td>" +
       "</tr>";
     }).join("") + "</tbody></table>" +
     /* 体检表尾（2026-10-12 裁剪）：可见部分 ≈1,100 → ≈200 字，只留「三项定义 ＋ 不给总分」✓
