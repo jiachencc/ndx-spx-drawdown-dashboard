@@ -6993,7 +6993,13 @@ function logItemHtml(e, hideSym, pair) {
   }
   /* 减仓幅度（卖出行，2026-09-25 方案 B）：本次卖出份 ÷ 操作前份 —— 挨着份数读作「卖了 3,000 份（−58.8%）」 */
   const cutPct = (isSell && t && t.qtyBefore > 0 && e.qty) ? (e.qty / t.qtyBefore) * 100 : null;
-  return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '') + '>' +
+  /* 行内备注不再渲染（2026-10-20，用户：「平安 10-16 13:35 成交」这类信息折叠时看不到、也没多少用）：
+     24/66 笔带备注，每笔多占一行 ≈18px，合计约 430px；而内容是**录入时的对账凭证**
+     （哪张截图、几点成交、毛额/含费如何换算），属于溯源资料而非决策信息。
+     改为：整行 title（桌面悬停可见）+ data-note（DevTools / 复制可得），数据层 POSITIONS.log.note 不动 ✓
+     ⚠ 费用「费 X」并未丢失 —— 它已编码在成本价的「≈」里（有费=精确、无费=估算）。 */
+  return '<div class="log-item' + (link ? " linkable" : "") + '"' + (link ? ' data-d="' + e.d + '" data-sym="' + e.sym + '" role="button" tabindex="0" aria-label="定位 ' + e.d + ' 的买入点"' : '')
+    + (e.note ? ' data-note="' + esc(e.note) + '" title="成交记录：' + esc(e.note) + '"' : '') + '>' +
     /* ④ 完整日期挂悬停（行上仍只写 MM.DD ✓）：台账是长期的，跨年后再看「09.29」就不知道是哪年了 ✗ */
     '<span class="log-date" title="' + esc(e.d || "") + '">' + d + '</span>' +
     /* ③ 动作列压缩：买 / 卖 → ▲ / ▼ ＋ 方向色（与全页绿涨红跌同一套 ✓），动作细节（建仓 / 加仓 / 定投…）挂 title；
@@ -7017,7 +7023,6 @@ function logItemHtml(e, hideSym, pair) {
        一路买到 10-16 的 +19.0%，港美互联网则是在 −2.9% 的折价上买的。 */
     premChip +
     (pair || "") +
-    shortNote(e.note) +
   '</div>';
 }
 /* 月小计（2026-10-16 由「周小计」改成按月 —— 用户问「按周好还是按月好」，量过之后按月 ✓）：
