@@ -6951,6 +6951,18 @@ function logItemHtml(e, hideSym, pair) {
      ⚠ 顺带订正原说明：原文写「卖出后成本价通常下降」是**反的** —— 摊薄口径下卖出必然上升（成本集中到剩余份额）。 */
   const t = costTrace().get(e);
   const f4 = (v) => (v === null ? "—" : v.toFixed(4));
+  /* 溢价 chip：PREM_LOG 由 scripts/fetch-trade-premium.mjs 生成（标的 → 日期 → %） */
+  let premChip = "";
+  {
+    const tbl = (typeof PREM_LOG !== "undefined" && PREM_LOG.items && PREM_LOG.items[e.sym]) || {};
+    const pv = tbl[e.d];
+    if (Number.isFinite(pv)) {
+      const hot = pv >= 10, cold = pv < 0;
+      premChip = '<span class="log-prem' + (hot ? " hot" : cold ? " cold" : "") + '" title="溢价 ＝ 成交价 ÷ 当日单位净值 − 1'
+        + (hot ? "（≥10%，属近三年高位——2023-06 至 2026-10 的中位数只有 2.4%）" : cold ? "（折价买入，比净值还便宜）" : "")
+        + '">溢价 ' + (pv >= 0 ? "+" : "") + pv.toFixed(1) + "%</span>";
+    }
+  }
   let costChip = "";
   if (t) {
     const w = t.est ? "≈" : "";
@@ -7000,6 +7012,10 @@ function logItemHtml(e, hideSym, pair) {
       (cutPct === null ? "" : ' <i class="log-cut" title="减仓幅度：本次卖出 ' + fmtQty(e.qty) + " 份 ÷ 操作前 " + fmtQty(t.qtyBefore) + " 份\">−" + cutPct.toFixed(1) + "%</i>") +
       "</span>" +
     costChip +
+    /* 成交时溢价（2026-10-20 加）：成交价 ÷ 当日单位净值 − 1。
+       「这笔买贵了还是买便宜了」在流水里原本完全看不出来 —— 纳指ETF广发从 6-23 的 +8.8%
+       一路买到 10-16 的 +19.0%，港美互联网则是在 −2.9% 的折价上买的。 */
+    premChip +
     (pair || "") +
     shortNote(e.note) +
   '</div>';

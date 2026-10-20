@@ -93,6 +93,11 @@ jobs:
         continue-on-error: true
         run: node scripts/fetch-hold-history.mjs
 
+      # 逐笔成交时的溢价（2026-10-20 加）：5 只 × 净历史，写 data.js 的 PREM_LOG
+      - name: Per-trade premium (PREM_LOG)
+        continue-on-error: true
+        run: node scripts/fetch-trade-premium.mjs
+
       - name: Fill missing benchmark levels (BENCH)
         continue-on-error: true
         run: node scripts/sync-bench.mjs

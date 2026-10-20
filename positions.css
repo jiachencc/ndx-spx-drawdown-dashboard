@@ -1869,3 +1869,8 @@
    mask 不影响点击，只在视觉上提示「后面还有」。 */
 .sec-nav { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+
+/* 逐笔流水的「成交时溢价」chip（2026-10-20 加） */
+.log-prem { font-family: var(--mono); font-size: 10px; color: var(--tx3); white-space: nowrap; }
+.log-prem.hot { color: var(--yellow); }
+.log-prem.cold { color: var(--green); }
