@@ -5239,22 +5239,23 @@ function prRateSec() {
         (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>" +
         (annSame ? "" : " · 跨 " + Math.round(daysSame) + " 天，样本太短不年化") + "</div>";
     }
-    rateSec = '<details class="pf-fold"><summary class="snap-sec">收益率口径 <span class="snap-cnt">（首期 ' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
-        " · TWR " + pc(annT(twr)) + (ann ? " · XIRR " + pc(annT(xirr)) : " · XIRR 暂不年化") +
-        " · 跨 " + Math.round(days) + " 天" + (ann ? " · 已年化" : "，样本太短") + "）</span></summary>" +
+    /* summary 精简（2026-10-20）：原来「XIRR 暂不年化 · 跨 52 天，样本太短」把同一件事说了两遍；
+       现在只留「区间 · 天数 · TWR」，XIRR 的数值在下一行自己会说。 */
+    rateSec = '<details class="pf-fold"><summary class="snap-sec">收益率口径 <span class="snap-cnt">（' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
+        " · " + Math.round(days) + " 天 · TWR " + pc(annT(twr)) + "）</span></summary>" +
       '<div class="snap-tbl">' +
       '<div class="snap-part"><span class="pn">TWR</span><span class="pv"><b class="' + cls(twr) + '">' + pc(annT(twr)) + '</b>' +
         '<span class="snap-sub" title="时间加权收益率：按快照末端资金流逐期剔除转入/转出，衡量标的与持有本身 —— 不含你「何时加减仓」的影响">时间加权 · 剔除出入金时点</span></span></div>' +
       '<div class="snap-part"><span class="pn">XIRR</span><span class="pv"><b>' + xCell + '</b>' +
-        '<span class="snap-sub" title="资金加权年化：用每一笔出入金的日期与金额解 IRR，衡量你的钱实际赚了多少">资金加权 · 含出入金时点' +
-        (gap !== null ? "；与 TWR 差 " + fmtPp(gap) + "＝出入金节奏的贡献" : "（跨度过短不做年化，与走势图同一规则）") + "</span></span></div>" +
+        '<span class="snap-sub" title="资金加权年化：用每一笔出入金的日期与金额解 IRR，衡量你的钱实际赚了多少。跨度过短（<90 天）不做年化，与走势图同一规则。">' +
+        /* 2026-10-20：不年化时 xCell 本身已写「52 天 · 暂不年化」，说明不再复述（实测出现过「52 天 · 暂不年化  样本 52 天，暂不年化」✗） */
+        (ann ? "资金加权 · 含出入金时点" + (gap !== null ? "，与 TWR 差 " + fmtPp(gap) : "") : "") + "</span></span></div>" +
       /* 标签列窄屏只有 58px，「同节奏纳指」5 字（≈60px）会被省略成「同节奏纳…」→ 缩成「同节奏」，
          完整名字与口径挂 title（2026-09-23 移动端审查）。 */
       (bTwr !== null ? '<div class="snap-part"><span class="pn" title="同节奏纳指：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌，回答「同样的钱、同样的日期全买纳指今天是多少」">同节奏</span><span class="pv"><b class="' + cls(bTwr) + '">' + pc(annT(bTwr)) + '</b>' +
-        '<span class="snap-sub" title="同节奏基准：把每一期的外部净流入在当天按纳指收盘买入（现金流与组合完全相同）">同样的钱、同样的日期全买纳指' +
-        (bXirr !== null && ann ? "（XIRR " + pc(annT(bXirr)) + "）" : "") +
-        (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") +
-        " → 你" + (twrSame >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twrSame - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
+        '<span class="snap-sub" title="把每一期的外部净流入在当天按纳指收盘买入（现金流与组合完全相同），回答「同样的钱全买纳指今天是多少」' +
+          (bLast && bLast !== rPts[rPts.length - 1].d ? '。纳指点位至 ' + mdOf(bLast) : '') + '">' +
+        "同样的钱全买纳指 → " + (twrSame >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twrSame - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
       "</div></details>";
   }
   return { sec: rateSec, concl: conclLine };
@@ -5770,17 +5771,20 @@ function prMixHtml(C) {
        折叠起来 —— summary 里直接给「已实现 / 未实现」两个数，收起时不丢信息。 */
     '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(C.cashed) + " · 未实现 " + fmtAmt2(C.held) + "</span></summary>" +
     '<div class="snap-tbl">' +
+      /* 说明砍短（2026-10-20）：原来每行 30~40 字，三行读下来像一段散文 ✗。
+         现在每行只留「是什么」；括号里的口径细节移进 title（悬停可见，不占版面）。 */
       '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(C.cashed) + '">' + fmtAmt2(C.cashed) +
-        '</b><span class="snap-sub">' + (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 已全额清仓兑现（含双边费用；部分卖出已折进剩余仓位成本，不重复计）" : "还没有过全额清仓（部分卖出的效应已在「未实现」里）") + "</span></span></div>" +
+        '</b><span class="snap-sub" title="全额清仓兑现（含双边费用）。部分卖出的效应已折进剩余仓位成本，不在这里重复计。">' +
+        (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 全额清仓兑现" : "尚无全额清仓") + "</span></span></div>" +
       '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(C.held) + '">' + fmtAmt2(C.held) +
-        '</b><span class="snap-sub">' + (C.held < 0 ? "浮亏" : "浮盈") + " · 还拿着的账面浮动（＝ Σ 逐只在持浮动盈亏）" + C.cashNote + "</span></span></div>" +
+        '</b><span class="snap-sub" title="还拿着的账面浮动 ＝ Σ 逐只在持浮动盈亏' + (C.cashNote ? '。' + C.cashNote : '') + '">' +
+        (C.held < 0 ? "浮亏" : "浮盈") + " · 仍在持有" + C.cashNote + "</span></span></div>" +
       /* 按账户拆解（2026-10-09 加）：回答「累计收益包含场内场外对吗」= 包含 ✓，
          ⚠ 但**不是**汇总卡那两格相加 —— 场内还差一个「已兑现」（那两格是在持口径）。 */
       '<div class="snap-part"><span class="pn">按账户</span><span class="pv">' +
         '<b class="' + cls(C.contribEtf) + '" id="prin-etf-contrib" data-v="' + C.contribEtf.toFixed(2) + '">' + fmtAmt2(C.contribEtf) + "</b>" +
-        '<span class="snap-sub">场内（含已兑现 ' + fmtAmt2(C.cashed) + '）· 场外 <b class="' + cls(C.contribOtc) +
-          '" id="prin-otc-contrib" data-v="' + C.contribOtc.toFixed(2) + '">' + fmtAmt2(C.contribOtc) +
-          "</b> · 两者相加 ＝ 上面的累计收益 ✓（⚠ 它与汇总卡右侧那两格不是同一口径）</span></span></div>" +
+        '<span class="snap-sub" title="场内（含已兑现部分）＋ 场外 ＝ 上面的累计收益。⚠ 与汇总卡右侧那两格（在持浮盈）不是同一口径 —— 那两格不含已兑现。">场内 · 场外 <b class="' + cls(C.contribOtc) +
+          '" id="prin-otc-contrib" data-v="' + C.contribOtc.toFixed(2) + '">' + fmtAmt2(C.contribOtc) + "</b></span></span></div>" +
     "</div></details>"
   );
 }

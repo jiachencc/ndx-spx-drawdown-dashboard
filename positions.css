@@ -414,6 +414,9 @@
      这里把这两个折叠块的正文收到 11px，与标题齐平；数值仍靠 700 字重区分主次。 */
   .pf-fold .snap-part, .pf-fold .snap-part .pv { font-size: var(--fs-xs); }
   .pf-fold .snap-part .pn { font-size: var(--fs-xs); color: var(--tx3); }
+  /* 「按账户 −6,839场内」黏在一起（2026-10-20）：数值 <b> 与说明 <span> 之间原本只靠
+     .snap-sub 的 margin-left，实际被 flex 基线对齐吃掉 → 显式补一个间距。 */
+  .pf-fold .snap-part .pv > b { margin-right: 5px; }
   .pf-fold > summary.snap-sec .snap-cnt { flex: 1 1 auto; min-width: 0; }
   /* 原「合计 N 只」行已删：两个数字与上方「当日盈亏 / 总盈亏」完全重复，只数由小节标题承载 */
   /* 列表头（2026-09-24 重做）：原来「持仓变化 N 只」是一行小节题（.snap-sec）、下面再跟一行空列头 ——
