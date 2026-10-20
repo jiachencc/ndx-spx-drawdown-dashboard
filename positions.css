@@ -952,7 +952,17 @@
   .lvl-mk.cost { background: var(--card); border: 2px solid var(--cyan); }
 
   /* ===== 流水条目（现嵌在各持仓卡的「操作记录」折叠区内） ===== */
-  .log-item { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 9px; padding: 8px 2px; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
+  /* 逐笔流水排版（2026-10-20 重排）：原来是纯 flex 流式，各段宽度随内容浮动 ——
+     日期列宽度不一、溢价 chip 跟着成本价长短左右漂。现在把「固定列」钉死：
+       · 日期 40px / 动作 14px（不参与伸缩）
+       · 成本价独占第二行左侧，溢价用 margin-left:auto 贴右边 → 整列纵向对齐
+       · 份数与金额都用 tabular-nums，数字位宽一致 */
+  .log-item { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 8px; padding: 8px 2px; border-bottom: 1px dashed var(--line-soft); min-width: 0; }
+  .log-item .log-date { flex: 0 0 40px; }
+  .log-item .act-badge { flex: 0 0 14px; text-align: center; }
+  .log-item .log-cost { flex: 0 1 auto; }
+  /* 溢价固定 58px + 右对齐：+19.0% 与 +9.9% 位数不同，不定宽会左右跳 */
+  .log-item .log-prem { margin-left: auto; flex: 0 0 58px; text-align: right; }
   .log-item:last-child { border-bottom: none; }
   .log-date { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx3); font-feature-settings: "tnum"; }
   .log-sym { font-weight: 600; font-size: var(--fs-sm); }
