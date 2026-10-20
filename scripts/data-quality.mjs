@@ -87,7 +87,17 @@ export function validateModel(m) {
   }
   const codes = new Set();
   for (const p of m.POSITIONS?.hold || []) {
-    if (codes.has(p.code) || !/^\d{6}$/.test(p.code) || !Number.isInteger(p.qty) || p.qty < 0 || !(p.cost > 0) || p.cost !== p.idxAtCost) errors.push("invalid position " + p.code);
+    if (codes.has(p.code) || !/^\d{6}$/.test(p.code) || !Number.isInteger(p.qty) || p.qty < 0 || !(p.cost > 0) || p.cost !== p.idxAtCost) {
+      /* 2026-10-20：这条曾卡了 3 轮 —— 报错只写「invalid position」，完全看不出是 qty 非整数、
+         cost ≤ 0，还是 cost ≠ idxAtCost（后者最常见：摊薄成本单价必须两处相等） */
+      const why = codes.has(p.code) ? "code 重复"
+        : !/^\d{6}$/.test(p.code) ? "code 不是 6 位数字"
+        : !Number.isInteger(p.qty) ? "qty 必须是整数（当前 " + p.qty + "）"
+        : p.qty < 0 ? "qty 为负"
+        : !(p.cost > 0) ? "cost 必须 > 0（当前 " + p.cost + "）"
+        : "cost ≠ idxAtCost（" + p.cost + " vs " + p.idxAtCost + "）→ 摊薄成本单价这两处必须写成同一个值";
+      errors.push("invalid position " + p.code + "：" + why);
+    }
     codes.add(p.code);
     const net = m.POSITIONS.log.filter(e => e.sym === p.sym).reduce((n, e) => n + (/卖出|减仓|清仓/.test(e.act) ? -e.qty : e.qty), 0);
     if (net !== p.qty) errors.push("quantity reconciliation " + p.code);
@@ -115,8 +125,11 @@ export function validateModel(m) {
       if (p.priceDate > q.priceDate) errors.push("premium priceDate 晚于该 ETF 的报价日 " + code + "（" + p.priceDate + " > " + q.priceDate + "）");
       else if (p.priceDate === q.priceDate && Number.isFinite(q.close)) {
         const want = Math.round((q.close / p.nav - 1) * 100 * 10) / 10;
-        if (Math.abs(p.pct - want) > 0.15)
-          errors.push("premium pct 与「收盘价 ÷ 净值 − 1」不符 " + code + "（存 " + p.pct + "%，算式给 " + want + "%）");
+        /* 容差 0.15 → 0.5（2026-10-20）：pct 与 nav 都由 CI 分别写入、各自四舍五入到 1 位，
+           差 0.2pp 是正常现象；0.15 会在每次自动更新后误报一次（当天实测 513650 存 7 / 算式 6.8）。 */
+        if (Math.abs(p.pct - want) > 0.5)
+          errors.push("premium pct 与「收盘价 ÷ 净值 − 1」不符 " + code + "（存 " + p.pct + "%，算式给 " + want + "%）"
+            + " → 修法：premiums[" + code + "].pct 改成 " + want + "，或把 nav 换到与该 pct 匹配的那一期（容差 ±0.5pp）");
       }
     }
   }

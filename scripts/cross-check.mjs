@@ -156,8 +156,9 @@ export function crossIssues(model, html, diag = false) {
       " (残差 " + (rf === null ? "—" : money(rf)) + ")   day " + (Number.isFinite(c.day) ? money(c.day) : "—") + " vs " + money(d2) +
       " (残差 " + (rd === null ? "—" : money(rd)) + ")");
     if (rf !== null && Math.abs(rf) > TOL.flow)
-      issues.push("② " + c.d + " flow " + money(c.flow) + " ≠ ΔΣ成本 + Δ现金 " + money(f2) + "（残差 " + money(rf) +
-        "）：外部资金流与仓库变动对不上，归因会错");
+      issues.push("② " + c.d + " flow " + money(c.flow) + " ≠ ΔΣ成本 + Δ现金 " + money(f2) + "（残差 " + money(rf) + "）"
+        + " → 修法：① 某只 items.cost 没跟着本次买入/定投改（最常见，尤其场内摊薄成本）；"
+        + "② cash 忘了更新；③ 场外有在途（val 含在途但 cost 没含）；④ flow 少算了某笔银证转出");
     /* ③ 只报告、**不判失败**（2026-09-23 实测校准）：把「day ↔ Σ(Δ市值 − Δ成本)」当硬门禁会在历史期误报 ——
        换仓/建仓/银证转账那几天（09-08 +66、09-10 +77、09-16 +3,975、09-17 −9、09-22 +5）残差不为零，
        因为「本期 Δ」在组合**构成变化**时并不等于「当天的市场盈亏」（理论上只对「无申赎无转账」的日子成立）。

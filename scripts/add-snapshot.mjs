@@ -24,6 +24,9 @@
  *   --etf  CODE=收盘价[,份额]     份额省略时取 POSITIONS.hold 里的 qty
  *   --fund CODE=市值,盈亏[,净值]   净值省略则不更新 nav（check-data 会拦）
  *   --flow 不传 → 用「ΔΣ成本 + Δ现金」反推；传了 → 与反推值对账
+ *   --buy  CODE=份数@价格   自动：追加流水 ＋ qty 累加 ＋ 重算摊薄成本单价（qty/cost/idxAtCost 三处同步）
+ *          ⚠ 这是全流程里最容易出错的环节（今天手改卡了 3 轮：cost 必须 === idxAtCost，且要 10 位小数）
+ *   --no-fee  买入按 0 费算（默认每笔 +5 元，与页面 FEE_PER_SIDE 一致）
  *   --apply-funds  同时把 funds 的 value/pnl/rate/nav 写进 positions-data.js
  *
  * 退出码：0 = 已写入或 dry-run 通过；1 = 校验不通过（未写入）
@@ -80,6 +83,28 @@ const fmt = (n) => (n < 0 ? "−" : "+") + Math.abs(n).toLocaleString("en-US", {
 const items = {};
 const fundsUpd = [];
 const notes = [];
+
+/* ── --buy：必须先于 --etf 处理（--etf 省略份额时要读更新后的 hold.qty） ────── */
+const buyLogs = [];
+for (const spec of vals("buy")) {
+  const [code, rest] = spec.split("=");
+  const [qtyStr, pxStr] = (rest || "").split("@");
+  const qty = +qtyStr, px = +pxStr;
+  const h = (P.hold || []).filter((x) => x.code === code)[0];
+  if (!h) { console.error("✗ --buy " + code + "：POSITIONS.hold 里没有这只"); process.exit(1); }
+  if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(px) || px <= 0) {
+    console.error("✗ --buy " + spec + "：格式应为 CODE=份数@价格"); process.exit(1);
+  }
+  const fee = has("no-fee") ? 0 : 5;
+  const oldTotal = h.qty * h.cost;
+  const newQty = h.qty + qty;
+  const newCost = +((oldTotal + qty * px + fee) / newQty).toFixed(10);
+  buyLogs.push({ code, sym: h.sym, qty, px, fee, oldQty: h.qty, newQty, newCost });
+  h.qty = newQty; h.cost = newCost;            // 内存里就地更新，供下面的 --etf 读
+  notes.push("买入 " + h.sym + " " + qty + "@" + px + "（费 " + fee + "）→ 份额 " + h.qty + "、成本单价 " + newCost);
+  notes.push("  ⚠ 这笔 " + (qty * px + fee).toFixed(2) + " 元若来自**账户内现金**，--cash 要相应减少；"
+    + "若来自银证转入则不用（否则 flow 会被反推成 +" + (qty * px + fee).toFixed(2) + " 而不是真实的外部净转入）");
+}
 
 for (const spec of vals("etf")) {
   const [code, rest] = spec.split("=");
@@ -195,6 +220,30 @@ if (has("apply-funds") && fundsUpd.length) {
 
 fs.writeFileSync(path.join(ROOT, "positions-data.js"), out);
 console.log("\n✓ 已写入 positions-data.js" + (has("apply-funds") ? "（含 funds 更新）" : ""));
+
+/* --buy：写回 data.js 的 hold（qty / cost / idxAtCost 三处必须同步）＋ 追加流水 */
+if (buyLogs.length) {
+  const dataPath = path.join(ROOT, "data.js");
+  let d = fs.readFileSync(dataPath, "utf8");
+  for (const b of buyLogs) {
+    /* 只在「该 sym 的对象范围内」替换（到第一个 } 为止）—— 避免 2026-10-20 那次
+       「同名 replace 误改到另一期」的坑 */
+    const i = d.indexOf('sym: "' + b.sym + '"');
+    if (i < 0) { console.error("✗ data.js 里找不到 sym: " + b.sym); process.exit(1); }
+    const end = d.indexOf("}", i);
+    let seg = d.slice(i, end);
+    seg = seg.replace(/qty: \d+/, "qty: " + b.newQty)
+      .replace(/cost: [\d.]+/, "cost: " + b.newCost.toFixed(10))
+      .replace(/idxAtCost: [\d.]+/, "idxAtCost: " + b.newCost.toFixed(10));
+    d = d.slice(0, i) + seg + d.slice(end);
+  }
+  const li = d.indexOf("log: [") + "log: [".length;
+  const lines = buyLogs.map((b) => '\n      { d: "' + DATE + '", sym: "' + b.sym + '", act: "买入", qty: ' + b.qty
+    + ", cost: " + b.px + ', note: "' + DATE + " 成交；" + (b.fee ? "含费 " + b.fee + " 元" : "费用未列") + '" },').join("");
+  d = d.slice(0, li) + lines + d.slice(li);
+  fs.writeFileSync(dataPath, d);
+  console.log("✓ 已写入 data.js：hold 三处同步 ＋ " + buyLogs.length + " 条流水");
+}
 
 /* 写完立刻跑数据类门禁 */
 console.log("\n── 数据类门禁 ──");
