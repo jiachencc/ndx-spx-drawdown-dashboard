@@ -5766,26 +5766,30 @@ function prKpisHtml(C) {
 
 /* ── ⑤ 收益构成（原 box.innerHTML 的第二段**原样移入** ✓；要 cashed / held / 拆解 → C ✓）── */
 function prMixHtml(C) {
+  /* 2026-10-20 重做（用户：「看起来总是很乱，能做表格吗」）：
+     原来是三行「标签 + 数值 + 长说明」平铺，但三行**不在同一个维度**上 ——
+       已实现 / 未实现 → 按「性质」拆
+       按账户          → 按「账户」拆
+     混在一列里，无论怎么调字号都乱。现在拆成**两张并排小表**，各自维度一致、
+     标签左对齐、金额右对齐，扫一眼就知道「哪部分亏、哪个账户亏」。 */
+  /* id/data-v 保留（2026-10-20）：dom-check 有一条「按账户 场内＋场外＝累计收益」的断言读这两个值 */
+  const row = (label, v, cls, tip, id) =>
+    '<div class="mix-row"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><span>' + label + '</span><b class="' + cls(v) + '"'
+    + (id ? ' id="' + id + '" data-v="' + v.toFixed(2) + '"' : '') + '>' + fmtAmt2(v) + '</b></div>';
   return (
-    /* ④ 两种成色：已兑现（实亏 / 实盈）与还拿着的浮动（浮亏 / 浮盈）。
-       折叠起来 —— summary 里直接给「已实现 / 未实现」两个数，收起时不丢信息。 */
     '<details class="pf-fold"><summary class="snap-sec">收益构成 <span class="snap-cnt">已实现 ' + fmtAmt2(C.cashed) + " · 未实现 " + fmtAmt2(C.held) + "</span></summary>" +
-    '<div class="snap-tbl">' +
-      /* 说明砍短（2026-10-20）：原来每行 30~40 字，三行读下来像一段散文 ✗。
-         现在每行只留「是什么」；括号里的口径细节移进 title（悬停可见，不占版面）。 */
-      '<div class="snap-part"><span class="pn">已实现</span><span class="pv"><b class="' + cls(C.cashed) + '">' + fmtAmt2(C.cashed) +
-        '</b><span class="snap-sub" title="全额清仓兑现（含双边费用）。部分卖出的效应已折进剩余仓位成本，不在这里重复计。">' +
-        (C.cashed ? (C.cashed < 0 ? "实亏" : "实盈") + " · 全额清仓兑现" : "尚无全额清仓") + "</span></span></div>" +
-      '<div class="snap-part"><span class="pn">未实现</span><span class="pv"><b class="' + cls(C.held) + '">' + fmtAmt2(C.held) +
-        '</b><span class="snap-sub" title="还拿着的账面浮动 ＝ Σ 逐只在持浮动盈亏' + (C.cashNote ? '。' + C.cashNote : '') + '">' +
-        (C.held < 0 ? "浮亏" : "浮盈") + " · 仍在持有" + C.cashNote + "</span></span></div>" +
-      /* 按账户拆解（2026-10-09 加）：回答「累计收益包含场内场外对吗」= 包含 ✓，
-         ⚠ 但**不是**汇总卡那两格相加 —— 场内还差一个「已兑现」（那两格是在持口径）。 */
-      '<div class="snap-part"><span class="pn">按账户</span><span class="pv">' +
-        '<b class="' + cls(C.contribEtf) + '" id="prin-etf-contrib" data-v="' + C.contribEtf.toFixed(2) + '">' + fmtAmt2(C.contribEtf) + "</b>" +
-        '<span class="snap-sub" title="场内（含已兑现部分）＋ 场外 ＝ 上面的累计收益。⚠ 与汇总卡右侧那两格（在持浮盈）不是同一口径 —— 那两格不含已兑现。">场内 · 场外 <b class="' + cls(C.contribOtc) +
-          '" id="prin-otc-contrib" data-v="' + C.contribOtc.toFixed(2) + '">' + fmtAmt2(C.contribOtc) + "</b></span></span></div>" +
-    "</div></details>"
+    '<div class="mix-grid">' +
+      '<div class="mix-box">' +
+        '<div class="mix-h">按性质</div>' +
+        row("已实现", C.cashed, cls, "全额清仓兑现（含双边费用）。部分卖出的效应已折进剩余仓位成本，不在这里重复计。") +
+        row("未实现", C.held, cls, "还拿着的账面浮动 ＝ Σ 逐只在持浮动盈亏" + (C.cashNote ? "。" + C.cashNote : "")) +
+      '</div>' +
+      '<div class="mix-box">' +
+        '<div class="mix-h">按账户</div>' +
+        row("场内", C.contribEtf, cls, "场内累计收益（含已兑现 " + fmtAmt2(C.cashed) + "）", "prin-etf-contrib") +
+        row("场外", C.contribOtc, cls, "场外累计浮盈亏（在持口径）", "prin-otc-contrib") +
+      '</div>' +
+    '</div></details>'
   );
 }
 

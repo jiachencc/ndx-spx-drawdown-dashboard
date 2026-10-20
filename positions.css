@@ -1894,3 +1894,22 @@
 .log-prem { font-family: var(--mono); font-size: 10px; color: var(--tx3); white-space: nowrap; }
 .log-prem.hot { color: var(--yellow); }
 .log-prem.cold { color: var(--green); }
+
+/* ===== 收益构成：两张并排小表（2026-10-20） =====
+   拆「按性质 / 按账户」两个维度，各自内部标签左、金额右，扫读时列对齐。 */
+.mix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.mix-box { background: var(--card2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); padding: 7px 9px 6px; }
+.mix-h { font-size: var(--fs-xxs); color: var(--tx3); letter-spacing: .04em; margin-bottom: 4px; }
+.mix-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 2px 0; font-size: var(--fs-xs); }
+.mix-row > span { color: var(--tx3); white-space: nowrap; }
+.mix-row > b { font-family: var(--mono); font-weight: 700; font-size: var(--fs-xs); font-feature-settings: "tnum"; white-space: nowrap; }
+
+/* 窄屏（≤400px）两张表并排时，单栏只有 ~150px，「已实现 −20,336」放不下 → 收字号与内边距。
+   仍然保持两栏（改成单栏会多占一整行，且「按性质 / 按账户」的对照关系会断）。 */
+@media (max-width: 400px) {
+  .mix-grid { gap: 6px; }
+  .mix-box { padding: 6px 7px 5px; }
+  .mix-h { margin-bottom: 3px; }
+  .mix-row { font-size: 10px; gap: 4px; padding: 1.5px 0; }
+  .mix-row > b { font-size: 10px; }
+}

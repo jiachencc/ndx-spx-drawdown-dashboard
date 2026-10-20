@@ -101,7 +101,10 @@ const pages = (onlyPages.length ? onlyPages : ["positions", "index"]).map((p) =>
 const cards = Object.entries(CARDS).filter(([name]) => !onlyCards.length || onlyCards.includes(name));
 
 mkdirSync(outDir, { recursive: true });
-const browser = await chromium.launch();
+/* PW_CHANNEL=msedge / chrome 时改用**系统浏览器**（2026-10-20）：
+   Playwright 自带的 chromium 缓存在本机被清空、且当前网络下不了（Download failure），
+   视觉门禁因此全红。CI 上有自带 chromium，不设这个变量即可。 */
+const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
 let problems = 0;
 
 for (const pg of pages) {

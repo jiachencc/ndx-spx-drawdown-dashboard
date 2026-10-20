@@ -106,7 +106,10 @@ const openAttr = async (p) => {
    而用户日常主用的是深色 ✗（深色下的断行 / 溢出从没验过）。verify-all 因此跑两遍（浅 + 深）✓。
    实现上刻意用「跑两遍」而不是把主题循环塞进本文件：断言名与既有文档都不用动 ✓。 */
 const dark = process.argv.includes("--dark");
-const browser = await chromium.launch();
+/* PW_CHANNEL=msedge / chrome 时改用**系统浏览器**（2026-10-20）：
+   Playwright 自带的 chromium 缓存在本机被清空、且当前网络下不了（Download failure），
+   视觉门禁因此全红。CI 上有自带 chromium，不设这个变量即可。 */
+const browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
 const errs = [];
 
 /* 就绪信号：等页面**真正画出图**（#trend-box 里有 svg 且非零宽）再测 ——
@@ -166,13 +169,16 @@ for (const w of [1440, 760, 414, 380]) {
   const a = await audit(p);
   check("拖动前 1440px：无横向溢出", a.ov <= 0, a.ov > 0 ? "溢出 " + a.ov + "px" : "溢出 0px ✓");
   await p.setViewportSize({ width: 380, height: 1000 });
-  await p.waitForTimeout(300);   // 页内 resize 防抖 150ms 后重绘 → 留 300ms 余量 ✓（原 700 ✗ 空等翻倍）
+  /* 2026-10-20：300ms 在部分浏览器（实测 Edge/Chromium 内核的 channel 版）下不够 ——
+     页内防抖 150ms ＋ 六张 SVG 重绘，偶发「图没重绘」误报（手动等到 800ms 即正常）。
+     放到 500ms：仍远小于原来的 700ms，又留足重绘余量。 */
+  await p.waitForTimeout(500);
   const b2 = await audit(p);
   check("1440 → 380 拖动缩放后：页面无横向溢出", b2.ov <= 0,
     b2.ov > 0 ? "溢出 " + b2.ov + "px（图没重绘 ✗ 就是这次的 bug ✓）" : "溢出 0px ✓");
   check("1440 → 380 拖动缩放后：每个 SVG 都不超出容器", b2.bad.length === 0, b2.bad.slice(0, 3).join(" · "));
   await p.setViewportSize({ width: 1440, height: 1000 });
-  await p.waitForTimeout(300);
+  await p.waitForTimeout(500);
   const c2 = await audit(p);
   check("380 → 1440 拖回后：页面无横向溢出", c2.ov <= 0, c2.ov > 0 ? "溢出 " + c2.ov + "px" : "溢出 0px ✓");
   await p.close();
