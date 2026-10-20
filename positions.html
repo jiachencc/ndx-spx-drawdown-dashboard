@@ -5017,41 +5017,37 @@ function renderClosed() {
   };
   el.innerHTML =
     '<div class="closed-total" id="closed-all-total"><span>总清仓盈亏（' + rows.length + " 笔）" + qBtn + "</span><b class=\"" + cls(sAll) + '">' + fmt2(sAll) + "</b></div>" +
+    /* 2026-10-20 重排（用户：「这些数据很多、很乱，注释精简到文字光标」）：
+       原来 7 组「标签 + 数值 + 长注释」平铺，每组后面跟一串口径说明，读起来像流水账 ✗。
+       现在：主导出 4 行两列（标签左 / 数值右），场外·场内用缩进表达「是总盈亏的拆分」；
+       所有注释（支付宝原读数 / 含重复买卖 / 摊薄口径 / 差 −4.40）全部移进 title（悬停可见）；
+       胜率与持有天数收进折叠。
+       ⚠ 三个 id 与 data-* 必须保留（dom-check 逐值锚到 data.js）。 */
     '<div class="closed-brief">' +
-      '<span class="b-k">总清场外盈亏</span><span class="b-v ' + cls(sOt) + '">' + fmt2(sOt) + "（" + otR.length + " 笔 · " + OTC_PLATFORM + " App 原读数）</span>" +
-      '<span class="b-k">总清场内盈亏</span><span class="b-v ' + cls(sIn) + '">' + fmt2(sIn) + "（" + inR.length + " 只 · 本页由流水推导、含费用）</span>" +
-      /* 券商原读数（2026-10-10 加 ✓，数据在 data.js CLOSED_ETF ✓）：与上面那行**并列**显示 ✓ ——
-         它＝摊薄口径的实现盈亏 ✓（「本金修正」用的就是它），两者差 4.40 元（港美卖出成交价取整）。
-         `id` 给门禁取精确值 ✓（cross-check ④q 断言：原读数 ≡ 流水推导、页面 ≡ data.js）。 */
-      (bt ? '<span class="b-k">券商原读数</span><span class="b-v" id="closed-etf-orig" data-orig="' + bt.total.toFixed(2) + '">'
-        + fmt2(bt.total) + "（" + bt.count + " 笔 · 逐只 " + bt.items.map((x) => x.name + " " + fmt2(x.pnl)).join(" · ") + "）"
-        + '<span class="snap-sub">＝<b>摊薄口径</b>实现盈亏 ✓（「本金修正」用的就是它）；与上面「生命周期」口径差 '
-        + fmt2(bt.total - sIn) + "（港美卖出成交价取整尾差）</span></span>" : "") +
-      /* 2026-10-20：原来写「投入 ≈ 418,897 → −4.83%」—— 418,897 是**累计买入额**（同一笔钱买卖多次会重复计），
-       当分母算出来的 −4.83% 会被读成「投了 41 万亏 4.83%」✗。改成只报金额并说明口径。 */
-      '<span class="b-k">累计买入</span><span class="b-v">' + fmtYuan(cAll) + " 元" +
-        '<span class="snap-sub">含重复买卖，不是本金；场外部分由「盈亏 ÷ 收益率」反推 ≈</span></span>' +
-      '<span class="b-k">笔数</span><span class="b-v">场外 ' + otR.length + " 笔 ＋ 场内 " + inR.length + " 只 ＝ " + rows.length + " 笔（明细见下，按清仓日倒序）</span>" +
-      /* 两份**聚合读数**（2026-10-12 补）：数据早就在（data.js 的 CLOSED.winRate/avgHoldDays、
-         CLOSED_ETF 的 winRate/avgHoldDays/avgWin/avgLoss/maxLoss/dividend），此前只显示了合计 ——
-         有了这两行才回答得上「胜率多少 / 平均持有多久 / 最惨一笔亏多少」。
-         ⚠ 两份口径不同（场外＝支付宝清仓分析原读数 ｜ 场内＝平安「已清仓股票」摊薄口径）→ 分行显示、不合并 */
-      (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)
-        ? '<span class="b-k">场外 · 胜率 / 持有</span><span class="b-v" id="closed-otc-agg" data-winrate="' + CLOSED.winRate
-          + '" data-hold="' + CLOSED.avgHoldDays + '" data-n="' + CLOSED.count + '">胜率 <b>' + CLOSED.winRate + "%</b>（" + CLOSED.count
-          + " 笔）· 平均持有 <b>" + CLOSED.avgHoldDays + "</b> 天 · 单笔最大盈利 <b class=\"up\">"
-          + fmt2(Math.max.apply(null, CLOSED.items.map((x) => x.pnl))) + "</b> · 最惨 <b class=\"down\">"
-          + fmt2(Math.min.apply(null, CLOSED.items.map((x) => x.pnl))) + "</b>"
-          + '<span class="snap-sub">支付宝「清仓分析」原读数 ✓（区分：这是 App 口径，本页推导那份见上一行）</span></span>' : "") +
-      (bt
-        ? '<span class="b-k">场内 · 胜率 / 持有</span><span class="b-v" id="closed-etf-agg" data-winrate="' + bt.winRate
-          + '" data-hold="' + bt.avgHoldDays + '" data-maxloss="' + bt.maxLoss + '" data-avgwin="' + bt.avgWin + '">胜率 <b>'
-          + bt.winRate + "%</b>（" + (bt.winRate ? Math.round(bt.count * bt.winRate / 100) : 0) + "/" + bt.count + " 笔）· 平均持有 <b>"
-          + bt.avgHoldDays + "</b> 天 · 平均盈利 " + (bt.avgWin ? "<b class=\"up\">" + fmt2(bt.avgWin) + "</b>" : "<b>—</b>（无盈利笔）")
-          + " · 平均亏损 <b class=\"down\">" + fmt2(bt.avgLoss) + "</b> · 单笔最大亏损 <b class=\"down\">" + fmt2(bt.maxLoss) + "</b>"
-          + (bt.dividend ? " · 分红 " + fmt2(bt.dividend) : "")
-          + '<span class="snap-sub">平安「已清仓股票 · 近三月」原读数 ✓（' + bt.source + "）</span></span>" : "") +
+      '<div class="cb-row cb-sub"><span class="cb-k">场内 ' + inR.length + ' 只</span><b class="cb-v ' + cls(sIn) + '"'
+        + (bt ? ' id="closed-etf-orig" data-orig="' + bt.total.toFixed(2) + '" title="券商原读数 ' + fmt2(bt.total)
+          + '（摊薄口径实现盈亏，「本金修正」用的就是它）；与本行差 ' + fmt2(bt.total - sIn) + '（港美卖出成交价取整尾差）。'
+          + '逐只：' + bt.items.map((x) => x.name + " " + fmt2(x.pnl)).join(" · ") + '"' : "")
+        + '>' + fmt2(sIn) + '</b></div>' +
+      '<div class="cb-row cb-sub"><span class="cb-k">场外 ' + otR.length + ' 笔</span><b class="cb-v ' + cls(sOt) + '" title="'
+        + esc(OTC_PLATFORM) + ' App「清仓分析」原读数（App 口径；本页推导那份＝上面「场内」之外的流水汇总）">' + fmt2(sOt) + '</b></div>' +
+      '<div class="cb-row cb-sub"><span class="cb-k">累计买入</span><b class="cb-v" title="Σ 每笔买入金额（同一笔钱买卖多次会重复计），不是本金 —— 本金见「本金与收益」卡。场外部分由「盈亏 ÷ 收益率」反推 ≈">'
+        + fmtYuan(cAll) + '</b></div>' +
     "</div>" +
+    '<details class="cb-agg"><summary>胜率与持有天数（场外 ' + otR.length + ' 笔 · 场内 ' + inR.length + ' 只）</summary>' +
+      (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)
+        ? '<div class="cb-row"><span class="cb-k">场外</span><b class="cb-v" id="closed-otc-agg" data-winrate="' + CLOSED.winRate
+          + '" data-hold="' + CLOSED.avgHoldDays + '" data-n="' + CLOSED.count + '" title="'
+          + esc("支付宝「清仓分析」原读数。单笔最大盈利 " + fmt2(Math.max.apply(null, CLOSED.items.map((x) => x.pnl)))
+            + " · 最惨 " + fmt2(Math.min.apply(null, CLOSED.items.map((x) => x.pnl)))) + '">'
+          + CLOSED.winRate + "% · " + CLOSED.avgHoldDays + " 天</b></div>" : "") +
+      (bt
+        ? '<div class="cb-row"><span class="cb-k">场内</span><b class="cb-v" id="closed-etf-agg" data-winrate="' + bt.winRate
+          + '" data-hold="' + bt.avgHoldDays + '" data-maxloss="' + bt.maxLoss + '" data-avgwin="' + bt.avgWin + '" title="'
+          + esc("平安「已清仓股票 · 近三月」原读数（" + bt.source + "）。平均盈利 "
+            + (bt.avgWin ? fmt2(bt.avgWin) : "—（无盈利笔）") + " · 平均亏损 " + fmt2(bt.avgLoss) + " · 单笔最大亏损 " + fmt2(bt.maxLoss)) + '">'
+          + bt.winRate + "% · " + bt.avgHoldDays + " 天</b></div>" : "") +
+    "</details>" +
     /* 明细**按平台分段**（2026-10-16 用户要求 A）：段头给出该平台的笔数、场内/场外与**来源** ——
        这两半口径不同（App 原读数 vs 本页推导），混在一个列表里按日期排就是"看不清哪行是谁"的根源 ✗。
        段序沿用 plats（亏得多在上，与上面「按平台汇总」一致 ✓），段内按清仓日倒序 ✓。

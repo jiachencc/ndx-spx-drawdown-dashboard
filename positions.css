@@ -1934,3 +1934,20 @@
 .closed-small > summary::-webkit-details-marker { display: none; }
 .closed-small > summary::before { content: "▸ "; font-family: var(--mono); }
 .closed-small[open] > summary::before { content: "▾ "; }
+
+/* ===== 清仓历史 · 两列紧凑版（2026-10-20） =====
+   标签左、数值右，场外/场内用缩进表达「是总盈亏的拆分」；注释全部进 title。 */
+.closed-brief { display: flex; flex-direction: column; gap: 1px; margin: 6px 0 2px; }
+.cb-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 0; }
+.cb-k { font-size: var(--fs-xs); color: var(--tx3); }
+.cb-v { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; font-feature-settings: "tnum"; }
+.cb-top { padding: 5px 0 6px; border-bottom: 1px solid var(--line-soft); margin-bottom: 2px; }
+.cb-top .cb-k { font-size: var(--fs-sm); color: var(--tx2); }
+.cb-top .cb-v { font-size: var(--fs-md); }
+.cb-sub .cb-k { padding-left: 12px; }
+.cb-sub .cb-k::before { content: "└ "; color: var(--line-strong); font-family: var(--mono); }
+.cb-agg > summary { cursor: pointer; padding: 6px 0; font-size: var(--fs-xs); color: var(--tx3);
+  border-top: 1px dashed var(--line-soft); list-style: none; }
+.cb-agg > summary::-webkit-details-marker { display: none; }
+.cb-agg > summary::before { content: "▸ "; font-family: var(--mono); }
+.cb-agg[open] > summary::before { content: "▾ "; }
