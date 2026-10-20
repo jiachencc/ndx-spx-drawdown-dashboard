@@ -547,8 +547,10 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     !!totEl && near(totEl.textContent.replace(/\s+/g, ""), sOtc + sEtf, 0.01),
     totEl ? totEl.textContent.replace(/\s+/g, " ").trim().slice(0, 100) : "卡内没有 #closed-all-total");
   const cardTxt = cardEl ? cardEl.textContent.replace(/\s+/g, "") : "";
-  check("清仓历史「按平台汇总」含 平安证券 " + money(sEtf) + "（场内）与 支付宝 " + money(sOtc) + "（场外）",
-    /按平台汇总/.test(cardTxt) && near(cardTxt, sEtf, 0.01) && near(cardTxt, sOtc, 0.01), cardTxt.slice(0, 130));
+  /* 2026-10-20：独立的「按平台汇总」块已删（与顶部 closed-brief 的四个数完全重复）→
+     断言只校验这两个金额在卡内可见（现在由 brief 承载）。 */
+  check("清仓历史卡内可见 场内 " + money(sEtf) + " 与 场外 " + money(sOtc),
+    near(cardTxt, sEtf, 0.01) && near(cardTxt, sOtc, 0.01), cardTxt.slice(0, 130));
   const badD = etfClosed.filter((o) => {
     const row = cardEl ? cardEl.querySelector('[data-sym="' + o.k + '"]') : null;
     /* ⚠ 判据只认「日期本身」，**不认分隔符**（2026-10-12 页面统一为点号 09.30 ✗→✓ 后本断言曾误报）：

@@ -1927,3 +1927,10 @@
 @media (max-width: 767px) {
   .chk-tbl .c-gap { display: none; }
 }
+
+/* 清仓历史：小额分组折叠（2026-10-20） */
+.closed-small > summary { cursor: pointer; padding: 7px 0; font-size: 11px; color: var(--tx3);
+  border-top: 1px dashed var(--line-soft); list-style: none; }
+.closed-small > summary::-webkit-details-marker { display: none; }
+.closed-small > summary::before { content: "▸ "; font-family: var(--mono); }
+.closed-small[open] > summary::before { content: "▾ "; }

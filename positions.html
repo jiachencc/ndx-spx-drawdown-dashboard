@@ -5027,7 +5027,10 @@ function renderClosed() {
         + fmt2(bt.total) + "（" + bt.count + " 笔 · 逐只 " + bt.items.map((x) => x.name + " " + fmt2(x.pnl)).join(" · ") + "）"
         + '<span class="snap-sub">＝<b>摊薄口径</b>实现盈亏 ✓（「本金修正」用的就是它）；与上面「生命周期」口径差 '
         + fmt2(bt.total - sIn) + "（港美卖出成交价取整尾差）</span></span>" : "") +
-      '<span class="b-k">投入 ≈ / 加权</span><span class="b-v">' + fmtYuan(cAll) + " 元 → <b class=\"" + cls(sAll) + '">' + pct(cAll ? sAll / cAll * 100 : 0) + "</b>（场外投入由「盈亏 ÷ 收益率」反推 ≈）</span>" +
+      /* 2026-10-20：原来写「投入 ≈ 418,897 → −4.83%」—— 418,897 是**累计买入额**（同一笔钱买卖多次会重复计），
+       当分母算出来的 −4.83% 会被读成「投了 41 万亏 4.83%」✗。改成只报金额并说明口径。 */
+      '<span class="b-k">累计买入</span><span class="b-v">' + fmtYuan(cAll) + " 元" +
+        '<span class="snap-sub">含重复买卖，不是本金；场外部分由「盈亏 ÷ 收益率」反推 ≈</span></span>' +
       '<span class="b-k">笔数</span><span class="b-v">场外 ' + otR.length + " 笔 ＋ 场内 " + inR.length + " 只 ＝ " + rows.length + " 笔（明细见下，按清仓日倒序）</span>" +
       /* 两份**聚合读数**（2026-10-12 补）：数据早就在（data.js 的 CLOSED.winRate/avgHoldDays、
          CLOSED_ETF 的 winRate/avgHoldDays/avgWin/avgLoss/maxLoss/dividend），此前只显示了合计 ——
@@ -5049,12 +5052,6 @@ function renderClosed() {
           + (bt.dividend ? " · 分红 " + fmt2(bt.dividend) : "")
           + '<span class="snap-sub">平安「已清仓股票 · 近三月」原读数 ✓（' + bt.source + "）</span></span>" : "") +
     "</div>" +
-    '<div class="closed-row" style="margin-top:6px"><span class="c-nm"><b>按平台汇总</b><span class="c-code">' + plats.length + ' 个账户</span>' +
-      '<div class="c-meta">每个账户 App 上的清仓盈亏；两半来源不同（App 原读数 / 本页推导），故分平台列、不合并</div></span><span class="c-v"></span></div>' +
-    plats.map((g) => '<div class="closed-row"><span class="c-nm"><b>' + esc(g.p) + "</b>" +
-        '<span class="c-code">' + esc(g.kind) + '</span><span class="c-code">' + g.n + ' 笔</span>' +
-        '<div class="c-meta">投入 ≈' + fmtYuan(g.c) + " 元 · 加权 " + pct(g.c ? g.s / g.c * 100 : 0) + "</div></span>" +
-        '<span class="c-v ' + cls(g.s) + '">' + fmt2(g.s) + "</span></div>").join("") +
     /* 明细**按平台分段**（2026-10-16 用户要求 A）：段头给出该平台的笔数、场内/场外与**来源** ——
        这两半口径不同（App 原读数 vs 本页推导），混在一个列表里按日期排就是"看不清哪行是谁"的根源 ✗。
        段序沿用 plats（亏得多在上，与上面「按平台汇总」一致 ✓），段内按清仓日倒序 ✓。
@@ -5069,7 +5066,16 @@ function renderClosed() {
             '<span class="c-code">' + g.n + " 笔</span>" +
             '<div class="c-meta">' + esc(secSrc(g.p)) + "</div></span>" +
             '<span class="c-v ' + cls(g.s) + '">' + fmt2(g.s) + "</span></div>" +
-          members.map(rowHtml).join("");
+          /* 大额展开、小额折叠（2026-10-20 用户选 A）：
+             20 笔里前两笔（中韩 −13,217 / 港美 −5,275）占总亏损 91%，
+             其余 17 笔单笔都在 ±600 元内，平铺只是把主线稀释掉。 */
+          (() => {
+            const big = members.filter((m) => Math.abs(m.pnl) >= 1000);
+            const small = members.filter((m) => Math.abs(m.pnl) < 1000);
+            const sum = small.reduce((a, m) => a + m.pnl, 0);
+            return big.map(rowHtml).join("") +
+              (small.length ? '<details class="closed-small"><summary>其他 ' + small.length + " 笔小额（合计 " + fmt2(sum) + "）</summary>" + small.map(rowHtml).join("") + "</details>" : "");
+          })();
       }).join("") + "</details>" +
     qNote;
 }
