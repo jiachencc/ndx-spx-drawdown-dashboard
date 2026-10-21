@@ -519,6 +519,13 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     if (!m) return null;
     const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED;", c, { timeout: 500 }); return c.o;
   })();
+  /* 场外的**第二个**来源（2026-10-21 加）：广发基金直销也清过仓了，页面按平台分段会多一段 ✓ ——
+     本块的断言必须跟页面同一步（否则「场外合计」与段头数会少算这一笔 ✗）。 */
+  const CL_GF = (() => {
+    const m = readFileSync(path.join(root, "data.js"), "utf8").match(/^const CLOSED_GF = \{[\s\S]*?^\};/m);
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = CLOSED_GF;", c, { timeout: 500 }); return c.o;
+  })();
   const isSell = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
   /* ⚠ 口径与页面一致（2026-10-09 改）：场内已了结的盈亏 = **生命周期实际结果**
      = Σ卖出净额 − Σ买入含费（含双边费用、不重复计 ✓）；不再用「Σ逐笔 realized」✗
@@ -541,7 +548,8 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   });
   const etfClosed = Object.keys(agg).map((k) => ({ k, pnl: agg[k].cash - agg[k].buy })).filter((o, i) => agg[Object.keys(agg)[i]].qty === 0);
   const sEtf = etfClosed.reduce((a, o) => a + o.pnl, 0);
-  const sOtc = CL ? CL.items.reduce((a, r) => a + r.pnl, 0) : 0;
+  const sOtc = (CL ? CL.items.reduce((a, r) => a + r.pnl, 0) : 0)
+    + (CL_GF ? CL_GF.items.reduce((a, r) => a + r.pnl, 0) : 0);
   const totEl = cardEl ? cardEl.querySelector("#closed-all-total") : null;
   check("清仓历史总行 = 场外 " + money(sOtc) + " ＋ 场内 " + money(sEtf),
     !!totEl && near(totEl.textContent.replace(/\s+/g, ""), sOtc + sEtf, 0.01),
@@ -597,8 +605,12 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   const secs = cardEl ? [...cardEl.querySelectorAll(".closed-sec[data-sec]")] : [];
   const secSum = secs.reduce((a, s) => a + parseFloat(s.getAttribute("data-sec-sum")), 0);
   const secN = secs.reduce((a, s) => a + (parseInt(s.getAttribute("data-sec-n"), 10) || 0), 0);
-  const wantSec = ((CLOSED_D && CLOSED_D.items) ? 1 : 0) + ((CLOSED_ETF_D && CLOSED_ETF_D.items) ? 1 : 0);
-  const wantN = ((CLOSED_D && CLOSED_D.items) ? CLOSED_D.items.length : 0) + ((CLOSED_ETF_D && CLOSED_ETF_D.items) ? CLOSED_ETF_D.items.length : 0);
+  /* 段数/笔数按**数据块**数：场外两块（支付宝 CLOSED ＋ 广发 CLOSED_GF，2026-10-21 加）＋ 场内一块 ✓ */
+  const wantSec = ((CLOSED_D && CLOSED_D.items) ? 1 : 0) + ((CL_GF && CL_GF.items) ? 1 : 0)
+    + ((CLOSED_ETF_D && CLOSED_ETF_D.items) ? 1 : 0);
+  const wantN = ((CLOSED_D && CLOSED_D.items) ? CLOSED_D.items.length : 0)
+    + ((CL_GF && CL_GF.items) ? CL_GF.items.length : 0)
+    + ((CLOSED_ETF_D && CLOSED_ETF_D.items) ? CLOSED_ETF_D.items.length : 0);
   check("清仓卡：明细按平台分段 —— 段头 " + wantSec + " 个 · 笔数合计 " + wantN + " · 各段合计之和 ≡ 场内 ＋ 场外",
     secs.length === wantSec && secN === wantN && Math.abs(secSum - (sOtc + sEtf)) <= 0.01,
     secs.map((s) => s.getAttribute("data-sec") + " " + s.getAttribute("data-sec-sum") + "（" + s.getAttribute("data-sec-n") + " 笔）").join(" · ")

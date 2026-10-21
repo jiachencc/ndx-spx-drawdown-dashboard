@@ -75,6 +75,8 @@ const isDate = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 /* ---------- 读输入 + 校验 ---------- */
 const input = JSON.parse(readFileSync(inputPath, "utf8"));
 const errors = [];
+/* validate 阶段就先攒下、等 `tips` 声明后再并进去（`tips` 在拼快照那段才定义，写早了是 TDZ ✗）*/
+const earlyTips = [];
 if (!isDate(input.date)) errors.push("date 缺失或格式不对");
 if (!Number.isFinite(input.cash)) errors.push("cash 缺失（各渠道可用资金合计）");
 if (!input.otc?.length) errors.push("otc 为空（至少要有一只场外读数）");
@@ -97,8 +99,22 @@ for (const f of input.otc || []) {
        晚于快照日的属**补录**（10-15 那期 8 张截图是 10-16 02:34~11:14 拍的，跨零点是常态 ✓），
        唯一诚实的写法就是记真实时刻，写成当天属伪造时间戳 ✗（handoff 底线）。 */
   if (!f.upd) f.upd = input.date + " 20:00";
-  else if (!LOGIC.synced(f.upd, input.date))
-    errors.push(labelOf(f.code) + " 的 upd（" + f.upd + "）早于本期 " + input.date + "：页面会当它没更新，当日合计会少算这一只");
+  else if (!LOGIC.synced(f.upd, input.date)) {
+    /* ⚠ 这里只能进 earlyTips：`tips` 要到下面拼快照时才声明（validate 阶段在它之前）*/
+    /* ⚠ 2026-10-21 放宽（第五次踩「数据模型与校验打架」这个坑）：
+       当天只拿到**场内**截图（平安证券持仓页 ＋ 对账单）＋ 一笔场外清仓凭证，那 6 只场外
+       根本没发截图 —— 此时唯一诚实的写法就是 `upd` 停在上一期 ＋ `day: null`（＝明确声明"本期未读"）。
+       原校验把这唯一诚实的写法**判成错** ✗，于是只剩两条路：伪造 upd 时刻（handoff 底线禁止 ✗）
+       或干脆不落快照（那 OTC 里的持仓构成就与快照脱节，池子里的断言全红 ✗）。
+       判据收得很窄：**必须同时** `--allow-partial` 且 `day === null` 才放行，并且照实提示
+       「页面会把它标成待更、当日合计不含它」✓ —— 与 2026-10-16 那条「day 允许 null」同一个道理。 */
+    if (ALLOW_PARTIAL && f.day === null)
+      /* 文案留到 labelOf 可用后再拼（这里只有代码；见 earlyTips 的注释 —— 人读的那一侧要写「名称（代码）」✓）*/
+      earlyTips.push({ code: f.code, upd: f.upd, date: input.date });
+    else
+      errors.push(labelOf(f.code) + " 的 upd（" + f.upd + "）早于本期 " + input.date
+        + "：若本期真的没读这一只，请用 --allow-partial 且 day 记 null（否则页面会当它已更新、当日合计会错）");
+  }
 }
 for (const [k, e] of Object.entries(input.etf || {})) {
   if (!(k in ETF_KEYS)) errors.push("etf 多出未知键：" + k);
@@ -151,7 +167,10 @@ const nextHold = (code) => { const p = holdByCode(code); const u = (input.hold |
 const prev = last.items;
 const pv = (c) => (prev[c] ? prev[c].val : 0), pc = (c) => (prev[c] ? prev[c].cost : 0);
 
-const items = {}; const tips = [];
+const items = {};
+/* validate 阶段攒下、但因 labelOf 还没定义而没拼文案的那条（见 earlyTips）*/
+const tips = earlyTips.map((t) => labelOf(t.code) + " 的 upd（" + t.upd + "）早于本期 " + t.date
+  + "，但 day 记 null ＝ 明确声明「本期未读」→ 放行 ✓（页面会标「待更」，当日合计不含它）");
 const holdCodes = new Set(model.POSITIONS.hold.map((p) => p.code));
 let dCost = 0, dVal = 0;
 /* 场内**单独**一对累计量（2026-10-16 加，修 day 的双计 bug）：
@@ -358,7 +377,13 @@ for (const f of input.otc) {
 const noteHead = "⚠ 本页" + (missing.length ? "仅 " + input.otc.length + "/" + otcNow.funds.length + " 只（其余沿用旧值）" : input.otc.length + "/" + otcNow.funds.length + " 全覆盖") +
   "；总资产 " + num(r2(totalVal + input.cash), 2) + " = 场内 " + num(inVal, 2) + " + 场外 " + num(otcVal, 2) + " + 现金 " + num(input.cash, 2) +
   "；累计浮盈亏 " + num(pl, 2) + "；当日 " + num(day, 2) + "（场内 " + num(dayIn, 2) + " + 场外 " + num(dayOtc, 2) + "）" +
-  "；flow " + num(flow, 2) + " = Δ成本 " + num(dCost, 2) + " + Δ现金 " + num(dCash, 2) +
+  /* ⚠ 2026-10-21 修：原来无论 flow 是怎么来的，都印成「= Δ成本 ＋ Δ现金」✗ ——
+     本期有清仓时那条公式**不成立**（本脚本自己在上面的 tips 里就写明了），
+     却仍把这句错话写进快照注释（10-21 期实测：真值 −17,813.44，注释却写「= 3,084.8 + 15.2」✗）。
+     显式给 flow 或本期有清仓时，改印口径（与 tips 那句同一个意思 ✓）。 */
+  "；flow " + num(flow, 2) + ((Number.isFinite(input.flow) || clearedIn.length)
+    ? "（显式值 · 总资产恒等式：Δ总资产 − day ＋ 费用 ✓；本期有清仓 → ΔΣ成本＋Δ现金 不成立 ✗）"
+    : " = Δ成本 " + num(dCost, 2) + " + Δ现金 " + num(dCash, 2)) +
   ((input.pending || []).length ? "；在途 " + input.pending.map((p) => labelOf(p.code) + " " + p.amount).join("、") + "（市值已含、份额未含）" : "");
 const period = "  { d: \"" + input.date + "\", cash: " + num(input.cash, 2) + ", pl: " + num(pl, 2) +
   ", day: " + num(day, 2) + ", flow: " + num(flow, 2) + ",\n" +

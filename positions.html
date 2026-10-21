@@ -1084,13 +1084,16 @@ function renderImpl() {
            这一行沿用本卡既有的 data-sel → pl-flash 交互，点一下跳到那张卡。
          · 卡头计数同时写清「已清仓 N 笔另列」，不会与上面的「N 盈 / M 亏」计数混淆。
      口径两半来源不同、必须标清（与清仓历史卡同一句话）：
-       场外＝支付宝「清仓分析」App **原读数**（CLOSED.items）· 场内＝本页由 POSITIONS.log 推导（含双边费用）。
-     ⚠ **不要**把它与上面的浮盈亏相加成一个"总共赚赔多少" —— 场外那 17 笔发生在首份快照之前，
+       场外＝**两家 App 的原读数**（支付宝「清仓分析」的 CLOSED ＋ 广发基金「清仓记录详情」的 CLOSED_GF，
+         统一由 closedOtcRows() 给出 ✓）· 场内＝本页由 POSITIONS.log 推导（含双边费用）。
+     ⚠ **不要**把它与上面的浮盈亏相加成一个"总共赚赔多少" —— 场外那批绝大多数发生在首份快照之前，
        本金 / 走势口径看不见它们，相加出来的数**不等于**「总资产 − 本金」✗（那样会误导）。
      ⚠ 视觉（用户问"用灰色区分？"）：**组头用灰、金额保留 up/down 的绿红 不涂灰** ——
        本页 --tx3 的"灰"有固定含义（未更新 / 次要 / 无数据），涂在金额上会让 −18,378.13 看起来像
        "这数不可用 / 待更"，与事实相反；次级感改由 .pl-row-cleared 的降透明度承担 */
-  const clearedOt = (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)) ? CLOSED.items : [];
+  /* ⚠ 2026-10-21：改用 closedOtcRows()（支付宝 ＋ 广发两块场外清仓的**同一出处** ✓）——
+     此前直接读 `CLOSED.items`，场外多出广发那一笔后，本行会比清仓卡少算 −3,586.56 ✗ */
+  const clearedOt = closedOtcRows();
   const clearedEtf = closedEtfRows();
   const clearedN = clearedOt.length + clearedEtf.length;
   const clearedOtPl = clearedOt.reduce((a, r) => a + (r.pnl || 0), 0);
@@ -1106,7 +1109,10 @@ function renderImpl() {
           '<b class="pl-amt ' + cls(clearedPl) + '" id="pl-cleared-total" data-pl="' + clearedPl.toFixed(2) + '">' + fmtAmt(clearedPl) + '</b>' +
         '</span>' +
         '<span class="pl-sub">' +
-          '<span class="pl-src" title="场外 ' + clearedOt.length + ' 笔＝支付宝「清仓分析」App 原读数；场内 ' + clearedEtf.length + ' 只＝本页由 POSITIONS.log 推导（生命周期实际结果、含双边费用）。两半分属不同账户、无重复计入，故可相加；但**不与上面的浮盈亏相加**（场外那批发生在首份快照之前，本金 / 走势口径看不见它们）。">' +
+          '<span class="pl-src" title="场外 ' + clearedOt.length + ' 笔＝两家 App 原读数（支付宝「清仓分析」'
+            + clearedOt.filter((r) => r.platform === OTC_PLATFORM).length + ' 笔 ＋ 广发基金「清仓记录详情」'
+            + clearedOt.filter((r) => r.platform === GF_PLATFORM).length + ' 笔）；场内 ' + clearedEtf.length
+            + ' 只＝本页由 POSITIONS.log 推导（生命周期实际结果、含双边费用）。两半分属不同账户、无重复计入，故可相加；但**不与上面的浮盈亏相加**（场外那批绝大多数发生在首份快照之前，本金 / 走势口径看不见它们）。">' +
             clearedN + ' 笔 · 场内 ' + clearedEtf.length + ' ＋ 场外 ' + clearedOt.length + '</span>' +
           '<span class="pl-right">' +
             '<span class="pl-base">场内 ' + fmtAmt(clearedEtfPl) + ' · 场外 ' + fmtAmt(clearedOtPl) + '</span>' +
@@ -4865,6 +4871,40 @@ function snapPairHtml(prev, cur) {
  *   · 收益率 ＝ 已实现 ÷ 投入（**本页推导**；场外那张卡是 App 的「清仓收益率」，两者不同名 ✗ → 分开列、不相加 ✓）
  *   · 建仓日＝首笔买入日；清仓日＝使份数归零的那笔卖出日
  *   · 「清仓后涨跌幅」不涉及：该列 2026-09-30 已按用户要求整列停用 ✓（场内亦无此 App 读数 ✓） */
+/* ---- 场外「已清仓」标的（2026-10-21 加：场外**第二个平台**也清了仓，来源不再只有支付宝）----
+ * 为什么抽成一个函数：来源现在有两块数据（`CLOSED` 支付宝原读数 ＋ `CLOSED_GF` 广发直销原读数），
+ *   而它们有两个消费者 —— 本卡的明细、盈亏总览那张卡的「清仓累计已实现」✗。
+ *   两处各拼一份的话，下次再加平台必然漏一处（本仓库 cross-check 防的就是「同一批数存两处」）✗。
+ *   → 这里是**唯一出处** ✓。
+ * ⚠ 平台常量也提到函数外：段头来源说明（SEC_SRC）与这里的 `platform` 必须是同一个字符串，
+ *   写两份迟早漂 ✗。
+ * ⚠ 与 closedEtfRows()（场内，本页由流水推导）**不同名、不相加**：那半边是推导值、这半边是 App 原读数 ✓。 */
+const OTC_PLATFORM = "支付宝";     // `CLOSED` 整块 = 支付宝「清仓分析」页原读数
+const GF_PLATFORM = "广发基金";    // `CLOSED_GF` = 广发基金 App「清仓记录详情」原读数
+const ETF_PLATFORM = "平安证券";   // 场内只有这一家券商（ACCT_STATS 与全部流水都指向它）
+function closedOtcRows() {
+  const pick = (src, platform) => ((typeof src !== "undefined" && src && Array.isArray(src.items)) ? src.items : [])
+    .map((r) => ({
+      name: r.name, platform: platform, kind: "场外", sym: "",
+      buy: r.buy, sell: r.sell,
+      days: (r.buy && r.sell) ? Math.round((new Date(r.sell) - new Date(r.buy)) / 864e5) : null,
+      pnl: r.pnl,
+      /* 投入：数据里给了**精确值**就用它（`CLOSED_GF.cost` ＝ 24,500.00 ✓）；支付宝那 18 笔 App 不给 ✗
+         → 由「盈亏 ÷ 清仓收益率」反推，实测误差 < 2 元，故显示时挂 ≈（见 cellsOf） */
+      cost: (typeof r.cost === "number") ? r.cost
+        : ((typeof r.rate === "number" && r.rate !== 0) ? r.pnl / (r.rate / 100) : null),
+      /* 投入是否**精确**：只影响表格里挂不挂 ≈ —— 场内（推导）与广发（App 给了投入）都精确 ✓ */
+      costExact: typeof r.cost === "number",
+      rate: (typeof r.rate === "number") ? r.rate : null,
+      cash: (typeof r.cash === "number") ? r.cash : null,
+      /* ⇄ 在持同名（2026-10-16 加，D）：数据侧 `alsoHeld` 指向本页**在持**的代码 ——
+         同一只基金的**不同份额类别 / 不同账户**（例：广发全球精选 A(支付宝·已清仓) ↔ F(广发直销·在持)）✓。
+         它由 data.js 里**显式**标注、不由名称模糊匹配 ✗（"广发纳斯达克100"vs"广发纳指100"这种同一只基金
+         名字都不同，模糊匹配必然误报 ✗）。门禁会校验被指向的代码真的在持 ✓ */
+      held: r.alsoHeld || null,
+    }));
+  return pick(CLOSED, OTC_PLATFORM).concat(pick(CLOSED_GF, GF_PLATFORM));
+}
 function closedEtfRows() {
   const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
   const by = {};
@@ -4919,48 +4959,38 @@ function closedEtfRows() {
 function renderClosed() {
   const el = $("closed-card");
   if (!el) return;
-  const C = (typeof CLOSED !== "undefined" && CLOSED && CLOSED.items && CLOSED.items.length) ? CLOSED : null;
+  const otc = closedOtcRows();
   const etf = closedEtfRows();
-  if (!C && !etf.length) {
+  if (!otc.length && !etf.length) {
     el.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无清仓记录</span></div>';
     return;
   }
   /* 2026-10-09 按用户要求**简化**：去掉"债基 / 美股QDII / 日本QDII / A股行业"的类别分组 ✗，
      改为「总清仓盈亏 → 总清场内 / 总清场外 → 按平台（账户 App）汇总 → 全部明细合一」
      两半来源不同，必须标清（别让人以为是同一口径）：
-       · 场外＝支付宝「清仓分析」App **原读数**（CLOSED.items；平台直销四渠道从未清仓）
+       · 场外＝支付宝「清仓分析」＋ 广发基金「清仓记录详情」两家的 App **原读数**（见 closedOtcRows()）
        · 场内＝本页由 POSITIONS.log **推导**（含费用 见 closedEtfRows()）
      可以相加的依据：两半都是"已卖出兑现的盈亏"、分属不同账户无重复计入
      ⚠ 这些已实现**不进**「累计浮盈亏 / 本金」（那是持仓 / 快照口径） */
-  const OTC_PLATFORM = "支付宝";     // CLOSED 块整块来自支付宝「清仓分析」（见 data.js 注释）
-  const ETF_PLATFORM = "平安证券";   // 场内只有这一家券商（ACCT_STATS 与全部流水都指向它）
   /* 平台 → 该段的**来源说明**（2026-10-16 加，A：明细按平台分段时，段头要交代这一段的数是怎么来的 ✓）。
      只在这一处定义 ✓ —— 段头与「按平台汇总」用的是同一批数，来源字样别在两边各写一套 ✗。
-     新增平台时在这里补一行；漏了会退化成兜底文案（不报错，但门禁会查段头计数 ✓）。 */
+     新增平台时在这里补一行；漏了会退化成兜底文案（不报错，但门禁会查段头计数 ✓）。
+     ⚠ 平台常量本身在文件上层（closedOtcRows() 旁边）定义 ✓ —— 这里只管「来源说明」的文字。 */
   const SEC_SRC = {};
   SEC_SRC[OTC_PLATFORM] = "支付宝「清仓分析」页**原读数**（每行含持有区间 / 清仓收益 / 清仓收益率）✓";
+  SEC_SRC[GF_PLATFORM] = "广发基金 App「清仓记录详情」**原读数**（持有区间 / 清仓收益 / 清仓收益率；回款取「交易详情」确认金额）✓";
   SEC_SRC[ETF_PLATFORM] = "本页由 POSITIONS.log **推导**（份数回放、期末归零者＝已了结；含双边费用 ✓）";
   const secSrc = (p) => SEC_SRC[p] || "来源见本卡「?」浮层 ✓";
   const fmt2 = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(dp === undefined ? 2 : dp) + "%";
   const days = (a, b) => (a && b) ? Math.round((new Date(b) - new Date(a)) / 864e5) : null;
   /* 统一成一张表（用户要"全部明细合一" ✓），排序按**清仓日倒序**（回看用 ✓） */
-  const rows = (C ? C.items.map((r) => ({
-      name: r.name, platform: OTC_PLATFORM, kind: "场外", sym: "",
-      buy: r.buy, sell: r.sell, days: days(r.buy, r.sell), pnl: r.pnl,
-      /* 场外投入＝盈亏 ÷ App 清仓收益率（App 不给投入 ✗）→ 一律标 ≈ ✓ */
-      cost: (typeof r.rate === "number" && r.rate !== 0) ? r.pnl / (r.rate / 100) : null,
-      rate: (typeof r.rate === "number") ? r.rate : null, cash: null,
-      /* ⇄ 在持同名（2026-10-16 加，D）：数据侧 `alsoHeld` 指向本页**在持**的代码 ——
-         同一只基金的**不同份额类别 / 不同账户**（例：广发全球精选 A(支付宝·已清仓) ↔ F(广发直销·在持)）✓。
-         它由 data.js 里**显式**标注、不由名称模糊匹配 ✗（"广发纳斯达克100"vs"广发纳指100"这种同一只基金
-         名字都不同，模糊匹配必然误报 ✗）。门禁会校验被指向的代码真的在持 ✓ */
-      held: r.alsoHeld || null,
-    })) : []).concat(etf.map((r) => ({
+  const rows = otc.concat(etf.map((r) => ({
       name: r.sym, platform: ETF_PLATFORM, kind: "场内", sym: r.sym,
       buy: r.buy, sell: r.sell, days: r.days, pnl: r.pnl, cost: r.cost, rate: r.rate, cash: r.cash,
       held: r.alsoHeld || null,
     }))).sort((a, b) => (a.sell === b.sell ? (a.pnl - b.pnl) : (a.sell < b.sell ? 1 : -1)));
+  /* ↑ 括号：`otc.concat(etf.map((r) => ({ … })))` ＝ `}` ＋ `)`(对象) ＋ `)`(map) ＋ `)`(concat) */
   const sumOf = (rs) => rs.reduce((a, r) => a + r.pnl, 0);
   const inR = rows.filter((r) => r.kind === "场内"), otR = rows.filter((r) => r.kind === "场外");
   const sAll = sumOf(rows), sIn = sumOf(inR), sOt = sumOf(otR);
@@ -4985,14 +5015,17 @@ function renderClosed() {
     /* 清仓卡 ? 浮层（2026-10-12 裁剪）：删掉两处论证（「例：中韩 −13,681 vs −13,217」与
        「场外那 N 笔绝大多数发生在首份快照之前」），结论与边界一条不动 ✓ ——
        浮层是点开才看的，留推导反而稀释"该看哪一句"；同时清掉残留的校对符号 ✓ */
-    "来源与口径：<b>场外</b>＝支付宝 App「清仓分析」页的<b>原读数</b>（三张完整版截图：每行含持有区间 / 清仓收益 / 清仓收益率）；" +
-    "平台直销的四个渠道（广发 / 南方 / 博时 / 华安）<b>从未清仓过</b> → 这 " + otR.length + " 笔就是场外的全部清仓史。<br>" +
+    "来源与口径：<b>场外</b>＝两家 App 的<b>原读数</b> —— 支付宝「清仓分析」页 "
+      + otR.filter((r) => r.platform === OTC_PLATFORM).length + " 笔（每行含持有区间 / 清仓收益 / 清仓收益率）"
+      + "＋ 广发基金「清仓记录详情」 " + otR.filter((r) => r.platform === GF_PLATFORM).length + " 笔"
+      + "（清仓价 / 回款取同一天的「交易详情」）；" +
+    "平台直销的其余渠道（南方 / 博时 / 华安）<b>从未清仓过</b> → 这 " + otR.length + " 笔就是场外的全部清仓史。<br>" +
     "<b>场内</b>＝本页由 <code>POSITIONS.log</code> <b>推导</b>：份数回放、期末归零者＝已了结；" +
     "盈亏＝<b>生命周期实际结果</b>＝Σ卖出净额 − Σ买入含费（含双边费用、不重复计）；投入＝Σ(买入金额 ＋ 单边费)。<br>" +
     "⚠ 为什么不用「Σ逐笔 realized」：摊薄口径下每笔卖出后会重算剩余份额成本，逐笔相加减会把亏损<b>重复计一遍</b>。<br>" +
     "两半都是「已卖出兑现的盈亏」、分属<b>不同账户</b>、无重复计入 → <b>可以相加</b>；但仍分场内 / 场外两栏 —— " +
     "因为这决定了你信哪一份（App 原读数 vs 本页推导）。<br>" +
-    "⚠ <b>回款 ≠ 盈亏</b>：回款是卖出收回的现金（场内每只都给出精确值；场外 App 不给这个读数）。<br>" +
+    "⚠ <b>回款 ≠ 盈亏</b>：回款是卖出收回的现金（场内每只、以及广发那 1 笔都有精确值；支付宝那 18 笔 App 不给这个读数，故那一段整列不出）。<br>" +
     "⚠ 这些已实现盈亏<b>不进</b>「在持浮盈 / 本金」—— 那边是持仓（快照）口径。<br>" +
     "⚠ 「清仓后涨跌幅」本页不展示；数据留档在 data.js 的 after 字段。<br>" +
     "<b>券商原读数</b>：平安「已清仓股票 · 近三月」页另给一份<b>实现盈亏</b>（摊薄口径）——" +
@@ -5001,20 +5034,45 @@ function renderClosed() {
     "与上面「生命周期」口径合计差 <b>" + (bt ? fmt2(bt.total - sIn) : "—") + "</b>（港美卖出成交价取整尾差）。" +
     "两个都列出来 —— 谁都不用猜哪个是对的（「本金修正」用的是<b>摊薄</b>那份，所以它是更关键的那个）。" +
     "</div>";
-  const rowHtml = (r) => {
-    const meta = [];
-    if (r.buy && r.sell) meta.push(r.buy.slice(5).replace("-", ".") + "→" + r.sell.slice(5).replace("-", ".") + (r.days === null ? "" : " · " + r.days + " 天"));
-    if (typeof r.rate === "number") meta.push("收益率 " + pct(r.rate));
-    if (r.cost !== null) meta.push("投入 ≈" + Math.round(r.cost).toLocaleString("en-US") + (r.kind === "场内" ? "" : ""));
-    if (r.kind === "场内" && Number.isFinite(r.cash)) meta.push("回款 " + Math.round(r.cash).toLocaleString("en-US") + "");
-    return '<div class="closed-row"' + (r.sym ? ' data-sym="' + esc(r.sym) + '"' : "") + ">" +
-      '<span class="c-nm"><b>' + esc(r.name) + "</b>" +
-        '<span class="c-code">' + esc(r.platform) + "</span>" +
-        '<span class="c-code">' + esc(r.kind) + "</span>" +
+  /* 明细行（2026-10-21 表格化试验 · 分支 feat/closed-table）：
+     两行式 —— 第 1 行「名称 → 清仓盈亏」（主读，不受列宽约束 ✓）；
+     第 2 行 5~6 个**等宽指标列**，列名只在段头出现一次（.closed-thead ✓），
+     不再每行重复「06.25→07.14 · 38 天 · 收益率 …」的那一串拼接 ✗（竖向扫不齐）。
+     ⚠ 为什么不用真 <table>：容器 max-width 720，手机 375px 下 6 列真表格必然横向滚动
+       （本页没有横向滚动先例 ✗，layout-check 会红）；grid 定宽列 ＋ 段头一行列名，
+       观感与表格同、不溢出 ✓。
+     ⚠ 列数**不按场内/场外写死**，而是按「这一段的回款是不是都有读数」决定（`withCash` ✓）：
+       支付宝那 18 笔 App 不给回款 ✗ → 整列不出现（渲染成 18 个「—」只会稀释可信度 ✗）；
+       广发那 1 笔与场内 3 只有精确回款 ✓ → 多一列「回款」。
+     ⚠ 平台 / 场内外那两个 chip 已删 → 段头（支付宝 / 平安证券 / 广发基金 ＋ 场外 / 场内）已交代同一信息 ✓。 */
+  /* 列名带「日」：下面是日期，而同一张表还有「投入」，光写「买入」会被读成金额 ✗ */
+  const COLS = ["买入日", "卖出日", "持有天数", "投入", "收益率", "回款"];
+  const cellsOf = (r, withCash) => [
+    mdOf(r.buy) || "—",
+    mdOf(r.sell) || "—",
+    r.days === null ? "—" : String(r.days),
+    /* 场内投入＝Σ(买入金额＋单边费)，是**精确值** → 不挂「≈」（挂上是自降可信度 ✗）；
+       场外分两种：广发那块 App 直接给了「历史买入金额」＝精确 ✓（costExact）；
+       支付宝那 18 笔 App 不给、只能由「盈亏 ÷ 收益率」反推 → 必须挂 ≈ ✓ */
+    r.cost === null ? "—" : ((r.kind === "场内" || r.costExact) ? "" : "≈") + Math.round(r.cost).toLocaleString("en-US"),
+    typeof r.rate === "number" ? pct(r.rate) : "—",
+  ].concat(withCash ? [Number.isFinite(r.cash) ? Math.round(r.cash).toLocaleString("en-US") : "—"] : []);
+  const rowHtml = (r, withCash) => {
+    const cells = cellsOf(r, withCash);
+    return '<div class="closed-item"' + (r.sym ? ' data-sym="' + esc(r.sym) + '"' : "") + ">" +
+      '<div class="ci-head"><span class="ci-nm"><b>' + esc(r.name) + "</b>" +
         (r.held ? '<span class="c-code c-held" title="与在持的 ' + esc(r.held) + " 是**同一只基金的不同份额类别 / 不同账户**"
           + "（各自独立结算，勿合并成同一笔 ✗）—— 在持那一份见「场外净值水位」/「场内持仓」卡 ✓\">⇄ 在持同名</span>" : "") +
-        '<div class="c-meta">' + esc(meta.join(" · ")) + "</div></span>" +
-      '<span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>";
+        "</span>" +
+        '<span class="c-v ' + cls(r.pnl) + '">' + fmt2(r.pnl) + "</span></div>" +
+      '<div class="ci-cols cols' + cells.length + '">' +
+        cells.map((v) => '<span class="c-f">' + v + "</span>").join("") + "</div></div>";
+  };
+  /* 段内列名（每段一次，不逐行重复 ✓）：列数与 cellsOf 同源（都看 withCash ✓） */
+  const headHtml = (withCash) => {
+    const n = withCash ? 6 : 5;
+    return '<div class="closed-thead cols' + n + '">' +
+      COLS.slice(0, n).map((c) => "<span>" + c + "</span>").join("") + "</div>";
   };
   el.innerHTML =
     '<div class="closed-total" id="closed-all-total"><span>总清仓盈亏（' + rows.length + " 笔）" + qBtn + "</span><b class=\"" + cls(sAll) + '">' + fmt2(sAll) + "</b></div>" +
@@ -5031,19 +5089,33 @@ function renderClosed() {
           + '逐只：' + bt.items.map((x) => x.name + " " + fmt2(x.pnl)).join(" · ") + '"' : "")
         + '>' + fmt2(sIn) + '</b></div>' +
       '<div class="cb-row cb-sub"><span class="cb-k">场外 ' + otR.length + ' 笔</span><b class="cb-v ' + cls(sOt) + '" title="'
-        + esc(OTC_PLATFORM) + ' App「清仓分析」原读数（App 口径；本页推导那份＝上面「场内」之外的流水汇总）">' + fmt2(sOt) + '</b></div>' +
-      '<div class="cb-row cb-sub"><span class="cb-k">累计买入</span><b class="cb-v" title="Σ 每笔买入金额（同一笔钱买卖多次会重复计），不是本金 —— 本金见「本金与收益」卡。场外部分由「盈亏 ÷ 收益率」反推 ≈">'
+        + esc(otR.length + " 笔 ＝ " + OTC_PLATFORM + " " + (otR.filter((r) => r.platform === OTC_PLATFORM).length) + " 笔 " + fmt2(sumOf(otR.filter((r) => r.platform === OTC_PLATFORM)))
+          + " ＋ " + GF_PLATFORM + " " + (otR.filter((r) => r.platform === GF_PLATFORM).length) + " 笔 " + fmt2(sumOf(otR.filter((r) => r.platform === GF_PLATFORM)))
+          + "；两家都是 App 原读数，各自独立结算、无重复计入") + '">' + fmt2(sOt) + '</b></div>' +
+      '<div class="cb-row cb-sub"><span class="cb-k">累计买入</span><b class="cb-v" title="Σ 每笔买入金额（同一笔钱买卖多次会重复计），不是本金 —— 本金见「本金与收益」卡。'
+        + '支付宝那 18 笔由「盈亏 ÷ 收益率」反推 ≈；广发那 1 笔与场内 2 只是**精确值**（App 给了买入金额 / 由流水推导）">'
         + fmtYuan(cAll) + '</b></div>' +
     "</div>" +
-    '<details class="cb-agg"><summary>胜率与持有天数（场外 ' + otR.length + ' 笔 · 场内 ' + inR.length + ' 只）</summary>' +
+    /* 胜率与持有天数：**按平台分行**（2026-10-21 改）。
+       各平台的 App 只给自己的聚合值（支付宝 55.56% / 77 天、广发 0% / 119 天、平安 0% / 80.5 天），
+       跨平台**不能平均**（各平台笔数差 18 倍，算术平均没有意义 ✗）→ 一行一个平台，不做合计 ✓。
+       ⚠ `#closed-otc-agg` 这个 id 必须留着（dom-check ④b-2 逐值锚到 data.js 的 CLOSED ✓）。 */
+    '<details class="cb-agg"><summary>胜率与持有天数（场外 ' + otR.length + ' 笔 · 场内 ' + inR.length + ' 只 · 按平台）</summary>' +
       (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)
-        ? '<div class="cb-row"><span class="cb-k">场外</span><b class="cb-v" id="closed-otc-agg" data-winrate="' + CLOSED.winRate
+        ? '<div class="cb-row"><span class="cb-k">场外 · 支付宝</span><b class="cb-v" id="closed-otc-agg" data-winrate="' + CLOSED.winRate
           + '" data-hold="' + CLOSED.avgHoldDays + '" data-n="' + CLOSED.count + '" title="'
-          + esc("支付宝「清仓分析」原读数。单笔最大盈利 " + fmt2(Math.max.apply(null, CLOSED.items.map((x) => x.pnl)))
+          + esc("支付宝「清仓分析」原读数（" + CLOSED.count + " 笔）。单笔最大盈利 " + fmt2(Math.max.apply(null, CLOSED.items.map((x) => x.pnl)))
             + " · 最惨 " + fmt2(Math.min.apply(null, CLOSED.items.map((x) => x.pnl)))) + '">'
           + CLOSED.winRate + "% · " + CLOSED.avgHoldDays + " 天</b></div>" : "") +
+      (typeof CLOSED_GF !== "undefined" && CLOSED_GF && Array.isArray(CLOSED_GF.items) && CLOSED_GF.items.length
+        ? '<div class="cb-row"><span class="cb-k">场外 · 广发基金</span><b class="cb-v" id="closed-gf-agg" data-winrate="' + CLOSED_GF.winRate
+          + '" data-hold="' + CLOSED_GF.avgHoldDays + '" data-n="' + CLOSED_GF.count + '" title="'
+          + esc("广发基金「清仓记录详情」原读数（" + CLOSED_GF.count + " 笔）："
+            + CLOSED_GF.items.map((x) => x.name + " " + fmt2(x.pnl) + " / " + pct(x.rate)).join(" · ")
+            + "。⚠ 只有 1 笔时胜率 0% 是「样本量＝1」的结果，别读成「这个平台从不赚钱」✗") + '">'
+          + CLOSED_GF.winRate + "% · " + CLOSED_GF.avgHoldDays + " 天</b></div>" : "") +
       (bt
-        ? '<div class="cb-row"><span class="cb-k">场内</span><b class="cb-v" id="closed-etf-agg" data-winrate="' + bt.winRate
+        ? '<div class="cb-row"><span class="cb-k">场内 · ' + ETF_PLATFORM + '</span><b class="cb-v" id="closed-etf-agg" data-winrate="' + bt.winRate
           + '" data-hold="' + bt.avgHoldDays + '" data-maxloss="' + bt.maxLoss + '" data-avgwin="' + bt.avgWin + '" title="'
           + esc("平安「已清仓股票 · 近三月」原读数（" + bt.source + "）。平均盈利 "
             + (bt.avgWin ? fmt2(bt.avgWin) : "—（无盈利笔）") + " · 平均亏损 " + fmt2(bt.avgLoss) + " · 单笔最大亏损 " + fmt2(bt.maxLoss)) + '">'
@@ -5057,12 +5129,16 @@ function renderClosed() {
     '<details class="closed-all"><summary>全部明细 ' + rows.length + " 笔（按平台分段 · 段内按清仓日倒序）</summary>" +
       plats.map((g) => {
         const members = rows.filter((r) => r.platform === g.p);
+        /* 「回款」这一列整段一起出现/消失 —— 只要该段有一行没有读数，那一格就是「—」，
+           与其摆一排「—」不如整列不出现（诚实性由段头来源说明承担 ✓） */
+        const withCash = members.every((m) => Number.isFinite(m.cash));
         return '<div class="closed-row closed-sec" data-sec="' + esc(g.p) + '" data-sec-sum="' + g.s.toFixed(2)
             + '" data-sec-n="' + g.n + '"><span class="c-nm"><b>' + esc(g.p) + "</b>" +
             '<span class="c-code">' + esc(g.kind) + "</span>" +
             '<span class="c-code">' + g.n + " 笔</span>" +
             '<div class="c-meta">' + esc(secSrc(g.p)) + "</div></span>" +
             '<span class="c-v ' + cls(g.s) + '">' + fmt2(g.s) + "</span></div>" +
+          headHtml(withCash) +
           /* 大额展开、小额折叠（2026-10-20 用户选 A）：
              20 笔里前两笔（中韩 −13,217 / 港美 −5,275）占总亏损 91%，
              其余 17 笔单笔都在 ±600 元内，平铺只是把主线稀释掉。 */
@@ -5070,8 +5146,10 @@ function renderClosed() {
             const big = members.filter((m) => Math.abs(m.pnl) >= 1000);
             const small = members.filter((m) => Math.abs(m.pnl) < 1000);
             const sum = small.reduce((a, m) => a + m.pnl, 0);
-            return big.map(rowHtml).join("") +
-              (small.length ? '<details class="closed-small"><summary>其他 ' + small.length + " 笔小额（合计 " + fmt2(sum) + "）</summary>" + small.map(rowHtml).join("") + "</details>" : "");
+            /* ⚠ 必须写成 `(m) => rowHtml(m, withCash)`：直接 `map(rowHtml)` 会把**下标**当第二个实参
+               传进去（withCash 变成 0/1/2…），第一行少一列、后面几行多一列 ✗ */
+            return big.map((m) => rowHtml(m, withCash)).join("") +
+              (small.length ? '<details class="closed-small"><summary>其他 ' + small.length + " 笔小额（合计 " + fmt2(sum) + "）</summary>" + small.map((m) => rowHtml(m, withCash)).join("") + "</details>" : "");
           })();
       }).join("") + "</details>" +
     qNote;
