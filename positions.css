@@ -280,11 +280,24 @@
   .pl-row + .pl-row { border-top: 1px dashed var(--line-soft); }   /* 行分隔用细虚线：够分辨，又不与数值争视线 */
   .pl-row:hover .pl-nm { color: var(--blue); }
   .pl-row[aria-disabled="true"] { cursor: default; }
-  /* 能跳转的行带一个 → 尾巴；无目标行（场外无明细卡）自然不显示 */
-  .pl-row[data-sel] .pl-nm::after { content: " →"; opacity: .45; font-family: var(--mono); font-size: var(--fs-xxs); }
+  /* ⚠ 2026-10-21 删掉名称尾巴上的「 →」（用户：那几个箭头很突兀 ✗）。
+     突兀的根因不是箭头本身，而是**只有 3 行有**（场内有明细卡可跳，场外没有）——
+     同一列里 3 个箭头、8 个空位，读起来像排版事故 ✗。而且它跟着名称一起流动，
+     长名被 ellipsis 截断时箭头还会被吃掉 ✗。
+     → 改成**只在悬停时**给可跳转行一个下划虚线（桌面能发现、移动端本来也没 hover 可点提示 ✓）；
+       语义仍由 aria-label 承担（屏幕阅读器照旧读出「定位某卡」✓）。 */
+  .pl-row[data-sel]:hover .pl-nm, .pl-row[data-sel]:focus-visible .pl-nm {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--blue) 55%, transparent);
+  }
   .pl-top, .pl-sub { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
-  .pl-nm { font-size: var(--fs-md); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pl-amt { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; }
+  /* 逐只盈亏明细（2026-10-21 用户要求：**不加粗、再小一号** ✓）——
+     原来名称 13px/600、金额 13px/700，与组头（.pl-sec 700）抢视线，11 行铺下来一片黑 ✗。
+     现在 12px/400 两列都退到「细节层」：强调交给 组头 + 涨跌色（金额仍按 up/down 上色 ✓），
+     字重不再叠加第二重强调 ✓。⚠ 小计行（.pl-row-cleared）不吃这条，见下方覆盖 */
+  .pl-nm { font-size: var(--fs-sm); font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl-amt { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 400; font-feature-settings: "tnum"; white-space: nowrap; }
   .pl-sub { margin-top: 3px; }
   /* 第二行回到**两段**（来源 ｜ 本金+收益率）。
      ⚠ 2026-09-27 两轮调整的来龙去脉：
@@ -313,7 +326,11 @@
   /* 金额**不涂灰** ✗ —— up/down 的绿红必须留住（一眼看出赚亏）；"次级感"改由降透明度承担 ✓
      另一处小心：.pl-base 默认 nowrap 且不可收缩，窄屏两段并排时会顶破卡片 →
      只在这一行允许它省略号收尾 ✓（不动上面 11 行的既有排布 ✓） */
+  /* 清仓累计已实现＝**小计行**，不是逐只明细 → 明细降档时它保留原来的字号/字重
+     （2026-10-21：不然「11 行明细 12px ＋ 一行小计也 12px」会把卡片唯一的层级锚点抹掉 ✗） */
   .pl-row-cleared { opacity: .85; }
+  .pl-row-cleared .pl-nm { font-size: var(--fs-md); font-weight: 600; }
+  .pl-row-cleared .pl-amt { font-size: var(--fs-md); font-weight: 700; }
   .pl-row-cleared .pl-base { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   /* ===== 快照对比日志 =====
@@ -1494,9 +1511,9 @@
     .sum-grid { grid-template-columns: repeat(2, 1fr); }   /* 末格跨 2 列＝整行，见 .sum-grid .sum-cell:last-child */
     .sum-cell { padding: 8px 4px; }
     .sum-cell .s-val { font-size: var(--fs-md); }
-    /* 2026-10-20：这里原来只降了名称，忘了金额 → 手机上「名称 12 / 金额 13」两号并存，
-       用户看出「明细里的字比别处大」。金额同步降到 --fs-sm，靠 700 字重维持强调。 */
-    .pl-nm, .pl-amt { font-size: var(--fs-sm); }
+    /* ⚠ 2026-10-21 起本条**已删**：明细本身（.pl-nm / .pl-amt）在基础样式里就统一成 12px/400 了 ✓，
+       这里再写一份就是「同值不同源」✗（同一档字号两处维护，改一处必漂）。
+       小计行 .pl-row-cleared 在窄屏仍是 13px —— 它靠选择器特异性（0,2,0 > 0,1,0）保住，不靠这条 ✓ */
     .snap-line { grid-template-columns: 58px 1fr; }   /* 窄屏收紧标签列，保住内容列宽度 */
     .snap-part { grid-template-columns: 58px 1fr auto; }   /* 与 .snap-line 同步收窄，保持一致 */
     /* 本金与收益三格条：窄屏每格只剩 ~106px，把内边距与运算符列收紧，保住数值列（最长 7 字符 ≈ 55px） */
