@@ -1411,6 +1411,29 @@
   /* 明细行的元信息（持有区间 · 天数 · 收益率 · 投入 ≈ · 清仓后）：比正文小一号、等宽数字，便于竖着扫 */
   .closed-row .c-meta { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-top: 2px; font-feature-settings: "tnum"; }
   .closed-row .c-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
+  /* 清仓明细·表格化（2026-10-21 试验 · 分支 feat/closed-table）：
+     段内每一笔 = 两行式 block —— ①名称/清仓盈亏 ②5~6 个等宽指标列；
+     列名只在段头出现一次（.closed-thead），数字走等宽 + tnum 才竖着对齐 ✓。
+     字号沿用全页数据表的共用档（--chk-fs / --chk-fs-mini，与 .chk-tbl / .xr-tbl 同源 ✓），
+     不新开第二套表格字号 ✗。
+     ⚠ 日期两列左对齐、数值各列右对齐（表头同规则）—— 表格里「数量的位数差」靠右对齐才看得出来 ✓ */
+  .closed-item { padding: 5px 0 6px; border-bottom: 1px solid var(--line-soft); }
+  .closed-item:last-of-type { border-bottom: 0; }
+  .closed-item .ci-head { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; font-size: var(--fs-sm); }
+  .closed-item .ci-nm { min-width: 0; }
+  .closed-item .ci-nm b { font-weight: 600; color: var(--tx2); }
+  .closed-item .c-code { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-left: 6px; }
+  .closed-item .c-v { font-family: var(--mono); font-weight: 700; text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
+  .closed-thead, .closed-item .ci-cols { display: grid; gap: 3px 6px; }
+  .closed-thead.cols5, .closed-item .ci-cols.cols5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .closed-thead.cols6, .closed-item .ci-cols.cols6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .closed-thead { margin-top: 5px; padding-bottom: 2px; border-bottom: 1px dashed var(--line-soft);
+    font-size: var(--chk-fs-mini); color: var(--tx3); }
+  .closed-item .ci-cols { margin-top: 2px; font-family: var(--mono); font-size: var(--chk-fs);
+    color: var(--tx3); font-feature-settings: "tnum"; }
+  /* 日期（第 1/2 列）左对齐，其余列右对齐 —— 表头与数据同一套规则 ✓ */
+  .closed-thead > span:nth-child(n+3), .closed-item .ci-cols .c-f:nth-child(n+3) { text-align: right; }
+  .closed-item .ci-cols .c-f { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .closed-total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 7px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-sm); }
   .closed-total b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
   /* 清仓结论：左侧细条作锚点（与快照卡的 .lead 同一手法，不铺底色块） */
