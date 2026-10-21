@@ -7110,6 +7110,19 @@ function logItemHtml(e, hideSym, pair) {
         ' 元（**毛额、不含费** —— 与月小计同口径 ✓）；含费的实际扣款见本行「成本价」那栏（带 ≈ 表示费用为估算 ✓）">≈' + fmtAbs2(e.qty * e.cost) + " 元</b>" : "") +
       (cutPct === null ? "" : ' <i class="log-cut" title="减仓幅度：本次卖出 ' + fmtQty(e.qty) + " 份 ÷ 操作前 " + fmtQty(t.qtyBefore) + " 份\">−" + cutPct.toFixed(1) + "%</i>") +
       "</span>" +
+    /* 当日区间的极简刻度（2026-10-21 加，B 方案）：一条 3px 细轨 ＝ 当日最低→最高，圆点 ＝ 这笔的位置。
+       为什么只给**图、不给数**：这个数不能和溢价并排（单笔位置的量级远小于溢价 ✗，见 RANGE_LOG 注释），
+       但"这笔大概在当天什么位置"用眼睛扫一下就知道，不占文字宽度、也不会被误读成另一个盈亏数字 ✓。
+       位置只进 title。⚠ 与体检卡上方那行汇总共用 RANGE_LOG —— 两处同源，不会漂 ✓。 */
+    (() => {
+      const rg = ((typeof RANGE_LOG !== "undefined" && RANGE_LOG && RANGE_LOG.items && RANGE_LOG.items[e.sym]) || {})[e.d];
+      if (!Array.isArray(rg) || !(rg[1] > rg[0]) || !Number.isFinite(+e.cost)) return "";
+      const p = Math.max(0, Math.min(100, ((+e.cost - rg[0]) / (rg[1] - rg[0])) * 100));
+      return '<span class="log-range" title="当日区间 ' + rg[0].toFixed(3) + " ~ " + rg[1].toFixed(3) + " 元（最低→最高）；"
+        + "这笔在 " + Math.round(p) + "% 位（越靠右＝越接近当日最高）。"
+        + "⚠ 与「溢价」不是一回事：溢价是相对**净值**、这边是相对**当天自己的波动区间**。" + '">'
+        + '<i class="lr-tr"><b class="lr-dot" style="left:' + p.toFixed(1) + '%"></b></i></span>';
+    })() +
     costChip +
     /* 成交时溢价（2026-10-20 加）：成交价 ÷ 当日单位净值 − 1。
        「这笔买贵了还是买便宜了」在流水里原本完全看不出来 —— 纳指ETF广发从 6-23 的 +8.8%
@@ -7296,6 +7309,60 @@ function opCheckupBrief(p) {
     + " " + (d.gap === null ? "—" : fmtPp(Math.round(d.gap) / 100, 0))
     + " · 调仓 " + swing + "</span>";
 }
+/* ---- 成交位置（2026-10-21 加，用户问「逐笔能更精确到当日低~高的位置吗」→ 选 A：只做汇总）----
+ * 为什么**不**逐笔显示（结论，别"优化"回去 ✗）：单笔落在当日振幅的哪一段，量级远小于**溢价**
+ *   （10-21 那笔买在当日 5% 位＝极好的执行，可同一只的溢价是 +15.9%）—— 行内多一个这样的数，
+ *   只会把注意力从真正拖累收益的那个量上引开 ✗。有价值的是**模式**：是不是习惯性追高。
+ * 覆盖**全部 5 只场内**（含已清仓的港美 / 中韩）—— 它们的持仓卡已经没了，但成交记录仍在流水里 ✓。
+ * 口径：位置 ≡ (成交价 − 当日最低) ÷ (最高 − 最低)，[0,100]%；
+ *   数据是 data.js 的 RANGE_LOG（腾讯前复权日K 的高低，**比例**对复权不敏感 ✓）。
+ * ⚠ 找不到当日K / 一字板的笔**不参与统计**（不补 0、不补 50 ✗），覆盖数在 title 里交代。 */
+function tradeRangeStats() {
+  const tbl = (typeof RANGE_LOG !== "undefined" && RANGE_LOG && RANGE_LOG.items) || {};
+  const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
+  const medOf = (arr) => {
+    const s = arr.slice().sort((a, b) => a - b), n = s.length;
+    return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+  };
+  const rows = [];
+  let skipped = 0;
+  log.forEach((e) => {
+    if (!e.sym || isSellAct(e.act) || !Number.isFinite(+e.cost)) return;
+    const rg = (tbl[e.sym] || {})[e.d];
+    if (!Array.isArray(rg) || !(rg[1] > rg[0])) { skipped++; return; }
+    rows.push({ sym: e.sym, p: Math.max(0, Math.min(100, ((+e.cost - rg[0]) / (rg[1] - rg[0])) * 100)) });
+  });
+  if (!rows.length) return null;
+  const by = {};
+  rows.forEach((r) => { (by[r.sym] = by[r.sym] || []).push(r.p); });
+  return {
+    n: rows.length, skipped: skipped, med: medOf(rows.map((r) => r.p)),
+    low: rows.filter((r) => r.p < 50).length,
+    high: rows.filter((r) => r.p > 50).length,
+    by: Object.keys(by).map((k) => ({ sym: k, n: by[k].length, med: medOf(by[k]) })),
+    asOf: (RANGE_LOG && RANGE_LOG.asOf) || null,
+  };
+}
+function chkRangeHtml() {
+  const s = tradeRangeStats();
+  if (!s) return "";
+  const zero = s.n - s.low - s.high;
+  const tip = "位置 ＝ (成交价 − 当日最低) ÷ (当日最高 − 当日最低)；50% ＝ 当日振幅正中。"
+    + "数据：腾讯前复权日K的当日高低（比例对复权不敏感 ✓），逐日见 data.js 的 RANGE_LOG（截至 " + (s.asOf || "—") + "）。"
+    + "\n逐只买入中位数：" + s.by.map((x) => x.sym + " " + Math.round(x.med) + "%（" + x.n + " 笔）").join(" · ")
+    + "\n⚠ 只统计**买入**（卖出是「卖在什么位置」，与「是否追高」不是同一个问题，另说）。"
+    + (s.skipped ? "\n⚠ 有 " + s.skipped + " 笔买入查不到当日K（休市 / 一字板），未计入。" : "\n覆盖全部 " + s.n + " 笔买入 ✓")
+    + "\n⚠ 单笔位置的量级远小于溢价（10-21 那笔买在 5% 位、而溢价 +15.9%）→ 这里只给分布，不看单笔。";
+  return '<div class="chk-range" id="chk-range" title="' + esc(tip) + '">' +
+    '<span class="tr-k">成交位置</span>' +
+    '<b class="tr-v" id="chk-range-med" data-med="' + s.med.toFixed(1) + '" data-n="' + s.n + '">中位数 ' + Math.round(s.med) + '%</b>' +
+    /* 三段齐全：下半区 / 上半区 / 正中（恰好 50% 的笔两边都不算）——
+       漏印「正中」时 41 + 18 ≠ 62，读者会以为掉了 3 笔 ✗ */
+    '<span class="tr-n">' + s.n + " 笔买入 · " + s.low + " 笔下半区" +
+      (s.high ? " · " + s.high + " 笔上半区" : "") +
+      (zero ? " · " + zero + " 笔正中" : "") + "</span>" +
+  "</div>";
+}
 /* 操作体检表（2026-09-27）：把原先嵌在持仓卡 / 盈亏总览行里的体检**集中到一张表**（用户要求「单独做一块」）。
    数据全部来自 opCheckup() —— 与之前那两处同一套计算，不新增任何口径。
    排序：按最弱档位（D → C → B → A，"—" 视为无），同档按现值降序 —— 需要看的排前面。
@@ -7363,7 +7430,10 @@ function renderCheckup() {
   /* ⚠ 窄屏默认收起（2026-10-12）：体检表是 13 行 × 5 列，380px 下默认展开会把整页拉得很长 ✗
      → 包一层 details（复用 .rebound 的观感与「展开 ▾ / 收起 ▴」提示）；
      open 状态由 applyAutoFold() 按屏宽决定（≥481px 默认展开，保持桌面原有观感）。 */
-  box.innerHTML = '<details class="rebound chk-fold auto-fold"><summary>操作体检表 · ' + data.length
+  /* 成交位置汇总放在表**上方**（2026-10-21）：体检表本身在窄屏是默认折叠的 ✓，
+     这条不进表、不进 details —— 它是"一句话结论"，与表格的"逐只明细"分属两层 ✓ */
+  box.innerHTML = chkRangeHtml() +
+    '<details class="rebound chk-fold auto-fold"><summary>操作体检表 · ' + data.length
     + ' 只（成本位 vs 现价位）<span class="rebound-cnt">越差的越靠前 · 只描述已发生的操作</span></summary>'
     + '<table class="chk-tbl"><thead><tr><th class="c-nm">标的</th>'
     + '<th title="成本位 → 现价位（都是该标的 52 周区间里的分位）。相减即为原来的 pp 值：箭头向右 = 现价比成本更靠区间上部（摊薄成功 / 已浮盈），向左 = 套牢。与市场涨跌无关">成本</th>'

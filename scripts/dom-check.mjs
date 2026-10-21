@@ -2240,6 +2240,65 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     chkFold ? "open=" + chkFold.open + " · 行数 " + chkFold.querySelectorAll("tbody tr").length : "体检表没有包成 details.chk-fold ✗");
 }
 
+/* ⑤a-3 成交位置汇总（2026-10-21 加）：体检卡上方那行「中位数 X%（N 笔买入）」。
+   它是**账户级**的成交习惯指标（覆盖 5 只含已清仓），由 RANGE_LOG（腾讯日K高/低）＋ POSITIONS.log 算出 ——
+   两处都可能漂：数据块换了源 / 页面把「买入」错写成全部流水 / 中位数算法（奇数取中、偶数取均值）被改 ✗。
+   所以这里**独立复算**：读 data.js 的两个块，按同一口径算一遍，逐值比对（不读页面的中间量 ✓）。 */
+{
+  const SRC = readFileSync(path.join(root, "data.js"), "utf8");
+  const pick = (name) => {
+    const m = SRC.match(new RegExp("^const " + name + " = \\{[\\s\\S]*?^\\};", "m"));
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = " + name + ";", c, { timeout: 3000 }); return c.o;
+  };
+  const POSX = pick("POSITIONS"), RGX = pick("RANGE_LOG");
+  const sell = (a) => /卖出|减仓|清仓/.test(String(a || ""));
+  const ps = [];
+  let wantN = 0, allBuys = 0;
+  ((POSX && POSX.log) || []).forEach((e) => {
+    if (!e.sym || sell(e.act) || !Number.isFinite(+e.cost)) return;
+    allBuys++;
+    const rg = ((RGX && RGX.items) || {})[e.sym] && RGX.items[e.sym][e.d];
+    if (!Array.isArray(rg) || !(rg[1] > rg[0])) return;
+    ps.push(Math.max(0, Math.min(100, ((+e.cost - rg[0]) / (rg[1] - rg[0])) * 100)));
+    wantN++;
+  });
+  ps.sort((a, b) => a - b);
+  const wantMed = ps.length ? (ps.length % 2 ? ps[(ps.length - 1) / 2] : (ps[ps.length / 2 - 1] + ps[ps.length / 2]) / 2) : null;
+  const el = win.document.getElementById("chk-range-med");
+  const gotMed = el ? Number(el.getAttribute("data-med")) : NaN;
+  const gotN = el ? Number(el.getAttribute("data-n")) : NaN;
+  check("体检卡「成交位置」：中位数 " + (wantMed === null ? "—" : Math.round(wantMed) + "%") + "（" + wantN + " 笔买入）≡ 独立复算",
+    !!el && Number.isFinite(gotMed) && Math.abs(gotMed - wantMed) < 0.15 && gotN === wantN,
+    el ? "页面 data-med=" + gotMed + " data-n=" + gotN + " · 显示「" + el.textContent.replace(/\s+/g, " ") + "」 vs 复算 " + (wantMed === null ? "—" : wantMed.toFixed(1)) + " / " + wantN + " 笔"
+      : "体检卡上方没有 #chk-range-med ✗（成交位置那行没渲染）");
+  /* 「下半区」那几个数与笔数必须自洽：下半区 + 上半区 ≤ 总数（正中那几笔两边都不算 ✓），
+     并顺手守**覆盖率**：每笔买入都该在 RANGE_LOG 里找到当日K（缺＝脚本没跑 → 这里红，别让页面静默少算 ✗） */
+  const rangeEl = win.document.getElementById("chk-range");
+  const rtxt = rangeEl ? rangeEl.textContent.replace(/\s+/g, "") : "";
+  const lowN = (rtxt.match(/(\d+)笔下半区/) || [])[1];
+  check("体检卡「成交位置」：覆盖 " + wantN + "/" + allBuys + " 笔买入 · 下半区 " + ps.filter((p) => p < 50).length + " 笔（复算）",
+    !!rangeEl && wantN === allBuys && Number(lowN) === ps.filter((p) => p < 50).length,
+    rangeEl ? "页面：下半区 " + lowN + " / 总 " + wantN + " · 复算：下半区 " + ps.filter((p) => p < 50).length + " / 总 " + allBuys +
+      (wantN === allBuys ? "" : " → 有 " + (allBuys - wantN) + " 笔缺当日K，跑 scripts/fetch-trade-range.mjs ✓") : "没有 #chk-range ✗");
+}
+
+/* ⑤a-4 逐笔流水的「当日区间刻度」（2026-10-21 加，B 方案）：每行一条 34×4 细轨 + 一个圆点。
+   它**不写数字**（位置只在 title 里 ✓），所以页面出错时不会有任何文字对不上 —— 只能靠这条守：
+   圆点数必须 > 0 且 ≤ 流水行数（多出来＝重复挂/挂错行 ✗），且每个 left% 都落在 0~100（
+   溢出＝坐标算错，jsdom 里看不出，但真机上圆点会跑到轨道外 ✗）。 */
+{
+  const items = win.document.querySelectorAll("#pos-list .log-item").length;
+  const dots = [...win.document.querySelectorAll(".log-item .lr-dot")];
+  const bad = dots.map((d) => d.style.left).filter((v) => {
+    const n = parseFloat(v);
+    return !Number.isFinite(n) || n < 0 || n > 100;
+  });
+  check("逐笔流水「当日区间」刻度：" + dots.length + " 个圆点（流水 " + items + " 行）· left% 全部合法",
+    dots.length > 0 && dots.length <= items && bad.length === 0,
+    bad.length ? "非法坐标：" + bad.slice(0, 4).join(" / ") : dots.length + " / " + items + " 行带刻度（其余行那天没取到 K 或是一字板）");
+}
+
 /* ⑥ 决策看板 index.html（2026-10-12 第二批加）─────────────────────────────────────
    为什么现在补：它是**主决策出口** ✓，此前却是四页里唯一**零渲染断言**的一页 ✗ ——
    check-data 只验文件里的数据自洽、cross-check 只验跨文件同源，都看不见「渲染出来的数」✗

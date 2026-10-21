@@ -1002,6 +1002,16 @@
      「调仓 / 顺T」那几行确实按符号上色，两种规则并存更难分辨）。现在行尾加方向符号：
        **↓ 成本被摊薄（绿）· ↑ 成本被抬高（红）** —— 方向由箭头直说、颜色只作辅助。
      「波段复盘」的 Δ成本 列同语义，已同步加箭头。 */
+  /* 当日区间刻度（2026-10-21 加，B 方案）：3px 细轨 ＝ 当日最低→最高，小圆点 ＝ 这笔成交价的位置。
+     刻意**不写数字**：位置与溢价不是同一个量级（前者常在 ±1% 内、后者动辄 10%+），
+     写出来会与盈亏数字争读；让它可以"扫一眼"即可，具体百分比在 title 里 ✓。
+     尺寸压到 30×3：比任何 chip 都轻，不参与换行决策（跟着份数/金额那一簇走 ✓）。 */
+  .log-item .log-range { flex: 0 0 auto; display: inline-flex; align-items: center; padding: 0 1px; cursor: help; }
+  /* 轨道必须**看得见**（第一版用 --line-soft + 3px，实测在卡片底上几乎隐形，只剩一个孤零零的圆点 ✗）
+     → 压到 --line、4px；圆点提到 --tx 并留一圈卡片色描边，位置才读得出来 ✓ */
+  .lr-tr { position: relative; display: block; width: 34px; height: 4px; border-radius: 2px; background: var(--line); }
+  .lr-dot { position: absolute; top: 50%; width: 7px; height: 7px; border-radius: 50%;
+    transform: translate(-50%, -50%); background: var(--tx); box-shadow: 0 0 0 1.5px var(--card); }
   .log-cost { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; cursor: help; }
   .log-cost b { font-weight: 700; }
   /* 卖出行的「减仓幅度」（2026-09-25 方案 B）：紧跟份数显示，读作「卖了 3,000 份（−58.8%）」。
@@ -1072,6 +1082,15 @@
   .chk-tbl b.oc-d { color: var(--red); }
   .chk-tbl b.oc-na { color: var(--tx3); font-weight: 400; }
   .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
+  /* 成交位置汇总（2026-10-21 加）：一行三段（标签 / 中位数 / 笔数分布）。
+     放在体检表**上方**、表在窄屏默认折叠 → 这句始终可见，承担"一句话结论"的角色 ✓。
+     ⚠ 不做成表格行：它不是某一只的指标，是**账户级**的成交习惯（覆盖 5 只含已清仓）✓ */
+  .chk-range { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    margin: 0 0 9px; padding-bottom: 8px; border-bottom: 1px dashed var(--line-soft); font-size: var(--fs-xs); }
+  .chk-range .tr-k { color: var(--tx3); white-space: nowrap; }
+  .chk-range .tr-v { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700;
+    color: var(--tx2); font-feature-settings: "tnum"; white-space: nowrap; }
+  .chk-range .tr-n { color: var(--tx3); white-space: nowrap; }
   /* 「数据不全」标记（2026-09-27 加）：3 项里有的"不适用/无记录"时给个 ⓘ ——
      这类行的档位来自更少的证据，但排序照旧（数据少不等于操作好），只提示、不降级。 */
   .chk-tbl .chk-partial { margin-left: 4px; color: var(--tx3); font-size: var(--chk-fs-mini); cursor: help; vertical-align: 1px; }
