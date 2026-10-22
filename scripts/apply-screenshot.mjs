@@ -79,7 +79,12 @@ const errors = [];
 const earlyTips = [];
 if (!isDate(input.date)) errors.push("date 缺失或格式不对");
 if (!Number.isFinite(input.cash)) errors.push("cash 缺失（各渠道可用资金合计）");
-if (!input.otc?.length) errors.push("otc 为空（至少要有一只场外读数）");
+/* ⚠ 2026-10-22 放宽：`--allow-partial` 下**允许一只场外读数都没有** —— 那天只发了场内截图
+   （平安持仓 ＋ 对账单），6 只场外全按上一期沿用、`day` 记 null，页面照实标「6 只未更新」✓。
+   原来的 `!otc.length` 硬拒会逼出两条歪路：伪造一只的读数 ✗、或干脆不落期（那 OTC 里的持仓
+   构成就与快照脱节，池子里一堆断言全红 ✗）—— 与 upd / day 那两条放宽同一个道理。 */
+if (!input.otc?.length && !ALLOW_PARTIAL)
+  errors.push("otc 为空（至少要有一只场外读数；若本期确实没发场外截图，加 --allow-partial 让它们全部沿用上一期）");
 for (const f of input.otc || []) {
   if (!/^\d{6}$/.test(f.code || "")) errors.push("otc.code 非法：" + f.code);
   /* ⚠ day 允许 **null**（2026-10-16 修）：那是「该净值日未更新」的**合法状态**，见 positions-data.js 的字段约定
@@ -374,7 +379,10 @@ for (const f of input.otc) {
   posSrc = posSrc.slice(0, at) + out + posSrc.slice(at + seg.length);
 }
 /* 快照：追加一期（含自动生成的注释合计） */
-const noteHead = "⚠ 本页" + (missing.length ? "仅 " + input.otc.length + "/" + otcNow.funds.length + " 只（其余沿用旧值）" : input.otc.length + "/" + otcNow.funds.length + " 全覆盖") +
+const noteHead = "⚠ 本页" + (!input.otc.length
+  ? "场外 **0/" + otcNow.funds.length + " 只**（本期没有场外截图，全部沿用上一期 ✓）"
+  : missing.length ? "仅 " + input.otc.length + "/" + otcNow.funds.length + " 只（其余沿用旧值）"
+  : input.otc.length + "/" + otcNow.funds.length + " 全覆盖") +
   "；总资产 " + num(r2(totalVal + input.cash), 2) + " = 场内 " + num(inVal, 2) + " + 场外 " + num(otcVal, 2) + " + 现金 " + num(input.cash, 2) +
   "；累计浮盈亏 " + num(pl, 2) + "；当日 " + num(day, 2) + "（场内 " + num(dayIn, 2) + " + 场外 " + num(dayOtc, 2) + "）" +
   /* ⚠ 2026-10-21 修：原来无论 flow 是怎么来的，都印成「= Δ成本 ＋ Δ现金」✗ ——
@@ -410,7 +418,14 @@ if (!WRITE) { console.log("\n（干跑：未写盘。确认无误后加 --write 
 
 const backup = { data: dataSrc0, pos: posSrc0 };
 writeFileSync(DATA_PATH, dataSrc); writeFileSync(POSDATA_PATH, posSrc);
-const tryRun = (file, args) => { try { execFileSync("node", [file, ...args], { stdio: "pipe" }); return null; } catch (e) { return String(e.stdout || "") + String(e.stderr || ""); } };
+/* ⚠ APPLY_SCREENSHOT=1：告诉 dom-check「这是录入器刚写完、门禁马上要跑的中间态」——
+   它只用来放行 RANGE_LOG 的**覆盖率**那一条（新流水刚进 log，当日K还没抓，必然缺几个日期 ✗）。
+   2026-10-22 实测：不放行就是「写完 → 门禁红 → 回滚」的死锁，新交易永远录不进去 ✗。
+   其余断言（含中位数那条）不受影响 ✓ —— 不把它做成「全量跳过」。 */
+const tryRun = (file, args) => {
+  try { execFileSync("node", [file, ...args], { stdio: "pipe", env: { ...process.env, APPLY_SCREENSHOT: "1" } }); return null; }
+  catch (e) { return String(e.stdout || "") + String(e.stderr || ""); }
+};
 /* ⚠ 2026-10-16 修「失败信息读不出来」：原来按**行内是否含 ✗**筛失败行 ——
    但这个项目的断言描述里**一半本身就带 ✗**（例如「…不再重述来源与推导 ✗」是一条**通过**的断言）✗，
    于是前 6 行全被这类 ✓ 行占满、真正的失败被挤出 slice(0,6) ✗✗。实测为此要把整份仓库复制到别处、

@@ -2277,10 +2277,17 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   const rangeEl = win.document.getElementById("chk-range");
   const rtxt = rangeEl ? rangeEl.textContent.replace(/\s+/g, "") : "";
   const lowN = (rtxt.match(/(\d+)笔下半区/) || [])[1];
+  /* ⚠ 覆盖率这一条会被 apply-screenshot 的**内建门禁**跳过（APPLY_SCREENSHOT=1）：
+     录入器刚把新流水写进 data.js，RANGE_LOG 必然还缺那几个新日期 —— 若这里直接判红，
+     录入器就「先写→门禁红→回滚」死锁，永远录不进新交易 ✗（2026-10-22 实测踩到）。
+     → 只在这一步放行，并把这件事**打在 detail 里**（不静默）；`verify-all` / pre-commit 照旧红，
+       提醒仍然有效，只是不再卡住数据录入本身 ✓。中位数那条**不放行**（它与覆盖率无关）。 */
+  const skipCoverage = process.env.APPLY_SCREENSHOT === "1";
   check("体检卡「成交位置」：覆盖 " + wantN + "/" + allBuys + " 笔买入 · 下半区 " + ps.filter((p) => p < 50).length + " 笔（复算）",
-    !!rangeEl && wantN === allBuys && Number(lowN) === ps.filter((p) => p < 50).length,
+    !!rangeEl && (wantN === allBuys || skipCoverage) && Number(lowN) === ps.filter((p) => p < 50).length,
     rangeEl ? "页面：下半区 " + lowN + " / 总 " + wantN + " · 复算：下半区 " + ps.filter((p) => p < 50).length + " / 总 " + allBuys +
-      (wantN === allBuys ? "" : " → 有 " + (allBuys - wantN) + " 笔缺当日K，跑 scripts/fetch-trade-range.mjs ✓") : "没有 #chk-range ✗");
+      (wantN === allBuys ? "" : " → 有 " + (allBuys - wantN) + " 笔缺当日K，跑 scripts/fetch-trade-range.mjs ✓"
+        + (skipCoverage ? "（本次由录入器内建门禁跳过 —— 新流水刚写进来，RANGE_LOG 必然还没跟上 ✓）" : "")) : "没有 #chk-range ✗");
 }
 
 /* ⑤a-4 逐笔流水的「当日区间刻度」（2026-10-21 加，B 方案）：每行一条 34×4 细轨 + 一个圆点。
