@@ -1275,11 +1275,14 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
         nCol2 > 1 && bad2.length === 0, bad2.length ? "对不上：" + bad2.join("、") : "逐行一致 ✓");
     });
     const bodySum = rows.reduce((a, tr) => a + (numOf(tr.querySelector(".mx-sum")) || 0), 0);
-    /* 容差 2 → 3（2026-10-20）：每期「本期盈亏」都是**整元取整**后进矩阵的，
-       20 期累积下来 2~3 元属正常；2 会在补入新一期后偶尔误报（实测差 3.00）。 */
-    check("盈亏归因「全期」行 ＝ Σ 各行 " + money(bodySum),
-      Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= 3,
-      "全期 " + footSum + " vs Σ各行 " + bodySum.toFixed(2));
+    /* 容差 2 → 3（2026-10-20）→ **随期数**（2026-10-23）：每期「本期盈亏」都是**整元取整**后进矩阵的，
+       误差是**逐期累加**的随机游走 —— 20 期时 2~3 元够用，30 期时实测出现 4.00 ✗（10-23 补完场外后）。
+       固定阈值会随期数增长周期性误报 ✗，改成按行数给：max(3, ⌈n×0.2⌉)（30 期 → 6 元）。
+       ⚠ 仍能抓住真错：口径错 / 漏一期 / 少算一列都是几十到上千元量级，不会被这条容差放过 ✓ */
+    const tolSum = Math.max(3, Math.ceil(rows.length * 0.2));
+    check("盈亏归因「全期」行 ＝ Σ 各行 " + money(bodySum) + "（容差 " + tolSum + "，随期数）",
+      Number.isFinite(footSum) && Math.abs(footSum - bodySum) <= tolSum,
+      "全期 " + footSum + " vs Σ各行 " + bodySum.toFixed(2) + "（差 " + (footSum - bodySum).toFixed(2) + "，容差 " + tolSum + "）");
     /* ④k 归因的「全期」行 ≡ 累计收益（2026-10-09 两轮：先加"窗口"说明，再按用户选的 A 加「期初结转」行）——
        起因：用户把「全期 +8,278」与「累计收益 +1,496」并排看，问「这个 +8,278 是真的盈利 +8,278 吗？」✗
        → 根因：矩阵当时只覆盖 09-07 → 末期（更早的期缺 items 被隐藏 ✗），于是「全期」成了**变化量** ✗、与累计收益差 8,278 ✗。
