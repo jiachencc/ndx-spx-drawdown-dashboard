@@ -52,7 +52,11 @@ async function navSeries(code) {
   return m;
 }
 
-/* 成交日 → 净值：精确命中优先；否则向前回退最多 6 天（周末 / 假期 / 净值未公布） */
+/* 成交日 → 净值：精确命中优先；否则向前回退最多 6 天（周末 / 假期）。
+   ⚠ 2026-10-23 加**上限判定**（见调用处）：`date > maxDate`（＝该日净值还没公布）时**直接跳过**，
+     不许回退 —— 否则 10-22 收盘后才成交的那笔会拿 10-21 的净值算出一个"看着正常其实错"的溢价 ✗
+     （2026-10-22 实测：回退会把 4 笔全算成 +15.9% 那档，页面上与真值长得一模一样 ✗）。
+     回退**只**服务于"那天是周末/假期/该只暂停估值"这类历史情形 ✓。 */
 function navAt(map, date) {
   if (map[date]) return { nav: map[date], d: date };
   let t = Date.parse(date);
@@ -75,7 +79,7 @@ async function main() {
   if (!log.length) { console.error("POSITIONS.log 为空，保留旧值"); process.exit(1); }
 
   const items = {};
-  let hit = 0, miss = 0;
+  let hit = 0, miss = 0, unpub = 0;
   /* 5 只并行（2026-10-20）：原来串行 for，每只 40 页分页请求 × 5 只共 200 次、
      实测 10.4 秒；并行后 ≈2 秒（各只之间无依赖，写入时也不互相覆盖）。 */
   const jobs = await Promise.all(Object.entries(CODE).map(async ([name, code]) => {
@@ -88,21 +92,24 @@ async function main() {
       return { name, err: e.message };
     }
     const out = {};
-    let h = 0, m = 0;
+    let h = 0, m = 0, ub = 0;
+    const maxNav = Object.keys(nav).sort().at(-1) || "";      // 该只**已公布**的最后一个净值日
     for (const e of rows) {
+      if (e.d > maxNav) { ub++; continue; }                   // 净值还没出 → 跳过（不回退 ✗，见 navAt 注释）
       const n = navAt(nav, e.d);
       if (!n) { m++; continue; }
       out[e.d] = Math.round(((+e.cost / n.nav) - 1) * 1000) / 10;   // 保留 1 位小数
       h++;
     }
-    return { name, out, h, m };
+    return { name, out, h, m, ub, maxNav };
   }));
   for (const r of jobs) {
     if (!r) continue;
     if (r.err) { console.error("  ⚠ " + r.name + " 净值抓取失败：" + r.err + "（该只跳过）"); continue; }
-    hit += r.h; miss += r.m;
+    hit += r.h; miss += r.m; unpub += r.ub || 0;
     if (Object.keys(r.out).length) items[r.name] = r.out;
-    console.log("  " + r.name.padEnd(18) + Object.keys(r.out).length + " 笔");
+    console.log("  " + r.name.padEnd(18) + Object.keys(r.out).length + " 笔"
+      + (r.ub ? " · 净值未公布 " + r.ub + " 笔（该只最新净值日 " + r.maxNav + "）" : ""));
   }
 
   const asOf = log.map((e) => e.d).filter(isDate).sort().at(-1) || null;
@@ -124,6 +131,7 @@ async function main() {
   }
   fs.unlinkSync(backup);
   console.log(`data.js: PREM_LOG 已更新（${Object.keys(items).length} 只 / ${hit} 笔命中${miss ? " / " + miss + " 笔缺净值" : ""}，截至 ${asOf}）`);
+  if (unpub) console.log(`  ⏳ ${unpub} 笔的**成交日净值还没公布** → 本次跳过、不写假值 ✓；等净值出来再跑一次会自动补上（页面这几行的溢价 chip 暂时不出现，不是渲染坏了）。`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
