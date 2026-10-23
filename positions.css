@@ -1589,7 +1589,9 @@
   .vs-btn.on { color: var(--blue); border-color: var(--blue); }
   .vs-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   /* 归因维度切换器（2026-10-09 加）：沿用主视图 .vs-btn 的控件语言 ✓，放在小标题之上 ✓ */
-  #snap-attr .sa-dims { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 4px; }
+  #snap-attr .sa-dims { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 2px 0 4px; }
+  /* 期数窗口（2026-10-23）：整组**不换行**、推到右侧；窄屏放不下时整组一起折到第二行（而不是拆散）✓ */
+  #snap-attr .sa-wingu { display: inline-flex; gap: 6px; flex-wrap: nowrap; margin-left: auto; }
   #snap-attr .sa-head { font-size: var(--fs-xs); color: var(--tx2); padding: 4px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   #snap-attr .sa-head span { color: var(--tx3); font-size: var(--fs-xxs); }
   #snap-attr .sa-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--fs-xxs); color: var(--tx3); padding: 4px 0 0; }

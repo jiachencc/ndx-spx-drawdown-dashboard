@@ -124,6 +124,11 @@ try {
   </div>
 
   <h2 class="sec-title" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
+  <!-- ⚠ 2026-10-23 位置修正：「盈亏归因」这个标题**挪到切换器之上**，与「快照对比」标题**共用一个槽位**（二选一）。
+       原来它放在明细列表之后（卡前面），于是归因视图里出现「标签排 → 🎯 盈亏归因 标题 → 卡片」的怪序 ✗，
+       而且切换时#sec-snap（在切换器上方）被隐藏 → 整排标签往上跳 79px ✗（用户两次报的都是这一处根因）。
+       两个标题同槽后：标题永远在标签上方 ✓、切换时标签纹丝不动 ✓、setSnapView 里那段补偿滚动退化成保险 ✓。 -->
+  <h2 class="sec-title" id="sec-attr" hidden><span aria-hidden="true">🎯</span> 盈亏归因</h2>
   <div class="view-switch" id="snap-switch" role="tablist" aria-label="快照对比视图">
     <button class="vs-btn on" data-view="log" role="tab" aria-selected="true">逐期明细</button>
     <button class="vs-btn" data-view="attr" role="tab" aria-selected="false">盈亏归因</button>
@@ -139,7 +144,6 @@ try {
        ⚠ 区块名**只印这一遍** ✓：卡内原来那行 `<b>盈亏归因</b>` 已去掉 ✗ —— 用户当天截图指出
          「切换器下面 🎯 盈亏归因，紧接着卡里又是 盈亏归因」，一块地方两行同名标题 ✗；
          卡内 sa-head 从此只留**随维度变化**的说明（那句才是独有信息 ✓）。门禁 ⑧ 盯着这条 ✓。 -->
-  <h2 class="sec-title" id="sec-attr" hidden><span aria-hidden="true">🎯</span> 盈亏归因</h2>
   <div class="card tight" id="snap-attr" hidden></div>
 
   <h2 class="sec-title" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
@@ -1209,6 +1213,18 @@ const SA_NAME = (() => {                       // 标的名（从任一期的 it
    选择记在 localStorage（与 trendView / trendRange 同一套做法；隐私模式下忽略） */
 let saDim = "theme";
 try { saDim = localStorage.getItem("snapAttrDim") || "theme"; } catch (err) { /* 隐私模式下忽略 */ }
+/* 矩阵的**期数窗口**（2026-10-23 加）：行=期，一个交易日一行 → 一年 244 行 ✗（滚动长度与渲染量都不可持续）。
+   默认只列最近 30 期，更早的仍然算进「期初结转」「全期行」与列头图（**总量一个字都不变** ✓）——
+   所以窗口只影响"列出几行"，不影响任何金额 ✓（门禁因此只需在断「全期 = Σ各行」前点一下「全部」）。
+   0 ＝ 全部。与 saDim 同一套 localStorage 做法 ✓。 */
+let saWin = 30;
+try {
+  /* ⚠ 必须判 null：`+null === 0` 会把「没存过」当成「选了全部」✗（2026-10-23 初版就这么错了，
+     表现是默认显示全部期 —— 正是这个窗口要解决的问题，等于没生效 ✗） */
+  const raw = localStorage.getItem("snapAttrWin");
+  const v = raw == null ? NaN : +raw;
+  if (Number.isFinite(v) && v >= 0) saWin = v;
+} catch (err) { /* 隐私模式下忽略 */ }
 /* 下钻选择（2026-10-09 第三步 ✓）：null＝整期视图；{k:"cell",d,col}＝某格；{k:"hold",code,back}＝某只的轨迹。
    ⚠ 必须是**模块级**：切一次维度就整块重渲染，函数内的局部变量留不下 ✓（与 saDim 同一理由）。
    ⚠ 不进 localStorage —— 它是一次性交互状态，刷新后回到"净变动最大那期"更合理。 */
@@ -1305,6 +1321,9 @@ function saCtx() {
   /* 场外已清仓那 17 笔（App 原读数 ✓）—— 只在悬停里报数，**不进任何金额** ✓（口径边界见上方注释 ✓） */
   const closedOtcSum = (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items))
     ? CLOSED.items.reduce((a, x) => a + (x.pnl || 0), 0) : null;
+  /* 笔数（2026-10-23 加）：那句话原来写死「17 笔」，实际早已是 18 笔 ✗ ——
+     数字类文案一律从数据层取，别写死（本页反复栽在这上面）。 */
+  const closedOtcN = (typeof CLOSED !== "undefined" && CLOSED && Array.isArray(CLOSED.items)) ? CLOSED.items.length : 0;
   if (!live.length) { el.innerHTML = '<div class="otc-note">没有可归因的两期（快照缺 items）。</div>'; return; }
   /* 主题键归一化：场外摩根 theme="n225" 与场内日经 idx="jp" 是同一件事 → 合成一列 ✓ */
   function TKEY(k) { return k === "n225" ? "jp" : k; }   // 函数声明会提升：本函数内任意位置可用
@@ -1376,7 +1395,7 @@ function saCtx() {
   });
   /* ── 上下文打包（一次准备、四处消费 ✓）—— 下游四段全从 C 取状态 ✓，不再共享闭包 ✗。 */
   return { el, num, live, hidden, hiddenFull, baseD, basePl, lastD, lastPl,
-    carryItems, carryTotal, closedOtcSum, cols, cellBg, carryByCol, colSum, allSum,
+    carryItems, carryTotal, closedOtcSum, closedOtcN, cols, cellBg, carryByCol, colSum, allSum,
     cur, colKeyOf, colNameOf, selIsCell, colSeries, nameOf };
 }
 
@@ -1414,7 +1433,16 @@ function saMatrixHtml(C) {
   };
   /* 维度切换器（2026-10-09 加，B）——沿用主视图那个 .vs-btn 的控件语言 ✓ */
   let h = '<div class="sa-dims">' + Object.keys(DIMS).map((k) =>
-    '<button type="button" class="vs-btn' + (k === saDim ? " on" : "") + '" data-dim="' + k + '">' + DIMS[k] + "</button>").join("") + "</div>";
+    '<button type="button" class="vs-btn' + (k === saDim ? " on" : "") + '" data-dim="' + k + '">' + DIMS[k] + "</button>").join("") +
+    /* 期数窗口（2026-10-23 加）：与维度同一套 .vs-btn 语言。
+       ⚠ 三个必须包在一个**不换行**的组里（.sa-wingu）、整组推到右侧 ——
+         直接平铺时 414px 下会把「全部」单独挤到第二行最左，看着像掉了半个控件 ✗（实测截图）。 */
+    '<span class="sa-wingu" role="group" aria-label="矩阵列多少期">'
+      + [[15, "近 15 期"], [30, "近 30 期"], [0, "全部"]].map(([n, lab]) =>
+        '<button type="button" class="vs-btn' + (n === saWin ? " on" : "") + '" data-win="' + n + '"'
+          + ' aria-pressed="' + (n === saWin) + '" title="表格里列多少行期（不影响「全期」「期初结转」与列头图 —— 它们始终按全部期算 ✓）">'
+          + lab + "</button>").join("")
+    + "</span></div>";
   /* ⚠ 卡内**不再印区块名**（2026-10-12 升格为一级区块后去掉的那个 <b>盈亏归因</b> ✗）——
      用户当天截图指出来：切换器下面「🎯 盈亏归因」紧接着卡里又是「盈亏归因」，
      一块地方两行同名标题 ✗。区块名从此由 `#sec-attr` 那个 sec-title **独家承担** ✓，
@@ -1425,7 +1453,12 @@ function saMatrixHtml(C) {
       : saDim === "plat" ? "行=期 · 列=平台（券商 ／ 各基金公司与第三方）"
         : "行=期 · 列=场内 / 场外")
     + " · 点任一行看该期逐只 · 悬停任一格看成员" + (saDim === "theme" ? "与渠道" : "")
-    + " · <b>换个维度不改合计</b></span></div>";
+    + " · <b>换个维度不改合计</b>"
+    /* 折行提示克制一点：只写「列了多少 / 共多少」，"全期不受影响"那条放 title（口径类说明属于悬停 ✓） */
+    + (saWin > 0 && C.live.length > saWin
+      ? ' · <span title="窗口只决定**列出几行**：全期行、期初结转、列头图始终按全部 ' + C.live.length + ' 期算，金额一个字不变 ✓">表内只列最近 <b>'
+        + saWin + "</b> 期（共 " + C.live.length + " 期）</span>"
+      : "") + "</span></div>";
   /* ── 口径对照行（2026-10-09 两轮：先 B 补"水平值 vs 变化量"，再按 A 加「期初结转」行）────────────
      用户最初的疑问是把「全期 +8,278」与汇总卡的「累计收益 +1,496」并排看，问"到底赚了多少" ——
      根因是矩阵当时**只覆盖** baseD（09-07）之后那段（更早的期缺 items 被隐藏），于是"全期"成了变化量。
@@ -1438,7 +1471,7 @@ function saMatrixHtml(C) {
     + "自**账户起点**算起：场内自 2026-06-01 起（流水完整）、场外自 2026-03-03 起（在持 8 只）。"
     + "下面「期初结转」行 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（" + fmtAmt(C.carryTotal) + "），"
     + "逐期行 ＝ " + mdFull(C.baseD) + " → " + mdFull(C.lastD) + " —— 两者相加就是「全期」，与这里的累计收益是同一个数。"
-    + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
+    + "⚠ 不含场外那 " + C.closedOtcN + " 笔已清仓" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
     + "：它们结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金，请去「清仓历史」卡看。")
     + '">累计收益（自账户起点）<b class="' + cls(C.lastPl) + '">' + fmtAmt(C.lastPl) + "</b>"
     + '<span class="sa-hint">＝ 下方「全期」行 ' + fmtAmt(C.allSum) + ' ✓（同一口径、同一个数；'
@@ -1460,7 +1493,10 @@ function saMatrixHtml(C) {
      渲染走 live.slice().reverse()，data-i 仍指向**原下标** ✓（点击下钻的映射不变）。
      日期旁另标两件事：本期有清仓 → 「清 N」✓（title 列出是哪几只）；
      清仓但查不到流水（不可归因）→ 琥珀「⚠」 —— 显式标"缺"，不假装 0。 */
-  C.live.slice().reverse().forEach((p) => {
+  /* 期数窗口（2026-10-23）：只**少画几行**，数据一点不动 ——
+     data-i 仍指向 C.live 的**原下标** ✓（点行下钻的映射不变），全期/期初/列图也仍吃全量 ✓ */
+  const showRows = (saWin > 0 && C.live.length > saWin) ? C.live.slice(-saWin) : C.live;
+  showRows.slice().reverse().forEach((p) => {
     const i = C.live.indexOf(p);
     const mark = (p.nClose && p.nClose.length
       ? '<span class="mx-close" title="' + esc("本期清仓：" + p.nClose.map((c) => SA_NAME[c] || c).join("、") + "（金额已按「回款 − 期初市值」计入本行）") + '">清' + p.nClose.length + "</span>" : "")
@@ -1504,7 +1540,7 @@ function saMatrixHtml(C) {
       "期初结转 ＝ 账户起点 → " + mdFull(C.baseD) + " 的累计结果（Σ 各只在持标的的 pl）＝ " + fmtAmt(C.carryTotal) + " 元\n"
       + "场内 " + fmtAmt(carryIn) + " ＋ 场外 " + fmtAmt(C.carryTotal - carryIn)
       + "（场内自 2026-06-01 起、流水完整；场外＝在持 8 只自 2026-03-03 起）\n"
-      + "⚠ 不含场外那 17 笔已清仓" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
+      + "⚠ 不含场外那 " + C.closedOtcN + " 笔已清仓" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
       + "：那批结清于首份快照之前 / 之内，App 只给 pnl、没有成本与赎回去向 → 无法归入本金，只在「清仓历史」卡。\n"
       + "点这一行 → 看它是哪些标的、各多少") + '">'
     /* 副标签从「账户起点 → 09-07」缩成「起点 → 09-07」（2026-10-10 用户：「期 这列太宽了」✓）——
@@ -2210,11 +2246,16 @@ function saNotesHtml(C) {
         + "点列头 → 该列贡献 ＋ 累计图（两块面板各用自己的尺、不做双 y 轴；x 轴按实际日期间距） · 点「全期」行头 → 各列生涯贡献排序。"
         + "快照对比只摆事实，不做「价格 vs 份数」的贡献拆分（摊薄口径下要先假设摊销顺序，拆出来的数无法与 App 对账）。"
         + "键盘：格子用方向键移动、Enter 打开（整表只占一个 Tab 位）；图内 ←/→ 逐期；缺口处断开折线、不插值（真·日频数据本仓库没有）。"
-      ) + ">"
+      /* ⚠ 2026-10-23 修：这里原本写的是 `) + ">"` —— JS 字符串 `">"` 只产出 **`>` 一个字符**，
+         属性 title 的**收尾引号没写** ✗ → 浏览器把后面的整个正文都吞进这个没关上的属性值里，
+         于是「口径与边界」点开是**空的**（summary 在、正文一个字符都没有）。
+         用户报「点击打不开，是不是没用」—— 根因就是这个引号，不是块本身没用 ✓。
+         ⚠ 这类错没有报错、也不影响其它块 → 只能靠人眼或断言；已补一条 dom-check（④m）。 */
+      ) + '">'
     + "<b>口径</b>：每只标的<b>本期的真实贡献</b> —— 在持＝Δpl · 建仓＝当期 pl · <b>清仓</b>＝卖出回款 − 期初市值；三分支同源，故<b>每行合计 ≡ 卡头那期的「本期盈亏」</b>。格里的「·」＝该期该列<b>没有可归因的标的</b>（不是「变动为 0」）；底色＝对数尺度。"
     + "<br><b>「全期」＝ 账户起点 → " + C.lastD.slice(5).replace("-", ".") + " 的累计结果</b>（就是累计收益 " + fmtAmt(C.lastPl) + "）；"
     + "<b>「期初结转」＝ 账户起点 → " + C.baseD.slice(5).replace("-", ".") + "</b>（Σ逐只 pl ＝ " + fmtAmt(C.carryTotal) + "；场内自 06-01 起、场外自 03-03 起）。"
-    + "⚠ 期初结转<b>不含场外那 17 笔已清仓</b>" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
+    + "⚠ 期初结转<b>不含场外那 " + C.closedOtcN + " 笔已清仓</b>" + (C.closedOtcSum === null ? "" : "（Σ " + fmtAmt(C.closedOtcSum) + "）")
     + "：那批只有 App 的 pnl、没有成本与赎回去向，归不进本金、只在「清仓历史」卡；场内那 2 只已清仓已由本金修正进总账。"
     + (C.hidden.length ? "（缺 items 的 " + C.hidden.length + " 个相邻对已<b>并入期初结转</b>：" + C.hidden.join(" ") + "）" : "") + "</div></details>";
   return h;
@@ -2476,6 +2517,17 @@ function saWire(C) {
       renderSnapAttr();
       return true;
     }
+    /* 期数窗口（2026-10-23 加）：只改"列几行" → 下钻选择 **不清空** ✓（期与格的语义没变，没理由把用户
+       正在看的那一期踢掉；与「换维度」不同）。 */
+    const win = target.closest("[data-win]");
+    if (win) {
+      const n = +win.dataset.win;
+      if (n === saWin) return true;
+      saWin = n;
+      try { localStorage.setItem("snapAttrWin", String(n)); } catch (err) { /* 隐私模式下忽略 */ }
+      renderSnapAttr();
+      return true;
+    }
     const row = target.closest("tr[data-i]");
     if (row) { setSel(null, +row.dataset.i); return true; }      // 点期行 → 整期
     if (target.closest("tr.mx-carry")) { setSel(null, "carry"); return true; }   // 点期初行 → 那一段
@@ -2686,6 +2738,13 @@ function setSnapView(v, opt) {
   const tSnap = $("sec-snap"), tAttr = $("sec-attr");
   if (!log || !attr) return;
   const isAttr = v === "attr";
+  /* ⚠ 2026-10-23 修「点『盈亏归因』标签，整排标签往上跳」（用户报）：
+     两个视图的**区块标题分处两处** —— `#sec-snap`（快照对比）在切换器**上方**、
+     `#sec-attr`（盈亏归因）在明细列表**下方**。切到归因时 `#sec-snap` 被隐藏 61px，
+     于是切换器整排被顶上去 ✗；切回来又往下掉 ✗（同一个 bug 的两个方向）。
+     → 把切换器的**视口位置钉住**：换完按差值补一次滚动 ✓。
+     深链场景（opt.scroll）例外 —— 那本来就要滚到区块标题 ✓，不补偿。 */
+  const keepTop = (opt && opt.scroll) || !box ? null : box.getBoundingClientRect().top;
   snapView = isAttr ? "attr" : "log";
   if (box) box.querySelectorAll(".vs-btn").forEach((x) => { const on = x.dataset.view === snapView;
     x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
@@ -2696,6 +2755,12 @@ function setSnapView(v, opt) {
   if (isAttr) renderSnapAttr();                       // 归因按需渲染（零首屏成本 ✓ 不变）
   /* 从深链 / 导航切过来时**先切再滚** ✓ —— 隐藏元素当不了锚点，浏览器原生滚动会落空 ✗ */
   if (opt && opt.scroll) { const t = isAttr ? tAttr : tSnap; if (t && t.scrollIntoView) t.scrollIntoView({ block: "start" }); }
+  /* 钉住切换器（见函数头 keepTop）：换完 DOM 再补滚动，让那一排停在原处 ✓。
+     ⚠ 必须在 renderSnapAttr() **之后**量 —— 归因卡是渲染后才撑开高度的。 */
+  else if (keepTop !== null && box) {
+    const dy = box.getBoundingClientRect().top - keepTop;
+    if (Math.abs(dy) >= 1) window.scrollBy(0, dy);
+  }
 }
 /* 视图 ↔ 锚点**同名**（#sec-snap / #sec-attr）✓ → 归因可以直接分享链接、也能被导航直达 ✓ */
 function syncSnapHash(v) {

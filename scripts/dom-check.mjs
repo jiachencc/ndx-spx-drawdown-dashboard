@@ -1239,8 +1239,13 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
       if (!a.items || !b.items || !Number.isFinite(b.flow)) continue;
       truth[b.d.slice(5)] = tot2(b) - tot2(a) - b.flow;
     }
-    const rows = [...tbl.querySelectorAll("tbody tr")].filter((tr) => !tr.classList.contains("mx-foot"));
-    const foot = [...tbl.querySelectorAll("tbody tr")].find((tr) => tr.classList.contains("mx-foot"));
+    /* 期数窗口（2026-10-23 加）：矩阵默认只列最近 30 期 → 「全期 ＝ Σ各行」必须先把窗口切到**全部**，
+       否则右边会少算被折叠的那几期 ✗。点完会整块重渲染 → 必须**重新取** table 元素（旧引用已脱离文档 ✗）。 */
+    const winAll = (mx && mx.querySelector('[data-win="0"]')) || null;
+    if (winAll && !winAll.classList.contains("on")) winAll.click();
+    const tblNow = (mx && mx.querySelector("table.sa-mx")) || tbl;
+    const rows = [...tblNow.querySelectorAll("tbody tr")].filter((tr) => !tr.classList.contains("mx-foot"));
+    const foot = [...tblNow.querySelectorAll("tbody tr")].find((tr) => tr.classList.contains("mx-foot"));
     const numOf = (el) => {
       const m = ((el && el.textContent) || "").match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || [];
       return m.length ? +m[m.length - 1].replace(/,/g, "").replace("−", "-") : NaN;
@@ -2241,6 +2246,22 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   check("体检表：窄屏默认收起（宽屏才默认展开 ✓），且内容仍渲染在 DOM 里",
     !!chkFold && !chkFold.open && /chk-tbl/.test(chkFold.innerHTML) && chkFold.querySelectorAll("tbody tr").length > 0,
     chkFold ? "open=" + chkFold.open + " · 行数 " + chkFold.querySelectorAll("tbody tr").length : "体检表没有包成 details.chk-fold ✗");
+}
+
+/* ④m 折叠块「点开是空的」守卫（2026-10-23 加）——
+   起因（真实事故）：`口径与边界` 那个 <details> 的正文 `<div class="otc-note" title="…` 漏写了
+   属性收尾的引号（源码写成 `) + ">"`，而字符串 `">"` 只产出 `>`），浏览器把**整段正文**吞进那个
+   没关上的属性值里 → summary 好好的、点开一片空白 ✗，且**不报任何错** ✗。
+   用户报的是「点击打不开，是不是没用？可以删掉吗」—— 差点把一块有用的口径说明当垃圾删了。
+   判据：页面上每个 <details> 至少有一个非 <summary> 的子节点（空折叠块**没有存在意义**）。
+   ⚠ 页面当前 0 个空折叠块 ✓；将来真要做"先占位后填充"的折叠块，把它加进白名单并写明理由 ✗→✓。 */
+{
+  const empty = [...win.document.querySelectorAll("details")]
+    .filter((d) => [...d.children].filter((c) => c.tagName !== "SUMMARY").length === 0)
+    .map((d) => ((d.querySelector("summary") || {}).textContent || "").trim().slice(0, 16) || d.className || "(无名)");
+  check("折叠块都不是「点开空」：" + (empty.length ? empty.join(" / ") : "全部有正文 ✓"),
+    empty.length === 0,
+    empty.length ? "这些 <details> 只有 summary、没有正文（多半是属性没闭合被浏览器吞了）：" + empty.join(" / ") : "");
 }
 
 /* ⑤a-3 成交位置汇总（2026-10-21 加）：体检卡上方那行「中位数 X%（N 笔买入）」。
