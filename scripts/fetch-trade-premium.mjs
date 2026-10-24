@@ -112,8 +112,16 @@ async function main() {
       + (r.ub ? " · 净值未公布 " + r.ub + " 笔（该只最新净值日 " + r.maxNav + "）" : ""));
   }
 
-  const asOf = log.map((e) => e.d).filter(isDate).sort().at(-1) || null;
-  const next = { asOf, source: "Eastmoney unit NAV / POSITIONS.log trade price", items };
+  /* ⚠ asOf 的语义（2026-10-24 修）：原先取「流水里最新的**成交日**」→ 净值还没公布时，
+     日志/数据块会写「截至 10-23」，而 10-23 那几笔其实**没算进去** ✗ —— 看着像齐了，最容易误判。
+     现在：
+       · asOf      ＝ **已算出溢价的最大日期**（真正覆盖到哪天）✓
+       · tradeAsOf ＝ 流水里最新的成交日（用来对照：asOf < tradeAsOf 就说明还有交易日在等净值）
+     两者分开存，页面/脚本都能一眼看出「有没有缺口」。 */
+  const coveredDates = Object.values(items).flatMap((m) => Object.keys(m));
+  const asOf = coveredDates.sort().at(-1) || null;
+  const tradeAsOf = log.map((e) => e.d).filter(isDate).sort().at(-1) || null;
+  const next = { asOf, tradeAsOf, source: "Eastmoney unit NAV / POSITIONS.log trade price", items };
   const block = "const PREM_LOG = " + JSON.stringify(next, null, 1) + ";";
   if (!/^const PREM_LOG = \{/m.test(src)) throw new Error("PREM_LOG anchor missing");
   const candidate = src.replace(/^const PREM_LOG = \{[\s\S]*?^\};/m, () => block);
@@ -130,7 +138,8 @@ async function main() {
     process.exit(1);
   }
   fs.unlinkSync(backup);
-  console.log(`data.js: PREM_LOG 已更新（${Object.keys(items).length} 只 / ${hit} 笔命中${miss ? " / " + miss + " 笔缺净值" : ""}，截至 ${asOf}）`);
+  console.log(`data.js: PREM_LOG 已更新（${Object.keys(items).length} 只 / ${hit} 笔命中${miss ? " / " + miss + " 笔缺净值" : ""}，覆盖到 ${asOf || "—"}`
+    + (tradeAsOf && tradeAsOf !== asOf ? `；流水最新成交日 ${tradeAsOf} 尚未算完（等净值）` : "") + "）");
   if (unpub) console.log(`  ⏳ ${unpub} 笔的**成交日净值还没公布** → 本次跳过、不写假值 ✓；等净值出来再跑一次会自动补上（页面这几行的溢价 chip 暂时不出现，不是渲染坏了）。`);
 }
 

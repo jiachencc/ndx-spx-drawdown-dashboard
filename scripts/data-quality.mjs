@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -200,6 +200,19 @@ export function validateModel(m) {
      `scripts/fetch-nowcast.mjs` 也一并移除 ✓，故这里不再有可校验的对象。
      历史：该合约曾抓过「r ≥ 0.95 时 β 必须落在 0.8~1.2」与「tier 与 mae/r 自洽」，
      是当时唯一能自动抓到**数据侧**拟合错的断言（页面侧复算读同一份数据，改 β 抓不到 ✓）。 */
+  /* PREM_LOG 的 asOf 语义（2026-10-24 加）：必须 ＝ **已算出溢价的最大日期**。
+     起因：原来 asOf 取「流水里最新的成交日」，净值没公布时它会写「截至 10-23」，而 10-23 那几笔
+     其实被跳过了 ✗ —— 日志与数据块都显示「覆盖到」，人一看就以为齐了。
+     现在多存 tradeAsOf（流水最新成交日），两者不等 ＝ 还有交易日在等净值 ✓（不是错误，是事实）。 */
+  const plg = m.PREM_LOG;
+  if (plg && plg.items) {
+    const ds = Object.values(plg.items).flatMap((o) => Object.keys(o || {})).sort();
+    const maxD = ds.at(-1) || null;
+    if (plg.asOf !== maxD) errors.push("PREM_LOG.asOf（" + plg.asOf + "）≠ 已算出的最大日期（" + maxD + "）");
+    if (plg.tradeAsOf && maxD && String(plg.tradeAsOf) < String(maxD)) errors.push("PREM_LOG.tradeAsOf 早于已算出日期");
+    const badPct = ds.filter((dt) => Object.values(plg.items).some((o) => o[dt] !== undefined && !(Number.isFinite(o[dt]) && Math.abs(o[dt]) < 200)));
+    if (badPct.length) errors.push("PREM_LOG: 异常溢价 " + badPct.slice(0, 3).join(","));
+  }
   return errors;
 }
 export function metrics(raw) {

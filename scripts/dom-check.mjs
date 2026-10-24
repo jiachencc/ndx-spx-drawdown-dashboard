@@ -2376,6 +2376,14 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   check("决策看板：「距 15% 档」= 回撤 − thresholds.t2（阈值口径独立复算）",
     to15 <= 1e-9 ? /已到档/.test(t15) : near2(numOf("ndx-to15"), to15),
     "页面「" + t15 + "」vs 复算 " + to15.toFixed(2) + "pp");
+  /* 「今日涨跌」的呈现分支（2026-10-24 加）：|chg| < 0.005 时必须印「≈0.00%」且不是涨/跌色 ——
+     否则 10-23 的 NDX（实际 −0.004%，数据里存成 0）会被印成**绿色 +0.00%**，读起来像「这天没交易」✗。 */
+  const flatBad = ["ndx", "spx"].filter((p) => {
+    const v = +Dv[p].chg, t = txtOf(p + "-chg");
+    return Math.abs(v) < 0.005 ? !/≈0\.00%/.test(t) : !t.includes((v >= 0 ? "+" : "") + v.toFixed(2) + "%");
+  }).map((p) => p.toUpperCase() + " chg=" + Dv[p].chg + " → 「" + txtOf(p + "-chg").slice(0, 26) + "」");
+  check("决策看板：「今日涨跌」几乎收平时印 ≈0.00%（不再印绿色 +0.00%）",
+    flatBad.length === 0, flatBad.join("；") || "收平 / 正常两条分支都对 ✓");
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
   /* ⑦ 数据新鲜度（2026-10-17 加）—— 起因：10-17 定时任务没跑，页面停在 10-15 却完全无提示 ✗，
      用户是靠肉眼发现「纳指点位不对」才查出来的。这里锁两件事：

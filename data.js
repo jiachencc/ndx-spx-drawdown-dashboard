@@ -2322,7 +2322,8 @@ const POSITIONS = {
 /* AUTO：逐笔成交时的溢价率（2026-10-20 加）—— 由 scripts/fetch-trade-premium.mjs 整块重写。
    溢价 = 成交价 ÷ 当日单位净值 − 1；按 标的 → 日期 → 百分比 两层索引（同一只同一天多笔共用一个值）。 */
 const PREM_LOG = {
- "asOf": "2026-10-23",
+ "asOf": "2026-10-22",
+ "tradeAsOf": "2026-10-23",
  "source": "Eastmoney unit NAV / POSITIONS.log trade price",
  "items": {
   "纳指ETF广发": {
