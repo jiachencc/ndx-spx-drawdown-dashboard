@@ -178,7 +178,12 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
      页面按档位从尾部切片（1M=22 / 3M=65 / 6M=130 / 12M=252），统计条与参考线都跟着切出来的区间重算；
      口径与 DEFAULT.ndx / spx.close 同源（同一份 raw 的收盘价）。
      ⚠ 252 根 ≈ 12 个月：够看全年走势；再长就与「回撤深度尺 / 历史回撤表」重复了，故封顶于此。 */
-  const RECENT_N = 252;
+  /* ⚠ 2026-10-24 加 RECENT_STORE：**存 452 根、只画 252 根**。
+     起因：页面上的 MA200 改成按收盘滚动算的**曲线**（原来画的是假平线），可是 MA200 需要 200 根预热 ——
+     只存 252 根时，任何窗口都只有最后 53 个点算得出 MA200 ✗（3M/6M 都只能画出一小段）。
+     现在多存 200 根纯预热（+≈8KB/两只），页面仍按档位从尾部切 ≤252 根 → 图与统计口径**一点没变** ✓。 */
+  const RECENT_N = 252;        // 页面最多画多少根（1M/3M/6M/12M 的上限）
+  const RECENT_STORE = 452;    // 实际存多少根 = 252 + MA200 的 200 根预热
   const recent = {};
   const coreResults = await Promise.allSettled([["ndx", "^NDX", "^ndx"], ["spx", "^GSPC", "^spx"]].map(async ([key, symbol, fallback]) => {
     const raw = await seriesProvider(symbol, fallback), result = metrics(raw);
@@ -199,7 +204,7 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
       recent[key] = {
         asOf: result.date,
         pts: raw.dates.map((dt, i2) => ({ d: dt, c: raw.close[i2] }))
-          .filter((x) => isDate(x.d) && Number.isFinite(x.c)).slice(-RECENT_N),
+          .filter((x) => isDate(x.d) && Number.isFinite(x.c)).slice(-RECENT_STORE),
       };
     } catch (e) { rec.failure(key, raw.source, e.message); }
   }

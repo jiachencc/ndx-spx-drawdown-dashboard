@@ -2384,6 +2384,32 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   }).map((p) => p.toUpperCase() + " chg=" + Dv[p].chg + " → 「" + txtOf(p + "-chg").slice(0, 26) + "」");
   check("决策看板：「今日涨跌」几乎收平时印 ≈0.00%（不再印绿色 +0.00%）",
     flatBad.length === 0, flatBad.join("；") || "收平 / 正常两条分支都对 ✓");
+  /* 日线图的均线必须是**曲线**（2026-10-24 加）—— 起因：原来把 DEFAULT 里**当前**的 MA50 画成
+     一条贯穿全窗口的水平线，而 6M 窗口里 NDX 的 MA50 实际从 24,785 涨到 29,829（+20.4%）✗，
+     这种错**不会报任何 JS 错误**、页面照常渲染，只能靠断言盯。
+     判据：存在 data-win=50 / 200 两条 polyline；MA50 的 y 跨度 > 2px（画成水平线时跨度恒为 0 ✗）。 */
+  {
+    const mas = [...idoc.querySelectorAll("#recent-svg polyline.recent-ma")];
+    const wins = mas.map((e) => +e.getAttribute("data-win"));
+    const spanOf = (e) => {
+      const ys = (e.getAttribute("points") || "").trim().split(/\s+/).map((p) => +p.split(",")[1]).filter(Number.isFinite);
+      return ys.length > 1 ? Math.max(...ys) - Math.min(...ys) : 0;
+    };
+    const ma50 = mas.find((e) => +e.getAttribute("data-win") === 50);
+    check("决策看板：日线图的均线是曲线（MA50 的 y 跨度 > 2px，不是一条水平线）",
+      wins.includes(50) && wins.includes(200) && !!ma50 && spanOf(ma50) > 2,
+      "polyline=" + (wins.join("/") || "无") + " · MA50 y 跨度 " + (ma50 ? spanOf(ma50).toFixed(1) : "—") + "px");
+  }
+  /* 统计条要有「距历史高点」（2026-10-24 加）：卡片叫「日线与回撤参考」，此前 6 项全是**窗口内**口径，
+     没有一项相对 ATH —— 与图上那几条按 ATH 算的档位线接不上 ✗。数值必须 ≡ close / ath − 1。 */
+  {
+    const box = idoc.getElementById("recent-stats");
+    const txt = box ? box.textContent.replace(/\s+/g, " ") : "";
+    const want = (Dv.ndx.close / Dv.ndx.ath - 1) * 100;
+    check("决策看板：统计条有「距历史高点」≡ close / ath − 1",
+      /距历史高点/.test(txt) && txt.includes(Math.abs(want).toFixed(2) + "%"),
+      /距历史高点/.test(txt) ? "页面有该项 · 复算 " + want.toFixed(2) + "%" : "统计条里没有「距历史高点」✗");
+  }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
   /* ⑦ 数据新鲜度（2026-10-17 加）—— 起因：10-17 定时任务没跑，页面停在 10-15 却完全无提示 ✗，
      用户是靠肉眼发现「纳指点位不对」才查出来的。这里锁两件事：

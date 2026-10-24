@@ -1499,7 +1499,13 @@ function drawRecent() {
   const hi = Math.max(...cs), lo = Math.min(...cs);
   const pad = (hi - lo) * 0.18 || Math.max(1, hi * 0.005);
   const yHi = hi + pad, yLo = lo - pad;
-  const W = 620, H = 200, mL = 64, mR = 16, mT = 14, mB = 26;
+  const W = Math.max(320, Math.round(svg.clientWidth || 620)), H = 200, mL = 64, mR = 16, mT = 14, mB = 26;
+  /* 宽度跟着容器走（2026-10-24 改）：原来固定 `viewBox="0 0 620 200"` →
+     1440 下被放大 **1.94×**（11px 字变 21px、留白也跟着粗）、375 下缩到 **0.49×**（字 5.4px，低于全页最小字号）✗。
+     现在按容器实际宽度设 viewBox，字号就永远是真实 11px ✓；高度仍 200（宽高比随宽度变，桌面更宽更扁，正是想要的）。
+     ⚠ 容器宽度变了必须重画（见 bindRecent 里的 resize 防抖），否则旧 viewBox 会被拉伸 ✗。 */
+  const vb = "0 0 " + W + " " + H;
+  if (svg.getAttribute("viewBox") !== vb) svg.setAttribute("viewBox", vb);
   const px = (i) => mL + (i / (n - 1)) * (W - mL - mR);
   const py = (v) => mT + (yHi - v) / (yHi - yLo) * (H - mT - mB);
   const line = recentKey === "ndx" ? "var(--cyan)" : "var(--blue)";
@@ -1527,28 +1533,79 @@ function drawRecent() {
   /* ⚠ 标签不写 t1 / t2（2026-09-27 用户问到命名）：看板里「T+1~T+4」是**止盈**档位的编号，
      而这里的阈值是**回撤**档位（thresholds.t1~t4 = −5 / −15 / −25 / −35%），两套编号撞名容易误读。
      直接写「−5% 档」，并用 SVG <title> 带上文档（handoff.md）里的口径：
-       −5% 仅关注、−15% 起检查加仓资格（且需同时满足确认条件）。 */
+       −5% 仅关注、−15% 起检查加仓资格（且需同时满足确认条件）。
+     ⚠ 2026-10-24 补齐 t3 / t4：原来只画前两档，而 12M 档里 −25% 那根（23,521）明明落在可视范围内 ✗
+       —— 下方「回撤触发矩阵」是四档，图上只给两档会让人以为 25/35% 不在考虑范围。
+       配色沿用色板里的**警告→危险**色系（黄→红），只靠**虚线密度**区分深浅，不引新色（避免与价格线串色 ✗）。 */
   const neg = (n) => String(n).replace("-", "−");   // 全角减号，与页面其它数字符号一致
   if (q) {
-    if (Number.isFinite(q.ma50)) refs.push({ v: q.ma50, label: "MA50", color: "var(--tx2)", side: "l",
-      tip: "50 日均线（现价在其" + (q.close > q.ma50 ? "上" : "下") + "方）" });
-    if (Number.isFinite(q.ma200)) refs.push({ v: q.ma200, label: "MA200", color: "var(--tx2)", side: "l",
-      tip: "200 日均线（现价在其" + (q.close > q.ma200 ? "上" : "下") + "方" + (q.close > q.ma200 ? "，趋势完好" : "") + "）" });
+    /* ⚠ 均线**不再**走 refs（2026-10-24）：refs 是「常数水平线」，而 MA50/MA200 每天在变 ——
+       6M 窗口里 NDX 的 MA50 实际从 24,785 涨到 29,829（+20.4%），画一条 29,829 的平线足以把趋势读反 ✗。
+       现在改为按 RECENT 收盘滚动算的**曲线**（见下方 maCurves），这里只留档位线 ✓。 */
     if (th && Number.isFinite(q.ath)) {
-      refs.push({ v: q.ath * (1 + th.t1 / 100), label: neg(th.t1) + "% 档", color: "var(--yellow)", side: "r",
-        tip: "回撤 " + neg(th.t1) + "%（距历史高点）：仅关注，不生成动作结论" });
-      refs.push({ v: q.ath * (1 + th.t2 / 100), label: neg(th.t2) + "% 档", color: "var(--red)", side: "r",
-        tip: "回撤 " + neg(th.t2) + "%（距历史高点）：起检查加仓资格，且需同时满足确认条件" });
+      const band = (lv, label, color, dash, op, tip) => refs.push({ v: q.ath * (1 + lv / 100), label: label, color: color, side: "r", dash: dash, op: op, tip: tip });
+      band(th.t1, neg(th.t1) + "% 档", "var(--yellow)", "5 4", 0.7, "回撤 " + neg(th.t1) + "%（距历史高点）：仅关注，不生成动作结论");
+      band(th.t2, neg(th.t2) + "% 档", "var(--red)", "5 4", 0.7, "回撤 " + neg(th.t2) + "%（距历史高点）：起检查加仓资格，且需同时满足确认条件");
+      band(th.t3, neg(th.t3) + "% 档", "var(--red)", "2 3", 0.55, "回撤 " + neg(th.t3) + "%：重仓档，需趋势/估值同时确认（见触发矩阵）");
+      band(th.t4, neg(th.t4) + "% 档", "var(--red)", "1 4", 0.45, "回撤 " + neg(th.t4) + "%：历史级机会档（样本极少，别当必然）");
     }
   }
   refs.filter((r) => r.v >= yLo && r.v <= yHi).forEach((r) => {
     const y = py(r.v).toFixed(1), ty = (py(r.v) - 3).toFixed(1);
     const ttl = r.tip ? "<title>" + esc(r.tip) + "</title>" : "";
     s += '<line x1="' + mL + '" y1="' + y + '" x2="' + (W - mR) + '" y2="' + y + '" stroke="' + r.color +
-      '" stroke-width="1" stroke-dasharray="5 4" opacity=".7"/>' +
+      '" stroke-width="1" stroke-dasharray="' + (r.dash || "5 4") + '" opacity="' + (r.op === undefined ? 0.7 : r.op) + '"/>' +
       (r.side === "l"
         ? '<text x="' + (mL + 4) + '" y="' + ty + '" fill="' + r.color + '" style="font:10px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">' + ttl + r.label + "</text>"
         : '<text x="' + (W - mR - 4) + '" y="' + ty + '" text-anchor="end" fill="' + r.color + '" style="font:10px var(--mono);paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">' + ttl + r.label + "</text>");
+  });
+  /* ── 均线：**曲线**，不是一条水平线（2026-10-24 改）──────────────────────────────────
+     原来取 DEFAULT[recentKey].ma50 / ma200（那是**今天**的值）画一条贯穿全窗口的直线 ✗：
+     6M 窗口里 MA50 实际从 24,785 涨到 29,829（NDX，+20.4%），平线足以把趋势读反 ✗。
+     现在用 RECENT 的**完整 252 根**滚动算，再按当前切片取下标；算不出的区间（不足 50/200 根）不画 ——
+     12M 档的 MA200 只能覆盖右侧约 53 天，那是数据的真实边界，比画一条错的平线诚实 ✓。
+     ⚠ 画在价格线**之前**（先写进 s），价格线压在上面 ✓。 */
+  const allPts = R[recentKey].pts, allC = allPts.map((p) => p.c), i0 = Math.max(0, allC.length - n);
+  const rolling = (win) => {
+    const outA = new Array(allC.length).fill(null);
+    let sum = 0;
+    for (let i = 0; i < allC.length; i++) {
+      sum += allC[i];
+      if (i >= win) sum -= allC[i - win];
+      if (i >= win - 1) outA[i] = sum / win;
+    }
+    return outA;
+  };
+  const maLegend = [];
+  /* ⚠ MA200 的配色（2026-10-24 用户报「有些看不到」）：原来是 --tx3（全页最暗的文字色），
+     而它的数值又长期贴着 y 轴**下沿**（26,7xx vs 区间 26,467~31,950），旁边还有 −15% 档的红色虚线 ✗
+     → 深色主题下几乎糊在一起。改成 --purple（深 #b195fb / 浅 #7c5cf0，两套主题都够亮），
+     与价格线（青/蓝）、档位线（黄/红）都不串色 ✓。 */
+  [{ win: 50, color: "var(--tx2)", label: "MA50" }, { win: 200, color: "var(--purple)", label: "MA200" }].forEach((c) => {
+    const vals = rolling(c.win).slice(i0, i0 + n);
+    const seg = [];
+    vals.forEach((v, i) => { if (Number.isFinite(v)) seg.push(i); });
+    if (seg.length < 2) return;
+    s += '<polyline class="recent-ma" data-win="' + c.win + '" fill="none" stroke="' + c.color
+      + '" stroke-width="1.2" stroke-linejoin="round" opacity=".95" points="'
+      + seg.map((i) => px(i).toFixed(1) + "," + py(vals[i]).toFixed(1)).join(" ") + '"/>';
+    /* 覆盖不全时在**起点**画一个小圆点：让「线从这里开始」看起来是有意的，而不是画坏了 ✗ */
+    if (seg.length < n) s += '<circle cx="' + px(seg[0]).toFixed(1) + '" cy="' + py(vals[seg[0]]).toFixed(1)
+      + '" r="1.9" fill="' + c.color + '"/>';
+    maLegend.push({ color: c.color, win: c.win, cover: seg.length, total: n,
+      label: c.label + (seg.length < n ? "（近 " + seg.length + " 日）" : "") });
+  });
+  /* 均线图例（2026-10-24 改）：**不再把标签贴在曲线上** —— 实测 12M 档里「MA50」压在价格折线上、
+     「MA200」与右端的「−15% 档」标签正面撞车 ✗（截图见 outputs/review/closed-table/recent-414.png 前版）。
+     改成绘图区左上角两行小图例（那里通常是空的），与右端的档位标签互不干扰 ✓
+     ⚠ 「（近 53 日）」这类后缀不是装饰：MA200 需要 200 根预热，而 RECENT 只存到 252 根时
+       任何窗口都只有最后 ~53 个点算得出 —— 写清覆盖长度，读者才不会以为线画丢了 ✗。 */
+  maLegend.forEach((r, i) => {
+    const y = mT + 9 + i * 12;
+    s += '<line x1="' + (mL + 4) + '" y1="' + y + '" x2="' + (mL + 16) + '" y2="' + y + '" stroke="' + r.color + '" stroke-width="1.5"/>'
+      + '<text x="' + (mL + 20) + '" y="' + (y + 3.5) + '" fill="' + r.color + '" style="font:10px var(--mono)">'
+      + '<title>' + esc(r.label + "：按收盘价算的 " + r.win + " 日滚动均线（不是今天那条水平线 ✗）；窗口内只有 " + r.cover + "/" + r.total + " 个点算得出") + "</title>"
+      + r.label + "</text>";
   });
   s += '<polyline fill="none" stroke="' + line + '" stroke-width="1.5" stroke-linejoin="round" points="'
     + pts.map((p, i) => px(i).toFixed(1) + "," + py(p.c).toFixed(1)).join(" ") + '"/>';
@@ -1562,7 +1619,11 @@ function drawRecent() {
   if (recentHover !== null)
     s += '<line x1="' + px(iNow).toFixed(1) + '" y1="' + mT + '" x2="' + px(iNow).toFixed(1) + '" y2="' + (H - mB) + '" stroke="var(--tx3)" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>';
   s += '<circle cx="' + px(iNow).toFixed(1) + '" cy="' + py(pts[iNow].c).toFixed(1) + '" r="' + (recentHover !== null ? 3.6 : 2.8) + '" fill="' + line + '"/>';
-  s += '<text x="' + mL + '" y="' + (H - 6) + '" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[0].d.slice(5) + "</text>";
+  /* 左端日期带年份（2026-10-24 修）：12M 档的起点正好是**去年**同一天 → 原来左右都印「10-23」，
+     看不出跨度 ✗（用户看这张图第一件事就是「这一年涨了多少」）。跨年时才补两位年份，同年仍用 10-23 这种短写 ✓ */
+  const yEnd = pts[n - 1].d.slice(0, 4);
+  s += '<text x="' + mL + '" y="' + (H - 6) + '" fill="var(--tx3)" style="font:11px var(--mono)">'
+    + (pts[0].d.slice(0, 4) === yEnd ? pts[0].d.slice(5) : pts[0].d.slice(2)) + "</text>";
   s += '<text x="' + (W - mR) + '" y="' + (H - 6) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + pts[n - 1].d.slice(5) + "</text>";
   svg.innerHTML = s;
   if (!out) return;
@@ -1579,7 +1640,11 @@ function drawRecent() {
     t += '<span class="sep">·</span>vs 起点（' + d0.d.slice(5) + '）<b class="' + (vs0 >= 0 ? "up" : "down") + '">' + recentPct(vs0) + "</b>";
     if (iNow > 0) {
       const day = (p.c / pts[iNow - 1].c - 1) * 100;
-      t += '<span class="sep">·</span>日 <span class="' + (day >= 0 ? "up" : "down") + '">' + recentPct(day) + "</span>";
+      /* 「日 ≈0」别印成 −0.00%（2026-10-24，与看板顶部那条同一处理）：
+         10-23 的 NDX 实际 −0.004%，round 到两位就是 −0.00%，红字看着像在跌 ✗ */
+      const flatD = Math.abs(day) < 0.005;
+      t += '<span class="sep">·</span>日 <span' + (flatD ? ' style="color:var(--tx2)"' : ' class="' + (day >= 0 ? "up" : "down") + '"')
+        + ">" + (flatD ? "≈0.00%" : recentPct(day)) + "</span>";
     }
   }
   t += '<span class="sep">·</span>' + (Number.isInteger(recentPin)
@@ -1625,7 +1690,10 @@ function renderRecentStats() {
   const R = recentData(), box = $("recent-stats");
   if (!R || !box) return;
   const pts = recentPts(), cs = pts.map((p) => p.c), n = cs.length;
-  const md = (d) => d.slice(5);                       // 与图上 x 轴、读数行同一写法（09-22）
+  /* 日期写法与图上 x 轴同一套（2026-10-24 改）：**跨年时补两位年份**（25-10-29），
+     否则 12M 档里「10-29 → 03-30」这种两段看不出是哪一年 ✗（12M 的峰谷常常横跨去年）。 */
+  const yRef = pts[n - 1].d.slice(0, 4);
+  const md = (d) => (d.slice(0, 4) === yRef ? d.slice(5) : d.slice(2));
   const f2 = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sg = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
   const last = cs[n - 1];
@@ -1650,7 +1718,19 @@ function renderRecentStats() {
   const item = (label, val, vCls, note, tip) =>
     '<span class="st" title="' + tip + '"><i>' + label + "</i><b" + (vCls ? ' class="' + vCls + '"' : "") + ">" +
       val + '</b><span class="an">' + note + "</span></span>";
+  /* 距历史高点（2026-10-24 加）：本卡叫「日线与回撤参考」，但下面几项全是**窗口内**口径 ✗ ——
+     没有一项是相对**历史高点**的回撤，跟图上那几条按 ATH 算的档位线接不上 ✓。阈值取 DEFAULT.thresholds.t2，不写死。 */
+  const dq = (typeof D !== "undefined" && D) ? D[recentKey] : null;
+  const th2 = (typeof D !== "undefined" && D && D.thresholds) ? D.thresholds.t2 : -15;
+  const ddAth = (dq && Number.isFinite(dq.ath)) ? (last / dq.ath - 1) * 100 : null;
   box.innerHTML =
+    (ddAth === null ? "" : item("距历史高点", sg(ddAth), "down",
+      md(dq.athDate) + " · " + (ddAth <= th2
+        ? "已到 " + String(th2).replace("-", "−") + "% 档"
+        : "还差 " + Math.abs(th2 - ddAth).toFixed(2) + "pp 到 " + String(th2).replace("-", "−") + "% 档"),
+      "最新收盘相对**历史最高收盘** " + f2(dq.ath) + "（" + md(dq.athDate) + "）；" +
+      String(th2).replace("-", "−") + "% 档 ＝ ATH × " + (1 + th2 / 100).toFixed(2) + " ＝ " +
+      f2(dq.ath * (1 + th2 / 100)) + "（阈值取 DEFAULT.thresholds.t2）")) +
     item("区间最高", f2(hi), "", md(pts[iHi].d) + " · 距现价 " + sg((last / hi - 1) * 100),
       "区间内最高收盘 " + f2(hi) + "（" + md(pts[iHi].d) + "）；距现价 = 最新收盘相对它差多少（负 = 还在高点下方）") +
     item("最大回撤", sg(mdd * 100), "down", md(pts[iPeak].d) + " → " + md(pts[iTrough].d) + " · " + (last >= cs[iPeak] ? "已收复" : "未收复"),
@@ -1686,6 +1766,14 @@ function renderRecentStats() {
     if (i !== recentHover) { recentHover = i; drawRecent(); }
   });
   card.addEventListener("pointerleave", () => { if (recentHover !== null) { recentHover = null; drawRecent(); } });
+  /* 窗口宽度变了要重画（2026-10-24 加）：viewBox 现在跟着容器宽度走，
+     不重画的话旧 viewBox 会被 CSS 拉伸 → 字变大/变小、线变粗 ✗（正是这次要修的病根）。
+     防抖 160ms，和页内其它图同一套节奏。 */
+  let rzT = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(rzT);
+    rzT = setTimeout(() => { if (recentData()) { drawRecent(); renderRecentStats(); } }, 160);
+  });
   card.addEventListener("click", (e) => {
     const span = e.target.closest && e.target.closest("#recent-spans .rtab");
     if (span) {
