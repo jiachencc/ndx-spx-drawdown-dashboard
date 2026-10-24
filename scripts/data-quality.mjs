@@ -234,6 +234,15 @@ export function validateModel(m) {
     const c = dh.cond || {};
     if (!(c.n > 0 && c.deep >= 0 && c.deep <= c.n)) errors.push("DDHIST.cond: 段数不自洽");
     if (!(c.thr < 0)) errors.push("DDHIST.cond.thr 必须为负");
+    /* median（index.html 那条中位数游标）：必须是负的、样本不少于 10 段，
+       且落在它自己的阈值与 −25% 之间 —— 越过界说明阈值取错或算错（历史上就是写死 −7.5 没人能复核 ✗） */
+    const md = dh.median;
+    if (!md || typeof md !== "object") errors.push("DDHIST.median 缺失");
+    else {
+      if (!(md.thr < 0)) errors.push("DDHIST.median.thr 必须为负");
+      if (!(md.n >= 10)) errors.push("DDHIST.median.n 过小：" + md.n);
+      if (!(md.med <= md.thr && md.med > -25)) errors.push("DDHIST.median.med 越界：" + md.med);
+    }
   }
   return errors;
 }

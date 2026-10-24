@@ -184,6 +184,11 @@ const DDHIST = {
     + (META && META.start) + " → " + (META && META.end) + "）",
   events,
   dist: { total: depths(DN, 0).length, n5: dist5.length, n10: dist10.length, n15: depths(DN, -15).length, n20: depths(DN, -20).length },
+  /* 「典型回撤深度」＝近 10 年 **≥3% 的回撤段** 深度的中位数（＝ index.html 那条中位数游标）。
+     为什么取 3% 而不是 0%：把日常噪音也算进去时中位只有 −0.85%，当不了"典型"✗（153 段里一多半是噪声）。
+     取 3% 后 n=30、中位 ≈ −7.2%，与页面原来手写的 −7.50 基本吻合 —— 那个数大概率就是这么来的，
+     只是当时没写清阈值，也没人能复现 ✓。 */
+  median: { thr: -3, n: depths(DN, -3).length, med: +median(depths(DN, -3)).toFixed(2) },
   cond: {
     thr: COND_THR,
     n: condRows.length,

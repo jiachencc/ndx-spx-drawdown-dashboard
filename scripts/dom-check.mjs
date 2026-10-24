@@ -2457,7 +2457,14 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       check("决策看板「2025 那次回调」≡ DDHIST（不再手写）",
         !!e25 && Number.isFinite(shown) && Math.abs(shown - e25.dd) < 0.06,
         e25 ? "页面 " + txtOf("dd25-dd") + " · 数据 " + e25.dd + "%（" + e25.days + " 个交易日）" : "DDHIST 里没有 2025 的事件 ✗");
-    }
+      /* 「近10年中位数回撤」游标（2026-10-24 加）：原来写死 −7.5%，谁也说不清口径 ✗。
+         现在必须是 DDHIST.median.med（＝近 10 年 ≥3% 回撤段深度的中位数），页面显示两位小数。 */
+      const wm = DH && DH.median ? DH.median.med : null;
+      const shownMed = parseFloat(txtOf("med-num").replace("−", "-"));
+      check("决策看板「中位数回撤」≡ DDHIST.median（不再写死 −7.5%）",
+        Number.isFinite(wm) && Number.isFinite(shownMed) && Math.abs(shownMed - wm) < 0.011,
+        wm === null ? "DDHIST.median 缺失 ✗" : "页面 " + txtOf("med-num") + " · 数据 " + wm + "%（≥" + Math.abs(DH.median.thr) + "% 的 " + DH.median.n + " 段）");
+      }
   }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
   /* ⑦ 数据新鲜度（2026-10-17 加）—— 起因：10-17 定时任务没跑，页面停在 10-15 却完全无提示 ✗，
