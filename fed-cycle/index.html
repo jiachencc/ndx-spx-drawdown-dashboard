@@ -96,7 +96,15 @@ const dot = (color) => '<i style="display:inline-block;width:7px;height:7px;bord
 const md = (d) => (d ? d.slice(5).replace('-', '.') : '');
 
 /* ── 头部：页脚已有完整的来源与授权说明，这里只留一行 ── */
-$('head-sub').innerHTML = '数据截至 ' + META.fetchedAt + ' · 共 ' + CYCLES.length + ' 个加息周期（1994 起，其中 2026 进行中）· 日线收盘口径';
+/* 页头日期（2026-10-24 修）：原来只印 META.fetchedAt ＝ **日线序列**的末日（见 scripts/fetch.mjs），
+   而 quotes（新浪实时报价）常常比日线新一个交易日 → 页头写「数据截至 10-22」、下方报价卡却是 10-23 ✗
+   自相矛盾（用户 10-24 指出）。现在取两者**较新**的那个当「数据截至」，不一致时把日线日也写出来 ✓。
+   ⚠ META.fetchedAt 的语义**不改**：页脚那句「标普500 数据源目前更新至 …」说的正是日线末日 ✓。 */
+const quoteD = Object.values(META.quotes || {}).map((q) => q && q.asOf).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d))).sort().at(-1) || null;
+const headD = [META.fetchedAt, quoteD].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d))).sort().at(-1);
+$('head-sub').innerHTML = '数据截至 ' + headD
+  + (quoteD && quoteD > String(META.fetchedAt) ? '（报价）· 日线 ' + META.fetchedAt : '')
+  + ' · 共 ' + CYCLES.length + ' 个加息周期（1994 起，其中 2026 进行中）· 日线收盘口径';
 
 /* ── 导语：给第一次打开的人 ── */
 $('sec-intro').innerHTML = '<div class="intro">'
@@ -127,7 +135,11 @@ if (now) {
   const cells = IDX.map(([k, label]) => {
     const q = META.quotes && META.quotes[k];
     if (q) return '<div><div class="k-label">' + label + '</div>'
-      + '<div class="k-val ' + cls(q.chgPct) + '">' + pct(q.chgPct, 2) + '</div>'
+      /* 几乎收平（2026-10-24 加）：与主看板同一条判据 —— |chg| < 0.005 时印「≈0.00%」走中性色，
+         不再用绿色 up 表示「等于 0」✗（10-23 的 NDX 实际 −0.004%） */
+      + '<div class="k-val ' + (Math.abs(q.chgPct) < 0.005 ? 'mute' : cls(q.chgPct)) + '"'
+      + (Math.abs(q.chgPct) < 0.005 ? ' title="当日几乎收平（|涨跌| < 0.005%）；不是没开盘 ✗"' : '')
+      + '>' + (Math.abs(q.chgPct) < 0.005 ? '≈0.00%' : pct(q.chgPct, 2)) + '</div>'
       + '<div class="k-sub">' + q.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div></div>';
     const x = now.idx[k];
     return '<div><div class="k-label">' + label + '</div>'

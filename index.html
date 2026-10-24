@@ -1048,7 +1048,14 @@ function renderIndexCard(p, idx, th) {
   const ddY = idx.ddYtd ?? 0;
   const ddYTxt = ddY < 0 ? pct(ddY) : "0.00%";
   const md = (() => { const p = D.asOf.us.split("-"); return (+p[1]) + "." + (+p[2]); })();  // 数据日 M.D，如 8.27
-  $(p + "-chg").innerHTML = '今日(' + md + ') <b class="' + (idx.chg < 0 ? "down" : "up") + '">' + pct(idx.chg) + '</b> · 今年 <b class="' + (ytd < 0 ? "down" : "up") + '">' + pct(ytd) + '</b> · 年内最大回撤 <b style="color:' + ddColor(ddY, th) + '">' + ddYTxt + '</b>';
+  /* 当日涨跌「几乎收平」的呈现（2026-10-24 加）：CI 的 chg 只保留 **两位小数**，
+     10-23 的 NDX 实际 −0.004% → 存成 0 → 原来印成绿色「+0.00%」，和旁边 SPX −0.52%、
+     SOX +0.44% 并排时读起来像「这天没交易」✗（用户 10-24 提出）。
+     判据 |chg| < 0.005 正好是两位小数舍入到 0 的边界 ✓ → 印「≈0.00%」、走中性色、挂 title 说明来源。 */
+  const flat = Math.abs(idx.chg) < 0.005;
+  const chgHtml = '<b' + (flat ? ' style="color:var(--tx2)" title="当日几乎收平（|涨跌| < 0.005%，两位小数下即为 0）；不是没开盘 ✗"' : ' class="' + (idx.chg < 0 ? "down" : "up") + '"')
+    + '>' + (flat ? "≈0.00%" : pct(idx.chg)) + '</b>';
+  $(p + "-chg").innerHTML = '今日(' + md + ') ' + chgHtml + ' · 今年 <b class="' + (ytd < 0 ? "down" : "up") + '">' + pct(ytd) + '</b> · 年内最大回撤 <b style="color:' + ddColor(ddY, th) + '">' + ddYTxt + '</b>';
   const dd = ddOf(idx);
   $(p + "-dd").textContent = pct(dd);
   $(p + "-dd").style.color = ddColor(dd, th);
