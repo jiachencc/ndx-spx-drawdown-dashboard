@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, DDHIST };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -212,6 +212,28 @@ export function validateModel(m) {
     if (plg.tradeAsOf && maxD && String(plg.tradeAsOf) < String(maxD)) errors.push("PREM_LOG.tradeAsOf 早于已算出日期");
     const badPct = ds.filter((dt) => Object.values(plg.items).some((o) => o[dt] !== undefined && !(Number.isFinite(o[dt]) && Math.abs(o[dt]) < 200)));
     if (badPct.length) errors.push("PREM_LOG: 异常溢价 " + badPct.slice(0, 3).join(","));
+  }
+  /* DDHIST（回撤历史对照，2026-10-24 加）：事件与分布必须自洽 ——
+     事件是「峰→谷」的日期对 + 负跌幅；分布是单调的（≥5% 的段数 ≥ ≥10% ≥ ≥15% ≥ ≥20%）；
+     条件统计里「最终跌破 −10% 的段数」不可能超过总段数 ✓。
+     这类块最容易在改口径时算错一格而页面照样渲染（回撤数字没人能心算复核）。 */
+  const dh = m.DDHIST;
+  if (dh && Array.isArray(dh.events)) {
+    if (!isDate(dh.asOf)) errors.push("DDHIST.asOf 不是日期");
+    (dh.events || []).forEach((e, i) => {
+      const tag = "DDHIST.events[" + i + "](" + (e.label || "?") + ")";
+      if (!isDate(e.peak) || !isDate(e.trough)) errors.push(tag + ": 峰/谷日期非法");
+      if (e.peak >= e.trough) errors.push(tag + ": 峰必须早于谷");
+      if (!(e.dd < 0 && e.dd > -100)) errors.push(tag + ": dd 越界");
+      if (!(Number.isInteger(e.days) && e.days >= 0)) errors.push(tag + ": days 非整数");
+      if (!(e.rank >= 1 && e.rank <= e.rankOf)) errors.push(tag + ": rank 越界");
+      if (e.recover && !isDate(e.recover)) errors.push(tag + ": recover 非法");
+    });
+    const d = dh.dist || {};
+    if (!(d.n5 >= d.n10 && d.n10 >= d.n15 && d.n15 >= d.n20 && d.n20 >= 0)) errors.push("DDHIST.dist: 不单调");
+    const c = dh.cond || {};
+    if (!(c.n > 0 && c.deep >= 0 && c.deep <= c.n)) errors.push("DDHIST.cond: 段数不自洽");
+    if (!(c.thr < 0)) errors.push("DDHIST.cond.thr 必须为负");
   }
   return errors;
 }

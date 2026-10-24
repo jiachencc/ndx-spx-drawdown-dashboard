@@ -916,7 +916,11 @@
       <tr><td class="h-desc">2008 金融危机</td><td style="color:var(--red)">-52.6%</td><td>~520 天</td></tr>
       <tr><td class="h-desc">2020 疫情</td><td style="color:var(--red)">-30.1%</td><td>~33 天</td></tr>
       <tr><td class="h-desc">2022 加息熊市</td><td style="color:var(--red)">-35.7%</td><td>~253 天</td></tr>
-      <tr><td class="h-desc">2025 技术性回调</td><td style="color:var(--yellow)">-13.7%</td><td>~70 天</td></tr>
+      <!-- ⚠ 2025 那行原本写死「−13.7% / ~70 天」，与数据不符（实际 −22.93% / 34 个交易日）✗ ——
+           手写数一过期就没人发现。现在改由 DDHIST（AUTO，scripts/build-ddhist.mjs）填，
+           与 positions.html 的「今年这几次跌 · 历史坐标」读同一份数据 ✓。
+           上面 2000 / 2008 / 2020 / 2022 四行仍为**人工维护**（本仓库没有那段日线，算不出来）。 -->
+      <tr id="dd25-row"><td class="h-desc">2025 那次回调</td><td style="color:var(--yellow)"><b id="dd25-dd">--</b></td><td><b id="dd25-days">--</b></td></tr>
       <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
     </table>
     <div class="hist-med">
@@ -1254,6 +1258,17 @@ function renderHist(ndxDD) {
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
   $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd) : "--";   // 年内回撤基准对照（数据驱动）
+  /* 2025 那行改成数据驱动（2026-10-24）：取 DDHIST 里 2025 年最深的一段。
+     没有 DDHIST 就退回「--」，不编数 ✓ */
+  const e25 = (typeof DDHIST !== "undefined" && DDHIST && Array.isArray(DDHIST.events))
+    ? DDHIST.events.filter((e) => e.y === 2025).sort((a, b) => a.dd - b.dd)[0] : null;
+  if (e25) {
+    /* 与上面四行的人工项同一写法（一位小数、ASCII 负号）—— 同一列里两种精度看着像两个来源 ✗ */
+    $("dd25-dd").textContent = e25.dd.toFixed(1) + "%";
+    $("dd25-days").textContent = "~" + e25.days + " 天";
+    const row = $("dd25-row");
+    if (row) row.title = e25.peak + " → " + e25.trough + "（" + e25.days + " 个交易日，收盘口径）";
+  }
 }
 
 /* ================= Scale SVG ================= */

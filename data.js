@@ -4305,6 +4305,149 @@ const RANGE_LOG = {
  }
 };
 
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+/* AUTO：回撤历史对照（2026-10-24 加）—— 由 scripts/build-ddhist.mjs 整块重写。
+   事件来自 RECENT（真实收盘、带日期）；分布与条件统计来自十年代理序列（无日期，只用深度）。
+   ⚠ 别再手写「2025 那次是 −13.7%」这种数：index.html 那张表已经因此错过一次（实际 −22.93%）。 */
+const DDHIST = {
+ "asOf": "2026-10-23",
+ "basis": "事件＝RECENT 真实指数收盘（2025-01 起）；分布/条件统计＝近 10 年代理序列（2016-08-22 → 2026-08-26）",
+ "events": [
+  {
+   "y": 2025,
+   "peak": "2025-02-19",
+   "trough": "2025-04-08",
+   "peakC": 22176,
+   "troughC": 17090,
+   "dd": -22.93,
+   "days": 34,
+   "crossPeak": "2025-02-19",
+   "crossDd": -22.93,
+   "crossDays": 34,
+   "recover": "2025-06-24",
+   "recDays": 52,
+   "spx": -18.9,
+   "deeper": 2,
+   "rank": 3,
+   "rankOf": 18,
+   "ongoing": false,
+   "label": "4 月"
+  },
+  {
+   "y": 2025,
+   "peak": "2025-10-29",
+   "trough": "2025-11-20",
+   "peakC": 26120,
+   "troughC": 24054,
+   "dd": -7.91,
+   "days": 16,
+   "crossPeak": "2025-10-29",
+   "crossDd": -7.91,
+   "crossDays": 16,
+   "recover": "2026-04-15",
+   "recDays": 98,
+   "spx": -5.11,
+   "deeper": 12,
+   "rank": 13,
+   "rankOf": 18,
+   "ongoing": false,
+   "label": "11 月"
+  },
+  {
+   "y": 2026,
+   "peak": "2026-01-28",
+   "trough": "2026-03-30",
+   "peakC": 26023,
+   "troughC": 22953,
+   "dd": -11.8,
+   "days": 42,
+   "crossPeak": "2025-10-29",
+   "crossDd": -12.12,
+   "crossDays": 103,
+   "recover": "2026-04-15",
+   "recDays": 11,
+   "spx": -9.09,
+   "deeper": 6,
+   "rank": 7,
+   "rankOf": 18,
+   "ongoing": false,
+   "label": "3 月"
+  },
+  {
+   "y": 2026,
+   "peak": "2026-06-02",
+   "trough": "2026-07-29",
+   "peakC": 30661,
+   "troughC": 27192,
+   "dd": -11.31,
+   "days": 39,
+   "crossPeak": "2026-06-02",
+   "crossDd": -11.31,
+   "crossDays": 39,
+   "recover": "2026-09-22",
+   "recDays": 38,
+   "spx": -4.5,
+   "deeper": 7,
+   "rank": 8,
+   "rankOf": 18,
+   "ongoing": false,
+   "label": "7 月"
+  },
+  {
+   "y": 2026,
+   "peak": "2026-10-06",
+   "trough": "2026-10-23",
+   "peakC": 31225,
+   "troughC": 28958,
+   "dd": -7.26,
+   "days": 13,
+   "crossPeak": "2026-10-06",
+   "crossDd": -7.26,
+   "crossDays": 13,
+   "recover": null,
+   "recDays": null,
+   "spx": -2.5,
+   "deeper": 12,
+   "rank": 13,
+   "rankOf": 18,
+   "ongoing": true,
+   "label": "10 月"
+  }
+ ],
+ "dist": {
+  "total": 153,
+  "n5": 18,
+  "n10": 12,
+  "n15": 4,
+  "n20": 4
+ },
+ "cond": {
+  "thr": -7,
+  "n": 16,
+  "deep": 12,
+  "pct": 75,
+  "medDepth": -11.1,
+  "medToTrough": 8.5
+ }
+};
+
 const HOLD_HIST = {
  "asOf": "2026-10-23",
  "source": "Tencent qfq daily + POSITIONS.log",

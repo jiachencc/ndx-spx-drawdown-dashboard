@@ -1085,6 +1085,22 @@
   /* 成交位置汇总（2026-10-21 加）：一行三段（标签 / 中位数 / 笔数分布）。
      放在体检表**上方**、表在窄屏默认折叠 → 这句始终可见，承担"一句话结论"的角色 ✓。
      ⚠ 不做成表格行：它不是某一只的指标，是**账户级**的成交习惯（覆盖 5 只含已清仓）✓ */
+  /* 今年这几次跌 · 历史坐标（2026-10-24 加）：一段事件两行 ——
+     ① 月份 / 跌幅 / 现状（右对齐）  ② 峰→谷 · 用时 · 十年排名 · SPX 同期
+     为什么不排成真表格：6 列在 375px 下每列不到 50px，跌幅与日期都会被压成两行 ✗（与清仓表同一教训） */
+  .ddr-list { display: flex; flex-direction: column; }
+  .ddr-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
+  .ddr-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+  .ddr-l1 { display: flex; align-items: baseline; gap: 10px; }
+  .ddr-l1 .ddr-m { font-size: var(--fs-md); font-weight: 600; color: var(--tx); min-width: 2.6em; }
+  .ddr-l1 .ddr-dd { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; }
+  .ddr-l1 .ddr-dd.down { color: var(--red); }
+  .ddr-l1 .ddr-tag { margin-left: auto; font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; }
+  .ddr-l2 { font-size: var(--fs-xs); color: var(--tx3); font-feature-settings: "tnum"; }
+  .ddr-l2 b { color: var(--tx2); font-weight: 600; }
+  .ddr-concl { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-xs); color: var(--tx3); line-height: 1.65; }
+  .ddr-concl b { color: var(--tx2); font-weight: 700; font-family: var(--mono); font-feature-settings: "tnum"; }
   .chk-range { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     margin: 0 0 9px; padding-bottom: 8px; border-bottom: 1px dashed var(--line-soft); font-size: var(--fs-xs); }
   .chk-range .tr-k { color: var(--tx3); white-space: nowrap; }

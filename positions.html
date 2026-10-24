@@ -55,6 +55,7 @@ try {
     <a class="sec-nav-link" href="#sec-acct">账户</a>
     <a class="sec-nav-link" href="#sec-otc-acct">场外账户</a>
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
+    <a class="sec-nav-link" href="#sec-ddref">回撤</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-otclvl">水位</a>
     <a class="sec-nav-link" href="#sec-tools">工具</a>
@@ -157,6 +158,14 @@ try {
 
   <h2 class="sec-title" id="sec-pos"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
+
+  <!-- 今年这几次跌 · 历史坐标（2026-10-24 加，用户要求「把当年几次大的回撤做一个历史对照的结论」）
+       ⚠ 位置：刻意放在「操作体检」**之前** —— 先看**外部跌到什么程度**，再看**我在这个环境里的操作**
+         （体检卡讲溢价/追高/成交位置），顺序才对 ✓；再往前放就会打断 ①~⑧ 那条对账链 ✗。
+       ⚠ 数据：只读 data.js 的 DDHIST（AUTO，scripts/build-ddhist.mjs 生成），**页面不自己算回撤** ——
+         同一份数 index.html 的「历史回撤对照」表也在用，两页不会各说各话 ✓。 -->
+  <h2 class="sec-title" id="sec-ddref"><span aria-hidden="true">🎯</span> 今年这几次跌 · 历史坐标 <span class="cnt" id="ddref-cnt"></span></h2>
+  <div class="card tight" id="ddref-card"></div>
 
   <!-- 操作体检（2026-09-27 建；2026-09-30 移位）：原来嵌在各持仓卡与盈亏总览行里（两处重复），改为「单独做一块」。
        13 只集中横向对比，按最弱档位排序（有问题的排前面）。数据全部来自 opCheckup()，无新增口径。
@@ -7428,6 +7437,69 @@ function chkRangeHtml() {
       (zero ? " · " + zero + " 笔正中" : "") + "</span>" +
   "</div>";
 }
+/* ---- 今年这几次跌 · 历史坐标（2026-10-24 加）----
+ * 数据全部来自 data.js 的 DDHIST（AUTO，scripts/build-ddhist.mjs）：事件用 RECENT 的真实收盘（带日期），
+ * 排名与条件统计用近 10 年代理序列的深度分布。**页面不自己算回撤** —— 同一份数 index.html 也在读 ✓。
+ * 只列**当年**的事件（`e.y === asOf 的年份`）；更早的年份留给 index.html 那张全历史表。
+ * 为什么放在「操作体检」之前：先看外部跌到什么程度，再看我在这个环境里的操作，顺序才对 ✓。 */
+function renderDdRef() {
+  const box = $("ddref-card"), cnt = $("ddref-cnt");
+  if (!box) return;
+  const H = (typeof DDHIST !== "undefined") ? DDHIST : null;
+  if (!H || !Array.isArray(H.events) || !H.events.length) {
+    box.innerHTML = "";
+    if (cnt) cnt.textContent = "";
+    const sec = $("sec-ddref");
+    if (sec) { sec.hidden = true; box.hidden = true; }      // 没数据就别留个空标题 ✗（④m 门禁也盯这条）
+    return;
+  }
+  const yNow = Number(String(H.asOf || "").slice(0, 4)) || new Date().getFullYear();
+  const md = (d) => (d ? d.slice(5).replace("-", ".") : "—");
+  const sg = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(dp === undefined ? 2 : dp) + "%";   // 全角负号，与页面其它数字一致
+  const rows = H.events.filter((e) => e.y === yNow);
+  const c = H.cond || {};
+  const dd = (typeof DEFAULT !== "undefined" && DEFAULT.ndx) ? (DEFAULT.ndx.close / DEFAULT.ndx.ath - 1) * 100 : null;
+  const t2 = (typeof DEFAULT !== "undefined" && DEFAULT.thresholds) ? DEFAULT.thresholds.t2 : -15;
+  /* 「距 −15% 档还差多少」＝ 两负数之差的**绝对值**（初版写成 max(0, t2−dd) → 恒为 0 ✗，实测踩到） */
+  const toT2 = dd === null ? null : Math.abs(t2 - dd);
+  const pastT2 = dd !== null && dd <= t2;
+  const item = (e) => {
+    const deep = e.ongoing ? "进行中" : "已收复 " + (e.recDays === null ? "—" : e.recDays + " 个交易日");
+    /* 跨年口径与年内口径不同时（3 月那次）在提示里交代，避免「只看到 11.8%、漏掉 12.1%」✗ */
+    const cross = (e.crossDd !== null && Math.abs(e.crossDd - e.dd) >= 0.05)
+      ? "\n⚠ 跨年口径：从 " + e.crossPeak + " 的峰值算起是 " + e.crossDd.toFixed(2) + "%（" + e.crossDays + " 个交易日）——"
+        + "那段是慢慢磨下来的，年内口径只统计本年度的高点 ✓"
+      : "";
+    const tip = "峰 " + e.peak + "（" + fmtIdx(e.peakC) + "）→ 谷 " + e.trough + "（" + fmtIdx(e.troughC) + "）；"
+      + sg(e.dd) + "，" + e.days + " 个交易日。"
+      + "\n近 10 年 ≥5% 的回撤共 " + e.rankOf + " 段，比它更深的 " + (e.rank - 1) + " 段。"
+      + (e.spx === null ? "" : "\nSPX 同期 " + sg(e.spx) + "（同窗口的峰→谷）。") + cross;
+    return '<div class="ddr-row" title="' + esc(tip) + '">'
+      + '<div class="ddr-l1"><b class="ddr-m">' + esc(e.label) + '</b>'
+      + '<b class="ddr-dd down">' + sg(e.dd) + "</b>"
+      + '<span class="ddr-tag">' + esc(deep) + "</span></div>"
+      + '<div class="ddr-l2">' + md(e.peak) + " → " + md(e.trough) + " · " + e.days + " 个交易日 · 第 <b>"
+      + e.rank + "</b>/" + e.rankOf + " 深" + (e.spx === null ? "" : " · SPX " + sg(e.spx)) + "</div></div>";
+  };
+  /* 结论句里「今年这几次」的月份与跌幅**必须来自数据**（写死「3 月 / 7 月」这种，明年就错 ✗） */
+  const done = rows.filter((e) => !e.ongoing);
+  const yearTxt = done.length
+    ? "今年已结束的 " + done.length + " 次（" + done.map((e) => e.label).join(" / ") + "）分别 "
+      + done.map((e) => sg(e.dd)).join(" / ")
+      + (done.every((e) => Math.abs(e.dd - (c.medDepth || 0)) <= 2) ? "，都落在中位附近 ✓" : "")
+    : "";
+  /* ⚠ 结论里**不再重复印「现在这波 −x%」**：表里那行已经是它，而两个口径（表＝收盘、页头回撤＝含盘中高点）
+     并排摆着必然差 0.4pp ✗（10-23 实测 −7.26 vs −7.66）。这里只借页头的「距 −15% 档」，
+     与看板顶部那格是同一个数 ✓。 */
+  box.innerHTML = '<div class="ddr-list">' + rows.map(item).join("") + "</div>"
+    + '<div class="ddr-concl">'
+    + "近 10 年有 <b>" + (c.n || "—") + "</b> 段跌过 " + sg(c.thr || -7, 0) + "，其中 <b>" + (c.deep || "—") + "</b> 段（"
+    + (c.pct || "—") + "%）最终跌破 −10%，中位 <b>" + sg(c.medDepth || 0, 1) + "</b>"
+    + (yearTxt ? "；" + yearTxt : "")
+    + (toT2 === null ? "" : "；现在" + (pastT2 ? "已过你自己的 " + sg(t2, 0) + " 档" : "距你自己的 " + sg(t2, 0) + " 档还差 <b>" + toT2.toFixed(2) + "pp</b>"))
+    + "</div>";
+  if (cnt) cnt.textContent = "（NDX 收盘口径 · 数据至 " + md(H.asOf) + " · 排名按近 10 年 " + (H.dist ? H.dist.n5 : "—") + " 段 ≥5% 的回撤）";
+}
 /* 操作体检表（2026-09-27）：把原先嵌在持仓卡 / 盈亏总览行里的体检**集中到一张表**（用户要求「单独做一块」）。
    数据全部来自 opCheckup() —— 与之前那两处同一套计算，不新增任何口径。
    排序：按最弱档位（D → C → B → A，"—" 视为无），同档按现值降序 —— 需要看的排前面。
@@ -7924,6 +7996,7 @@ function render() {
 render();
 /* 操作体检表：挂在自己的静态容器上（#checkup-card 不由 render 重建），所以放在 render() 之后即可。
    数据自己读 POSITIONS / OTC，不依赖 render 的产物。 */
+renderDdRef();                           // 今年这几次跌 · 历史坐标（2026-10-24 加，紧跟体检之前）
 renderCheckup();
 applyAutoFold();   // 宽表按屏宽定默认展开（窄屏收起）——必须在 renderCheckup 之后
 

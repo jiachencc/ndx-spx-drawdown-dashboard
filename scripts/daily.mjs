@@ -32,6 +32,9 @@ const STEPS = [
   { key: "rng", label: "当日区间（RANGE_LOG）", file: "scripts/fetch-trade-range.mjs" },
   { key: "hold", label: "各标的浮盈曲线（HOLD_HIST）", file: "scripts/fetch-hold-history.mjs" },
   { key: "prem", label: "逐笔溢价（PREM_LOG）", file: "scripts/fetch-trade-premium.mjs" },
+  /* 回撤历史对照（2026-10-24 加）：纯本地计算（RECENT + 十年代理序列），不请求网络，几十毫秒。
+     放在最后：它读 RECENT，而 RECENT 由 CI 的行情更新负责 —— 这里只重算「峰谷/排名/条件统计」✓ */
+  { key: "dd", label: "回撤历史对照（DDHIST）", file: "scripts/build-ddhist.mjs" },
 ];
 
 /* 前置检查（只提示、不拦）：① 今天的流水录了没 ② 溢价块会不会因净值未公布而跳过 */

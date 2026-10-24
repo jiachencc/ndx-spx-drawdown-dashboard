@@ -2264,6 +2264,40 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     empty.length ? "这些 <details> 只有 summary、没有正文（多半是属性没闭合被浏览器吞了）：" + empty.join(" / ") : "");
 }
 
+/* ④n 回撤历史对照卡（2026-10-24 加）：卡上那几行的跌幅 / 排名 / 条件统计必须 ≡ data.js 的 DDHIST。
+   为什么值得单独守：回撤数字**没有人能心算复核**，算错一格页面照样渲染得很像样 ✗
+   （本页已经栽过两次同类：把手写「2025 −13.7%」留在表里、把均线画成常数平线）。 */
+{
+  const SRC = readFileSync(path.join(root, "data.js"), "utf8");
+  const pickOne = (name) => {
+    const m = SRC.match(new RegExp("^const " + name + " = \\{[\\s\\S]*?^\\};", "m"));
+    if (!m) return null;
+    const c = vm.createContext({}); vm.runInContext(m[0] + "\nthis.o = " + name + ";", c, { timeout: 3000 });
+    return c.o;
+  };
+  const DH = pickOne("DDHIST");
+  const card = win.document.getElementById("ddref-card");
+  const rows = card ? [...card.querySelectorAll(".ddr-row")] : [];
+  const yNow = DH ? Number(String(DH.asOf || "").slice(0, 4)) : 0;
+  const want = DH ? (DH.events || []).filter((e) => e.y === yNow) : [];
+  const bad = [];
+  if (!DH) bad.push("data.js 里没有 DDHIST");
+  else {
+    if (rows.length !== want.length) bad.push("行数 " + rows.length + " vs 应 " + want.length);
+    want.forEach((e, i) => {
+      const t = rows[i] ? rows[i].textContent.replace(/\s+/g, "") : "";
+      const ddTxt = Math.abs(e.dd).toFixed(2);
+      if (!t.includes(ddTxt)) bad.push((e.label || i) + " 行找不到跌幅 " + ddTxt);
+      if (!t.includes("第" + e.rank + "/" + e.rankOf)) bad.push((e.label || i) + " 行找不到排名 第" + e.rank + "/" + e.rankOf);
+    });
+    const concl = card && card.querySelector(".ddr-concl") ? card.querySelector(".ddr-concl").textContent : "";
+    if (DH.cond && !concl.includes(String(DH.cond.pct))) bad.push("结论句里没有「" + DH.cond.pct + "%」");
+    if (DH.cond && !concl.includes(String(Math.abs(DH.cond.medDepth)))) bad.push("结论句里没有中位深度");
+  }
+  check("回撤历史对照卡：" + rows.length + " 行 ≡ DDHIST 当年事件（跌幅 / 排名 / 条件统计）",
+    bad.length === 0, bad.join("；") || "逐项一致 ✓");
+}
+
 /* ⑤a-3 成交位置汇总（2026-10-21 加）：体检卡上方那行「中位数 X%（N 笔买入）」。
    它是**账户级**的成交习惯指标（覆盖 5 只含已清仓），由 RANGE_LOG（腾讯日K高/低）＋ POSITIONS.log 算出 ——
    两处都可能漂：数据块换了源 / 页面把「买入」错写成全部流水 / 中位数算法（奇数取中、偶数取均值）被改 ✗。
@@ -2409,6 +2443,21 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     check("决策看板：统计条有「距历史高点」≡ close / ath − 1",
       /距历史高点/.test(txt) && txt.includes(Math.abs(want).toFixed(2) + "%"),
       /距历史高点/.test(txt) ? "页面有该项 · 复算 " + want.toFixed(2) + "%" : "统计条里没有「距历史高点」✗");
+    /* 「2025 那次回调」那行必须是**数据算的**（2026-10-24 加）：
+       起因：原来写死 −13.7% / ~70 天，实际是 −22.93% / 34 个交易日 —— 差了一倍还没人发现 ✗。
+       现在读 DDHIST；这条断言保证它以后也不会被改回手写值。 */
+    {
+      const dsrc = readFileSync(path.join(root, "data.js"), "utf8");
+      const mm = dsrc.match(/^const DDHIST = \{[\s\S]*?^\};/m);
+      const dctx = vm.createContext({});
+      let DH = null;
+      if (mm) { vm.runInContext(mm[0] + "\nthis.o = DDHIST;", dctx, { timeout: 3000 }); DH = dctx.o; }
+      const e25 = DH ? (DH.events || []).filter((e) => e.y === 2025).sort((a, b) => a.dd - b.dd)[0] : null;
+      const shown = parseFloat(txtOf("dd25-dd").replace("−", "-"));
+      check("决策看板「2025 那次回调」≡ DDHIST（不再手写）",
+        !!e25 && Number.isFinite(shown) && Math.abs(shown - e25.dd) < 0.06,
+        e25 ? "页面 " + txtOf("dd25-dd") + " · 数据 " + e25.dd + "%（" + e25.days + " 个交易日）" : "DDHIST 里没有 2025 的事件 ✗");
+    }
   }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
   /* ⑦ 数据新鲜度（2026-10-17 加）—— 起因：10-17 定时任务没跑，页面停在 10-15 却完全无提示 ✗，
