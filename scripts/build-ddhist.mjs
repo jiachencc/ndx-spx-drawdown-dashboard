@@ -94,7 +94,10 @@ function episodesWithDates(pts, minDepth) {
       dd: +ddY.toFixed(2), days: tr.i - yi,
       crossPeak: pts[xi].d, crossDd: +((tr.c / pts[xi].c - 1) * 100).toFixed(2), crossDays: tr.i - xi,
       recover: rec !== null ? pts[rec].d : null, recDays: rec !== null ? rec - tr.i : null,
-      ongoing: tr.i >= pts.length - 1 && rec === null,
+      /* ⚠ 「进行中」的判据是**还没收复**，不是「谷底就在最后一个点上」（2026-10-26 修）：
+         RECENT 里一旦落了新的一天（哪怕只是短暂反弹），谷底就不再是末点，原来那条判断会把
+         "还没收复"的事件标成已完成、并在日志里印出「收复 null（null 日）」✗ */
+      ongoing: rec === null,
     });
   });
   return [...byYearPeak.values()].sort((a, b) => a.trough.localeCompare(b.trough));

@@ -1125,8 +1125,11 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   if (expCleared) {
     const a = num(m && m[1]), b = num(m && m[2]);
     check("累计收益的副标有恒等式小注「＝ 在持浮盈 X ＋ 已实现 Y」", !!m, "副标：" + sub.slice(0, 90));
+    /* 容差 1.5 → 2.1（2026-10-26）：两个加数都是**截断**到元（fmtAbs2 用的是 Math.trunc，不是四舍五入），
+       各自误差可到 0.999，合计就接近 2 —— 1.5 会周期性误报（10-26 实测差 1.81：−1,272.89 显示 −1,272、
+       −23,922.92 显示 −23,922）。⚠ 仍抓得住真错：加错项 / 少一项都是整元级以上 ✓ */
     check("恒等式小注的两个加数 ＝ 实际数字（" + a + " ＋ " + b + " 应 ＝ " + plRaw + "）",
-      a !== null && b !== null && Math.abs((a + b) - plRaw) < 1.5,
+      a !== null && b !== null && Math.abs((a + b) - plRaw) < 2.1,
       "差 " + (a !== null && b !== null ? ((a + b) - plRaw).toFixed(2) : "（小注没解析出来 ✗）"));
     check("小注里的「已实现」＝ 独立复算的全额清仓已实现（−" + expCleared.toFixed(2) + "）",
       b !== null && Math.abs(b + expCleared) < 1, "小注 " + b + " vs 复算 " + (-expCleared));
