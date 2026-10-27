@@ -1,6 +1,6 @@
 /* 由 scripts/build.mjs 生成，请勿手改。数据源与口径见 scripts/fetch.mjs 与页面「数据与口径」面板。 */
 const META = {
- "builtAt": "2026-10-27 06:40:28",
+ "builtAt": "2026-10-27 06:55:57",
  "source": {
   "spx": {
    "name": "History of Market",
