@@ -1085,6 +1085,27 @@
   /* 成交位置汇总（2026-10-21 加）：一行三段（标签 / 中位数 / 笔数分布）。
      放在体检表**上方**、表在窄屏默认折叠 → 这句始终可见，承担"一句话结论"的角色 ✓。
      ⚠ 不做成表格行：它不是某一只的指标，是**账户级**的成交习惯（覆盖 5 只含已清仓）✓ */
+  /* 溢价扫描（2026-10-28 加）：一行一只，名称可省略号（10 只名字长度差异大） */
+  .psm-list { display: flex; flex-direction: column; }
+  .psm-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 0;
+    border-bottom: 1px dashed var(--line-soft); font-size: var(--fs-xs); }
+  .psm-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+  .psm-tag { color: var(--tx3); white-space: nowrap; min-width: 3.4em; }
+  .psm-code { font-family: var(--mono); color: var(--tx2); font-weight: 600; }
+  .psm-name { flex: 1 1 auto; min-width: 0; color: var(--tx); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .psm-pp { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; white-space: nowrap; }
+  .psm-pp.hi { color: var(--red); }
+  .psm-pp.lo { color: var(--green); }
+  .psm-q { color: var(--tx3); white-space: nowrap; }
+  /* 全表折叠（2026-10-28）：.pf-fold 的既有样式只认 summary.snap-sec，这里单独给 .psm-sum 一套 ✓ */
+  .psm-all { margin-top: 8px; }
+  .psm-all > summary.psm-sum { cursor: pointer; list-style: none; font-size: var(--fs-xs); color: var(--tx3);
+    padding: 6px 0; position: relative; padding-right: 18px; border-top: 1px solid var(--line-soft); }
+  .psm-all > summary.psm-sum:hover { color: var(--tx2); }
+  .psm-all > summary.psm-sum::-webkit-details-marker { display: none; }
+  .psm-all > summary.psm-sum::after { content: "▾"; position: absolute; right: 0; top: 6px; color: var(--tx3); font-size: var(--fs-xxs); }
+  .psm-all[open] > summary.psm-sum::after { content: "▴"; }
+
   /* 今年这几次跌 · 历史坐标（2026-10-24 加）：一段事件两行 ——
      ① 月份 / 跌幅 / 现状（右对齐）  ② 峰→谷 · 用时 · 十年排名 · SPX 同期
      为什么不排成真表格：6 列在 375px 下每列不到 50px，跌幅与日期都会被压成两行 ✗（与清仓表同一教训） */

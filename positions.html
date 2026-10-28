@@ -55,6 +55,7 @@ try {
     <a class="sec-nav-link" href="#sec-acct">账户</a>
     <a class="sec-nav-link" href="#sec-otc-acct">场外账户</a>
     <a class="sec-nav-link" href="#sec-pos">持仓</a>
+    <a class="sec-nav-link" href="#sec-prem">溢价</a>
     <a class="sec-nav-link" href="#sec-ddref">回撤</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
     <a class="sec-nav-link" href="#sec-otclvl">水位</a>
@@ -158,6 +159,14 @@ try {
 
   <h2 class="sec-title" id="sec-pos"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
+
+  <!-- 溢价扫描（2026-10-28 加）：回答「同一赛道 10 只 ETF，现在该用哪只买」。
+       ⚠ 位置：紧跟「场内持仓与操作记录」——溢价是**场内标的**的专属属性，离开持仓表就没有主语；
+         顺着「我持有 159941（溢价 13.4%）→ 同类里有没有更便宜的」这个追问最自然 ✓
+         再往后（回撤坐标 → 操作体检）正好是「通道 → 环境 → 操作」三段复盘。
+       ⚠ 数据只读 data.js 的 PREM_SCAN（AUTO，scripts/fetch-premium-scan.mjs），页面不自己算 ✓ -->
+  <h2 class="sec-title" id="sec-prem"><span aria-hidden="true">🎫</span> 溢价扫描 · 同赛道该买哪只 <span class="cnt" id="prem-scan-cnt"></span></h2>
+  <div class="card tight" id="prem-scan-card"></div>
 
   <!-- 今年这几次跌 · 历史坐标（2026-10-24 加，用户要求「把当年几次大的回撤做一个历史对照的结论」）
        ⚠ 位置：刻意放在「操作体检」**之前** —— 先看**外部跌到什么程度**，再看**我在这个环境里的操作**
@@ -7437,6 +7446,69 @@ function chkRangeHtml() {
       (zero ? " · " + zero + " 笔正中" : "") + "</span>" +
   "</div>";
 }
+/* ---- 溢价扫描 · 同赛道该买哪只（2026-10-28 加）----
+ * 数据全部来自 data.js 的 PREM_SCAN（AUTO，scripts/fetch-premium-scan.mjs）：
+ *   溢价 ＝ 当日收盘 ÷ **前一交易日**单位净值 − 1；分位 ＝ 该溢价在本窗口（约 160 个交易日）内的百分位。
+ * 只做三件事（别把它做成行情表）：
+ *   ① 你持有那只是多少、处于什么分位  ② 比你便宜的（最多 3 只）  ③ 一句结论（含溢价回归的敏感性）
+ * ⚠ 与每张持仓卡上的溢价胶囊**分工不同**：那个说「你这只多少」，这个说「同类里该选哪只」。 */
+function renderPremScan() {
+  const box = $("prem-scan-card"), cnt = $("prem-scan-cnt");
+  if (!box) return;
+  const S = (typeof PREM_SCAN !== "undefined") ? PREM_SCAN : null;
+  const items = (S && Array.isArray(S.items)) ? S.items.filter((x) => Number.isFinite(x.cur)) : [];
+  if (!items.length) {
+    box.innerHTML = "";
+    if (cnt) cnt.textContent = "";
+    const sec = $("sec-prem");
+    if (sec) { sec.hidden = true; box.hidden = true; }
+    return;
+  }
+  const holds = ((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).map((p) => String(p.code));
+  const sorted = items.slice().sort((a, b) => a.cur - b.cur);
+  const mine = items.find((x) => holds.includes(String(x.code))) || null;
+  const cheaper = mine ? sorted.filter((x) => x.cur < mine.cur - 0.05).slice(0, 3) : sorted.slice(0, 3);
+  const cheapest = sorted[0];
+  const qs = items.map((x) => x.q).filter(Number.isFinite);
+  const qLo = Math.min(...qs), qHi = Math.max(...qs);
+  const pctv = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  const row = (tag, it, cls) =>
+    '<div class="psm-row">'
+    + '<span class="psm-tag">' + esc(tag) + "</span>"
+    + '<b class="psm-code">' + esc(it.code) + "</b>"
+    + '<span class="psm-name" title="' + esc(it.name) + " · 规模 " + it.scale + " 亿 · 当日成交 " + it.turnover + ' 亿">' + esc(it.name) + "</span>"
+    + '<b class="psm-pp ' + cls + '">' + pctv(it.cur) + "</b>"
+    + '<span class="psm-q">' + it.q + " 分位</span>"
+    + "</div>";
+  let h = '<div class="psm-list">';
+  if (mine) h += row("你持有", mine, mine.cur >= 8 ? "hi" : "");
+  cheaper.forEach((it) => { h += row(mine ? "更便宜" : "最便宜", it, "lo"); });
+  if (mine && !cheaper.length) h += '<div class="psm-row"><span class="psm-tag">提示</span><span class="psm-name">你的已是全市场最便宜的一只</span></div>';
+  h += "</div>";
+  /* 全表折叠（10 只按溢价升序）：让这张卡自己就能当「历史溢价汇总表」用，
+     不必再去翻同花顺；折叠着不占版面 ✓ */
+  /* 全表折叠里那枚标签放**成交额**而不是"高位/低位"——现在 10 只全在 87~96 分位，写"高位"等于每行都印同一句话 ✗；
+     成交额才是选标时要看的第二个维度（价差与冲击成本）。中位/区间/规模挪进 title ✓ */
+  h += '<details class="pf-fold psm-all"><summary class="psm-sum">展开全部 ' + items.length + ' 只（按溢价升序）</summary>'
+    + sorted.map((it) => '<div class="psm-row" title="'
+      + esc(it.name + "：规模 " + it.scale + " 亿 · 本窗口中位 " + pctv(it.med) + " · 区间 " + pctv(it.min) + "~" + pctv(it.max) + " · 样本 " + it.days + " 日") + '">'
+      + '<span class="psm-tag">成交 ' + (it.turnover === null ? "—" : it.turnover + " 亿") + "</span>"
+      + '<b class="psm-code">' + esc(it.code) + '</b><span class="psm-name">' + esc(it.name) + "</span>"
+      + '<b class="psm-pp ' + (it.cur >= 8 ? "hi" : "lo") + '">' + pctv(it.cur) + "</b>"
+      + '<span class="psm-q">' + it.q + " 分位</span></div>").join("")
+    + "</details>";
+
+  /* 结论：全板块分位区间 ＋ 溢价回归的敏感性（用**你自己那只**算，读者才对得上号） */
+  const back = mine && Number.isFinite(mine.med) ? ((1 + mine.med / 100) / (1 + mine.cur / 100) - 1) * 100 : null;
+  h += '<div class="ddr-concl">'
+    + "纳指类 " + items.length + " 只全部处于 <b>" + qLo + "~" + qHi + " 分位</b>（窗口 " + esc(S.window || "约 160 个交易日") + "）——"
+    + "现在不是「吃溢价」的时点，而是<b>选通道</b>的时点：场外按净值、场内挑最低那只。"
+    + (back === null ? "" : "若 " + esc(String(mine.code)) + " 的溢价回到中位 <b>" + pctv(mine.med) + "</b> 而指数不动，它单独要跌 <b>" + pctv(back) + "</b>。")
+    + "</div>";
+  box.innerHTML = h;
+  if (cnt) cnt.textContent = "（纳指 " + items.length + " 只 · 数据至 " + (S.asOf || "—").slice(5).replace("-", ".") + " · 收盘 ÷ 前一交易日净值）";
+}
+
 /* ---- 今年这几次跌 · 历史坐标（2026-10-24 加）----
  * 数据全部来自 data.js 的 DDHIST（AUTO，scripts/build-ddhist.mjs）：事件用 RECENT 的真实收盘（带日期），
  * 排名与条件统计用近 10 年代理序列的深度分布。**页面不自己算回撤** —— 同一份数 index.html 也在读 ✓。
@@ -8001,6 +8073,7 @@ function render() {
 render();
 /* 操作体检表：挂在自己的静态容器上（#checkup-card 不由 render 重建），所以放在 render() 之后即可。
    数据自己读 POSITIONS / OTC，不依赖 render 的产物。 */
+renderPremScan();                        // 溢价扫描（2026-10-28 加，紧跟场内持仓之后）
 renderDdRef();                           // 今年这几次跌 · 历史坐标（2026-10-24 加，紧跟体检之前）
 renderCheckup();
 applyAutoFold();   // 宽表按屏宽定默认展开（窄屏收起）——必须在 renderCheckup 之后

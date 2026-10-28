@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, DDHIST };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, DDHIST, PREM_SCAN };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -243,6 +243,23 @@ export function validateModel(m) {
       if (!(md.n >= 10)) errors.push("DDHIST.median.n 过小：" + md.n);
       if (!(md.med <= md.thr && md.med > -25)) errors.push("DDHIST.median.med 越界：" + md.med);
     }
+  }
+  /* PREM_SCAN（纳指类 ETF 溢价扫描，2026-10-28 加）：形状 ＋ 自洽
+     —— 这块最容易「某只净值没对齐 → 溢价虚高 3pp 而页面照样渲染」✗（开发当天就踩过一次），
+     所以要求：每只 cur 落在自己的 min~max 内、分位 0~100、六个代码齐全。 */
+  const ps = m.PREM_SCAN;
+  if (ps && Array.isArray(ps.items) && ps.items.length) {
+    if (!isDate(ps.asOf)) errors.push("PREM_SCAN.asOf 不是日期");
+    const codes = new Set(ps.items.map((x) => String(x.code)));
+    ["159941", "513100", "159632", "513110"].forEach((c) => { if (!codes.has(c)) errors.push("PREM_SCAN 缺 " + c); });
+    ps.items.forEach((x) => {
+      const t = "PREM_SCAN[" + x.code + "]";
+      if (!(Number.isFinite(x.cur) && Number.isFinite(x.min) && Number.isFinite(x.max))) { errors.push(t + ": cur/min/max 非数"); return; }
+      if (!(x.cur >= x.min - 0.01 && x.cur <= x.max + 0.01)) errors.push(t + ": cur 不在 min~max 内（" + x.cur + " vs " + x.min + "~" + x.max + "）");
+      if (!(Number.isInteger(x.q) && x.q >= 0 && x.q <= 100)) errors.push(t + ": 分位越界 " + x.q);
+      if (!(x.med >= x.min - 0.01 && x.med <= x.max + 0.01)) errors.push(t + ": med 不在 min~max 内");
+      if (!(x.days >= 30)) errors.push(t + ": 样本过短 " + x.days);
+    });
   }
   return errors;
 }

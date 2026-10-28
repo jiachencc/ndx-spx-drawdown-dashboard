@@ -35,6 +35,9 @@ const STEPS = [
   /* 回撤历史对照（2026-10-24 加）：纯本地计算（RECENT + 十年代理序列），不请求网络，几十毫秒。
      放在最后：它读 RECENT，而 RECENT 由 CI 的行情更新负责 —— 这里只重算「峰谷/排名/条件统计」✓ */
   { key: "dd", label: "回撤历史对照（DDHIST）", file: "scripts/build-ddhist.mjs" },
+  /* 溢价扫描（2026-10-28 加）：10 只纳指 ETF 的日K ＋ 净值（约 25 秒、20 多个请求）。
+     放在最后：它**只写自己的块**，失败不影响前面那些；页面缺这块时会整卡隐藏 ✓ */
+  { key: "scan", label: "溢价扫描（PREM_SCAN）", file: "scripts/fetch-premium-scan.mjs" },
 ];
 
 /* 前置检查（只提示、不拦）：① 今天的流水录了没 ② 溢价块会不会因净值未公布而跳过 */

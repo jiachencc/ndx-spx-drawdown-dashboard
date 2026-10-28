@@ -2301,6 +2301,38 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     bad.length === 0, bad.join("；") || "逐项一致 ✓");
 }
 
+/* ④o 溢价扫描卡（2026-10-28 加）：卡上的「你持有 / 更便宜」行必须 ≡ data.js 的 PREM_SCAN。
+   为什么守：这块的数全靠脚本从两个外部接口对齐——净值翻页少一页、或拿错净值日，
+   溢价就会整体虚高 3pp 而**页面照样渲染得很像样** ✗（开发当天真踩过：10 只全部分位 95~100%）。 */
+{
+  const SRC = readFileSync(path.join(root, "data.js"), "utf8");
+  const mm = SRC.match(/^const PREM_SCAN = \{[\s\S]*?^\};/m);
+  let PS = null;
+  if (mm) { const c = vm.createContext({}); vm.runInContext(mm[0] + "\nthis.o = PREM_SCAN;", c, { timeout: 3000 }); PS = c.o; }
+  const card = win.document.getElementById("prem-scan-card");
+  const rows = card ? [...card.querySelectorAll(".psm-row")] : [];
+  const bad = [];
+  if (!PS || !Array.isArray(PS.items) || !PS.items.length) bad.push("data.js 里没有 PREM_SCAN");
+  else {
+    const codes = rows.map((r) => (r.querySelector(".psm-code") || {}).textContent || "");
+    const mineRow = rows.find((r) => ((r.querySelector(".psm-tag") || {}).textContent || "").includes("你持有"));
+    if (mineRow) {
+      const shown = parseFloat(((mineRow.querySelector(".psm-pp") || {}).textContent || "").replace("−", "-"));
+      const mine = PS.items.find((x) => String(x.code) === codes[rows.indexOf(mineRow)]);
+      if (!mine || Math.abs(shown - mine.cur) > 0.011) bad.push("持有行溢价 " + shown + " vs " + (mine ? mine.cur : "—"));
+    } else {
+      /* 没有「你持有」行也合法（扫描池里没有持仓），但至少要有价格行 */
+      if (!rows.length) bad.push("卡片没有任何行");
+    }
+    if (!rows.some((r) => /分位/.test(r.textContent))) bad.push("行内没有分位");
+    const concl = card && card.querySelector(".ddr-concl") ? card.querySelector(".ddr-concl").textContent : "";
+    const qs = PS.items.map((x) => x.q);
+    if (!concl.includes(String(Math.min(...qs)))) bad.push("结论句里没有最低分位 " + Math.min(...qs));
+  }
+  check("溢价扫描卡：" + rows.length + " 行 ≡ PREM_SCAN（持有行溢价 / 分位 / 结论）",
+    bad.length === 0, bad.join("；") || "逐项一致 ✓");
+}
+
 /* ⑤a-3 成交位置汇总（2026-10-21 加）：体检卡上方那行「中位数 X%（N 笔买入）」。
    它是**账户级**的成交习惯指标（覆盖 5 只含已清仓），由 RANGE_LOG（腾讯日K高/低）＋ POSITIONS.log 算出 ——
    两处都可能漂：数据块换了源 / 页面把「买入」错写成全部流水 / 中位数算法（奇数取中、偶数取均值）被改 ✗。
