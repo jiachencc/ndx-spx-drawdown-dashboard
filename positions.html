@@ -7709,7 +7709,15 @@ function renderPremScan() {
     + (back === null ? "" : "若 " + esc(String(mine.code)) + " 的溢价回到全史中位 <b>" + pctv(mine.med) + "</b> 而指数不动，它单独要跌 <b>" + pctv(back) + "</b>。")
     + "</div>";
   box.innerHTML = h;
-  if (cnt) cnt.textContent = "（纳指 " + items.length + " 只 · 数据至 " + (S.asOf || "—").slice(5).replace("-", ".") + " · 收盘 ÷ 前一交易日净值）";
+  /* 副标（2026-10-28 改）：QDII 的净值 T+1 才出，所以十只的「最新一天」会差 1~2 天。
+     表里的数一律截到**公共日**（都有的那天）才能横向比 ✓；个别只已更新到更晚的，在这里如实点出来，
+     免得读者以为「今天是 10-28，卡上却写 10-27」是没刷新 ✗ */
+  if (cnt) {
+    const d0 = (S.asOf || "—").slice(5).replace("-", ".");
+    const d1 = S.asOfMax && S.asOfMax > S.asOf ? S.asOfMax.slice(5).replace("-", ".") : null;
+    cnt.textContent = "（纳指 " + items.length + " 只 · 数据至 " + d0
+      + (d1 ? "（部分只已到 " + d1 + "）" : "") + " · 收盘 ÷ 前一交易日净值）";
+  }
   psmDraw();
   /* 交互只绑一次（renderPremScan 只在初始化跑一次；svg 元素本身不重建，重画的只是它的 innerHTML） */
   const svg = $("psm-svg");

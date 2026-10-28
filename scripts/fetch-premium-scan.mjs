@@ -109,39 +109,51 @@ for (const [code, name, market] of UNIVERSE) {
   if (rows.length < 60) { console.warn("  " + code + " 干净样本不足 " + rows.length); continue; }
   rows.forEach((r) => { if (!byDate.has(r.d)) byDate.set(r.d, []); byDate.get(r.d).push(r.p); });
 
-  const prem = rows.map((r) => r.p);
-  const cur = prem.at(-1);
+  /* 统计量先不算 —— 要等「公共日」定下来再算（见下方 AS_OF），否则各只的 cur 会落在不同的日期上 ✗ */
   items.push({
-    code, name,
+    code, name, rows, dropped,
+    scale: Q[code] ? +Q[code].scale.toFixed(0) : null,
+    turnover: Q[code] ? +Q[code].turnover.toFixed(2) : null,
+  });
+}
+if (!items.length) throw new Error("一只都没拉到，放弃写盘");
+
+/* ── 公共日（2026-10-28 修）──────────────────────────────────────────────
+ * QDII 的净值 T+1 才公布，所以「各只最新一天」天然会差 1~2 天：
+ *   10-28 那天实测 7 只停在 10-27、3 只已到 10-28 —— 若直接并排，13.40%(10-27)
+ *   会和 17.74%(10-28) 被当成同一时刻比较 ✗，而这张卡的全部意义就是横向比。
+ * 所以取**所有只都有数据的那天**（最保守）作为 asOf，各只都截到这一天再算分位/中位。
+ * 代价：个别只的新一天先不用（次日就追平），换来的是「同一张表里的数可比」✓ */
+const asOf = items.map((x) => x.rows.at(-1).d).sort().at(0);
+const asOfMax = items.map((x) => x.rows.at(-1).d).sort().at(-1);
+items.forEach((it) => {
+  it.rows = it.rows.filter((r) => r.d <= asOf);
+  const prem = it.rows.map((r) => r.p);
+  const cur = prem.at(-1);
+  Object.assign(it, {
     cur: +cur.toFixed(2),
-    date: rows.at(-1).d,
+    date: it.rows.at(-1).d,
     q3: qOf(prem.slice(-63), cur),
     q1: qOf(prem.slice(-252), cur),
     qA: qOf(prem, cur),
     med: +med(prem).toFixed(2),
     min: +Math.min(...prem).toFixed(2),
     max: +Math.max(...prem).toFixed(2),
-    days: rows.length,
-    from: rows[0].d,
-    dropped,
-    scale: Q[code] ? +Q[code].scale.toFixed(0) : null,
-    turnover: Q[code] ? +Q[code].turnover.toFixed(2) : null,
+    days: it.rows.length,
+    from: it.rows[0].d,
   });
-  /* 走势图用：这只自己的序列（后 CHART_N 天）留一份 */
-  items.at(-1).series = rows.slice(-CHART_N);
-}
-if (!items.length) throw new Error("一只都没拉到，放弃写盘");
+});
 
 /* 走势图：**所有 10 条都存** ＋ 一条板块中位（2026-10-28 改，用户要「全部一起画 + 可单选」）。
    存储用「共用日期轴 + 每只一个数组」而不是 [{d,p}]：756 天 × 10 只，后者要多带 10 遍日期（+50KB ✗）。
    缺值记 null（某些 ETF 上市晚 / 某天净值没对齐），画图时跳过 ✓ */
 const mine = items.find((x) => x.code === "159941") || items[0];
-const axis = mine.series.map((r) => r.d);
+const axis = mine.rows.slice(-CHART_N).map((r) => r.d);   // 只画近 CHART_N 天（全史另有分位/中位负责）
 const pos = new Map(axis.map((d, i) => [d, i]));
 const series = {};
 items.forEach((it) => {
   const arr = new Array(axis.length).fill(null);
-  it.series.forEach((r) => { const i = pos.get(r.d); if (i !== undefined) arr[i] = +r.p.toFixed(1); });
+  it.rows.forEach((r) => { const i = pos.get(r.d); if (i !== undefined) arr[i] = +r.p.toFixed(1); });
   series[it.code] = arr;
 });
 const medArr = axis.map((d) => {
@@ -150,9 +162,9 @@ const medArr = axis.map((d) => {
 });
 const chart = { code: mine.code, name: mine.name, from: axis[0], dates: axis, med: medArr, series };
 
-const asOf = items.map((x) => x.date).sort().at(-1);
 const PREM_SCAN = {
   asOf,
+  asOfMax,          // 个别只更新到哪天（页面据此提示「另有 N 只已到 X」）
   basis: "当日收盘 ÷ 前一交易日单位净值 − 1；缺前一交易日净值的那天整天跳过；|溢价| > 30% 的脏点剔除",
   window: { d3: 63, d1: 252, all: "上市至今" },
   chart,
@@ -160,7 +172,7 @@ const PREM_SCAN = {
 };
 
 /* 写盘前把 series 从 items 里摘掉（那是给 chart 用的中间量，不进块，省 12KB） */
-PREM_SCAN.items.forEach((x) => { delete x.series; });
+PREM_SCAN.items.forEach((x) => { delete x.rows; });   // rows 是中间量（带完整序列），不进块
 
 const src = readFileSync(dataFile, "utf8");
 const body = "const PREM_SCAN = " + JSON.stringify(PREM_SCAN, null, 1) + ";";
