@@ -175,6 +175,13 @@ const events = ndxEps.map((e) => {
     spx: spxDdBetween(e.peak, e.trough),
     deeper, rank: deeper + 1, rankOf: dist5.length,
     ongoing: e.ongoing,
+    /* 进行中的那一段：再给出「谷底之后反弹了多少」（2026-10-28 加）——
+       卡片上那行写的是**最大回撤**（峰→谷，10-23 的 −7.26%），而市场已经反弹了 2%+，
+       不写清楚会让人以为"现在还跌 7.26%"✗。这里只给比值（收盘/收盘），不引入第二套口径 ✓。 */
+    ...(e.ongoing ? {
+      curDate: R.ndx.pts.at(-1).d,                       // ⚠ 这里只有 ndx（配置的六个周期都按 NDX 口径），没有 recentKey ✗
+      rebound: +(((R.ndx.pts.at(-1).c / e.troughC) - 1) * 100).toFixed(2),
+    } : {}),
   };
 });
 

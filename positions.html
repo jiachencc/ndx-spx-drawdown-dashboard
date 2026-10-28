@@ -7464,7 +7464,11 @@ function renderDdRef() {
   const toT2 = dd === null ? null : Math.abs(t2 - dd);
   const pastT2 = dd !== null && dd <= t2;
   const item = (e) => {
-    const deep = e.ongoing ? "进行中" : "已收复 " + (e.recDays === null ? "—" : e.recDays + " 个交易日");
+    /* 右对齐那枚标签（2026-10-28）：进行中的那行顺带写上「谷底后已反弹多少」——
+       行上的 −7.26% 是**峰→谷**的最大回撤，市场其实已反弹 2.4%，不写清楚会被读成"现在还跌 7.26%"✗ */
+    const deep = e.ongoing
+      ? ("进行中" + (Number.isFinite(e.rebound) ? " · 反弹 " + sg(e.rebound) : ""))
+      : "已收复 " + (e.recDays === null ? "—" : e.recDays + " 个交易日");
     /* 跨年口径与年内口径不同时（3 月那次）在提示里交代，避免「只看到 11.8%、漏掉 12.1%」✗ */
     const cross = (e.crossDd !== null && Math.abs(e.crossDd - e.dd) >= 0.05)
       ? "\n⚠ 跨年口径：从 " + e.crossPeak + " 的峰值算起是 " + e.crossDd.toFixed(2) + "%（" + e.crossDays + " 个交易日）——"
@@ -7479,7 +7483,8 @@ function renderDdRef() {
       + '<b class="ddr-dd down">' + sg(e.dd) + "</b>"
       + '<span class="ddr-tag">' + esc(deep) + "</span></div>"
       + '<div class="ddr-l2">' + md(e.peak) + " → " + md(e.trough) + " · " + e.days + " 个交易日 · 第 <b>"
-      + e.rank + "</b>/" + e.rankOf + " 深" + (e.spx === null ? "" : " · SPX " + sg(e.spx)) + "</div></div>";
+      + e.rank + "</b>/" + e.rankOf + " 深" + (e.spx === null ? "" : " · SPX " + sg(e.spx))
+      + "</div></div>";
   };
   /* 结论句里「今年这几次」的月份与跌幅**必须来自数据**（写死「3 月 / 7 月」这种，明年就错 ✗） */
   const done = rows.filter((e) => !e.ongoing);
