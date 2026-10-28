@@ -2326,7 +2326,7 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     }
     if (!rows.some((r) => /分位/.test(r.textContent))) bad.push("行内没有分位");
     const concl = card && card.querySelector(".ddr-concl") ? card.querySelector(".ddr-concl").textContent : "";
-    const qs = PS.items.map((x) => x.q);
+    const qs = PS.items.map((x) => x.qA);   // 主口径＝全历史分位（2026-10-28 起有 q3/q1/qA 三档）
     if (!concl.includes(String(Math.min(...qs)))) bad.push("结论句里没有最低分位 " + Math.min(...qs));
   }
   check("溢价扫描卡：" + rows.length + " 行 ≡ PREM_SCAN（持有行溢价 / 分位 / 结论）",

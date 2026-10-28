@@ -256,7 +256,9 @@ export function validateModel(m) {
       const t = "PREM_SCAN[" + x.code + "]";
       if (!(Number.isFinite(x.cur) && Number.isFinite(x.min) && Number.isFinite(x.max))) { errors.push(t + ": cur/min/max 非数"); return; }
       if (!(x.cur >= x.min - 0.01 && x.cur <= x.max + 0.01)) errors.push(t + ": cur 不在 min~max 内（" + x.cur + " vs " + x.min + "~" + x.max + "）");
-      if (!(Number.isInteger(x.q) && x.q >= 0 && x.q <= 100)) errors.push(t + ": 分位越界 " + x.q);
+      ["q3", "q1", "qA"].forEach((k) => {
+        if (!(Number.isInteger(x[k]) && x[k] >= 0 && x[k] <= 100)) errors.push(t + ": " + k + " 分位越界 " + x[k]);
+      });
       if (!(x.med >= x.min - 0.01 && x.med <= x.max + 0.01)) errors.push(t + ": med 不在 min~max 内");
       if (!(x.days >= 30)) errors.push(t + ": 样本过短 " + x.days);
     });

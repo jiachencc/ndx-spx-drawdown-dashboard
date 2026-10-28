@@ -7452,6 +7452,170 @@ function chkRangeHtml() {
  * 只做三件事（别把它做成行情表）：
  *   ① 你持有那只是多少、处于什么分位  ② 比你便宜的（最多 3 只）  ③ 一句结论（含溢价回归的敏感性）
  * ⚠ 与每张持仓卡上的溢价胶囊**分工不同**：那个说「你这只多少」，这个说「同类里该选哪只」。 */
+/* 溢价走势图的状态（2026-10-28 扩：10 只都能选，另有「全部」）
+   psmPick：null ＝ 默认跟「你持有的那只」；"ALL" ＝ 10 条一起画；否则是具体 6 位代码
+   psmRange：63 / 252 / 756 个交易日（3M / 1Y / 3Y）
+   psmGeom：绘图区几何 —— hover 取索引必须按**绘图区**算，不能按整个元素宽度，
+            否则左右留白（mL/mR）不参与映射，光标会比指针偏一截 ✗（用户实测过） */
+let psmRange = 21, psmHover = null, psmPick = null, psmGeom = null;   // 默认 1M（用户 2026-10-28 指定）
+const medOf = (a) => { const s = a.filter(Number.isFinite).sort((x, y) => x - y); const n = s.length;
+  return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0; };
+/* 10 条线的配色：页面只有 5 个语义色能用（红/黄/蓝/青/紫），10 只 → 5 色 × 实线/虚线。
+   颜色与虚线样式**必须与折叠全表里的小方块一致**，否则 10 条线根本认不出谁是谁 ✗ */
+/* ⚠ 红色**不参与**轮转：它专属于「你持有的那只」（加粗画在最上层）。
+   第一版把 red 也放进调色板，结果最便宜那只（159513）与你自己那只同色 ✗，10 条线里认不出自己。 */
+const PSM_COLORS = ["var(--yellow)", "var(--blue)", "var(--cyan)", "var(--purple)", "var(--green)"];
+const psmOrder = (S) => S.items.slice().sort((a, b) => a.cur - b.cur);
+const psmStyle = (S, code) => {
+  const i = Math.max(0, psmOrder(S).findIndex((x) => String(x.code) === String(code)));
+  return { color: PSM_COLORS[i % 5], dash: i >= 5 ? "4 3" : "", idx: i };
+};
+
+/* 画溢价走势：单只（该只 ＋ 板块中位 ＋ 该只历史中位虚线）或「全部」（10 条 ＋ 中位） */
+function psmDraw() {
+  const svg = $("psm-svg"), out = $("psm-read"), lgd = $("psm-lg");
+  const S = (typeof PREM_SCAN !== "undefined") ? PREM_SCAN : null;
+  const ch = S && S.chart;
+  if (!svg || !ch || !Array.isArray(ch.dates) || !ch.series) return;
+  const n = Math.min(psmRange, ch.dates.length);
+  const i0 = ch.dates.length - n;
+  if (n < 2) return;
+  const dates = ch.dates.slice(i0);
+  const held = ((typeof POSITIONS !== "undefined" && POSITIONS.hold) || []).map((p) => String(p.code))
+    .find((c) => S.items.some((x) => String(x.code) === c)) || ch.code;
+  const pick = psmPick || held;
+  const isAll = pick === "ALL";
+  const chosen = isAll ? null : S.items.find((x) => String(x.code) === pick) || S.items[0];
+  const win = (code) => (ch.series[code] || []).slice(i0);
+  const medW = (ch.med || []).slice(i0);
+  const codes = psmOrder(S).map((x) => String(x.code));
+
+  /* y 轴范围：只按**当前窗口里会画出来的线**算（全部模式下 10 条都参与，否则会被某只的极端值压扁） */
+  const pool = [];
+  if (isAll) codes.forEach((c) => win(c).forEach((v) => { if (Number.isFinite(v)) pool.push(v); }));
+  else {
+    win(pick).forEach((v) => { if (Number.isFinite(v)) pool.push(v); });
+    /* 单只模式还要把「你持有的那只」算进 y 轴（否则它可能被裁到画面外 ✗） */
+    if (String(pick) !== String(held)) win(held).forEach((v) => { if (Number.isFinite(v)) pool.push(v); });
+  }
+  medW.forEach((v) => { if (Number.isFinite(v)) pool.push(v); });
+  if (chosen && Number.isFinite(chosen.med)) pool.push(chosen.med);
+  if (!pool.length) return;
+
+  const W = Math.max(300, Math.round(svg.clientWidth || 620)), H = 168;
+  const vb = "0 0 " + W + " " + H;
+  if (svg.getAttribute("viewBox") !== vb) svg.setAttribute("viewBox", vb);
+  const mL = 38, mR = 10, mT = 10, mB = 16;
+  const lo = Math.min(...pool), hi = Math.max(...pool);
+  const pad = (hi - lo) * 0.12 || 1;
+  const yHi = hi + pad, yLo = lo - pad;
+  const px = (i) => mL + (i / (n - 1)) * (W - mL - mR);
+  const py = (v) => mT + (yHi - v) / (yHi - yLo) * (H - mT - mB);
+  psmGeom = { W, mL, mR, n, i0 };
+  const fmt = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
+  const iNow = psmHover === null ? n - 1 : Math.min(psmHover, n - 1);
+  const seg = (arr, color, w, dash, op) => {
+    let s = "", run = [];
+    const flush = () => { if (run.length > 1) s += '<polyline fill="none" stroke="' + color + '" stroke-width="' + w
+      + '" stroke-linejoin="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : "") + ' opacity="' + op + '" points="' + run.join(" ") + '"/>'; run = []; };
+    arr.forEach((v, i) => { if (Number.isFinite(v)) run.push(px(i).toFixed(1) + "," + py(v).toFixed(1)); else flush(); });
+    flush();
+    return s;
+  };
+
+  let s = "";
+  [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
+    s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1)
+      + '" stroke="var(--line)" stroke-dasharray="2 4"/>'
+      + '<text x="' + (mL - 6) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:10px var(--mono)">'
+      + fmt(t) + "</text>";
+  });
+  const isHeld = String(pick) === String(held);
+  if (isAll) {
+    /* 全部模式：10 条细线（5 色 × 实/虚线）＋ 中位粗线；**你持有那只加粗画在最上层**，一眼找到自己 ✓ */
+    codes.forEach((c) => {
+      if (c === held) return;
+      const st = psmStyle(S, c);
+      s += seg(win(c), st.color, 0.9, st.dash, ".5");     // 其余 9 只压暗，让中位线与「自己那只」先跳出来
+    });
+    s += seg(medW, "var(--tx)", 1.6, "", ".9");
+    if (codes.includes(held)) s += seg(win(held), "var(--red)", 2.2, psmStyle(S, held).dash, "1");
+  } else {
+    /* 单只模式（2026-10-28 扩）：选中那只 ＋ **你持有的纳指** ＋ 板块中位 ＋ 选中那只的历史中位虚线。
+       颜色语义跨模式统一：**红＝你持有的那只**（恒），**黄＝当前查看的那只**（与红重合时只画一条）。 */
+    if (chosen && Number.isFinite(chosen.med)) {
+      s += '<line x1="' + mL + '" y1="' + py(chosen.med).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(chosen.med).toFixed(1)
+        + '" stroke="var(--tx3)" stroke-width="1" stroke-dasharray="5 4" opacity=".8"/>';
+    }
+    s += seg(medW, "var(--tx2)", 1.1, "", ".9");                       // 板块中位
+    if (!isHeld && codes.includes(held)) s += seg(win(held), "var(--red)", 2, "", "1");   // 你持有的
+    s += seg(win(pick), isHeld ? "var(--red)" : "var(--yellow)", isHeld ? 2.2 : 1.8, "", "1");
+  }
+  if (psmHover !== null) {
+    s += '<line x1="' + px(iNow).toFixed(1) + '" y1="' + mT + '" x2="' + px(iNow).toFixed(1) + '" y2="' + (H - mB)
+      + '" stroke="var(--tx3)" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>';
+    const dot = (v, color, r) => (Number.isFinite(v) ? '<circle cx="' + px(iNow).toFixed(1) + '" cy="' + py(v).toFixed(1) + '" r="' + r + '" fill="' + color + '"/>' : "");
+    if (isAll) {
+      codes.forEach((c) => { s += dot(win(c)[iNow], psmStyle(S, c).color, 1.8); });
+      s += dot(medW[iNow], "var(--tx)", 3);
+    } else {
+      if (String(pick) !== String(held)) s += dot(win(held)[iNow], "var(--red)", 3);
+      s += dot(win(pick)[iNow], String(pick) === String(held) ? "var(--red)" : "var(--yellow)", 3.4) + dot(medW[iNow], "var(--tx2)", 3);
+    }
+  }
+  const yEnd = dates[n - 1].slice(0, 4);
+  const lab = (d) => (d.slice(0, 4) === yEnd ? d.slice(5) : d.slice(2));
+  s += '<text x="' + mL + '" y="' + (H - 4) + '" fill="var(--tx3)" style="font:10px var(--mono)">' + lab(dates[0]) + "</text>";
+  s += '<text x="' + (W - mR) + '" y="' + (H - 4) + '" text-anchor="end" fill="var(--tx3)" style="font:10px var(--mono)">' + lab(dates[n - 1]) + "</text>";
+  svg.innerHTML = s;
+
+  /* 图例（放在上方控制条里，不占图内空间）：单只给三项，全部给「10 条 ＋ 中位 ＋ 你的那只加粗」 */
+  if (lgd) {
+    lgd.innerHTML = isAll
+      ? '<i class="psm-sw" style="background:var(--tx)"></i>板块中位'
+        + '<i class="psm-sw" style="background:var(--red);height:2.5px"></i>你持有 ' + esc(held)
+        + '<span class="psm-lg-hint">· 其余 9 只按下方全表配色</span>'
+      : '<i class="psm-sw" style="background:' + (isHeld ? "var(--red)" : "var(--yellow)") + '"></i>' + esc(pick)
+        + (isHeld ? '<span class="psm-lg-hint">（你持有）</span>'
+          : '<i class="psm-sw" style="background:var(--red)"></i>你持有 ' + esc(held))
+        + '<i class="psm-sw" style="background:var(--tx2)"></i>板块中位'
+        /* 「常态」＝ 该只的全史中位；用短词，避免图例在 414px 下折成两行 ✗ */
+        + (chosen && Number.isFinite(chosen.med) ? '<i class="psm-sw base"></i>常态 ' + fmt(chosen.med) : "");
+  }
+
+  if (!out) return;
+  const d = dates[iNow];
+  /* 读数排版（2026-10-28 改）：原来是「·」串起来的一长行，手机上挤成一坨 ✗。
+     现在是一个个**小格子**（标签在上、数值在下），由 flex 自动折成 2~3 行 ——
+     不写死行数：414px 折两行、桌面一行到底，靠内容和宽度自己决定 ✓ */
+  const cell = (lab, val, cls) => '<span class="psm-cell"><i>' + lab + "</i><b" + (cls ? ' class="' + cls + '"' : "") + ">" + val + "</b></span>";
+  const pp = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "pp";
+  const head = psmHover === null ? "最新 " : "";
+  if (isAll) {
+    const vals = codes.map((c) => win(c)[iNow]).filter(Number.isFinite);
+    if (!vals.length) { out.innerHTML = ""; return; }
+    const loI = vals.indexOf(Math.min(...vals)), hiI = vals.indexOf(Math.max(...vals));
+    out.innerHTML = cell("日期", head + d.slice(5))
+      + cell("中位", fmt(medW[iNow]))
+      + cell("10 只区间", fmt(Math.min(...vals)) + " ~ " + fmt(Math.max(...vals)))
+      + cell("最低", esc(codes[loI]))
+      + cell("最高", esc(codes[hiI]));
+  } else {
+    const p = win(pick)[iNow], m = medW[iNow], h = win(held)[iNow];
+    if (!Number.isFinite(p)) { out.innerHTML = ""; return; }
+    const gap = p - m;
+    /* 单只模式的读数（2026-10-28 扩）：除了「较板块中位贵多少」，还给出**较你持有的那只**差多少 ——
+       因为用户看别的标的就是想知道「换它会更好还是更差」 ✓ */
+    out.innerHTML = cell("日期", head + d.slice(5))
+      + cell(esc(pick), fmt(p), "down")
+      + (isHeld || !Number.isFinite(h) ? "" : cell("你持有", fmt(h)))
+      + (isHeld || !Number.isFinite(h) ? "" : cell("较它", pp(p - h), p - h >= 0 ? "down" : "up"))
+      + cell("板块中位", fmt(m))
+      + cell("较中位", pp(gap), gap >= 0 ? "down" : "up")
+      + (chosen && Number.isFinite(chosen.med) ? cell("距常态 " + fmt(chosen.med), pp(p - chosen.med)) : "");
+  }
+}
+
 function renderPremScan() {
   const box = $("prem-scan-card"), cnt = $("prem-scan-cnt");
   if (!box) return;
@@ -7469,22 +7633,58 @@ function renderPremScan() {
   const mine = items.find((x) => holds.includes(String(x.code))) || null;
   const cheaper = mine ? sorted.filter((x) => x.cur < mine.cur - 0.05).slice(0, 3) : sorted.slice(0, 3);
   const cheapest = sorted[0];
-  const qs = items.map((x) => x.q).filter(Number.isFinite);
+  const qs = items.map((x) => x.qA).filter(Number.isFinite);
   const qLo = Math.min(...qs), qHi = Math.max(...qs);
   const pctv = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  /* 折叠全表里的小色块 —— 它必须与「全部」模式里那条线的颜色/虚线样式**完全一致**，
+     否则 10 条线根本认不出谁是谁 ✗（psmStyle 是唯一出处，图表与表格都读它） */
+  const swatch = (code) => {
+    /* 自己那只恒为红色实心（与「全部」模式里那条加粗红线一致），其余按 psmStyle 轮转 */
+    if (mine && String(mine.code) === String(code))
+      return '<i class="psm-swatch" style="background:var(--red);border-color:var(--red)"></i>';
+    const st = psmStyle(S, code);
+    return '<i class="psm-swatch" style="background:' + (st.dash ? "transparent" : st.color)
+      + ";border-color:" + st.color + (st.dash ? ";border-style:dashed" : "") + '"></i>';
+  };
+  /* 分位一律用**全历史**（qA）：3 月档只有 63 个点，一次行情就翻转；1 年档仍被这轮极端期污染。
+     三档都留在折叠表里，想看短期位置再用 ✓ */
   const row = (tag, it, cls) =>
-    '<div class="psm-row">'
+    '<div class="psm-row" title="' + esc(it.name + "：3月 " + it.q3 + " / 1年 " + it.q1 + " / 全史 " + it.qA
+      + " 分位；全史区间 " + pctv(it.min) + "~" + pctv(it.max) + "（中位 " + pctv(it.med) + "，样本 " + it.days + " 日）") + '">'
     + '<span class="psm-tag">' + esc(tag) + "</span>"
     + '<b class="psm-code">' + esc(it.code) + "</b>"
-    + '<span class="psm-name" title="' + esc(it.name) + " · 规模 " + it.scale + " 亿 · 当日成交 " + it.turnover + ' 亿">' + esc(it.name) + "</span>"
+    + '<span class="psm-name">' + esc(it.name) + "</span>"
     + '<b class="psm-pp ' + cls + '">' + pctv(it.cur) + "</b>"
-    + '<span class="psm-q">' + it.q + " 分位</span>"
+    + '<span class="psm-q">全史 ' + it.qA + " 分位</span>"
     + "</div>";
   let h = '<div class="psm-list">';
   if (mine) h += row("你持有", mine, mine.cur >= 8 ? "hi" : "");
   cheaper.forEach((it) => { h += row(mine ? "更便宜" : "最便宜", it, "lo"); });
   if (mine && !cheaper.length) h += '<div class="psm-row"><span class="psm-tag">提示</span><span class="psm-name">你的已是全市场最便宜的一只</span></div>';
   h += "</div>";
+
+  /* ── 走势图（2026-10-28 加，同日晚扩成「多只可选 + 全部」）────────────────
+     单只模式：该只（红）＋ 板块中位（灰）＋ 该只历史中位（虚线锚点）
+     全部模式：10 条（5 色 × 实/虚线，与你持有那只加粗）＋ 板块中位（粗白）
+     ⚠ 10 条线的可读性靠**下方折叠全表里的小色块**兜底 —— 图例放不下 10 个名字，别硬塞 ✗ */
+  const ch = S.chart || null;
+  if (ch && Array.isArray(ch.dates) && ch.dates.length > 30 && ch.series) {
+    const opts = psmOrder(S).map((it) => '<option value="' + esc(it.code) + '">' + esc(it.code) + " " + esc(it.name) + "</option>").join("");
+    h += '<div class="psm-chart">'
+      + '<div class="psm-cbar">'
+      + '<select id="psm-sel" class="psm-sel" aria-label="选择要看的标的">'
+      + '<option value="ALL">全部 ' + items.length + " 只</option>" + opts + "</select>"
+      + '<span class="psm-lg" id="psm-lg"></span>'
+      + '<span class="psm-range">'
+      /* 三档（2026-10-28 定）：1M / 3M / 1Y。3Y 试过、用户说意义不大 —— 2023–2024 的溢价
+         长期贴着 0~5%，会把 2025-10 之后的台阶压成一条细线 ✗ */
+      + [[21, "1M"], [63, "3M"], [252, "1Y"]].map(([n, t]) => '<button type="button" data-psmr="' + n + '"'
+        + (n === psmRange ? ' class="on"' : "") + ">" + t + "</button>").join("")
+      + "</span></div>"
+      + '<svg id="psm-svg" class="psm-svg" role="img" aria-label="溢价走势：单只或全部标的对比板块中位"></svg>'
+      + '<div class="psm-read" id="psm-read"></div>'
+      + "</div>";
+  }
   /* 全表折叠（10 只按溢价升序）：让这张卡自己就能当「历史溢价汇总表」用，
      不必再去翻同花顺；折叠着不占版面 ✓ */
   /* 全表折叠里那枚标签放**成交额**而不是"高位/低位"——现在 10 只全在 87~96 分位，写"高位"等于每行都印同一句话 ✗；
@@ -7492,21 +7692,66 @@ function renderPremScan() {
   h += '<details class="pf-fold psm-all"><summary class="psm-sum">展开全部 ' + items.length + ' 只（按溢价升序）</summary>'
     + sorted.map((it) => '<div class="psm-row" title="'
       + esc(it.name + "：规模 " + it.scale + " 亿 · 本窗口中位 " + pctv(it.med) + " · 区间 " + pctv(it.min) + "~" + pctv(it.max) + " · 样本 " + it.days + " 日") + '">'
+      + swatch(it.code)
       + '<span class="psm-tag">成交 ' + (it.turnover === null ? "—" : it.turnover + " 亿") + "</span>"
       + '<b class="psm-code">' + esc(it.code) + '</b><span class="psm-name">' + esc(it.name) + "</span>"
       + '<b class="psm-pp ' + (it.cur >= 8 ? "hi" : "lo") + '">' + pctv(it.cur) + "</b>"
-      + '<span class="psm-q">' + it.q + " 分位</span></div>").join("")
+      + '<span class="psm-q">全史 ' + it.qA + " 分位</span></div>").join("")
     + "</details>";
 
-  /* 结论：全板块分位区间 ＋ 溢价回归的敏感性（用**你自己那只**算，读者才对得上号） */
+  /* 结论：全板块**全史**分位区间 ＋ 溢价回归的敏感性（用**你自己那只**的全史中位算）。
+     ⚠ 中位口径决定风险量级：按 189 日窗口的中位（+7.1%）是 −5.6%，按全史中位（+0.37%）是 −11.5% ✗ 差一倍 */
   const back = mine && Number.isFinite(mine.med) ? ((1 + mine.med / 100) / (1 + mine.cur / 100) - 1) * 100 : null;
   h += '<div class="ddr-concl">'
-    + "纳指类 " + items.length + " 只全部处于 <b>" + qLo + "~" + qHi + " 分位</b>（窗口 " + esc(S.window || "约 160 个交易日") + "）——"
+    + "纳指类 " + items.length + " 只全部处于 <b>全史 " + qLo + "~" + qHi + " 分位</b>，各只历史中位只在 <b>"
+    + pctv(Math.min(...items.map((x) => x.med))) + "~" + pctv(Math.max(...items.map((x) => x.med))) + "</b> ——"
     + "现在不是「吃溢价」的时点，而是<b>选通道</b>的时点：场外按净值、场内挑最低那只。"
-    + (back === null ? "" : "若 " + esc(String(mine.code)) + " 的溢价回到中位 <b>" + pctv(mine.med) + "</b> 而指数不动，它单独要跌 <b>" + pctv(back) + "</b>。")
+    + (back === null ? "" : "若 " + esc(String(mine.code)) + " 的溢价回到全史中位 <b>" + pctv(mine.med) + "</b> 而指数不动，它单独要跌 <b>" + pctv(back) + "</b>。")
     + "</div>";
   box.innerHTML = h;
   if (cnt) cnt.textContent = "（纳指 " + items.length + " 只 · 数据至 " + (S.asOf || "—").slice(5).replace("-", ".") + " · 收盘 ÷ 前一交易日净值）";
+  psmDraw();
+  /* 交互只绑一次（renderPremScan 只在初始化跑一次；svg 元素本身不重建，重画的只是它的 innerHTML） */
+  const svg = $("psm-svg");
+  if (svg && !svg.dataset.bound) {
+    svg.dataset.bound = "1";
+    svg.addEventListener("pointermove", (e) => {
+      /* ⚠ 反解索引要**先换算到 viewBox 坐标、再扣掉左右留白**（2026-10-28 修）：
+         原来用「(clientX − rect.left) / rect.width」直接乘 (n−1)，等于把整张元素宽度当成绘图区 ——
+         而绘图区只有 [mL, W−mR] 这段，于是光标永远比指针偏一截（越靠两端越明显）✗。 */
+      const g = psmGeom;
+      if (!g || g.n < 2) return;
+      const r = svg.getBoundingClientRect();
+      const xv = ((e.clientX - r.left) / r.width) * g.W;                    // → viewBox 坐标
+      const t = (xv - g.mL) / Math.max(1, g.W - g.mL - g.mR);               // → 绘图区内比例
+      const i = Math.round(Math.max(0, Math.min(1, t)) * (g.n - 1));
+      if (i === psmHover) return;                                           // 同一根不重画，免得拖拽时抖
+      psmHover = i;
+      psmDraw();
+    });
+    svg.addEventListener("pointerleave", () => { psmHover = null; psmDraw(); });
+  }
+  if (!box.dataset.bound) {
+    box.dataset.bound = "1";
+    /* 标的下拉（2026-10-28）：默认停在「你持有的那只」，选「全部」画 10 条 */
+    const sel = $("psm-sel");
+    if (sel) {
+      const held = holds.find((c) => items.some((x) => String(x.code) === c)) || (S.chart && S.chart.code) || "";
+      sel.value = psmPick && psmPick !== "ALL" ? psmPick : (psmPick === "ALL" ? "ALL" : held);
+      sel.addEventListener("change", () => { psmPick = sel.value; psmHover = null; psmDraw(); });
+    }
+    box.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-psmr]");
+      if (!b) return;
+      const n = +b.dataset.psmr;
+      if (n === psmRange) return;
+      psmRange = n; psmHover = null;
+      box.querySelectorAll("[data-psmr]").forEach((x) => x.classList.toggle("on", +x.dataset.psmr === n));
+      psmDraw();
+    });
+    let rz = null;
+    window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => psmDraw(), 160); });
+  }
 }
 
 /* ---- 今年这几次跌 · 历史坐标（2026-10-24 加）----

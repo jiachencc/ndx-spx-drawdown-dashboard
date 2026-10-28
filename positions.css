@@ -1097,6 +1097,38 @@
   .psm-pp.hi { color: var(--red); }
   .psm-pp.lo { color: var(--green); }
   .psm-q { color: var(--tx3); white-space: nowrap; }
+  /* 溢价走势图（2026-10-28）：两条实线（你那只 / 板块中位）＋ 一条虚线（历史中位） */
+  .psm-chart { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-soft); }
+  .psm-cbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--tx3); margin-bottom: 4px; }
+  .psm-lg { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .psm-lg .psm-sw { margin-left: 4px; }
+  .psm-lg .psm-sw:first-child { margin-left: 0; }
+  .psm-lg-hint { color: var(--tx3); opacity: .75; }
+  .psm-sw { display: inline-block; width: 12px; height: 2px; border-radius: 1px; flex: 0 0 auto; }
+  /* 标的下拉（2026-10-28）：10 只 + 全部，手机上用原生 select 最省地方 */
+  .psm-sel { font: inherit; font-size: var(--fs-xs); color: var(--tx); background: var(--card2);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; max-width: 62%; }
+  /* 折叠全表里的小色块：与「全部」模式里那条线的颜色/虚线样式一一对应（唯一出处是 psmStyle） */
+  .psm-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; border: 1px solid;
+    flex: 0 0 auto; align-self: center; }
+  .psm-sw.mine { background: var(--red); height: 2.5px; }
+  .psm-sw.med { background: var(--tx2); }
+  .psm-sw.base { background: repeating-linear-gradient(90deg, var(--tx3) 0 3px, transparent 3px 6px); }
+  .psm-range { margin-left: auto; display: inline-flex; gap: 4px; }
+  .psm-range button { font: inherit; font-size: var(--fs-xxs); color: var(--tx3); background: transparent;
+    border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px; cursor: pointer; }
+  .psm-range button.on { color: var(--tx); border-color: var(--tx3); background: rgba(128, 128, 128, .12); }
+  .psm-svg { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; }
+  /* 读数改成一格一格的（2026-10-28）：标签在上、数值在下，flex 自动折行 ——
+     原来用「·」串成一长行，414px 下挤成一坨 ✗ */
+  .psm-read { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: flex-start;
+    font-size: var(--fs-xs); color: var(--tx3); margin-top: 6px; min-height: 2.6em; }
+  .psm-cell { display: inline-flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+  .psm-cell i { font-style: normal; font-size: var(--fs-xxs); color: var(--tx3); opacity: .85; line-height: 1.2; }
+  .psm-cell b { font-family: var(--mono); font-feature-settings: "tnum"; font-weight: 700;
+    color: var(--tx2); line-height: 1.2; }
+  .psm-cell b.down { color: var(--red); }
+  .psm-cell b.up { color: var(--green); }
   /* 全表折叠（2026-10-28）：.pf-fold 的既有样式只认 summary.snap-sec，这里单独给 .psm-sum 一套 ✓ */
   .psm-all { margin-top: 8px; }
   .psm-all > summary.psm-sum { cursor: pointer; list-style: none; font-size: var(--fs-xs); color: var(--tx3);
