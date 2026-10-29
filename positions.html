@@ -1036,25 +1036,25 @@ function renderImpl() {
               （8 笔卖出的 realized 合计 −24,027.97 ✗ ≠ 全额清仓口径 18,492.00 ✓），
               380px 每格约 110px 放不下这层限定 ✗，简写成"已实现"反而制造新误解 ✗。
            真要做时见「B3」：只加**一格**「已实现（全额清仓）」✓、不拆场内/场外 ✓、且无清仓时整格隐藏 ✗。 */
-    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产' + (sumIsEst ? "（估）" : "") + '</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（含已实现）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span>' +
+    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产' + (sumIsEst ? "（估）" : "") + '</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)"><div class="s-row"><span class="s-k">本金</span><b class="s-v" id="sum-principal">' + fmtYuan(principal) + '</b></div><div class="s-row"><span class="s-k">累计收益（含已实现）</span><b class="s-v ' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</b></div>' +
       /* B2 恒等式小注（2026-10-13 加）：把「累计收益 ＝ 在持浮盈亏 ＋ 已实现」的两个加数直接摆出来 ✓，
          读者不用自己做减法 ✓（用户当天问「+330 包含已经清仓的吗」—— 缺的就是这一行 ✗）。
          ⚠ **条件显示**：clearedGap 为 0（从没发生过全额清仓）时整行不出现 ✓（不让恒 0 的行常驻 ✗）。
          ⚠ 两个加数取自**上面那两格同一对变量**（etfPl + otcPl ✓ / clearedGap ✓），不另算一遍 ✗；
            clearedGap 是「本金里加回的已实现亏损额」＝绝对值 ✓，等式左边要的是它的负号 ✓。 */
       (clearedGap
-        ? '<br>＝ 在持浮盈 <span class="' + cls(etfPl + otcPl) + '">' + fmtAmt(etfPl + otcPl) + '</span><br>＋ 已实现 <span class="' + cls(-clearedGap) + '">' + fmtAmt(-clearedGap) + '</span>'
+        ? '<div class="s-row"><span class="s-k">＝ 在持浮盈</span><b class="s-v ' + cls(etfPl + otcPl) + '">' + fmtAmt(etfPl + otcPl) + '</b></div><div class="s-row"><span class="s-k">＋ 已实现</span><b class="s-v ' + cls(-clearedGap) + '">' + fmtAmt(-clearedGap) + '</b></div>'
         : "") +
       '</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 在持浮盈 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) +
+    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 在持浮盈 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)"><div class="s-row"><span class="s-k">本金</span><b class="s-v">' + fmtYuan(pInEtf) + '</b></div><div class="s-row"><span class="s-k">收益率</span><b class="s-v">' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) +
         /* P0① 把分母点明（2026-10-13 加）：上面那行「本金」是**外部净转入口径**（含全额清仓加回的 18,492 ✓），
            而收益率的分母是**在持成本**（＝摊薄成本 ✓）→ 两者不同 ✗，读者拿本金去乘会算不平 ✗
            （358,517 × 6.15% ＝ 22,049 ✗ vs 实际浮盈 20,897 ✗，差 0.32pp ✓）。故单独占一行写清 ✓。 */
-        '<br>按在持成本 ' + fmtYuan(etfCost) + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 在持浮盈 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + /* P1⑥ 换名（2026-10-13）：原来叫「已扣款未入账」✗ —— 而悬停里另有「市值里另有在途」✗，
+        '</b></div><div class="s-row"><span class="s-k">按在持成本</span><b class="s-v">' + fmtYuan(etfCost) + '</b></div></div></div>' +
+    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 在持浮盈 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)"><div class="s-row"><span class="s-k">本金</span><b class="s-v">' + fmtYuan(pInOtc) + '</b></div><div class="s-row"><span class="s-k">收益率</span><b class="s-v">' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + /* P1⑥ 换名（2026-10-13）：原来叫「已扣款未入账」✗ —— 而悬停里另有「市值里另有在途」✗，
            两者名字太像、口径不同（这个＝还没进成本 ✓；那个＝已进市值未变份额 ✓），
            偏偏可见的是小的那个（180）、大的藏在悬停里（520）✗ → 改名为「未并入成本」✓ 并在悬停里对举解释 ✓ */
-        '<br>未并入成本 ' + fmtAmt2(otcLogGap) + '</div></div>' +
+        '</b></div><div class="s-row"><span class="s-k">未并入成本</span><b class="s-v">' + fmtAmt2(otcLogGap) + '</b></div></div></div>' +
     /* P1⑦ 悬停点名未更新那几只（2026-10-13 加 ✓）：副标那句「N 只本次未更新 ⏳」原是个黑盒 ✗
        （读者会怀疑是故障 ✗）；名单由 `dayStaleList`（复用 dayVals 判据 ✓）给出，
        并说明"日收益按各自上一个读数日计、不进合计 ✓"，以及"已卖出款在途的基金本就不再更新 ✓"。

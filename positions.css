@@ -210,6 +210,16 @@
   .sum-cell .s-label { font-size: var(--fs-xs); color: var(--tx3); margin-bottom: 4px; }
   .sum-cell .s-val { font-family: var(--mono); font-size: var(--fs-lg); font-weight: 700; font-feature-settings: "tnum"; }
   .sum-cell .s-sub { font-family: var(--mono); font-size: var(--fs-xs); margin-top: 3px; font-feature-settings: "tnum"; }
+  /* 明细行（2026-10-29）：**标签左 / 数值右**，四行数值同一条右边界 ——
+     原来是「本金 539,998」这种一整串居中文本，四行的右缘各在各的地方，
+     "本金" 与 "累计收益（含已实现）" 前后错开，看着像两段话而不是一组账 ✗ */
+  /* ⚠ 不再给 .s-sub 整体 text-align:left —— 当日盈亏格底部那行「快照 10.28」也是 .s-sub，
+     它本来就该居中（2026-10-29 第一次改时被顺手改成左对齐 ✗，截图里孤零零贴左边缘）。
+     明细行靠 flex 的 space-between 对齐，本来就不需要 text-align ✓ */
+  .sum-cell .s-sub:not(.src-muted) { max-width: 20em; margin-left: auto; margin-right: auto; }
+  .sum-cell .s-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; line-height: 1.6; }
+  .sum-cell .s-row .s-k { color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sum-cell .s-row .s-v { color: var(--tx2); font-weight: 700; white-space: nowrap; }
   /* ===== 口径徽章（.date-chip）：一枚胶囊说清「来源 + 渠道 + 状态 + 日期（＋时刻）」 =====
      上一版把「场内 / 场外」留在胶囊外面，形状与颜色仍不齐；现在统一收进胶囊里，
      一枚胶囊自己就说清「这是什么数据、哪天的、有没有跟上」：
@@ -234,8 +244,10 @@
   .date-chip + .date-chip, .date-chip + .qty-tag { margin-left: 4px; }
   .sum-cell .s-asof { margin-top: 4px; line-height: 1.6; }   /* 汇总格底部的口径日期行 */
   /* 当日盈亏分量大、合计量小——盘中估值与 App 快照不同口径，写成一个主数字会误导 */
-  .s-split { display: flex; align-items: baseline; justify-content: center; gap: 4px; margin-top: 2px; }
-  .s-split-cell { min-width: 0; }
+  /* 三分栏等宽（2026-10-29）：三格宽度随内容变（+9,497 / +802 / +10,299）→「场内/场外/合计」
+     三个标签与下面的数字各在各的位置 ✗。给固定最小宽并居中后，标签正对数字 ✓ */
+  .s-split { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 2px; }
+  .s-split-cell { min-width: 4.6em; text-align: center; }
   .s-split-k { font-size: var(--fs-xxs); color: var(--tx3); margin-bottom: 1px; }
   /* 「估」小徽标（2026-10-03）：压在「场外」标签后面，提醒右面那个数是**尚未公布**的推算值，
      与旁边已公布的 App 读数不是一回事（口径见该格 tooltip）。 */
