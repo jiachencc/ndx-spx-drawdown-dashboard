@@ -7951,7 +7951,21 @@ function renderCheckup() {
         '<td class="c-cost"><i class="c-lb">成本</i>' + cost + "</td>" +
         /* 说明：多个问题**各占一行**；「买点均位 X%」这条删掉（2026-10-20）——
            它和左列的「买点 C 79%」说的是同一件事，10 行里重复 10 次 ✗ */
-        '<td class="c-note">' + esc(d.note).split(" · ").filter((x) => !/^买点均位/.test(x)).join("<br>") + "</td>" +
+        /* ⚠ 两套文案（2026-10-29 加）：宽屏用整句（有第三列的空间，读起来顺）；
+           窄屏用**4~6 字短标签**（「套牢 7pp」/「摊薄 +9pp」）——
+           原来手机上整句独占一行、9 行里有 6 行是同一句式，既长又啰嗦 ✗。
+           短标签由 gap 现算（比 note 更准：note 只在 C/D 时才提成本），整句移进 title 不丢信息 ✓ */
+        '<td class="c-note" title="' + esc(d.note) + '">'
+          + '<span class="cn-full">' + esc(d.note).split(" · ").filter((x) => !/^买点均位/.test(x)).join("<br>") + "</span>"
+          + '<span class="cn-mini">'
+          + (Number.isFinite(d.gap)
+            /* 差 0pp 时不说「摊薄 +0pp / 套牢 −0pp」（2026-10-29）：那不是涨也不是跌，
+               华安 A/C 两只就是 77% → 77%，写成「+0pp」既像噪音又占宽度 ✗ */
+            ? (Math.round(d.gap) === 0 ? '<em class="flat">持平</em>'
+              : d.gap > 0 ? '<em class="up">摊薄 +' + Math.round(d.gap) + "pp</em>"
+                : '<em class="down">套牢 −' + Math.abs(Math.round(d.gap)) + "pp</em>")
+            : "")
+          + "</span></td>" +
       "</tr>";
     }).join("") + "</tbody></table>" +
     /* 体检表尾（2026-10-12 裁剪）：可见部分 ≈1,100 → ≈200 字，只留「三项定义 ＋ 不给总分」✓

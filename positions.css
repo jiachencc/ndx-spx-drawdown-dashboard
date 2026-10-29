@@ -1082,6 +1082,13 @@
   .chk-tbl b.oc-d { color: var(--red); }
   .chk-tbl b.oc-na { color: var(--tx3); font-weight: 400; }
   .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
+  /* 说明列的两套文案（2026-10-29）：宽屏用整句、窄屏用短标签（见下方 767px 段） */
+  .chk-tbl .cn-mini { display: none; }
+  .chk-tbl .cn-mini em { font-style: normal; font-family: var(--mono); font-size: var(--chk-fs-mini);
+    font-feature-settings: "tnum"; }
+  .chk-tbl .cn-mini em.up { color: var(--up); }
+  .chk-tbl .cn-mini em.down { color: var(--down); }
+  .chk-tbl .cn-mini em.flat { color: var(--tx3); }
   /* 成交位置汇总（2026-10-21 加）：一行三段（标签 / 中位数 / 笔数分布）。
      放在体检表**上方**、表在窄屏默认折叠 → 这句始终可见，承担"一句话结论"的角色 ✓。
      ⚠ 不做成表格行：它不是某一只的指标，是**账户级**的成交习惯（覆盖 5 只含已清仓）✓ */
@@ -1185,16 +1192,42 @@
          5 笔卖出合计 −5,072（0/5 笔盈利）
          买点均位 68%，偏区间上部
        原来三段挤在一行、"不适用/赎回 1 笔"长短不一 → 每行的折行点都不同，看着就乱。 */
+    /* 2026-10-29 重排（用户：移动端"排版不是很好看"）——
+       病根有两处：① .c-cost 被写死 `width: 33%`，而「买点 / 调仓」两列早已删掉 →
+         成本值只占 1/3 行宽、右边空出 2/3 ✗；② 名称独占一行 + 说明再占一行 → 每行 85px、9 行 765px ✗。
+       现在：**名称（可省略号）与成本同一行**、说明整行小字，每行约 46px，9 行 ≈ 415px（砍掉一半）✓
+       ⚠ 用 flex 而不是继续 inline-block：名称长的（纳斯达克100ETF招商）要能自己缩、成本要能右对齐不换行。 */
     .chk-tbl thead { display: none; }
-    .chk-tbl, .chk-tbl tbody, .chk-tbl tr { display: block; }
-    .chk-tbl tr { padding: 9px 0; border-bottom: 1px dashed var(--line-soft); }
-    .chk-tbl .c-nm { display: block; margin-bottom: 5px; }
-    .chk-tbl .c-buy, .chk-tbl .c-cost, .chk-tbl .c-swing { display: inline-block; width: 33%; padding: 0; border: none; vertical-align: top; }
-    .chk-tbl .c-note { display: block; margin-top: 5px; padding: 0; border: none; font-size: var(--chk-fs-mini); }
+    .chk-tbl, .chk-tbl tbody { display: block; }
+    .chk-tbl tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+      padding: 8px 0;
+      /* 分隔线用 --line（比 --line-soft 实一档）：行从三行压成一行后，--line-soft 在白底上几乎看不见，
+         而这张表要"扫"，行界不清楚会更难读 ✓ */
+      border-bottom: 1px dashed var(--line); }
+    /* ⚠ 单元格的虚线要关掉（2026-10-29）：行块化之后整行的虚线由 `tr` 自己画，
+       而 td 仍各自带 border-bottom → 只在名称底下画出**半截虚线**、右侧空着 ✗（截图里一眼能看到） */
+    .chk-tbl td { border-bottom: none; }
+    .chk-tbl .c-nm { display: block; flex: 1 1 auto; min-width: 0; margin-bottom: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chk-tbl .c-buy, .chk-tbl .c-cost, .chk-tbl .c-swing { display: block; flex: 0 0 auto;
+      padding: 0; border: none; white-space: nowrap; vertical-align: baseline; }
+    /* 说明列：窄屏换成**短标签**（「套牢 7pp」），与名称/成本同一行 —— 每行 26px 左右、
+       9 行 ≈ 250px（原来是 85px × 9 = 765px）。整句仍在 title 里，鼠标设备悬停可看 ✓ */
+    .chk-tbl .c-note { display: block; flex: 0 0 auto; margin-top: 0; padding: 0; border: none;
+      font-size: var(--chk-fs-mini); line-height: 1.45;
+      /* ⚠ 用**固定宽**而不是 min-width（2026-10-29）：短标签最长的「摊薄 +11pp」比「持平」宽一截，
+         min-width 下宽度随内容变 → 成本列的右缘跟着左右浮动 ✗；固定宽度后三列各自对齐 ✓
+         6.4em ≈ 58px（--chk-fs-mini 9px），刚好容得下「摊薄 +11pp」 */
+      width: 6.4em; text-align: right; }
+    .chk-tbl .cn-full { display: none; }
+    .chk-tbl .cn-mini { display: inline; }
     /* 手机上隐去表头，所以列内小标签显示出来、并独立成行（与数字上下对齐，比挤在数字前更好认） */
     /* 2026-10-20：列名由 block 改 inline —— 原来「买点」独占一行、数值在下一行，
        10 行白白多出 10 行高度。改成同行后「买点 C 79% / 成本 D 77% → 46%」一行读完。 */
-    .chk-tbl .c-lb { display: inline; font-style: normal; color: var(--tx3); font-size: var(--chk-fs-mini); margin-right: 3px; }
+    /* 2026-10-29：窄屏**不再显示**这枚列名小标签 —— 买点 / 调仓两列已删（2026-10-20），
+       剩下的成本列只有它一个，而值本身「D 83% → 76%」＋右侧的「套牢 7pp」已经说清含义 ✓
+       省下的 25px 全给标的名称（长名如「纳斯达克100ETF招商」原本会被省略号截断） */
+    .chk-tbl .c-lb { display: none; }
   }
   /* ===== 逐只 XIRR 与 TWR / 逐只体检：改成**真表格**（2026-09-30，参照「操作体检」）========
      起因：用户两次反馈「表格还是对不齐」。根因是旧版把细节写成一路「 · 」连成的自由文本，
