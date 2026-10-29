@@ -477,7 +477,11 @@
      固定 2~3 字且不允许压缩——名称列窄，长标签会把名称挤成省略号 */
   .snap-line.item .n .snap-src { flex-shrink: 0; font-size: var(--fs-xxs); font-weight: 400; font-family: var(--sans); color: var(--tx3); white-space: nowrap; }
   .snap-line.item .n .snap-src::before { content: "/ "; }
-  .snap-line.item .d { font-family: var(--mono); font-size: var(--fs-xs); text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
+  /* 两个数各占一半（2026-10-29）：原来是一整串右对齐文本，「本次」与「累计」的分界随数字长度浮动 ✗
+     → grid 两列各自右对齐，跨行同一条竖线；列宽 124px 不变（保持原排版密度） */
+  .snap-line.item .d { display: grid; grid-template-columns: 1fr 1fr; column-gap: 6px;
+    font-family: var(--mono); font-size: var(--fs-xs); text-align: right; white-space: nowrap; font-feature-settings: "tnum"; }
+  .snap-line.item .d .dv, .snap-line.item .d .cv { text-align: right; }
   .snap-line.item .v { text-align: right; }
   /* ===== 快照卡版式规范（全卡一致 · 2026-09-20 整理）=====
    * ① 标签列统一 66px（≤400px 收 58px）——金额行的左边界跨行对齐；

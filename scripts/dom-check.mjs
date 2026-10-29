@@ -777,8 +777,12 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   const gotOt = gs.length > 1 ? gn(gs[1]) : null;
   check("快照对比「场内」分组小计 = 复算 " + money(sums.in) + "（不再把清仓浮亏消失当收益 ✗）",
     gotIn !== null && Math.abs(gotIn - sums.in) <= 1, "组小计 " + gotIn + " vs 复算 " + sums.in.toFixed(2));
+  /* ⚠ 2026-10-29：组小计为 0 时页面改画「—」（场外净值没更新那几天本组合计恒 0，
+     印「↑0」会被读成"涨了 0 元"✗）→ 这里接受两种形态：数值 ≈ 复算，或复算为 0 时显示「—」✓ */
+  const otDash = gs.length > 1 && Math.abs(sums.ot) < 0.5 && /—/.test(gs[1].textContent) && gotOt === null;
   check("快照对比「场外」分组小计 = 复算 " + money(sums.ot),
-    gotOt !== null && Math.abs(gotOt - sums.ot) <= 1, "组小计 " + gotOt + " vs 复算 " + sums.ot.toFixed(2));
+    otDash || (gotOt !== null && Math.abs(gotOt - sums.ot) <= 1),
+    otDash ? "组小计「—」（复算 0.00 ✓）" : "组小计 " + gotOt + " vs 复算 " + sums.ot.toFixed(2));
   /* 各标的累计盈亏（2026-10-18 加）：5 条线 = 3 在持实线 + 2 已清仓虚线，
      清仓标的的图例必须印「已实现」而不是浮盈（口径不同，混了就会被读成「还在赚」✗） */
   {

@@ -313,6 +313,10 @@ themeBtn.addEventListener("click", () => {
  * 此处同步。例外：图内坐标轴与线上标注仍用“万”，因为 SVG 不换行、写 421,479.57 会压住相邻点。
  * 数量（份 / 笔 / 天）与金额不共享格式化：用 fmtQty。 */
 const fmtPct = (v, dp) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(dp === undefined ? 1 : dp) + "%";   // 负号同样用「−」，与金额一致
+/* 盈亏金额的统一精度（2026-10-29，盈亏总览与快照对比共用 —— 一份实现，两处不会再漂）：
+   |v| < 10 → 2 位小数（+1.31 / −0.25）；否则整数＋千分位（+8,458）。
+   起因：整元截断会把 +1.31 显示成「+1」、把 −0.25 显示成「0」（后者看着像"不赚不亏"，最误导 ✗）。 */
+const fmtPlAmt = (v) => (Math.abs(v) < 10 ? (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) : fmtAmt(v));
 /* 日内涨跌专用：幅度小（常年在 ±3% 内），默认 1 位会把 0.05% 抹成“+0.1%”——固定 2 位与同卡“较成本 / 距高点”区分开 */
 const fmtPctChg = (v) => fmtPct(v, 2);
 /* 带符号百分点（pp）：相对基准差值 / 归因贡献 / 口径差 —— 2026-10-12 收拢（此前 6+ 处各自散写 ✗，与上轮合并 pctS 同一动机）。
@@ -1178,7 +1182,6 @@ function renderImpl() {
        · 金额：|v| < 10 → **2 位小数**（+1.31 / −0.25）；|v| ≥ 10 → 整数（+8,458，与账目整数元一致）
        · 收益率：|r| < 1% → 2 位（+0.03% / −0.01%）；≥ 1% → 1 位（+4.6%）—— 否则会印出「−0.0%」✗
      ⚠ 混精度必然让右缘不齐 → 靠 .pl-base / .pl-rate 的固定宽度 ＋ tnum 把列界钉住（见 positions.css）✓ */
-  const fmtPlAmt = (v) => Math.abs(v) < 10 ? (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) : fmtAmt(v);
   const fmtPlRate = (r) => fmtPct(r, Math.abs(r) < 0.01 ? 2 : 1);
   /* ── 场外「按平台汇总」（2026-10-29 加，用户要对账）────────────────────────
      目的：拿银行 / 支付宝的扣款流水跟这里对。
@@ -4870,24 +4873,37 @@ function snapItemRow(code, name, dq, dPlItem, plCum, tag, hideSrc, flat, navHtml
   /* ⚠ 2026-10-19：新加快照里个别 code 可能查不到展示名（name 为 undefined），
      原来直接 name.indexOf 会抛 TypeError、整块「快照对比」渲染中断 ✗ → 兜底用 code。 */
   const nm = name || (typeof otcName === "function" ? otcName(code) : "") || code;
-  const srcRedundant = src.s.length >= 2 && nm.indexOf(src.s) === 0;
+  /* 只给**场外**用简称（2026-10-29 二改）：场内本来就只有 6~8 字（纳指ETF广发），
+     缩写后反而丢信息且与场外「广发纳指F」混淆 ✗。判断用代码前缀 —— 本组合场外基金都是 0 开头
+     （021778/021000/018738/040046/014978/007280 ＋已清仓 015884/023402），场内都是 1/5 开头 ✓ */
+  const isOtcRow = /^0/.test(String(code));
+  const dispNm = isOtcRow ? plDisplayName(nm) : nm;
+  /* 场外「本期未更新」显示「—」而不是 +0.00（2026-10-29）：QDII 净值 T+1 才出，
+     没更新的那几天 dPlItem 恒为 0，印成「+0.00」会被读成"今天没涨没跌" ✗（其实是没读数）。
+     判据：场外 ＋ 本期无变动 ＋ 差值为 0 —— 场外 NAV 每天都动，三者同时成立基本只可能是未更新 ✓ */
+  const staleOtc = isOtcRow && flat && Math.abs(dPlItem) < 0.005;
+  const srcRedundant = src.s.length >= 2 && dispNm.indexOf(src.s) === 0;
   const srcTag = (hideSrc || srcRedundant) ? "" : '<span class="snap-src">' + esc(src.s) + "</span>";
   /* 逐只净值日不再占版面（2026-09-23）：场外 8 只里 7 只是同一天，分组头已写「净值日 09.21~09.22 混排」，
      逐条重复只让名称列更窄。日期改挂进 .n 的 title（悬停可查，信息不丢）。 */
   const navTxt = navHtml ? String(navHtml).replace(/<[^>]*>/g, "").trim() : "";
   /* 两列合一列（2026-09-23）：左＝当日盈亏（本期波动，大而粗、带色），右＝总盈亏（持仓水平，小一号、常规字重）。
      原来两者同字号同字重、各占一列（64+72px），手机上既挤名称，又分不出主次。 */
-  const num = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);
+  const num = (v) => fmtPlAmt(v);   // 与盈亏总览同一精度（<10 元给两位小数，2026-10-29）
   /* 整行可点（2026-10-10）：点它 → 切到「盈亏归因」看这只的逐期轨迹 ✓（见 gotoHoldInAttr ✓）。
      ⚠ 只在**这个视图**加 ✓（同一个 snapItemRow 也用于别处吗？——不，它只服务「逐期明细」）。 */
   return '<div class="snap-line item' + (flat ? " snap-flat" : "") + '" data-attr="' + esc(code) + '"'
     + ' role="button" tabindex="0" aria-label="' + esc("看 " + name + " 的逐期轨迹（跳到「盈亏归因」）") + '"'
     + ' title="' + esc("点一下（或回车）→ 到「盈亏归因」看 " + name + " 的逐期轨迹：各期贡献 ＋ 本期快照对比 ＋ 生涯累计") + '">'
+    /* 名称用简称（2026-10-29 用户：「基金名字太长的可以精简」）—— 与盈亏总览同一套 plDisplayName：
+       去掉 (QDII/人民币/股票/混合发起…) 与 ETF联接 / 指数 / 纳斯达克→纳指，保留 A/C/E/F/I 份额级别 ✓
+       原始全名仍在 .n 的 title 与 aria-label 里，信息不丢 ✓ */
     + '<span class="n" title="' + esc(name) + " · " + esc(src.f) +
-      (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(name) + "</span>" +
+      (navTxt ? " · " + esc(navTxt) : "") + (flat ? " · 本期无变动" : "") + '"><span class="nn">' + esc(dispNm) + "</span>" +
     srcTag + qt + "</span>" +
-    '<span class="d" title="较上期盈亏 ' + num(dPlItem) + " 元（与上一期快照之间的波动）· 总盈亏 " + num(plCum) + ' 元（该只累计实际结果，含已实现与双边费用；清仓行＝从建仓到清仓的结果）">' +
-      '<span class="dv ' + cls(dPlItem) + '">' + num(dPlItem) + '</span>' +
+    '<span class="d" title="' + (staleOtc ? "本期未更新（沿用上期读数）" : "较上期盈亏 " + num(dPlItem) + " 元（与上一期快照之间的波动）")
+      + "· 总盈亏 " + num(plCum) + ' 元（该只累计实际结果，含已实现与双边费用；清仓行＝从建仓到清仓的结果）">' +
+      '<span class="dv ' + cls(dPlItem) + '">' + (staleOtc ? "—" : num(dPlItem)) + '</span>' +
       '<span class="cv ' + cls(plCum) + '">' + num(plCum) + "</span></span></div>";
 }
 function snapPairHtml(prev, cur) {
@@ -4971,8 +4987,12 @@ function snapPairHtml(prev, cur) {
          搬到分组头正好 —— 它就是本组各行「当日盈亏」之和，与表内逐只数字同源，回答「场内 / 场外各贡献多少」。
          跨度 >1 天时与卡头同规则叫「本期」；颜色沿用全局 .up/.down（绿/红），数值给等宽。 */
       '<div class="snap-group" title="' + esc(tip) + '"><span class="snap-group-key">' + label + " " + sub[key].n + " 只" + (sub[key].cl ? "（含清仓 " + sub[key].cl + "）" : "") + "</span>" +
+      /* 组小计：为 0 时显示「—」（2026-10-29）—— 场外净值没更新的那几天本组合计恒为 0，
+         印成「↑0」会被读成"涨了 0 元"，而实际是没读数 ✗（与行内「—」也自相矛盾 ✗） */
       '<span class="snap-group-sum ' + cls(sub[key].d) + '">' + (spanDays === 1 ? "当日" : "本期") +
-        ' <span aria-hidden="true">' + (sub[key].d >= 0 ? "↑" : "↓") + "</span>" + fmtAbs2(sub[key].d) + "</span>" +
+        (Math.abs(sub[key].d) < 0.005 ? ' <span aria-hidden="true">—</span>'
+          : ' <span aria-hidden="true">' + (sub[key].d >= 0 ? "↑" : "↓") + "</span>"
+            + (Math.abs(sub[key].d) < 10 ? Math.abs(sub[key].d).toFixed(2) : fmtAbs2(sub[key].d))) + "</span>" +
       '<span class="snap-group-hint">' + hint + "</span></div>" +
       grpLines[key].join("");
     lines.push(grpBlock("in", "场内", "券商 " + mdOf(cur.d) + " 收盘", "场内＝券商账户，收盘后一次性更新"));
