@@ -7920,7 +7920,7 @@ function renderCheckup() {
          不把 278% 这种数摆在表里（档位仍按 现价位 − 成本位 计 —— 「成本远高于现价」这件事本身是真的）。 */
       let cost;
       if (d.costPct === null || d.nowPct === null) {
-        cost = gb(d.gCost) + " " + na("成本位或现价位算不出来（缺该标的的 52 周区间）");
+        cost = '<span class="cv">' + gb(d.gCost) + " " + na("成本位或现价位算不出来（缺该标的的 52 周区间）") + "</span>";
       } else {
         const out = d.costPct > 100 ? "上" : d.costPct < 0 ? "下" : null;
         cost = '<span title="' + (out
@@ -7929,7 +7929,12 @@ function renderCheckup() {
             + "此时区间分位没有意义，故不摆出来。档位仍按 现价位 − 成本位 计（" + fmtPp(Math.round(d.gap) / 100, 0) + "）：「成本远高于现价」本身是真的。"
           : "成本位 " + d.pct(d.costPct) + " → 现价位 " + d.pct(d.nowPct) + "，相减 = " + (d.gap >= 0 ? "+" : "−")
             + Math.abs(Math.round(d.gap)) + "pp。箭头向右 = 摊薄成功 / 已浮盈；向左 = 套牢。")
-          + '">' + gb(d.gCost) + " " + (out ? "成本价超区间" + out + "沿" : d.pct(d.costPct) + " → " + d.pct(d.nowPct))
+          /* ⚠ 两个百分数各包一层 i（2026-10-29 二改）：窄屏要给它们**固定宽度 + 右对齐**，
+             否则「83%」与「62%」靠字数碰运气，9 行的末位和箭头都不在同一竖线上 ✗。
+             宽屏时 .cv 是 inline-flex，观感与原来的一整串文本一致 ✓ */
+          + '"><span class="cv">' + gb(d.gCost)
+          + (out ? '<i class="cx">成本价超区间' + out + "沿</i>"
+            : '<i class="cf">' + d.pct(d.costPct) + '</i><i class="ca">→</i><i class="ct">' + d.pct(d.nowPct) + "</i>")
           /* gap 也摆到页面上（2026-09-27 用户要求）：它是**排序依据**，之前只能在 title 里靠两数相减才看到。
              压成小字、弱色 —— 主信息仍是「成本位 → 现价位」，gap 只作量级提示。
              ⚠ 「成本价超区间」的不显示（那个数是极端值、语义无意义）；gap 算不出（缺区间）也不显示。 */

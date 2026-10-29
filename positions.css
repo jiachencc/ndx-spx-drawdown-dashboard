@@ -1089,6 +1089,10 @@
   .chk-tbl .cn-mini em.up { color: var(--up); }
   .chk-tbl .cn-mini em.down { color: var(--down); }
   .chk-tbl .cn-mini em.flat { color: var(--tx3); }
+  /* 成本位 → 现价位：宽屏内联（观感与原来整串文本一致），窄屏才切成固定宽子列（见 767px 段） */
+  .chk-tbl .cv { display: inline-flex; align-items: baseline; gap: 3px; }
+  .chk-tbl .cv i { font-style: normal; }
+  .chk-tbl .cv .ca { color: var(--tx3); }
   /* 成交位置汇总（2026-10-21 加）：一行三段（标签 / 中位数 / 笔数分布）。
      放在体检表**上方**、表在窄屏默认折叠 → 这句始终可见，承担"一句话结论"的角色 ✓。
      ⚠ 不做成表格行：它不是某一只的指标，是**账户级**的成交习惯（覆盖 5 只含已清仓）✓ */
@@ -1199,26 +1203,40 @@
        ⚠ 用 flex 而不是继续 inline-block：名称长的（纳斯达克100ETF招商）要能自己缩、成本要能右对齐不换行。 */
     .chk-tbl thead { display: none; }
     .chk-tbl, .chk-tbl tbody { display: block; }
-    .chk-tbl tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+    /* 三列**严格对齐**（2026-10-29 二改）：原来用 flex，第二三列的左右边界随内容浮动 ——
+       「83%」和「62%」的末位、短标签的右缘都不在同一条竖线上 ✗。换成 grid 后三列各自固定 ✓
+       · 第 1 列 minmax(0,1fr)：名称可缩（配 ellipsis），格子本身不被长名撑开
+       · 第 2 列 auto：成本组（档位 + 两个百分数 + 箭头）
+       · 第 3 列固定 5.4em：短标签右对齐 */
+    /* ⚠ 第 3 列用 6.4em（≈58px）而不是 5.4em：最长的「摊薄 +11pp」约 58px，
+       5.4em 装不下会让文字溢到格子外 4px（scrollWidth 360 > 356）✗ */
+    .chk-tbl tr { display: grid; grid-template-columns: minmax(0, 1fr) auto 6.4em;
+      align-items: baseline; column-gap: 10px; row-gap: 0;
       padding: 8px 0;
-      /* 分隔线用 --line（比 --line-soft 实一档）：行从三行压成一行后，--line-soft 在白底上几乎看不见，
+      /* 分隔线用 --line（比 --line-soft 实一档）：行压成一行后 --line-soft 在白底上几乎看不见，
          而这张表要"扫"，行界不清楚会更难读 ✓ */
       border-bottom: 1px dashed var(--line); }
     /* ⚠ 单元格的虚线要关掉（2026-10-29）：行块化之后整行的虚线由 `tr` 自己画，
        而 td 仍各自带 border-bottom → 只在名称底下画出**半截虚线**、右侧空着 ✗（截图里一眼能看到） */
-    .chk-tbl td { border-bottom: none; }
+    /* ⚠ 单元格的内边距也要清掉（2026-10-29）：基础规则里 td 带 `padding: 7px 8px 7px 0`，
+       grid 化之后这会**加在列宽上** → 三列合计比表宽多 4px，出现横向溢出 ✗（scrollWidth 360 > 356） */
+    .chk-tbl td { border-bottom: none; padding: 0; }
     .chk-tbl .c-nm { display: block; flex: 1 1 auto; min-width: 0; margin-bottom: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chk-tbl .c-buy, .chk-tbl .c-cost, .chk-tbl .c-swing { display: block; flex: 0 0 auto;
       padding: 0; border: none; white-space: nowrap; vertical-align: baseline; }
     /* 说明列：窄屏换成**短标签**（「套牢 7pp」），与名称/成本同一行 —— 每行 26px 左右、
        9 行 ≈ 250px（原来是 85px × 9 = 765px）。整句仍在 title 里，鼠标设备悬停可看 ✓ */
-    .chk-tbl .c-note { display: block; flex: 0 0 auto; margin-top: 0; padding: 0; border: none;
+    .chk-tbl .c-note { display: block; margin-top: 0; padding: 0; border: none;
       font-size: var(--chk-fs-mini); line-height: 1.45;
-      /* ⚠ 用**固定宽**而不是 min-width（2026-10-29）：短标签最长的「摊薄 +11pp」比「持平」宽一截，
-         min-width 下宽度随内容变 → 成本列的右缘跟着左右浮动 ✗；固定宽度后三列各自对齐 ✓
-         6.4em ≈ 58px（--chk-fs-mini 9px），刚好容得下「摊薄 +11pp」 */
-      width: 6.4em; text-align: right; }
+      /* 列宽由 tr 的 grid 定（6.4em）→ 这里不再自己设 width，只负责右对齐 ✓ */
+      text-align: right; }
+    /* 成本组：档位 | 成本位 | → | 现价位，后三列固定宽 → 9 行的百分数与箭头**同一竖线** ✓ */
+    /* 档位给固定 1.6em（字母 + 4px 内边距刚好），否则 auto 列会把「D」和「83%」拉得太开 ✗ */
+    .chk-tbl .cv { display: inline-grid; grid-template-columns: 1.6em 2.5em 1em 2.5em;
+      align-items: baseline; column-gap: 1px; }
+    .chk-tbl .cv .cf, .chk-tbl .cv .ct { text-align: right; font-feature-settings: "tnum"; }
+    .chk-tbl .cv .ca { text-align: center; }
     .chk-tbl .cn-full { display: none; }
     .chk-tbl .cn-mini { display: inline; }
     /* 手机上隐去表头，所以列内小标签显示出来、并独立成行（与数字上下对齐，比挤在数字前更好认） */
@@ -1228,6 +1246,11 @@
        剩下的成本列只有它一个，而值本身「D 83% → 76%」＋右侧的「套牢 7pp」已经说清含义 ✓
        省下的 25px 全给标的名称（长名如「纳斯达克100ETF招商」原本会被省略号截断） */
     .chk-tbl .c-lb { display: none; }
+    /* c-gap（成本列末尾那个「−7」）窄屏不显示：右侧短标签「套牢 −7pp」说的是同一件事 ✗ */
+    .chk-tbl .c-gap { display: none; }
+    /* 底部那段口径说明（2026-10-29）：11px/17.6px 行高在手机上比表格（10px）大一整档，
+       看着像正文、"头重脚轻" ✗ → 与表格同档（10px）并收一点行距，省出约 15px ✓ */
+    .chk-note { font-size: var(--chk-fs); line-height: 1.55; }
   }
   /* ===== 逐只 XIRR 与 TWR / 逐只体检：改成**真表格**（2026-09-30，参照「操作体检」）========
      起因：用户两次反馈「表格还是对不齐」。根因是旧版把细节写成一路「 · 」连成的自由文本，
