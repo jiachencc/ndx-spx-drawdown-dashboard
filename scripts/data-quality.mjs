@@ -61,7 +61,19 @@ export function snapshotIssues(html) {
     vm.runInContext(om[0] + "\nthis.otc = OTC;", oc, { timeout: 500 });
     if (!Number.isFinite(oc.otc.cash) || Math.abs(oc.otc.cash - last.cash) > 0.01)
       issues.push("OTC.cash " + oc.otc.cash + " ≠ 最新快照（" + last.d + "）现金 " + last.cash + "：汇总卡总资产与配置图会算错");
-    if (isDate(oc.otc.updated) && oc.otc.updated < last.d)
+    /* ⚠ 2026-10-29：这条原来一律报错，但「场内先落、场外净值还没出」是**每天的常态** ✗ ——
+       券商 15:00 就能拍，基金净值要等晚上。那天页面会显式显示「场外 —／⏳ 场外待补」✓，不是漏刷。
+       判据改成**看数据有没有真的变**：只有「场外那几只在最新快照里换了值、而 OTC.updated 没跟上」才算错 ✗
+       （那才是漏刷日期）。场外份额若与上一期逐项相同 → 属于沿用，放行 ✓。
+       ⚠ 区分场内/场外靠代码前缀：本组合的场外基金都是 0 开头（021778/021000/018738/040046/014978/007280），
+         场内 ETF 都是 1/5 开头（159941/513650/513880/513310/160644）✓ */
+    const prevL = ctx.rows.filter((s2) => s2.items).at(-2);
+    const isOtcCode = (c) => /^0/.test(String(c));
+    const otcSig = (snap) => snap && snap.items
+      ? Object.keys(snap.items).filter(isOtcCode).sort().map((c) => c + ":" + snap.items[c].val + ":" + snap.items[c].pl).join("|")
+      : "";
+    const otcChanged = otcSig(last) !== otcSig(prevL);
+    if (isDate(oc.otc.updated) && oc.otc.updated < last.d && otcChanged)
       issues.push("OTC.updated " + oc.otc.updated + " 早于最新快照 " + last.d + "：场外读数疑似未刷新");
   }
   return issues;

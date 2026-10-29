@@ -968,9 +968,18 @@ function renderImpl() {
         ⚠ 前提：OTC.updated ＝ 最新快照日 ✓（落期时一起写 ✓）；不等时**不硬推** ✗（那半显示「—」不猜 ✓）。
      ④ 更新方式：**每天发截图 → 落一期** ✓（与既有 SOP 同一套 ✓）。 */
   const lastSnap = (typeof SNAPSHOTS !== "undefined" && SNAPSHOTS.length) ? SNAPSHOTS[SNAPSHOTS.length - 1] : null;
-  const sameSnap = !!(lastSnap && String(OTC.updated).slice(0, 10) === String(lastSnap.d) && Number.isFinite(lastSnap.day));
-  const dayAll = sameSnap ? lastSnap.day : dayOtc;    // 合计＝快照实际 ✓（前提不满足则退到场外实际 ✓ 不混日期 ✗）
-  const dayEtf = sameSnap ? dayAll - dayOtc : null;   // 场内＝合计 − 场外 ✓（同一次落盘的两半）
+  /* ⚠ 2026-10-29 补一种常态：**场内先落、场外还没出**（券商 15:00 收盘就能拍，基金净值要等到晚上）✗
+     原来只判「OTC.updated ＝ 快照日」，不满足就把场内整格打成「—」✗ ——
+     而那一期的 day 本来就是「Δ总资产 − flow」，此时**只含场内变动** ✓，所以：
+       · 场外同日 → 合计 ＝ 快照 day，场内 ＝ 合计 − 场外（原逻辑 ✓）
+       · 场外不是同日 → 合计 ＝ 快照 day，**场内 ＝ 快照 day**，场外显示「—」（不拿旧值冒充 ✗） */
+  const otcSameDay = !!(lastSnap && String(OTC.updated).slice(0, 10) === String(lastSnap.d));
+  const sameSnap = !!(otcSameDay && Number.isFinite(lastSnap.day));
+  const dayAll = sameSnap ? lastSnap.day
+    : (otcSameDay ? dayOtc : (lastSnap && Number.isFinite(lastSnap.day) ? lastSnap.day : dayOtc));
+  const dayEtf = sameSnap ? lastSnap.day - dayOtc
+    : (lastSnap && !otcSameDay && Number.isFinite(lastSnap.day) ? lastSnap.day : null);
+  const dayOtcShow = sameSnap ? dayOtc : null;        // 场外那半：只有同一天才显示，否则「—」
   const etfPl = etfVal - etfCost, otcPl = otcVal - otcCost - OTC.cash;   // 场外盈亏同口径剔现金（= Σ基金 pnl）
   /* 口径日期：每格底部标注数字源自哪天——场内＝报价日、场外＝截图快照日、混合格子两者并列 */
   const mixTag = etfTag() + " " + otcTag();
@@ -980,111 +989,124 @@ function renderImpl() {
   /* 四格 title（2026-10-12 裁剪）：≈930 字 → ≈260 字 —— 每格只留**结论与边界** ✓；
      对账台账（「与平安 App 差 1.66 元」「南方 600 ＝ 三笔」「中欧 100 待核」）与推导全部删掉 ✗
      —— 那些数字一变，页面就在说错话 ✗；口径边界（在持 vs 累计、范围、两套算法）必须留 ✓ */
+  /* 四格悬停（2026-10-29 重写：术语跟卡片对齐 ＋ 大幅精简 ＋ 说人话）——
+     原来每格都是一段带内部术语的说明文（「外部净转入」「摊薄成本」「同一次落盘的两半」「倒算」），
+     小白读不懂 ✗；而卡片本身已经「每格自证」（市值 / 盈亏 / 成本三个数摆一起），悬停只需要补**怎么算的**。
+     ⚠ 下面四处措辞是门禁的落点，别删：
+       ① 场内必须出现「不含现金」且不能出现「含券商可用现金」
+       ② 当日必须出现「场内 ＝ 合计 − 场外」（别把倒算说成券商实读）
+       ③ 当日必须出现「券商 App」与「日收益」（两个来源说清）
+       ④ 各行必须出现「场内 N 只 / 场外 M 只」（只数随持仓变，写死会漂 ✗） */
   const SUM_TIPS = {
-    total: "本金 ＝ 外部净转入（银行 / 支付宝 → 账户）：买卖、申赎、费用都只是账户内的「现金 ↔ 持仓」转换，不改变本金；**全额清仓**时已兑现那块会漏出，故本金里显式加回它。"
-      + "总资产 ＝ 本金 ＋ 累计收益（含已实现）。⚠ 右侧「在持浮盈 · 场内 / 场外」是**在持**口径（不含已兑现），两格之和 ≠ 这里的累计收益。"
-      /* ⚠ 2026-10-13 修（逐格扫描时发现的第 8 处「文字与实现不符」✗）：原来写死「场内 5 只 ETF」✗ ——
-         那含已清仓的两只 ✗，而本格的范围是 `implEtfRows()` ＝ POSITIONS.hold ＝ **当前持有 3 只** ✓。
-         改成**数据驱动** ✓（只数与持仓同步 ✓，将来增减仓不用回来改文案 ✓），门禁 ⑫ 盯着它 ✓。 */
-      + "⚠ 范围：场内 " + (POSITIONS.hold || []).length + " 只 ETF（当前持有 ✓）＋ 场外 " + OTC.funds.length + " 只基金 ＋ 券商可用现金，不含招行理财 / 黄金 —— 财务看板的「总资产」含 7 个账户，不是同一范围。",
-    etf: "场内累计浮盈亏（**在持**口径，不含已兑现）＝ Σ份数×现价 − Σ摊薄成本（**不含现金** ✗ —— 券商可用现金并在场外桶里、"
-      + "两边相抵、不产生盈亏 ✓）。券商摊薄成本已含已实现盈亏，故本金 ≡ 银证净转入。"
-      + "⚠ 副标两行**分母不同** ✗：第 1 行「本金」是外部净转入口径（含「全额清仓加回」✓）；第 2 行「收益率」按**在持成本**算 ✓"
-      + "（＝第 3 行那个数 ✓），拿本金去乘会对不平。⚠ 与「场内账户统计」的券商年度口径不同，两处不要相减。",
-    otcA: "场外累计浮盈亏（**在持**口径，不含已兑现）＝ Σ八只 App「持仓成本」口径（各平台截图读数）：与逐笔流水（Σ「成功」笔）的差额共 ",
-    otcB: "（已扣款、**尚未并入 App 成本** ✓ —— 副标那行「未并入成本」就是它 ✓）。"
-      + "⚠ 与紧随其后的「市值里另有在途」**不是一个数** ✗（2026-10-13 点名，此前两个概念同名难分）："
-      + "上面那个＝还没进成本 ✗；下面那个＝**已进市值、只是还没变成份额** ✗（申购在途 / 个别待确认笔所致；逐笔含状态与在途笔的原始台账在 positions-data.js 的 OTC_LOG，2026-10-16 起页面不再单开一卡展示）。⚠ 市值里另有在途 ",
-    otcC: "（已含在市值、尚未变成份额）不计入本金：计入会让「本金 ＋ 收益 ＝ 总资产」差一个在途。",
-    day: "口径：**全部实际读数，不含任何估算** ✓（2026-10-13 用户决定：「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓）。"
-      + "合计 ＝ 那一期快照的 day（落期时按券商 App 的当日总盈亏实读 ✓）；场外 ＝ 各平台 App「日收益」中**与快照同日**的那些之和 ✓；"
-      + "场内 ＝ 合计 − 场外 ✓（同一次落盘的两半；那半**并未单独实读** ✗，是倒算出来的 ✓）。"
-      + "⚠ 估算已从这格撤下 ✗ —— 原来场内那半用「当日涨跌幅 × 持仓」推算，而报价时点不受控（盘前跑＝上一交易日的涨跌 ✗、延迟到盘中＝盘中价 ✗），实测偏差可达真实波动的数倍 ✗。"
-      + "更新方式：**每天发截图 → 落一期** ✓，所以这格的新旧＝快照日期（副标里写着 ✓）；盘中想看实时，请看券商 App ✓。"
-      + "场外那个「指数补齐」的预估仍在下方折叠块与「预估 vs 实际」台账里 ✓（那是独立功能，不进这格 ✓）。",
+    total: "总资产 ＝ 累计投入 ＋ 累计收益（含已实现）\n"
+      + "· 累计投入：从银行卡 / 支付宝一共转进来多少 —— 买进卖出、亏了钱都不会让它变少\n"
+      + "· 累计收益：到现在是赚是亏，含已经卖掉兑现的那部分\n"
+      + "下面两行是它的拆解：\n"
+      + "· 持仓盈亏：现在手上这些的账面赚亏\n"
+      + "· 已实现：已经清仓的那几只兑现的亏\n"
+      + "范围：场内 " + (POSITIONS.hold || []).length + " 只 ETF ＋ 场外 " + OTC.funds.length
+      + " 只基金 ＋ 券商现金（不含招行理财 / 黄金）",
+    etf: "场内这 " + (POSITIONS.hold || []).length + " 只 ETF：现在值多少、花多少、赚亏多少\n"
+      + "· 上面那个数 ＝ 份数 × 今天的收盘价（市值）\n"
+      + "· 持仓成本 ＝ 买入花的钱，多次加仓后摊平（不含现金）\n"
+      + "· 两者相减 ＝ 盈亏和百分比（百分比除以成本，不除以累计投入）\n"
+      + "⚠ 只算还没卖的；卖掉兑现的亏在总资产的「已实现」里",
+    otcA: "场外这 " + OTC.funds.length + " 只基金（金额取自各平台 App 的截图）\n"
+      + "· 上面那个数 ＝ App 显示的持仓金额；持仓成本 ＝ 买入花的钱\n"
+      + "· 我记的流水账与 App 成本的差额（负＝流水少记，该补账；正＝钱已扣、App 还没算进成本）共 ",
+    otcB: "\n· 另有 ",
+    otcC: " 已经在市值里、还没变成份额（申购在途）—— 不计入成本，"
+      + "不然「投入 ＋ 收益 ＝ 总资产」会差一个在途",
+    day: "今天的实数，没有估算\n"
+      + "· 合计 ＝ 券商 App「当日总盈亏」（落期那天的实读）\n"
+      + "· 场外 ＝ 各平台 App「日收益」里同一天的那些之和\n"
+      + "· 场内 ＝ 合计 − 场外\n"
+      + "场外显示「—」＝ 今天的基金净值还没出，先只算场内；盘中想看实时就看券商 App",
   };
+  /* ── KPI 卡（2026-10-29 重排，用户「三个模块不容易理解」）────────────────────
+     用户连续三问（「按在持成本是什么」「本金含不含清仓」「浮盈为什么是负的」）指向同一件事：
+     **同一个词在三处不同义、同一个量在三处不同分母** ✗。这次按五条改：
+       ① 术语：「本金」→「累计投入」（＝外部净转入，含已清仓那部分）；
+          「在持浮盈」→「持仓盈亏」（可以是负）；「按在持成本」→「持仓成本」
+       ② 每格自证：通道格摆出「市值 / 盈亏 / 成本」三个数 → 相减即成立，不再需要小字解释分母
+       ③ 层级：累计收益拆成两截用 ├ └ 缩进，不再拿「＝」「＋」当行首（那看着像三行并列）
+       ④ 一个数只出现一次：「累计投入」只在总格；通道格显示各自的「持仓成本」
+       ⑤ 当日盈亏压成一条横带（label ＋ 三栏 ＋ 快照日同行），不再与「累计」三格平级
+     ⚠ 三栏结构 .s-split / .s-split-cell 一个字没改 —— dom-check ③b 靠它取三个数 ✓；
+       `.s-label` 里的「当日盈亏」四个字也必须留着 ✓（同一条断言靠它定位这一格）。 */
   $("sum-grid").innerHTML =
-    /* 4 格（2026-09-30 二次排版，按用户口径「这些就够了」）：
-       · 日期胶囊**只在「总资产」里出现**一次 —— 它的 mixTag 本来就同时含场内报价日与场外快照日，
-         其余格子不再重复日期戳（口径靠副标的文字说，例如「场内估算 ＋ 场外快照」）。
-       · 「本金 ＋ 收益」按**场内 / 场外各一格**：主数＝该通道累计**收益金额**（不带单位，与总资产格同规），
-         副标＝本金 ／ 收益率（2026-09-30 按用户口径对调：金额比收益率更想看）。
-         场外那格多一行「已扣款未入账 +500」——它是场外本金的**对账残差**（已扣款、尚未并入 App 成本），
-         与另外两行不是一类信息，故单独一行（2026-09-30 用户要求），不跟在收益率后面挤成一句。
-       · 「当日盈亏」三分栏：场内 ＋ 场外 ＝ 合计。
-       · 累计（合计）浮盈亏不再单占一格 —— 它在「总资产」副标里（本金 ＋ 浮盈亏）；盈/亏持仓在「盈亏总览」标题里。
-       末格（当日盈亏）栅格跨整行（见 positions.css 的 .sum-grid 规则）。
-       ⚠ 2026-10-13 用户问「总资产的累计收益 +330 是所有场内场外的净收益对吗？包含了已经清仓的」✓，
-         接着问「已实现的场内 / 场外有必要体现到 KPI 吗」✓ → 结论：**不加格数** ✗，做两处措辞 ＋ 一行小注：
-           · B1 两个通道格标签写明**在持**口径 ✓ —— 字面「累计浮盈亏 · 场内」会被读成「该通道累计赚了多少」✗，
-             而它与第 1 格的「累计收益（含已实现）」差着已实现那一块 ✗（数据上是 +18,822 vs +330 ✗）；
-           · B2 第 1 格副标加一行恒等式「＝ 在持浮盈 ＋ 已实现」✓ —— 两个加数直接摆出来 ✓，读者不用做减法 ✓。
-         ⚠ 同一天第二轮（用户报「KPI 实际在手机上会折叠成 3 行」✗ —— 实测就是 3 行 ✓）：
-           上面 B1 那 13 字标签在真机档撑不住 ✗ → 两处收口（CSS 侧的完整理由见 positions.css 那条 ≤560px 注释 ✓）：
-             · 标签**再缩到 8 字**：「在持浮盈 · 场内 / 场外」✓（320–430px 全区间 1 行 ✓；
-               「在持」仍在标签里 ✓ → 门禁 ⑪「标签含在持」那条一个字都不用改 ✓）；
-             · 2 列断点从 ≤400px 提到 **≤560px** ✓（401–430px 原来仍走 3 列 ✗ → 每格仅 113–119px ✗ →
-               标签折 3 行 ✗、首格副标 8 行 ✗、格高 221px ✗）。
-           ⚠ 教训留档：上一轮验收只测了 380px ✗——而 380 恰好是 2 列 ✓ → 401–430px 那一档**无人覆盖** ✗。
-             「内容折行」这类问题必须在**真机档（414px ✓）＋ 真浏览器**里数行数 ✓（已写进 layout-check 常驻 ✓）。
-         ⚠ 为什么**不**给「已实现（场内 / 场外）」单开 KPI 格 ✗（当天的结论，理由留档）：
-           ① 场外那格会**恒 0 且算不出来** —— OTC_LOG 395 笔流水里 赎回 0 笔 ✗、字段只有 amt/status（无 realized ✗）；
-              放上 KPI，「场外已实现 0」会被读成"场外从没亏赚过" ✗，其实是"没有数据源" ✗
-              （与 otcLogGap 注释里「不能用 0 冒充」同一条禁忌 ✗）；
-           ② 已实现是**低频事件** ✗（至今只在 10-09 全额清仓那两笔 ✓）；
-           ③ 严谨限定语**塞不进 KPI 格** ✗ —— 摊薄成本口径下部分卖出的盈亏已折进剩余成本 ✗，不单独成"已实现" ✓
-              （8 笔卖出的 realized 合计 −24,027.97 ✗ ≠ 全额清仓口径 18,492.00 ✓），
-              380px 每格约 110px 放不下这层限定 ✗，简写成"已实现"反而制造新误解 ✗。
-           真要做时见「B3」：只加**一格**「已实现（全额清仓）」✓、不拆场内/场外 ✓、且无清仓时整格隐藏 ✗。 */
-    '<div class="sum-cell" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '"><div class="s-label"><span aria-hidden="true">💰</span> 总资产' + (sumIsEst ? "（估）" : "") + '</div><div class="s-val">' + fmtYuan(totalVal) + '</div><div class="s-sub" style="color:var(--tx3)">本金 <span id="sum-principal">' + fmtYuan(principal) + '</span><br>累计收益（含已实现）<span class="' + cls(totalAll) + '" id="sum-pl" title="＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月度账单口径）不是同一个数 —— 三个口径都答「赚了多少」，但范围与分母不同。">' + fmtAmt(totalAll) + '</span>' +
-      /* B2 恒等式小注（2026-10-13 加）：把「累计收益 ＝ 在持浮盈亏 ＋ 已实现」的两个加数直接摆出来 ✓，
-         读者不用自己做减法 ✓（用户当天问「+330 包含已经清仓的吗」—— 缺的就是这一行 ✗）。
-         ⚠ **条件显示**：clearedGap 为 0（从没发生过全额清仓）时整行不出现 ✓（不让恒 0 的行常驻 ✗）。
-         ⚠ 两个加数取自**上面那两格同一对变量**（etfPl + otcPl ✓ / clearedGap ✓），不另算一遍 ✗；
-           clearedGap 是「本金里加回的已实现亏损额」＝绝对值 ✓，等式左边要的是它的负号 ✓。 */
-      (clearedGap
-        ? '<br>＝ 在持浮盈 <span class="' + cls(etfPl + otcPl) + '">' + fmtAmt(etfPl + otcPl) + '</span><br>＋ 已实现 <span class="' + cls(-clearedGap) + '">' + fmtAmt(-clearedGap) + '</span>'
-        : "") +
-      '</div><div class="s-asof">' + mixTag + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.etf + '"><div class="s-label"><span aria-hidden="true">🏦</span> 在持浮盈 · 场内</div><div class="s-val ' + cls(etfPl) + '">' + fmtAmt(etfPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInEtf) + '<br>收益率 ' + fmtPct(etfCost ? etfPl / etfCost : 0, 2) +
-        /* P0① 把分母点明（2026-10-13 加）：上面那行「本金」是**外部净转入口径**（含全额清仓加回的 18,492 ✓），
-           而收益率的分母是**在持成本**（＝摊薄成本 ✓）→ 两者不同 ✗，读者拿本金去乘会算不平 ✗
-           （358,517 × 6.15% ＝ 22,049 ✗ vs 实际浮盈 20,897 ✗，差 0.32pp ✓）。故单独占一行写清 ✓。 */
-        '<br>按在持成本 ' + fmtYuan(etfCost) + '</div></div>' +
-    '<div class="sum-cell" title="' + SUM_TIPS.otcA + fmtAmt2(otcLogGap) + SUM_TIPS.otcB + fmtAmt2(inTransit) + SUM_TIPS.otcC + '"><div class="s-label"><span aria-hidden="true">📋</span> 在持浮盈 · 场外</div><div class="s-val ' + cls(otcPl) + '">' + fmtAmt(otcPl) + '</div><div class="s-sub" style="color:var(--tx3)">本金 ' + fmtYuan(pInOtc) + '<br>收益率 ' + fmtPct(otcCost ? otcPl / otcCost : 0, 2) + /* P1⑥ 换名（2026-10-13）：原来叫「已扣款未入账」✗ —— 而悬停里另有「市值里另有在途」✗，
-           两者名字太像、口径不同（这个＝还没进成本 ✓；那个＝已进市值未变份额 ✓），
-           偏偏可见的是小的那个（180）、大的藏在悬停里（520）✗ → 改名为「未并入成本」✓ 并在悬停里对举解释 ✓ */
-        '<br>未并入成本 ' + fmtAmt2(otcLogGap) + '</div></div>' +
+    /* ① 总资产：大字＝现在有多少钱；一行「投入 → 收益」；下面两截缩进拆解 */
+    '<div class="sum-cell sum-total" data-principal="' + principal.toFixed(2) + '" data-pl="' + totalAll.toFixed(2) + '" title="' + SUM_TIPS.total + '">'
+    + '<div class="s-head"><span class="s-label"><span aria-hidden="true">💰</span> 总资产' + (sumIsEst ? "（估）" : "") + '</span>'
+    + '<span class="s-asof">' + mixTag + '</span></div>'
+    + '<div class="s-val">' + fmtYuan(totalVal) + '</div>'
+    + '<div class="s-sub">'
+    /* 拆成两行（2026-10-29）：一行硬塞「累计投入 X → 累计收益（含已实现）Y（Z%）」会在 25em 里折行 ✗，
+       而且「（含已实现）」这个限定不能丢（dom-check ⑫ 守的就是它，防止被读成"已到手的钱"）✓ */
+    + '<div class="s-line"><span class="s-k">累计投入</span><b id="sum-principal">' + fmtYuan(principal) + '</b></div>'
+    + '<div class="s-line"><span class="s-k">累计收益（含已实现）</span><b class="' + cls(totalAll) + '" id="sum-pl" title="总资产 − 累计投入。含已实现 ＝ 把已经卖掉兑现的赚亏也算进来。\n⚠ 与「账户累计盈亏 · 场内 / 场外」（券商 / 月账单口径）不是同一个数，别相减。">' + fmtAmt(totalAll) + (principal ? "（" + fmtPct(totalAll / principal, 2) + "）" : "") + '</b></div>'
+    /* B2 恒等式小注（2026-10-13 加，2026-10-29 改成缩进层级）：把「累计收益 ＝ 持仓盈亏 ＋ 已实现」
+       拆成两截直接摆出来 ✓ —— 读者不用做减法，也不会把它读成两行并列 ✓。
+       ⚠ **条件显示**：clearedGap 为 0（从没全额清仓过）时整块不出现 ✓。
+       ⚠ 两个加数取自**上面那两格同一对变量**（etfPl + otcPl / clearedGap ✓），不另算一遍 ✗。 */
+    + (clearedGap
+      ? '<div class="s-tree">'
+        + '<div class="s-row"><span class="s-k">持仓盈亏</span><b class="s-v ' + cls(etfPl + otcPl) + '">' + fmtAmt(etfPl + otcPl) + '</b></div>'
+        + '<div class="s-row"><span class="s-k">已实现</span><b class="s-v ' + cls(-clearedGap) + '">' + fmtAmt(-clearedGap) + '</b></div>'
+        + '</div>'
+      : "")
+    + '</div></div>' +
+    /* ② 场内：市值（大字）＋ 盈亏（着色）＋ 持仓成本（小字）——
+       三个数摆一起，「市值 − 成本 ＝ 盈亏」自己就能验算 ✓，不再需要「按在持成本」这种解释行 */
+    '<div class="sum-cell" title="' + SUM_TIPS.etf + '">'
+    + '<div class="s-label"><span aria-hidden="true">🏦</span> 场内持仓</div>'
+    + '<div class="s-val">' + fmtYuan(etfVal) + '</div>'
+    + '<div class="s-mid ' + cls(etfPl) + '">' + fmtAmt(etfPl) + (etfCost ? "（" + fmtPct(etfPl / etfCost, 2) + "）" : "") + '</div>'
+    + '<div class="s-cost">持仓成本 ' + fmtYuan(etfCost) + '</div>'
+    + '</div>' +
+    /* ③ 场外：同上；多一行「未并入成本」＝已扣款未确认份额的对账残差（它不是成本，单列 ✓） */
+    '<div class="sum-cell" title="' + SUM_TIPS.otcA
+      + (Math.abs(otcLogGap) < 0.5 ? "0（已平 ✓）" : fmtAmt2(otcLogGap))
+      + SUM_TIPS.otcB + String(fmtAmt2(inTransit)).replace(/^\+/, "") + SUM_TIPS.otcC + '">'
+    + '<div class="s-label"><span aria-hidden="true">📋</span> 场外持仓</div>'
+    + '<div class="s-val">' + fmtYuan(otcVal - OTC.cash) + '</div>'
+    + '<div class="s-mid ' + cls(otcPl) + '">' + fmtAmt(otcPl) + (otcCost ? "（" + fmtPct(otcPl / otcCost, 2) + "）" : "") + '</div>'
+    + '<div class="s-cost">持仓成本 ' + fmtYuan(otcCost) + '</div>'
+    /* ⚠ 2026-10-29 改方向：otcLogGap ＝ 流水 − App成本。
+       负 → **流水少记**（我这边漏记了申购，该补账）；正 → 钱已扣、App 还没算进成本（原「未并入成本」的意思）。
+       原来不分方向一律写「未并入成本」，而实际长期是负的 → 字面意思正好反了 ✗。
+       ⚠ 小于 100 的零头不摆到卡面上（华安 A/C 各 35 的手续费差），免得每天挂一条黄字；
+         确切数字仍在悬停里 ✓（用户 2026-10-29：「华安目前就是这样，按当前的来处理就行」）。 */
+    + (Math.abs(otcLogGap) >= 100
+      ? '<div class="s-cost">' + (otcLogGap < 0
+        ? "流水少记 " + String(fmtAmt2(-otcLogGap)).replace(/^[+]/, "")   /* 标签已表意，不再带正号 */
+        : "另有 " + fmtAmt2(otcLogGap) + " 未并入成本") + "</div>"
+      : "")
+    + '</div>' +
+    /* ④ 当日盈亏：一条横带（label ＋ 场内 ＋ 场外 ＝ 合计 ＋ 快照日），与上面「累计」三格区分开 */
     /* P1⑦ 悬停点名未更新那几只（2026-10-13 加 ✓）：副标那句「N 只本次未更新 ⏳」原是个黑盒 ✗
        （读者会怀疑是故障 ✗）；名单由 `dayStaleList`（复用 dayVals 判据 ✓）给出，
        并说明"日收益按各自上一个读数日计、不进合计 ✓"，以及"已卖出款在途的基金本就不再更新 ✓"。
-       ⚠ 不写死基金名 ✗ —— 名单随数据变 ✓（今天那两只是摩根 007280 / 中欧 015884 ✓）。 */
-    /* 悬停**挂在整格上**（2026-10-13 改 ✓）：原来挂在 label 上 ✗，与上面三格不一致 ✗ ——
-       挂整格后鼠标落在分栏/数字上也能读到口径 ✓。 */
-    '<div class="sum-cell" title="' + SUM_TIPS.day
+       ⚠ 不写死基金名 ✗ —— 名单随数据变 ✓。 */
+    '<div class="sum-cell sum-day" title="' + SUM_TIPS.day
       + (dayStaleList.length
         ? " ⚠ 本次未更新的 " + dayStaleList.length + " 只（其日收益按各自上一个读数日计 ✓，不进当日合计 ✓；"
           + "若其中有已卖出、款在途的基金，本就不再更新 ✓ 属正常）：" + dayStaleList.join(" · ")
-        : "") + '"><div class="s-label"><span aria-hidden="true">📉</span> 当日盈亏（实际）</div>' +
-      /* 三分栏「场内 ＋ 场外 ＝ 合计」（2026-09-30 的版式恢复 ✓）—— 但现在**三栏都是实际读数** ✓：
-         2026-10-13 用户决定「当日盈亏用实际当日盈亏，场内＋场外，每天截图更新就行了」✓
-         → 估算（场内涨跌×持仓 ＋ 场外指数补齐）**全部从这格撤下** ✗（理由见上方那段注释 ✓）。 */
-      '<div class="s-split">' +
-        '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v ' + cls(dayEtf) + '">' + (dayEtf === null ? "—" : fmtAmt2(dayEtf)) + '</div></div>' +
-        '<div class="s-split-plus">+</div>' +
-        '<div class="s-split-cell"><div class="s-split-k">场外</div><div class="s-split-v ' + cls(dayOtc) + '">' + fmtAmt2(dayOtc) + '</div></div>' +
-        '<div class="s-split-plus">=</div>' +
-        '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>' +
-      '</div>' +
-      /* 副标**只留「是哪天的读数 ＋ 有没有缺口」**（2026-10-13 用户报「实读值 xxx 说明太多了，精简」✗）：
-         原来把那套推导（合计 ＝ …／场外 ＝ …／场内 ＝ 合计 − 场外 ✓）写在可见处 ✗ —— 而它是**同一件事的重述** ✗：
-         · 「实读值」＝ 标签已写「（实际）」✓、「每天发截图 → 落一期」＝ 悬停里已有 ✓；
-         · 三条公式＝ 悬停里逐条写清了 ✓（口径边界属于悬停 ✓，不是副标 ✓）。
-         精简后只剩两件副标才说得清的事 ✓：**快照日** ✓ 与 **缺口只数** ✓（缺口对应的基金名在悬停里 ✓）。
-         ⚠ 只有 `dayEtf === null` 那句**必须留着** ✗（它解释「场内为什么是 —」✓，删了会变成无解释的破折号 ✗）。 */
-      '<div class="s-sub src-muted">快照 ' + (snapAsOf() ? mdOf(snapAsOf()) : "—") +
-        (dayMiss ? ' · ' + dayMiss + ' 只未更新 ⏳' : '') +
-        (dayEtf === null ? ' ⚠ 场外快照日与快照期不一致，场内那半暂不推 ✓' : '') + '</div></div>';
+        : "") + '">'
+    + '<div class="s-label"><span aria-hidden="true">📉</span> 当日盈亏（实际）</div>'
+    + '<div class="s-split">'
+    + '<div class="s-split-cell"><div class="s-split-k">场内</div><div class="s-split-v ' + cls(dayEtf) + '">' + (dayEtf === null ? "—" : fmtAmt2(dayEtf)) + '</div></div>'
+    + '<div class="s-split-plus">+</div>'
+    + '<div class="s-split-cell"><div class="s-split-k">场外</div><div class="s-split-v ' + cls(dayOtcShow) + '">' + (dayOtcShow === null ? "—" : fmtAmt2(dayOtcShow)) + '</div></div>'
+    + '<div class="s-split-plus">=</div>'
+    + '<div class="s-split-cell"><div class="s-split-k">合计</div><div class="s-split-v ' + cls(dayAll) + '">' + fmtAmt2(dayAll) + '</div></div>'
+    + '</div>'
+    /* 副标只留「是哪天的读数 ＋ 有没有缺口」：
+       ⚠ 只有 `dayEtf === null` 那句**必须留着** ✗（它解释「场内为什么是 —」✓）。 */
+    + '<div class="s-sub src-muted">快照 ' + (snapAsOf() ? mdOf(snapAsOf()) : "—")
+    + (dayMiss ? ' · ' + dayMiss + ' 只未更新 ⏳' : '')
+    + (dayEtf === null ? ' ⚠ 场外快照日与快照期不一致，场内那半暂不推 ✓' : '')
+    + (!sameSnap && dayEtf !== null ? ' ⏳ 场外待补' : '') + '</div></div>';
 
   /* ===== 组合占比（瘦条 + 图例 + aria-label，见 renderAlloc） ===== */
   renderAlloc(rows, otcRows);
@@ -1149,10 +1171,62 @@ function renderImpl() {
   /* 2026-10-18 精简：原来还拼了 etfTag()/otcTag() 两个带日期的标签，整行折成两行；
      行内每行本就带着自己的信源与净值日（场内 10.16 / 博时·净值 10.15），标题不必再说一遍。 */
   $("pl-cnt").innerHTML = "(" + plRows.length + " 项 · <span class=\"up\">" + plWin + " 盈</span> / <span class=\"down\">" + plLoss + " 亏</span>" + (clearedN ? " · 已清仓 " + clearedN + " 笔另列" : "") + ")";
+  /* 金额/收益率的小数位（2026-10-29 用户：「收益 1、0 的时候不显示小数点，有点歧义」）——
+     实测华安 A 显示「+1」真值是 +1.31、华安 C 显示「0」真值是 **−0.25** ✗：
+     后者尤其误导，看着像"不赚不亏"，其实在亏。
+     规则（用户建议 ①，我补了第二档）：
+       · 金额：|v| < 10 → **2 位小数**（+1.31 / −0.25）；|v| ≥ 10 → 整数（+8,458，与账目整数元一致）
+       · 收益率：|r| < 1% → 2 位（+0.03% / −0.01%）；≥ 1% → 1 位（+4.6%）—— 否则会印出「−0.0%」✗
+     ⚠ 混精度必然让右缘不齐 → 靠 .pl-base / .pl-rate 的固定宽度 ＋ tnum 把列界钉住（见 positions.css）✓ */
+  const fmtPlAmt = (v) => Math.abs(v) < 10 ? (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) : fmtAmt(v);
+  const fmtPlRate = (r) => fmtPct(r, Math.abs(r) < 0.01 ? 2 : 1);
+  /* ── 场外「按平台汇总」（2026-10-29 加，用户要对账）────────────────────────
+     目的：拿银行 / 支付宝的扣款流水跟这里对。
+     口径（三列互相咬合，任一处错都能立刻看出来）：
+       投入 ＝ 在持本金（Σ 市值−盈亏）＋ 清仓成本（OTC_CLEARED.cost）
+       现值 ＝ 在持市值 ＋ 清仓回款（OTC_CLEARED.proceeds）
+       盈亏 ＝ 现值 − 投入 ＝ 在持浮亏 ＋ 已实现（与汇总卡同一对变量 ✓）
+     ⚠ 平台取自 OTC.funds[].channel / OTC_CLEARED[].channel（数据驱动，不写死名字 ✗）；
+       清仓那条原来没有 channel → 2026-10-29 补上（015884 支付宝 / 023402 广发基金）✓ */
+  const platAgg = (() => {
+    const m = new Map();
+    const bucket = (k) => { if (!m.has(k)) m.set(k, { live: 0, liveCost: 0, liveVal: 0, cl: 0, clCost: 0, clProc: 0 });
+      return m.get(k); };
+    ((typeof OTC !== "undefined" && OTC.funds) || []).forEach((f) => {
+      const b = bucket(f.channel || "未标注");
+      b.live += 1; b.liveVal += f.value; b.liveCost += f.value - f.pnl;
+    });
+    ((typeof OTC_CLEARED !== "undefined" && Array.isArray(OTC_CLEARED)) ? OTC_CLEARED : []).forEach((x) => {
+      const b = bucket(x.channel || "未标注");
+      b.cl += 1; b.clCost += x.cost || 0; b.clProc += x.proceeds || 0;
+    });
+    return [...m.entries()].map(([k, b]) => ({ k, ...b, inAll: b.liveCost + b.clCost, outAll: b.liveVal + b.clProc }))
+      .sort((a, b) => b.inAll - a.inAll);
+  })();
+  const platHtml = platAgg.length ? (() => {
+    const tot = platAgg.reduce((a, r) => ({ inAll: a.inAll + r.inAll, outAll: a.outAll + r.outAll }), { inAll: 0, outAll: 0 });
+    const row = (r) => '<div class="plat-row"><span class="plat-nm">' + esc(r.k) + "</span>"
+      + '<b>' + fmtYuan(r.inAll) + "</b><b>" + fmtYuan(r.outAll) + "</b>"
+      + '<b class="' + cls(r.outAll - r.inAll) + '">' + fmtPlAmt(r.outAll - r.inAll) + "</b></div>"
+      + '<div class="plat-sub">在持 ' + r.live + " 只 " + fmtYuan(r.liveCost)
+      + (r.cl ? " · 已清仓 " + r.cl + " 只 " + fmtYuan(r.clCost) + "（回款 " + fmtYuan(r.clProc) + "）" : "") + "</div>";
+    return '<details class="pf-fold plat-fold"><summary class="plat-sum">场外按平台汇总 · 含已清仓（对账用）</summary>'
+      + '<div class="plat-tbl">'
+      + '<div class="plat-row head"><span class="plat-nm">平台</span><b>投入</b><b>现值</b><b>盈亏</b></div>'
+      + platAgg.map(row).join("")
+      + '<div class="plat-row total"><span class="plat-nm">合计</span>'
+      + '<b>' + fmtYuan(tot.inAll) + "</b><b>" + fmtYuan(tot.outAll) + "</b>"
+      + '<b class="' + cls(tot.outAll - tot.inAll) + '">' + fmtPlAmt(tot.outAll - tot.inAll) + "</b></div>"
+      + '<div class="plat-note">投入 ＝ 在持本金 ＋ 清仓成本；现值 ＝ 在持市值 ＋ 清仓回款；盈亏 ＝ 现值 − 投入。'
+      + "⚠ 「已实现」这里只算场外**整只清仓**的那 " + (((typeof OTC_CLEARED !== "undefined" && Array.isArray(OTC_CLEARED)) ? OTC_CLEARED : []).length)
+      + " 笔，与上面「清仓累计已实现」不是同一个口径（那含场内 ＋ 逐笔赎回）✗。"
+      + "对账用：银行卡 / 支付宝累计扣款 − 累计回款 ≈ 合计投入 − 清仓回款。</div>"
+      + "</div></details>";
+  })() : "";
+
   $("pl-list").innerHTML =
     plRows.map((x) => {
-      const zero = Math.abs(x.pl) < 0.5;
-      const amt = zero ? "0" : fmtAmt(x.pl);   // 零值行直接写 0（与同列其他整数元对齐）；上一版写 “0.00” 会破坏列内精度一致性
+      const amt = fmtPlAmt(x.pl);
       const src = srcLabel(x.code);
       /* 有跳转目标才挂 data-sel；场外行无明细卡，点了不动作 */
       return '<button type="button" class="pl-row"' + (x.sel ? ' data-sel="' + x.sel + '" aria-label="定位 ' + esc(src.f) + ' ' + esc(x.name) + ' 持仓卡"' : ' aria-disabled="true"') + ">" +
@@ -1166,11 +1240,11 @@ function renderImpl() {
             /* 本金 = 该只累计投入（成本口径 = 市值 − 浮盈亏，不含现金）。它正是右边收益率的分母——
                原来只给「盈亏 + 收益率」，看不出是拿多少钱赚的；场外这一层更是全页无处可查。 */
             (x.cost > 0 ? '<span class="pl-base" title="本金＝该只累计投入（成本口径＝市值 − 浮盈亏，不含现金）；收益率＝浮盈亏 ÷ 本金">本金 ' + fmtYuan(x.cost) + "</span>" : "") +
-            '<i class="pl-rate">' + fmtPct(x.r) + "</i>" +
+            '<i class="pl-rate ' + cls(x.r) + '">' + fmtPlRate(x.r) + "</i>" +
           "</span>" +
         '</span>' +
         "</button>";
-    }).join("") + clearedHtml;
+    }).join("") + clearedHtml + platHtml;
 
   /* ===== 场内持仓卡 ===== */
   $("pos-list").innerHTML = rows.map((row, i) => holdCardHtml(row, i, { asOfUs, firstDate, totalVal })).join("");

@@ -155,7 +155,15 @@ const closedGapTo = (upTo) => {
 const closedGap = closedGapTo(null);
 
 /* ③ 汇总卡：总资产 与 累计收益 = 最新快照的读数 */
-const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";
+/* ⚠ 2026-10-29：不再是「整格文本」，而是**各自的元素** —— KPI 卡改版后日期胶囊挪到了标题行，
+   整格文本去掉空白会变成「…场外10.29526,875…」，526,875 被粘成 "10.29526,875" 而解析不出来 ✗
+   （那天恰好"报价领先快照"被跳过，所以没暴露；等快照追上当天就红了）。 */
+const cellOf = (i) => (sum ? [...sum.querySelectorAll(".sum-cell")][i] : null);
+const numText = (el) => (el ? (el.textContent || "").replace(/\s+/g, "") : "");
+const totalText = numText(cellOf(0) && cellOf(0).querySelector(".s-val"));
+const plText = numText(win.document.getElementById("sum-pl"));
+const prinText = numText(win.document.getElementById("sum-principal"));
+const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";   // 仍留给下面的"兜底打印"用
 /* ⚠ 2026-10-20：每个交易日收盘后、用户还没提供当日快照之前，CI 会先把场内 ETF 报价更新到当天。
    此时页面汇总卡显示的是「今日估值」（用新报价 × 份数），**天然不等于**昨日快照的 total ——
    原来三条断言因此每天晚上必红一次（并非页面错）。报价领先快照时跳过这三条，并打印原因。 */
@@ -168,21 +176,21 @@ if (quoteAhead) {
     "，页面汇总卡显示的是今日估值（等当日快照录入后自然对齐）");
 }
 /* 总资产容差放到 3：页面是「快照逐只市值取整后求和」，与 App 总读数天然差 1 元以内 */
-check("汇总卡总资产 = 最新快照 " + money(snapTotal), quoteAhead || near(sumText, snapTotal, 3), quoteAhead ? "（报价已领先快照，跳过）" : sumText.slice(0, 140));
+check("汇总卡总资产 = 最新快照 " + money(snapTotal), quoteAhead || near(totalText, snapTotal, 3), quoteAhead ? "（报价已领先快照，跳过）" : totalText);
 /* ⚠ 2026-10-09 改口径（用户选 A）：汇总卡那格由「浮盈亏」改为「累计收益（含已实现）」——
    快照 pl 是**摊薄口径的在持浮盈亏**（＝券商 App 的浮动盈亏），全额清仓后它不含已兑现那部分 ✗；
    真·累计收益 = pl − closedGap ✓（10-09：19,988.31 − 18,492.00 = +1,496 ✓）。
    closedGap 由本文件独立复算（读 data.js 的 POSITIONS.log），不读页面中间量 ✓。 */
 check("汇总卡累计收益 = 最新快照 pl − 全额清仓已实现 " + money(latest.pl - closedGap),
-  quoteAhead || near(sumText, latest.pl - closedGap), quoteAhead ? "（报价已领先快照，跳过）" : sumText.slice(0, 140));
+  quoteAhead || near(plText, latest.pl - closedGap), quoteAhead ? "（报价已领先快照，跳过）" : plText);
 /* ③-2 汇总卡「本金」（2026-10-12 加）：页面上本金有**两条实现路径** ✗ ——
      实时路径（renderImpl：Σ摊薄成本 ＋ 现金 ＋ 清仓修正）与快照路径（snapCost：总资产 − pl 或
      裸成本 ＋ closedCostGap）—— 同一公式、两个输入源，任一漂移这里就红 ✓。
    判据用**快照口径独立复算**：本金 ≡ 总资产 − 累计收益（＝ snapTotal − (pl − closedGap)）✓，
    容差 3 元与总资产那条同源（页面是逐只取整后求和 ✓）。 */
 check("汇总卡本金 = 总资产 − 累计收益（快照口径独立复算，容差 3 元）",
-  near(sumText, snapTotal - (latest.pl - closedGap), 3),
-  "页面合计 " + sumText.slice(0, 60) + " … 复算 " + money(snapTotal - (latest.pl - closedGap)));
+  near(prinText, snapTotal - (latest.pl - closedGap), 3),
+  "页面本金 " + prinText + " · 复算 " + money(snapTotal - (latest.pl - closedGap)));
 
 /* ③b 汇总卡「当日盈亏」：**全是实际读数**（2026-10-13 用户决定「每天截图更新就行了」✓）
      ① 三栏自洽：场内 ＋ 场外 ＝ 合计（页面内部一致，tol 1 元）
@@ -199,9 +207,20 @@ const dayCell = dayCellEl ? dayCellEl.textContent.replace(/\s+/g, "") : null;
 const splitCells = dayCellEl ? [...dayCellEl.querySelectorAll(".s-split-cell")] : [];
 const splitVals = splitCells.map((e) => numsOf(e.textContent)[0]);
 const vEtfDay = splitVals[0], vOtcDay = splitVals[1], vAllDay = splitVals[2];
-if (splitCells.length === 3 && splitVals.every(Number.isFinite)) {
-  check("汇总卡当日盈亏三栏自洽（场内 ＋ 场外 ＝ 合计 · 全是实际读数 ✓）",
-    Math.abs(vEtfDay + vOtcDay - vAllDay) <= 1, "场内 " + vEtfDay + " ＋ 场外 " + vOtcDay + " = " + vAllDay);
+/* ⚠ 2026-10-29 新增一种合法状态：**场内先落、场外净值未出** —— 此时场外那栏显示「—」，
+   合计只含场内（页面用 OTC.updated ≠ 快照日判定 ✓）。所以这里要认两种形态：
+     · 三栏都是数字 → 场内 ＋ 场外 ＝ 合计
+     · 场外是「—」    → 场内 ＝ 合计（且场外那格没有数字）
+   其余情况（出现两个「—」或都解析不出来）才算错 ✗ */
+const otcDash = splitCells[1] && !Number.isFinite(splitVals[1]) && /—/.test(splitCells[1].textContent);
+if (splitCells.length === 3 && Number.isFinite(vEtfDay) && Number.isFinite(vAllDay) && (Number.isFinite(vOtcDay) || otcDash)) {
+  if (otcDash) {
+    check("汇总卡当日盈亏：场外未出（—）时「场内 ＝ 合计」✓",
+      Math.abs(vEtfDay - vAllDay) <= 1, "场内 " + vEtfDay + " ＝ 合计 " + vAllDay);
+  } else {
+    check("汇总卡当日盈亏三栏自洽（场内 ＋ 场外 ＝ 合计 · 全是实际读数 ✓）",
+      Math.abs(vEtfDay + vOtcDay - vAllDay) <= 1, "场内 " + vEtfDay + " ＋ 场外 " + vOtcDay + " = " + vAllDay);
+  }
 } else {
   check("汇总卡当日盈亏三栏可解析（场内 / 场外 / 合计）", false, dayCell ? dayCell.slice(0, 140) : "未找到「当日盈亏」单元");
 }
@@ -244,9 +263,16 @@ if (splitCells.length === 3) {
   /* ⚠ 2026-10-13：页面「场外」栏现在是**实际读数**（Σ 各平台 App「日收益」✓）而不是「指数补齐」的预估 ✗
      → 断言改成与 otcDayApp **严格相等** ✓（原来比的是"独立复算的预估"✓，那是折叠块 + 台账的事
      ✓ 见下面 ③c ✓）。 */
-  check("汇总卡「场外」≡ Σ 本次已更新基金的 App「日收益」（" + otcDayApp.toFixed(2) + "）",
-    Math.abs(vOtcDay - otcDayApp) <= 1,
-    "页面场外 " + vOtcDay + " vs App 日收益合计 " + otcDayApp.toFixed(2) + (traded ? "（本期有买卖）" : ""));
+  if (otcDash) {
+    /* 场外本期未更新（净值未出）→ 页面显示「—」✓，此时不与 App 日收益比数值，只确认**没有拿旧值冒充** ✗ */
+    check("汇总卡「场外」本期未更新时显示「—」（不拿上一期的日收益冒充 ✗）",
+      /—/.test(splitCells[1].textContent) && Math.abs(vEtfDay - vAllDay) <= 1,
+      "场外格：" + splitCells[1].textContent.replace(/\s+/g, ""));
+  } else {
+    check("汇总卡「场外」≡ Σ 本次已更新基金的 App「日收益」（" + otcDayApp.toFixed(2) + "）",
+      Math.abs(vOtcDay - otcDayApp) <= 1,
+      "页面场外 " + vOtcDay + " vs App 日收益合计 " + otcDayApp.toFixed(2) + (traded ? "（本期有买卖）" : ""));
+  }
 }
 const subText = dayCellEl && dayCellEl.querySelector(".s-sub") ? dayCellEl.querySelector(".s-sub").textContent.replace(/\s+/g, " ") : "";
 /* ⚠ 2026-10-13 第二轮（用户报「实读值 xxx 说明太多了，精简」✗）：
@@ -625,6 +651,25 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   check("盈亏总览「清仓累计已兑现」= 场外 " + money(sOtc) + " ＋ 场内 " + money(sEtf),
     Number.isFinite(clrVal) && Math.abs(clrVal - (sOtc + sEtf)) < 0.01,
     clrEl ? "总览行 data-pl=" + clrVal + " · 显示 " + clrEl.textContent.replace(/\s+/g, " ").trim() : "「盈亏总览」里没有 #pl-cleared-total");
+
+  /* ④c-2 场外「按平台汇总」（2026-10-29 加，用户要对账）：合计行三列必须 ≡ 独立复算 ——
+       投入 ≡ Σ(市值−盈亏) ＋ ΣOTC_CLEARED.cost
+       现值 ≡ Σ市值 ＋ ΣOTC_CLEARED.proceeds
+     这是**对账表**，算错一格就会让人拿银行流水去追一个不存在的差 ✗，所以必须机器复核。
+     判据全部读 data.js / positions-data.js，不读页面的中间量 ✓ */
+  const platTot = win.document.querySelector("#pl-list .plat-row.total");
+  if (platTot) {
+    const pv = [...platTot.querySelectorAll("b")].map((b) => Number(String(b.textContent).replace(/[+,]/g, "").replace(/−/g, "-")));
+    const oc = ((typeof OTCCLEARED !== "undefined" && Array.isArray(OTCCLEARED)) ? OTCCLEARED : []);
+    /* ⚠ 用前面已经解析好的 OC（＝OTC 对象）；本块作用域里没有 O ✗ */
+    const wantIn = OC.funds.reduce((a, f) => a + (f.value - f.pnl), 0) + oc.reduce((a, x) => a + (x.cost || 0), 0);
+    const wantOut = OC.funds.reduce((a, f) => a + f.value, 0) + oc.reduce((a, x) => a + (x.proceeds || 0), 0);
+    check("场外按平台汇总：合计 投入 " + money(wantIn) + " / 现值 " + money(wantOut) + " ≡ 独立复算",
+      pv.length === 3 && Math.abs(pv[0] - wantIn) <= 3 && Math.abs(pv[1] - wantOut) <= 3,
+      "页面 " + pv.join(" / ") + " · 复算 " + Math.round(wantIn) + " / " + Math.round(wantOut));
+  } else {
+    check("场外按平台汇总块存在", false, "#pl-list 里没有 .plat-row.total ✗");
+  }
 }
 
 /* ④d 快照对比：「清仓行」的本期盈亏必须是**这只本期真正的盈亏**，不能是「上期浮盈亏的相反数」✗
@@ -1115,12 +1160,26 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   /* ⚠ 筛「浮盈」而不是「累计浮盈亏」✗（2026-10-13 第二轮：标签为手机收窄到 8 字
      「在持浮盈 · 场内 / 场外」✓ —— 写死旧词就会筛不到而**假绿** ✗；改词后这条仍成立 ✓，
      这与 ⑧-e「区块名现取自 sec-title」同一手法 ✓：断言盯着**语义**，不盯着某一版措辞 ✓）。 */
-  const chans = labels.filter((t) => /浮盈/.test(t));
-  check("汇总 KPI：两个通道格标签写明**在持**口径（否则会被读成「该通道累计赚了多少」✗）",
-    chans.length === 2 && chans.every((t) => /在持/.test(t)), "标签：" + JSON.stringify(chans));
+  /* 2026-10-29 改词 + 改结构：通道格标签从「在持浮盈」→「场内持仓 / 场外持仓」，
+     并且每格多了「持仓成本 / 盈亏」两个小标签（三件套自证 ✓）。
+     断言随语义走：两个通道格必须写「持仓」，且**格内同时出现「持仓成本」与「盈亏」** ——
+     这样才守得住原来的本意「别被读成该通道累计赚了多少」✓（累计口径不会有"持仓成本"这一项）。 */
+  const cellEls = [...grid.querySelectorAll(".sum-cell")];
+  const chans = cellEls.filter((el) => {
+    const l = el.querySelector(".s-label");
+    return l && /持仓/.test(l.textContent);
+  });
+  /* 三件套的锚点：`.s-mid`（盈亏那行，带正负与百分比）＋「持仓成本」小标签 ＋ `.s-val`（市值）。
+     ⚠ 别断言"盈亏"两个字面出现 —— 通道格里盈亏是**只带数字**的（+11,056（+2.55%）），
+       写标签反而把 174px 的格子挤满 ✗；结构锚点同样守得住语义 ✓ */
+  check("汇总 KPI：两个通道格写明**持仓**口径 ＋ 自证三件套（市值 / 盈亏 / 持仓成本）",
+    chans.length === 2 && chans.every((el) => el.querySelector(".s-val") && el.querySelector(".s-mid") && /持仓成本/.test(el.textContent)),
+    "通道格 " + chans.length + " 个：" + chans.map((el) => el.textContent.replace(/\s+/g, "").slice(0, 40)).join(" | "));
   const subEl = cell1 && cell1.querySelector(".s-sub");
   const sub = (subEl ? subEl.textContent : "").replace(/\s+/g, "");
-  const m = sub.match(/＝?在持浮盈([+−][\d,]+)＋已实现([+−][\d,]+)/);
+  /* 2026-10-29：小注从「＝ 在持浮盈 X ＋ 已实现 Y」改成缩进两行「持仓盈亏 X / 已实现 Y」
+     （拿＝和＋当行首会看着像并列 ✗）→ 正则跟着改，仍要求两个加数**紧邻**出现在副标里 ✓ */
+  const m = sub.match(/持仓盈亏([+−][\d,]+)已实现([+−][\d,]+)/);
   const num = (s) => (s === undefined ? null : Number(String(s).replace(/−/g, "-").replace(/[+,]/g, "")));
   if (expCleared) {
     const a = num(m && m[1]), b = num(m && m[2]);
@@ -1165,13 +1224,25 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   const holdCost = (P.hold || []).reduce((t, h) => t + (h.qty || 0) * (h.cost || 0), 0);
   const cells = [...win.document.getElementById("sum-grid").querySelectorAll(".sum-cell")];
   const txt = (el) => ((el && el.textContent) || "").replace(/\s+/g, "");
-  const sub0 = txt(cells[0].querySelector(".s-sub")), sub1 = txt(cells[1].querySelector(".s-sub")), sub2 = txt(cells[2].querySelector(".s-sub"));
-  const pick = (s, re) => { const m = s.match(re); return m ? Number(m[1].replace(/,/g, "")) : null; };
-  const base = pick(sub1, /按在持成本([\d,]+)/), prin1 = pick(sub1, /本金([\d,]+)/);
-  check("场内格副标点明「收益率」的分母（应＝Σ(qty×cost) " + holdCost.toFixed(0) + " ✓，与上一行的本金不是同一个数 ✗）",
-    base !== null && Math.abs(base - holdCost) < 1.5, "副标：" + sub1.slice(0, 60));
-  check("场内格：显示的「本金」与「在持成本」确实是两个数（差 " + (prin1 !== null && base !== null ? Math.abs(prin1 - base).toFixed(0) : "?") + " ✓ —— 正是要点明分母的原因 ✓）",
-    base !== null && prin1 !== null && Math.abs(prin1 - base) > 1000, "本金 " + prin1 + " / 在持成本 " + base);
+  const sub0 = txt(cells[0].querySelector(".s-sub")), sub1 = txt(cells[1]), sub2 = txt(cells[2]);
+  /* ⚠ 页面上的负号是 U+2212（−），Number("−23,922") 会得到 NaN ✗ —— 必须先换成 ASCII 减号再转 ✓ */
+  const pick = (s, re) => { const m = s.match(re); return m ? Number(m[1].replace(/,/g, "").replace(/−/g, "-")) : null; };
+  /* 2026-10-29 改结构：通道格不再有 .s-sub，「持仓成本」升成独立一行（.s-cost）；
+     总格那行叫「累计投入」（原来叫「本金」）✓ */
+  const base = pick(sub1, /持仓成本([\d,]+)/), prin0 = pick(sub0, /累计投入([\d,]+)/);
+  check("场内格点明「持仓成本」（应＝Σ(qty×cost) " + holdCost.toFixed(0) + " ✓ —— 它就是收益率的分母）",
+    base !== null && Math.abs(base - holdCost) < 1.5, "场内格：" + sub1.slice(0, 60));
+  /* 2026-10-29 换了一条**更强**的守卫（原来是"场内本金 ≠ 在持成本，差 >1000"）：
+     现在通道格不显示本金了（一个数只出现一次 ✓），所以改成量化证明「本金含已清仓那部分」——
+       累计投入 −（场内持仓成本 ＋ 场外持仓成本） ≡ 已实现（≈ −23,922 的绝对值）
+     这正是用户问「本金含不含清仓」时最需要的那个等式 ✓，也比原来的"差 >1000"精确得多 ✓ */
+  const cost1 = pick(sub1, /持仓成本([\d,]+)/), cost2 = pick(sub2, /持仓成本([\d,]+)/);
+  const shownCleared = pick(sub0, /已实现([+−][\d,]+)/);          // 页面自己那行「已实现 −23,922」
+  const gapPrin = (prin0 !== null && cost1 !== null && cost2 !== null) ? prin0 - cost1 - cost2 : null;
+  check("总格「累计投入」− 两通道「持仓成本」之和 ＝ 已实现（" + (gapPrin === null ? "?" : gapPrin.toFixed(0)) +
+    " ↔ 已实现 " + shownCleared + " ✓ —— 本金含已清仓那部分，这就是两者必须分开写的原因）",
+    gapPrin !== null && shownCleared !== null && Math.abs(gapPrin + shownCleared) < 3,
+    "累计投入 " + prin0 + " − (成本 " + cost1 + " + " + cost2 + ") = " + (gapPrin === null ? "?" : gapPrin.toFixed(2)) + " / 已实现 " + shownCleared);
   const today = (function () { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); })();
   const snapLast = ((S.filter((x) => x.items).slice(-1)[0] || {}).d) || null;
   const wantEst = snapLast !== today, lab0 = txt(cells[0].querySelector(".s-label"));
@@ -1179,8 +1250,10 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     wantEst ? /（估）/.test(lab0) : !/（估）/.test(lab0), "标签：" + lab0);
   check("累计收益那行写明「含已实现」✓（不再用内部术语「快照口径」✗）",
     /累计收益（含已实现）/.test(sub0), "副标：" + sub0.slice(0, 60));
-  check("场外格那行改名为「未并入成本」✓（与悬停里「市值里另有在途」分开 ✗）",
-    /未并入成本/.test(sub2) && !/已扣款未入账/.test(sub2), "副标：" + sub2.slice(0, 70));
+  /* 2026-10-29 改方向：那行现在按差额方向说话（负＝「流水少记 X」、正＝「另有 X 未并入成本」），
+     小零头（<100）不上卡面。断言跟着看**语义**：差额必须单独成行且不与「在途」混名 ✓ */
+  check("场外格把「流水 vs App 成本的差额」单独一行（与「在途」分开命名 ✗）",
+    /流水少记|未并入成本/.test(sub2) && !/已扣款未入账/.test(sub2), "副标：" + sub2.slice(0, 70));
   /* ⑧ 总资产悬停里的「范围」只数当前持有（原写死「场内 5 只 ETF」✗ —— 那含已清仓的两只 ✗，
      本格范围是 implEtfRows() ＝ POSITIONS.hold ✓）→ 两处都按数据现算 ✓（不写死 5 / 8 ✗）。 */
   const tip0 = cells[0].getAttribute("title") || "";

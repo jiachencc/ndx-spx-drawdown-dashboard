@@ -201,7 +201,9 @@
   .src-tag.manual { background: var(--warn-bg); color: var(--yellow); border: 1px solid var(--warn-line); }
 
   /* ===== 汇总 ===== */
-  .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  /* 2026-10-29：总资产那格多给一点宽度（1.35fr）—— 它那行「累计投入 → 累计收益（%）」
+     比通道格的两行都长，等宽时会在 225px 里折成三行 ✗ */
+  .sum-grid { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 8px; margin-top: 10px; }
   /* 2026-09-30 二次排版：9 格 → 4 格（总资产 / 累计浮盈亏·场内 / 累计浮盈亏·场外 / 当日盈亏）。
      日期胶囊只在「总资产」里出现（它同时含场内报价日与场外快照日）；末格（当日盈亏，三分栏
      「场内 ＋ 场外 ＝ 合计」）**跨整行**——三分栏在 1/3 行宽里会挤成一团。 */
@@ -210,6 +212,55 @@
   .sum-cell .s-label { font-size: var(--fs-xs); color: var(--tx3); margin-bottom: 4px; }
   .sum-cell .s-val { font-family: var(--mono); font-size: var(--fs-lg); font-weight: 700; font-feature-settings: "tnum"; }
   .sum-cell .s-sub { font-family: var(--mono); font-size: var(--fs-xs); margin-top: 3px; font-feature-settings: "tnum"; }
+  /* ── KPI 卡内部排版（2026-10-29 重排）────────────────────────────────────
+     术语与结构见 positions.html 里那段注释；这里只放样式。
+     核心是**每格自证**：通道格同时给「市值 / 盈亏 / 持仓成本」，读者不用记分母也能相减验算 ✓ */
+  .sum-cell .s-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .sum-cell .s-head .s-asof { margin-top: 0; line-height: 1.4; }
+  /* 这两行也做成「标签左 / 数值右」（2026-10-29）：原来居中，而下面缩进的两行是左右对齐
+     → 同一格里两种对齐，四行的右缘全不齐 ✗。统一后四个数值落在同一条竖线上 ✓ */
+  .sum-cell .s-line { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; font-size: var(--fs-xs); color: var(--tx3); line-height: 1.65; }
+  .sum-cell .s-line .s-k { white-space: nowrap; }
+  /* 明细收窄（2026-10-29）：356px 的格子里让「累计投入 … 累计收益 …」两端顶到卡片边缘会显得散，
+     收到 21em（≈230px）居中，与大数字成组 ✓ */
+  .sum-cell.sum-total .s-sub { max-width: 25em; margin-left: auto; margin-right: auto; }
+  .sum-cell .s-line b { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+  /* 累计收益的拆解：用一条竖点线 ＋ 缩进表达「这是上面那个数拆出来的」，
+     不再拿「＝」「＋」当行首（那样看着像三行并列 ✗） */
+  /* 缩进层级（2026-10-29 二改）：第一版用 --line-soft 的 1px 点线，深色下几乎看不见 ✗
+     → 换成 --line（实一档）＋ 缩进加到 12px，两行明显比上一行「缩进去一格」✓ */
+  .sum-cell .s-tree { position: relative; padding-left: 12px; margin-top: 2px; }
+  .sum-cell .s-tree::before { content: ""; position: absolute; left: 3px; top: 4px; bottom: 6px;
+    border-left: 1px solid var(--line); }
+  .sum-cell .s-tree .s-row { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; font-size: var(--fs-xs); line-height: 1.65; }
+  .sum-cell .s-tree .s-k { color: var(--tx3); white-space: nowrap; }
+  .sum-cell .s-tree .s-v { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+  .sum-cell .s-mid { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700;
+    font-feature-settings: "tnum"; margin-top: 1px; }
+  .sum-cell .s-cost { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-top: 2px; }
+  /* 当日盈亏：一条横带（label ＋ 三栏 ＋ 快照日同一行），与上面「累计」三格区分开 ✓ */
+  /* 当日盈亏三条横排（grid 三列）：label | 三栏 | 快照日 —— 原来用 flex-wrap，
+     快照那行被挤到第二行居中、孤零零的 ✗；grid 下它固定贴右 ✓ */
+  .sum-cell.sum-day { display: grid; grid-template-columns: auto auto auto; align-items: baseline;
+    justify-content: center; column-gap: 10px; }
+  .sum-cell.sum-day .s-label { margin-bottom: 0; }
+  .sum-cell.sum-day .s-split { margin-top: 0; }
+  .sum-cell.sum-day .s-sub.src-muted { margin-top: 0; text-align: right; }
+  /* 三栏**固定等宽**：+9,497 / +802 / +10,299 宽度差很多，用 min-width 时第一栏仍被内容撑宽
+     →「场外」「合计」两个标签跟着右移、与下面的数字对不上 ✗（截图里一眼能看到）。
+     改成 width 5.2em（≈57px，刚好容下 +10,299）后三栏严格等宽 ✓ */
+  .sum-cell.sum-day .s-split-cell { width: 5.2em; text-align: center; }
+  @media (max-width: 560px) {
+    /* 手机上放不下「label ＋ 三栏」同行 —— 实测标签被挤成两行（「当日盈亏（实」/「际）」）✗
+       → 改成三行堆叠（label / 三栏 / 快照日），每行都居中 ✓ 高约 76px，与同行排布相差无几 ✓ */
+    .sum-cell.sum-day { grid-template-columns: auto; justify-items: center; row-gap: 2px; }
+    .sum-cell.sum-day .s-sub.src-muted { grid-column: 1 / -1; text-align: center; }
+    /* 4.6em（≈41px）装不下「+10,299」（约 52px）→ 第一栏被内容撑宽、后面两栏的标签跟着偏 ✗
+       5.4em（≈49px）＋ 三栏合计 147px，仍在 356px 的格宽内 ✓ */
+    .sum-cell.sum-day .s-split-cell { width: 5.4em; }
+  }
   /* ===== 口径徽章（.date-chip）：一枚胶囊说清「来源 + 渠道 + 状态 + 日期（＋时刻）」 =====
      上一版把「场内 / 场外」留在胶囊外面，形状与颜色仍不齐；现在统一收进胶囊里，
      一枚胶囊自己就说清「这是什么数据、哪天的、有没有跟上」：
@@ -313,8 +364,13 @@
   /* 第二行右侧成对：本金 + 收益率。放一起的理由——本金就是收益率的分母，
      分开两处看不出「拿多少钱赚到的」；本金用更小一号，明确它是基准而非结论。 */
   .pl-sub > .pl-right { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .pl-base { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum"; }
-  .pl-rate { font-style: normal; font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum"; }
+  /* ⚠ 2026-10-29：两张表（本金 / 收益率）给**固定宽度 + 右对齐** —— 否则「本金 183,018」与「本金 4,365」
+     宽度不同，右边的百分比跟着左右挪，9 行看着就是没对齐 ✗（差额口径见 positions.html 那段注释）。
+     宽度按最长内容取：本金 6 位数 195,420 ＋ 前缀「本金 」≈ 7.2em；收益率 −1.8% / +0.03% 取 3.6em ✓ */
+  .pl-base { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum";
+    min-width: 7.2em; text-align: right; }
+  .pl-rate { font-style: normal; font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx3); white-space: nowrap; font-feature-settings: "tnum";
+    min-width: 3.6em; text-align: right; }
   .card.pl-flash { border-color: var(--blue); box-shadow: 0 0 0 3px var(--accent-line); transition: box-shadow .3s, border-color .3s; }
   /* ── 盈亏总览：已清仓分节（2026-10-09 用户：「盈亏总览是不是要加上已清仓实现的盈亏？」→ A 方案）──
      组头照 .snap-group 的既有做法（虚线分隔 ＋ 小字），色用 --tx3 ✓ —— 上面 11 行是"持仓浮盈亏"、
@@ -332,6 +388,32 @@
   .pl-row-cleared .pl-nm { font-size: var(--fs-md); font-weight: 600; }
   .pl-row-cleared .pl-amt { font-size: var(--fs-md); font-weight: 700; }
   .pl-row-cleared .pl-base { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* ── 场外按平台汇总（2026-10-29 加，对账用）：四列 grid，金额一律右对齐 ──────────────
+     平台名一列可省略号；后三列（投入 / 现值 / 盈亏）用 tnum 右对齐 → 跨行同一条竖线 ✓ */
+  .plat-fold { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line-soft); }
+  .plat-fold > summary.plat-sum { cursor: pointer; list-style: none; font-size: var(--fs-xs); color: var(--tx3);
+    padding: 6px 0; position: relative; padding-right: 18px; }
+  .plat-fold > summary.plat-sum:hover { color: var(--tx2); }
+  .plat-fold > summary.plat-sum::-webkit-details-marker { display: none; }
+  .plat-fold > summary.plat-sum::after { content: "▾"; position: absolute; right: 0; top: 6px; font-size: var(--fs-xxs); }
+  .plat-fold[open] > summary.plat-sum::after { content: "▴"; }
+  .plat-tbl { margin-top: 2px; }
+  .plat-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: baseline;
+    column-gap: 10px; padding: 4px 0; font-size: var(--fs-xs); }
+  /* 三列固定最小宽（2026-10-29）：auto 时列宽恰好贴着数字，"47,080 43,098 −3,981" 会挤成一排 ✗；
+     给 4.6em 后每列内部仍右对齐，列与列之间才看得出是三个不同的量 ✓ */
+  .plat-row > b { font-family: var(--mono); font-weight: 400; font-feature-settings: "tnum";
+    white-space: nowrap; text-align: right; color: var(--tx2); min-width: 4.6em; }
+  .plat-row.head { padding-bottom: 3px; border-bottom: 1px solid var(--line-soft); }
+  .plat-row.head > b, .plat-row.head .plat-nm { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }
+  .plat-row.total { margin-top: 3px; padding-top: 6px; border-top: 1px dashed var(--line); font-weight: 700; }
+  .plat-row.total .plat-nm { color: var(--tx); font-weight: 700; }
+  .plat-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tx); }
+  /* 小字说明里是中文（「在持 1 只 …」）→ 用 sans，别跟着金额走 mono（中文在等宽字体下发虚） */
+  .plat-sub { font-size: var(--fs-xxs); color: var(--tx3); margin: -2px 0 4px; line-height: 1.5;
+    font-feature-settings: "tnum"; }
+  .plat-note { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.6; }
 
   /* ===== 快照对比日志 =====
      每期一张「子卡」，与区间累计卡同一手法：**期次靠盒子（描边 + 留白）区分，不再画期次分隔线**。

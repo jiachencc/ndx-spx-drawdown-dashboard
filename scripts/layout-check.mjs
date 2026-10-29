@@ -71,8 +71,11 @@ const audit = (p) => p.evaluate(() => {
     if (!Number.isFinite(lh)) lh = parseFloat(cs.fontSize) * 1.2;
     return Math.max(1, Math.round(el.getBoundingClientRect().height / lh));
   };
+  /* 2026-10-29 改词：通道格标签从「在持浮盈 · 场内 / 场外」改成「场内持仓 / 场外持仓」
+     → 这里的筛子跟着改成 /持仓/（断言的是**语义**「这是通道格」，不是某一版措辞 ✓，
+     与 dom-check ⑪ 同一手法；改了词而筛子不跟，会变成「只找到 0 个通道标签」的假红 ✗）。 */
   const kpiLabels = [...document.querySelectorAll("#sum-grid .sum-cell .s-label")]
-    .filter((e) => /浮盈/.test(e.textContent))
+    .filter((e) => /持仓/.test(e.textContent))
     .map((e) => ({ t: e.textContent.replace(/\s+/g, " ").trim(), n: lineCount(e) }));
   /* 「总资产」格占整行吗（2026-10-13 加 ✓）：手机档的三行式排法＝总资产独占一行 ✓ / 通道两格并排 ✓ /
      当日盈亏收尾 ✓。用「首格宽 ÷ 栅格宽」判定 ✓（跨整行 ≈100% ✓，两列里的一格 ≈50% ✓），不靠肉眼 ✓。 */
