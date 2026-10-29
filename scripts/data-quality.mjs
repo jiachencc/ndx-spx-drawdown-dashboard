@@ -213,6 +213,16 @@ export function validateModel(m) {
     const badPct = ds.filter((dt) => Object.values(plg.items).some((o) => o[dt] !== undefined && !(Number.isFinite(o[dt]) && Math.abs(o[dt]) < 200)));
     if (badPct.length) errors.push("PREM_LOG: 异常溢价 " + badPct.slice(0, 3).join(","));
   }
+  /* ⚠ 覆盖完整性（2026-10-29 加，因为这条**已经连踩三次**）：
+     合并 CI 的 data.js 时，`-X theirs` 会把「清仓已久、近期无新成交」那只的整块**静默删掉**
+     （10-24 丢了日经、10-28/10-29 又丢了一次中韩/日经），不冲突、不报错，页面照常渲染 ✗。
+     判据：流水里出现过的每个标的，PREM_LOG 都必须有同名条目 —— 少的那只就是被吞了。
+     ⚠ 不校验笔数：净值没公布时跳过某几笔**是合法的**（见 fetch-trade-premium 的守卫）✓ */
+  if (plg && plg.items && m.POSITIONS && Array.isArray(m.POSITIONS.log)) {
+    const syms = [...new Set(m.POSITIONS.log.map((e) => e.sym).filter(Boolean))];
+    const missing = syms.filter((s) => !(s in plg.items));
+    if (missing.length) errors.push("PREM_LOG 缺标的（多半是合并时被静默删掉）：" + missing.join("、"));
+  }
   /* DDHIST（回撤历史对照，2026-10-24 加）：事件与分布必须自洽 ——
      事件是「峰→谷」的日期对 + 负跌幅；分布是单调的（≥5% 的段数 ≥ ≥10% ≥ ≥15% ≥ ≥20%）；
      条件统计里「最终跌破 −10% 的段数」不可能超过总段数 ✓。
