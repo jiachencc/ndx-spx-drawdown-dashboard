@@ -29,6 +29,11 @@ const onlyArg = (argv.find((a) => a.startsWith("--only=")) || "").slice(7);
 const only = onlyArg ? new Set(onlyArg.split(",").map((s) => s.trim()).filter(Boolean)) : null;
 
 const STEPS = [
+  /* 场外定投补记（2026-10-29 加）：把「App 成本 − 流水净额」按整笔补进 OTC_LOG。
+     放在**最前** —— 它改的是流水（positions-data.js），而 rng / hold / prem 都读流水算数与溢价，
+     顺序反了那三个块会拿旧流水算一遍 ✗（虽然它们只用到成交笔，但没必要留这个隐患）。
+     ⚠ 幂等：账已平时打印「已齐，跳过写盘」，不影响其它步骤 ✓ */
+  { key: "dca", label: "场外定投补记（OTC_LOG）", file: "scripts/sync-otc-dca.mjs" },
   { key: "rng", label: "当日区间（RANGE_LOG）", file: "scripts/fetch-trade-range.mjs" },
   { key: "hold", label: "各标的浮盈曲线（HOLD_HIST）", file: "scripts/fetch-hold-history.mjs" },
   { key: "prem", label: "逐笔溢价（PREM_LOG）", file: "scripts/fetch-trade-premium.mjs" },
