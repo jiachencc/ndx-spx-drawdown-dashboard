@@ -58,6 +58,7 @@ try {
     <a class="sec-nav-link" href="#sec-prem">溢价</a>
     <a class="sec-nav-link" href="#sec-ddref">回撤</a>
     <a class="sec-nav-link" href="#sec-checkup">体检</a>
+    <a class="sec-nav-link" href="#sec-buypos">坐标</a>
     <a class="sec-nav-link" href="#sec-otclvl">水位</a>
     <a class="sec-nav-link" href="#sec-tools">工具</a>
     <a class="sec-nav-link" href="#sec-closed">清仓</a>
@@ -182,6 +183,13 @@ try {
        「本金与收益」之间，把「现状」两块拆散了（也让页面自己的顺序注释与实现不符，本次一并订正）。 -->
   <h2 class="sec-title" id="sec-checkup"><span aria-hidden="true">🩺</span> 操作体检 <span class="cnt" id="chk-cnt"></span></h2>
   <div class="card" id="checkup-card"></div>
+
+  <!-- 买入坐标（2026-10-31 加，用户点单 ③）：把每笔买入画成一个点 ——
+       横轴＝指数在 52 周区间的分位、纵轴＝买入溢价、点大小＝金额。
+       它回答的是操作体检回答不了的那个问题：「我是不是越涨越买、越贵越买」。
+       ⚠ 紧跟「操作体检」：同为**对操作的诊断**，一个看成本位（表格）、一个看买入行为（图）✓ -->
+  <h2 class="sec-title" id="sec-buypos"><span aria-hidden="true">🎯</span> 买入坐标 <span class="cnt" id="buypos-cnt"></span></h2>
+  <div class="card" id="buypos-card"></div>
 
 
   <!-- 场外净值水位（2026-10-04 建）：用户问「场外持仓下一步能做什么」，我提了 ① 主题暴露 ② 同标的费率
@@ -7966,6 +7974,119 @@ function renderDdRef() {
    数据全部来自 opCheckup() —— 与之前那两处同一套计算，不新增任何口径。
    排序：按最弱档位（D → C → B → A，"—" 视为无），同档按现值降序 —— 需要看的排前面。
    ⚠ 不给"总分"的理由见 opCheckup 头部：单一分数会把矛盾信息压平。 */
+/* ══════════════════════════════════════════════════════════════════════════
+   🎯 买入坐标（2026-10-31 加，用户点单 ③）
+   把**每一笔买入**画成一个点：横轴＝买的时候指数在自己 52 周区间的什么位置，
+   纵轴＝付了多少溢价，点的大小＝金额。于是「我是不是越涨越买、越贵越买」变成一张图。
+   ⚠ 横轴用**分位**而不是点位：纳指 2.8 万 / 标普 7.6 千 / 日经 6.3 万 —— 量级差一个数量级，
+     放同一根轴上没法比 ✗；换成 0~100% 的分位才能三只并排看 ✓
+   ⚠ 港美互联网 / 中韩半导体 没有单一指数日线 → 不纳入（19 笔），卡头注明，不硬套 ✗
+   ⚠ 坐标与「逐笔流水」的 chip 同一套取法（idxAtDate：买入日之前最后一个收盘）✓
+   ══════════════════════════════════════════════════════════════════════════ */
+const BUY_IS_SELL = (e) => /卖出|减仓|清仓/.test(String((e && e.act) || ""));
+function buyPosRows() {
+  const out = [];
+  (POSITIONS.log || []).filter((e) => !BUY_IS_SELL(e)).forEach((e) => {
+    const k = idxOfSym(e.sym);
+    const pts = idxSeriesOf(k);
+    if (!k || !pts) return;
+    let i = -1;
+    for (let j = 0; j < pts.length; j++) { if (pts[j].d < e.d) i = j; else break; }
+    if (i < 0) return;
+    const win = pts.slice(Math.max(0, i - 251), i + 1);          // 买入日之前 52 周（含当日点位）
+    const lo = Math.min(...win.map((x) => x.c)), hi = Math.max(...win.map((x) => x.c));
+    const prem = ((typeof PREM_LOG !== "undefined" && PREM_LOG.items && PREM_LOG.items[e.sym]) || {})[e.d];
+    if (!(hi > lo) || !Number.isFinite(prem)) return;            // 没溢价读数的（净值未出）不画
+    out.push({
+      d: e.d, sym: e.sym, k, lvl: pts[i].c,
+      pos: ((pts[i].c - lo) / (hi - lo)) * 100,
+      prem, amt: e.qty * (e.cost || 0),
+    });
+  });
+  return out;
+}
+function renderBuyPos() {
+  const card = $("buypos-card");
+  if (!card) return;
+  const rows = buyPosRows();
+  const allBuys = (POSITIONS.log || []).filter((e) => !BUY_IS_SELL(e));
+  const skipped = allBuys.length - rows.length;
+  const cnt = $("buypos-cnt");
+  if (cnt) cnt.textContent = "（" + rows.length + " 笔有指数坐标" + (skipped > 0 ? " · 另 " + skipped + " 笔无单一指数未纳入" : "") + "）";
+  if (!rows.length) { card.innerHTML = '<div class="bp-note">没有可画的买入（缺指数日线或溢价读数）。</div>'; return; }
+
+  /* ── 三个统计格子（结论先给，图作佐证）── */
+  const amtAll = rows.reduce((a, r) => a + r.amt, 0);
+  const hiAmt = rows.filter((r) => r.pos >= 60).reduce((a, r) => a + r.amt, 0);
+  const wAvg = rows.reduce((a, r) => a + r.prem * r.amt, 0) / amtAll;
+  const sp = rows.map((r) => r.prem).slice().sort((a, b) => a - b);
+  const medPrem = sp[Math.floor(sp.length / 2)];
+  const posMin = Math.min(...rows.map((r) => r.pos)), posMax = Math.max(...rows.map((r) => r.pos));
+
+  const cell = (lab, val, sub, tip) => '<span class="bp-cell" title="' + esc(tip) + '"><i>' + lab + "</i><b>" + val + "</b>"
+    + (sub ? '<u>' + sub + "</u>" : "") + "</span>";
+
+  /* ── 图：viewBox 固定、随容器缩放（与页面其它图同一手法）── */
+  const W = 344, H = 200, L = 32, R = 10, T = 16, B = 26;   // T 加高：给「溢价」轴名与顶端刻度留出间隔
+  /* y 轴取**整数档位**（0/5/10/15/20）：原来按 min−2 / max+2 取，刻度落在 1/6/11/16 ✗ ——
+     图上的刻度是要给人读的，1% 和 6% 这种档位看着像随手画的 */
+  const rawPrem = rows.map((r) => r.prem);
+  const nStep = ((span) => { for (const c of [1, 2, 5, 10, 20, 50]) if (span / c <= 4.5) return c; return 50; })(Math.max(...rawPrem) - Math.min(...rawPrem));
+  const yMin = Math.max(0, Math.floor(Math.min(...rawPrem) / nStep) * nStep);
+  const yMax = Math.ceil(Math.max(...rawPrem) / nStep) * nStep;
+  const yTicks = [];
+  for (let v = yMin; v <= yMax + 1e-9; v += nStep) yTicks.push(v);
+  const px = (pos) => L + (pos / 100) * (W - L - R);
+  const py = (p) => T + (1 - (p - yMin) / (yMax - yMin)) * (H - T - B);
+  const rOf = (amt) => 2.4 + Math.sqrt(amt / amtAll * rows.length) * 3.2;   // 面积 ∝ 金额（以均额为单位）
+  const cOf = (k) => MARKET_COLORS[k] || "var(--tx2)";
+
+  let g = "";
+  [0, 25, 50, 75, 100].forEach((t) => {
+    g += '<line class="bp-grid' + (t === 0 ? " bp-axis" : "") + '" x1="' + px(t) + '" y1="' + T + '" x2="' + px(t) + '" y2="' + (H - B) + '"/>'
+      + '<text class="bp-tick" x="' + px(t) + '" y="' + (H - B + 13) + '" text-anchor="middle">' + t + "%</text>";
+  });
+  yTicks.forEach((v, i) => {
+    g += '<line class="bp-grid' + (i === 0 ? " bp-axis" : "") + '" x1="' + L + '" y1="' + py(v) + '" x2="' + (W - R) + '" y2="' + py(v) + '"/>'
+      + '<text class="bp-tick" x="' + (L - 5) + '" y="' + (py(v) + 3) + '" text-anchor="end">' + v.toFixed(0) + "%</text>";
+  });
+  /* 大点先画、小点后画 —— 否则小点被大圆盖住 ✗ */
+  rows.slice().sort((a, b) => b.amt - a.amt).forEach((r) => {
+    g += '<circle class="bp-pt" cx="' + px(r.pos).toFixed(1) + '" cy="' + py(r.prem).toFixed(1) + '" r="' + rOf(r.amt).toFixed(1)
+      + '" fill="' + cOf(r.k) + '"><title>' + esc(r.d + " · " + r.sym + "\n指数 " + fmtIdx(r.lvl) + "（52 周区间 " + Math.round(r.pos)
+      + " 分位）\n溢价 " + (r.prem >= 0 ? "+" : "") + r.prem.toFixed(1) + "% · 买入 " + fmtAmt(r.amt) + " 元") + "</title></circle>";
+  });
+  const svg = '<svg class="bp-svg" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="买入坐标散点图：横轴为指数 52 周分位，纵轴为买入溢价，点大小为买入金额">'
+    + g
+    /* 轴名 */
+    + '<text class="bp-axis-name" x="' + (L + (W - L - R) / 2) + '" y="' + (H - 3) + '" text-anchor="middle">买的时候 · 指数在 52 周区间的分位</text>'
+    + '<text class="bp-axis-name" x="' + (L - 5) + '" y="' + (T - 6) + '" text-anchor="end">溢价</text>'
+    + "</svg>";
+
+  const kset = [...new Set(rows.map((r) => r.k))];
+  const legend = kset.map((k) => '<span class="bp-lg"><i style="background:' + cOf(k) + '"></i>'
+    + esc(IDX_SHORT[k] || k) + " " + rows.filter((r) => r.k === k).length + " 笔</span>").join("");
+
+  card.innerHTML = '<div class="bp-stats">'
+    + cell("买在高位", (hiAmt / amtAll * 100).toFixed(0) + "%",
+      "的钱买在 ≥60 分位",
+      "指数「52 周分位」＝ 当时点位在自己过去 52 周区间里的位置：0% 是区间最低、100% 是最高。"
+      + "这里统计「买入金额」有多少比例落在 60 分位以上（偏高位置）。")
+    + cell("最低一笔", Math.round(posMin) + " 分位",
+      posMin > 50 ? "从没在下半区买过" : "下半区买过",
+      "所有买入里，指数分位最低的那一笔落在 " + Math.round(posMin) + "%（" + rows.slice().sort((a, b) => a.pos - b.pos)[0].d
+      + " · " + rows.slice().sort((a, b) => a.pos - b.pos)[0].sym + "）。")
+    + cell("溢价 加权", wAvg.toFixed(1) + "%",
+      "中位 " + medPrem.toFixed(1) + "%",
+      "溢价 ＝ 成交价 ÷ 当日单位净值 − 1。加权＝按买入金额加权（大额买入权重高），中位＝把每笔的溢价排队取中间那个。"
+      + "两者差得越多，说明大额买入越集中在高溢价时点。")
+    + "</div>"
+    + svg
+    + '<div class="bp-legend">' + legend + '<span class="bp-lg bp-lg-sz"><i class="dot"></i>点越大＝买得越多</span></div>'
+    + '<div class="bp-note">横轴取「买入日之前最后一个收盘」在当时 52 周区间的位置（与逐笔流水的指数坐标同一取法 ✓）；'
+    + "纵轴是那笔的溢价。" + (skipped > 0 ? "港美互联网 / 中韩半导体 没有单一指数日线，" + skipped + " 笔未纳入 ✓" : "") + "</div>";
+}
+
 function renderCheckup() {
   const box = $("checkup-card");
   if (!box) return;
@@ -8500,6 +8621,7 @@ render();
    数据自己读 POSITIONS / OTC，不依赖 render 的产物。 */
 renderPremScan();                        // 溢价扫描（2026-10-28 加，紧跟场内持仓之后）
 renderDdRef();                           // 今年这几次跌 · 历史坐标（2026-10-24 加，紧跟体检之前）
+renderBuyPos();                             // 买入坐标（2026-10-31 加，紧跟体检之后）
 renderCheckup();
 applyAutoFold();   // 宽表按屏宽定默认展开（窄屏收起）——必须在 renderCheckup 之后
 

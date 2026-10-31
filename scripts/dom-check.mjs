@@ -2378,6 +2378,46 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     bad.length === 0, bad.join("；") || "逐项一致 ✓");
 }
 
+/* ④q 买入坐标散点图（2026-10-31 加）—— 三类数必须与**独立复算**一致：
+     ① 点数 ＝ 有指数日线且有溢价读数的买入笔数
+     ② 「买在高位」＝ 落在指数 52 周分位 ≥60% 的买入**金额**占比
+     ③ 「溢价 加权」＝ 按金额加权的平均溢价
+   复算口径与页面同源规则（买入日之前最后一个收盘、往前 252 根做区间），但不读页面中间量 ✓ */
+{
+  const card = win.document.getElementById("buypos-card");
+  if (!card || !card.querySelector(".bp-pt")) {
+    check("买入坐标卡存在且有散点", false, card ? "卡片在，但没有 .bp-pt" : "找不到 #buypos-card");
+  } else {
+    const DC = vm.createContext({});
+    vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.P=POSITIONS;this.R=RECENT;this.M=PREM_LOG;", DC, { timeout: 9000 });
+    const P = DC.P, REC = DC.R, PM = DC.M;
+    const idxOf = (sym) => /纳指|纳斯达克/.test(sym) ? "ndx" : /标普/.test(sym) ? "spx" : /日经/.test(sym) ? "n225" : null;
+    const KEY = { ndx: "ndx", spx: "spx", n225: "nikkei" };
+    const rows = [];
+    (P.log || []).filter((e) => !/卖出|减仓|清仓/.test(String(e.act || ""))).forEach((e) => {
+      const k = idxOf(e.sym), S = REC[KEY[k]];
+      if (!k || !S || !Array.isArray(S.pts)) return;
+      let i = -1;
+      for (let j = 0; j < S.pts.length; j++) { if (S.pts[j].d < e.d) i = j; else break; }
+      if (i < 0) return;
+      const win = S.pts.slice(Math.max(0, i - 251), i + 1);
+      const lo = Math.min(...win.map((x) => x.c)), hi = Math.max(...win.map((x) => x.c));
+      const prem = ((PM.items || {})[e.sym] || {})[e.d];
+      if (!(hi > lo) || !Number.isFinite(prem)) return;
+      rows.push({ pos: (S.pts[i].c - lo) / (hi - lo) * 100, prem, amt: e.qty * (e.cost || 0) });
+    });
+    const amtAll = rows.reduce((a, r) => a + r.amt, 0);
+    const hiPct = rows.filter((r) => r.pos >= 60).reduce((a, r) => a + r.amt, 0) / amtAll * 100;
+    const wAvg = rows.reduce((a, r) => a + r.prem * r.amt, 0) / amtAll;
+    const nPt = card.querySelectorAll(".bp-pt").length;
+    const stats = [...card.querySelectorAll(".bp-cell b")].map((b) => b.textContent.replace(/[%,]/g, "").trim());
+    const shownHi = Number(stats[0]), shownW = Number(stats[2]);
+    check("买入坐标：散点数 = " + rows.length + " · 高位占比 " + hiPct.toFixed(0) + "% · 加权溢价 " + wAvg.toFixed(1) + "%（≡ 独立复算）",
+      nPt === rows.length && Math.abs(shownHi - hiPct) <= 1 && Math.abs(shownW - wAvg) <= 0.15,
+      "页面 点 " + nPt + " / 高位 " + shownHi + "% / 加权 " + shownW + "% vs 复算 " + rows.length + " / " + hiPct.toFixed(1) + "% / " + wAvg.toFixed(2) + "%");
+  }
+}
+
 /* ④p 逐笔流水的「指数坐标」（2026-10-31 加，用户要「每次买入时纳指/标普的点位」）——
    两件事必须同时成立，否则这类「汇总 vs 明细」会静默漂开：
      ① 卡面「建仓区间」的 min/max ＝ 该标的每笔买入点位的 min/max

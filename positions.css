@@ -2169,6 +2169,30 @@
 .sec-nav { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
 
+/* ══ 买入坐标卡（2026-10-31 加）══════════════════════════════════════════
+   三个统计格子 + 一张散点图 + 图例 + 口径小注。
+   图用 viewBox 固定 344×196、随容器缩放 → 414 与 1440 下同一套坐标，不重算 ✓ */
+.bp-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; }
+.bp-cell { display: inline-flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+.bp-cell i { font-style: normal; font-size: var(--fs-xxs); color: var(--tx3); opacity: .9; }
+.bp-cell b { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700;
+  color: var(--tx); font-feature-settings: "tnum"; line-height: 1.15; }
+.bp-cell u { text-decoration: none; font-size: var(--fs-xxs); color: var(--tx3); }
+.bp-svg { display: block; width: 100%; height: auto; max-width: 460px; margin: 0 auto; }
+.bp-grid { stroke: var(--line-soft); stroke-width: 1; }
+.bp-grid.bp-axis { stroke: var(--line); stroke-dasharray: none; }
+.bp-tick { font-family: var(--mono); font-size: 7px; fill: var(--tx3); font-feature-settings: "tnum"; }
+.bp-axis-name { font-family: var(--sans); font-size: 7px; fill: var(--tx3); }
+.bp-pt { opacity: .72; }
+.bp-pt:hover { opacity: 1; }
+.bp-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center;
+  font-size: var(--fs-xxs); color: var(--tx3); margin-top: 4px; }
+.bp-lg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.bp-lg > i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.bp-lg-sz > i.dot { width: 6px; height: 6px; background: var(--tx3); opacity: .7; }
+.bp-note { font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.6; margin-top: 6px;
+  padding-top: 6px; border-top: 1px dashed var(--line-soft); }
+
 /* 逐笔流水的「成交时溢价」chip（2026-10-20 加） */
 .log-prem { font-family: var(--mono); font-size: 10px; color: var(--tx3); white-space: nowrap; }
 .log-prem.hot { color: var(--yellow); }
