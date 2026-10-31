@@ -2378,6 +2378,51 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     bad.length === 0, bad.join("；") || "逐项一致 ✓");
 }
 
+/* ④p 逐笔流水的「指数坐标」（2026-10-31 加，用户要「每次买入时纳指/标普的点位」）——
+   两件事必须同时成立，否则这类「汇总 vs 明细」会静默漂开：
+     ① 卡面「建仓区间」的 min/max ＝ 该标的每笔买入点位的 min/max
+     ② 每笔点位的取法 ＝ 「买入日**之前**最后一个收盘」（不是当日收盘 —— 盘中下单时那根还不存在 ✗）
+   判据全部**独立复算**（读 win.POSITIONS.log + win.RECENT，不读页面中间量 ✓）。 */
+{
+  const bands = [...win.document.querySelectorAll(".pos-idxband")];
+  const bad = [];
+  /* ⚠ 数据从**文件**里读，别从 win 上取 —— data.js 用 `const RECENT = …` 声明，
+     它进的是全局**词法**环境，不会挂到 window 上 ✗（`window.RECENT` 是 undefined）。
+     第一版就是这么栽的：三条全报「RECENT 里没有对应日线」。 */
+  /* ⚠ POSITIONS 和 RECENT 都在 **data.js** 里（不是 positions-data.js）✗ */
+  const DC = vm.createContext({});
+  vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.P=POSITIONS;this.R=RECENT;", DC, { timeout: 9000 });
+  const P = DC.P, REC = DC.R;
+  const idxOf = (sym) => /纳指|纳斯达克/.test(sym) ? "ndx" : /标普/.test(sym) ? "spx" : /日经/.test(sym) ? "n225" : null;
+  const seriesOf = (idx) => {
+    const key = { ndx: "ndx", spx: "spx", n225: "nikkei" }[idx];
+    return (REC[key] && Array.isArray(REC[key].pts)) ? REC[key].pts : null;
+  };
+  bands.forEach((el) => {
+    const idx = el.getAttribute("data-idx");
+    const pts = seriesOf(idx);
+    if (!pts) { bad.push(idx + "：RECENT 里没有对应日线"); return; }
+    /* 用 band 所在的卡反查标的：卡里 .log-item 的日期与 POSITIONS.log 对不上时不好查，
+       所以直接按 idx 反推「该指数下所有买入日」（同一指数的买入点位的 min/max 与逐只无关 ✓） */
+    const isSellRow = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+    const buys = (P.log || []).filter((e) => !isSellRow(e) && idxOf(e.sym) === idx).map((e) => e.d);
+    const lv = buys.map((d) => {
+      let hit = null;
+      for (const x of pts) { if (x.d < d) hit = x; else break; }
+      return hit ? Math.round(hit.c) : null;
+    }).filter((v) => v !== null).sort((a, b) => a - b);
+    if (!lv.length) { bad.push(idx + "：一笔都算不出来"); return; }
+    const gMin = Number(el.getAttribute("data-min")), gMax = Number(el.getAttribute("data-max")), gN = Number(el.getAttribute("data-n"));
+    if (Math.abs(gMin - lv[0]) > 1) bad.push(idx + " 区间下沿 " + gMin + " ≠ 复算 " + lv[0]);
+    if (Math.abs(gMax - lv[lv.length - 1]) > 1) bad.push(idx + " 区间上沿 " + gMax + " ≠ 复算 " + lv[lv.length - 1]);
+    if (gN !== lv.length) bad.push(idx + " 笔数 " + gN + " ≠ 复算 " + lv.length);
+  });
+  const chips = [...win.document.querySelectorAll(".log-item .lp-idx")];
+  check("逐笔流水的指数坐标：卡面建仓区间 ＝ 复算 min/max（" + bands.length + " 个卡 · " + chips.length + " 枚 chip）",
+    bands.length > 0 && chips.length > 0 && bad.length === 0,
+    bad.length ? bad.join("；") : "区间 / 笔数 / chip 数逐项一致 ✓");
+}
+
 /* ④o 溢价扫描卡（2026-10-28 加）：卡上的「你持有 / 更便宜」行必须 ≡ data.js 的 PREM_SCAN。
    为什么守：这块的数全靠脚本从两个外部接口对齐——净值翻页少一页、或拿错净值日，
    溢价就会整体虚高 3pp 而**页面照样渲染得很像样** ✗（开发当天真踩过：10 只全部分位 95~100%）。 */

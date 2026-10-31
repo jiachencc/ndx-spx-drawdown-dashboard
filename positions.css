@@ -1075,8 +1075,11 @@
   .log-item .log-date { flex: 0 0 40px; }
   .log-item .act-badge { flex: 0 0 14px; text-align: center; }
   .log-item .log-cost { flex: 0 1 auto; }
-  /* 溢价固定 58px + 右对齐：+19.0% 与 +9.9% 位数不同，不定宽会左右跳 */
-  .log-item .log-prem { margin-left: auto; flex: 0 0 58px; text-align: right; }
+  /* ⚠ 2026-10-31 改：原来是「固定 58px + 右对齐」（防止 +19.0% 与 +9.9% 左右跳）；
+     现在这枚 chip 里还有指数点位（「纳指 28,959 · 溢价 +8.8%」）→ 58px 装不下 ✗。
+     改成 0 0 auto ＋ margin-left:auto：**右缘贴边、左缘浮动** —— 数字右对齐本来就是这个读法 ✓ */
+  .log-item .log-prem { margin-left: auto; flex: 0 0 auto; text-align: right;
+    display: inline-flex; align-items: baseline; gap: 5px; }
   .log-item:last-child { border-bottom: none; }
   .log-date { font-family: var(--mono); font-size: var(--fs-xs); color: var(--tx3); font-feature-settings: "tnum"; }
   .log-sym { font-weight: 600; font-size: var(--fs-sm); }
@@ -2170,6 +2173,13 @@
 .log-prem { font-family: var(--mono); font-size: 10px; color: var(--tx3); white-space: nowrap; }
 .log-prem.hot { color: var(--yellow); }
 .log-prem.cold { color: var(--green); }
+/* chip 内两段（2026-10-31）：指数点位 + 溢价。指数用更淡一档，让「溢价」仍是这枚 chip 的主角 */
+.lp-idx { font-style: normal; color: var(--tx3); opacity: .85; }
+.lp-sep { font-style: normal; opacity: .45; }
+/* 建仓区间（2026-10-31）：逐笔流水上方一行小字 —— 「我是在指数什么区间买的、现在在哪」 */
+.pos-idxband { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3);
+  margin-top: 7px; padding-top: 5px; border-top: 1px dashed var(--line-soft);
+  font-feature-settings: "tnum"; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ===== 收益构成：两张并排小表（2026-10-20） =====
    拆「按性质 / 按账户」两个维度，各自内部标签左、金额右，扫读时列对齐。 */
