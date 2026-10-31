@@ -208,9 +208,32 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
       };
     } catch (e) { rec.failure(key, raw.source, e.message); }
   }
+  /* ── 日经225 日线（2026-10-31 加）────────────────────────────────────────
+     用途只有一个：页面上「日经225ETF华安」那 12 笔买入的**指数坐标**（现在只认得 NDX / SPX）。
+     ⚠ 与 ndx/spx **不同源**：Yahoo 的 ^N225 常年不稳，这里直接用东财 K 线（本仓库其余 A 股/ETF 行情同源）；
+       而且它的用途是「历史买入日的点位」——日期固定、永不变化，抓不到时沿用旧值也**不会失真** ✓
+     ⚠ 键名用 nikkei 而不是 n225 —— data.js 里 DEFAULT.n225 是**场内 ETF 报价**（513880），同名会读错 ✗ */
+  if (core === 2) await attempt(["nikkei"], "Eastmoney 100.N225", async () => {
+    const res = await get("https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=100.N225&fields1=f1,f2"
+      + "&fields2=f51,f53&klt=101&fqt=0&beg=0&end=20500101", { headers: { "User-Agent": "Mozilla/5.0" } });
+    const j = await res.json();
+    const pts = ((j && j.data && j.data.klines) || [])
+      .map((s) => { const [dd, cc] = s.split(","); return { d: dd, c: +cc }; })
+      .filter((x) => isDate(x.d) && Number.isFinite(x.c) && x.c > 0).slice(-RECENT_STORE);
+    if (pts.length < 60) throw new Error("N225 样本不足 " + pts.length);
+    recent.nikkei = { asOf: pts[pts.length - 1].d, pts };
+    rec.success("nikkei", pts[pts.length - 1].d, "Eastmoney 100.N225");
+  });
+
   if (!core) throw new Error("Both core indices unavailable; original file untouched");
   /* 近 1 个月日线：只在两条核心指数**都成功**时整体替换 —— 一条失败就保留旧值，绝不写半份。 */
-  if (core === 2) next.RECENT = { asOf: recent.ndx.asOf === recent.spx.asOf ? recent.ndx.asOf : null, ndx: recent.ndx, spx: recent.spx };
+  if (core === 2) {
+    next.RECENT = { asOf: recent.ndx.asOf === recent.spx.asOf ? recent.ndx.asOf : null, ndx: recent.ndx, spx: recent.spx };
+    /* 日经是**可选**项：抓不到就沿用旧值（它的用途是历史买入日点位，旧值同样正确 ✓） */
+    const prevNik = old.RECENT && old.RECENT.nikkei;
+    if (recent.nikkei) next.RECENT.nikkei = recent.nikkei;
+    else if (prevNik) next.RECENT.nikkei = prevNik;
+  }
   // Independent cross-check of the two core closes. Non-blocking by design: a mismatch is
   // information to surface, not a reason to publish stale numbers instead.
   if (core === 2) await attempt(["crosscheck"], "Sina + CBOE SPX", async () => {
