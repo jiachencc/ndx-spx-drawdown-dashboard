@@ -1639,12 +1639,17 @@
   .mcd-ix { flex: 0 0 4.4em; text-align: left; }
   .mcd-me { flex: 0 0 4.4em; text-align: right; margin-left: auto; }
   .mcd-k { color: var(--tx3); white-space: nowrap; flex: 0 0 3.2em; }
-  .mcd-arrow { font-style: normal; color: var(--tx3); opacity: .5; font-size: 10px; flex: 0 0 auto; }
-  /* 差值那列加一条极淡的左分隔线（2026-11-02）—— 原来它紧贴「我的」百分比，
-     「−4.49%  +2.12pp」读起来像一串数字 ✗；有了线才看得出「这是第三个数：两者之差」 */
+  /* 「对比」那列（2026-11-02 二改）：现在写的是「跑赢 2.12 点」这种大白话，
+     长度不固定 → 给固定宽 ＋ 右对齐，列界才不晃 ✓；左缘一道极淡竖线把它与读数分开 */
   .mcd-gap { font-style: normal; font-family: var(--mono); font-size: var(--fs-xxs);
-    flex: 0 0 4.6em; text-align: right; font-feature-settings: "tnum"; opacity: .95;
-    padding-left: 7px; border-left: 1px solid var(--line-soft); }
+    flex: 0 0 7.4em; text-align: right; font-feature-settings: "tnum"; opacity: .95;
+    padding-left: 7px; border-left: 1px solid var(--line-soft); white-space: nowrap; }
+  /* 表头行：比正文更淡、无底色，只用来标明「这三列各是什么」
+     ⚠ 字号**必须与正文相同** —— 列宽是 em 定的，表头一缩字号，em 基准就变、列宽跟着变，
+       三列表头会整体右移约 30px ✗（第一版就这么错位的）*/
+  .mcd-line.mcd-head { padding-bottom: 1px; margin-bottom: 1px; }
+  .mcd-line.mcd-head > b, .mcd-line.mcd-head > em {
+    color: var(--tx3); opacity: .75; font-weight: 400; }
   .mcd-trade { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-soft);
     font-size: var(--fs-xxs); color: var(--tx2); line-height: 1.6; }
   .mcd-w { font-size: var(--fs-xxs); color: var(--tx3); margin-top: 2px; font-family: var(--mono);

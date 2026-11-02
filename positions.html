@@ -6521,18 +6521,26 @@ function renderAcctStats() {
       const tip = r.m + "：纳指 " + ixTxt + " · 我的 " + mine + "（App 券商口径）" + (d === null ? "" : " · 相对上证 " + dTxt)
         + " · 当月盈亏 " + fmtAmt(r.pnl) + (layers.length ? "　（点开看当月明细）" : "");
       /* 明细块：三层配对（同期 → 我的 → 差）＋ 交易 */
+      /* 2026-11-02 二改（用户：「一眼很难看懂」）：原来是「纳指 −6.61% → −4.49% +2.12pp」——
+         三个百分数并排、没有表头标明谁是市场谁是自己的、`→` 与 `pp` 又都是抽象符号 ✗
+         现在：① 加**表头**（指数 / 我的 / 对比）② 差那列写成「跑赢 2.12 点」大白话
+         ③ 去掉箭头（表头已经说明左右关系）④ 综合层改叫「组合」（"我的综合"读着别扭）*/
+      const LAB = { "纳指": "纳指", "标普": "标普", "综合": "组合" };
       const detail = '<div class="mc-detail" data-layers="' + layers.length + '" hidden>'
         + '<div class="mcd-h">' + esc(r.m) + " · <b class=\"" + cls(r.pnl) + "\">" + fmtAmt(r.pnl) + "</b>"
-        + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "）" : "") + "</div>"
+        + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "，券商口径）" : "") + "</div>"
+        + (layers.length ? '<div class="mcd-line mcd-head"><span class="mcd-k"></span>'
+          + '<b class="mcd-ix">指数</b><b class="mcd-me">我的</b><em class="mcd-gap">对比</em></div>' : "")
         + layers.map((L) => {
           const gap = L.mine - L.ix;
+          const win = gap >= 0;
           return '<div class="mcd-line" data-layer="' + esc(L.label) + '"'
             + ' data-ix="' + L.ix.toFixed(4) + '" data-mine="' + L.mine.toFixed(4) + '">'
-            + '<span class="mcd-k">' + esc(L.label) + "</span>"
+            + '<span class="mcd-k">' + esc(LAB[L.label] || L.label) + "</span>"
             + '<b class="mcd-ix ' + cls(L.ix) + '">' + fmtPct(L.ix / 100, 2) + "</b>"
-            + '<i class="mcd-arrow" aria-hidden="true">→</i>'
             + '<b class="mcd-me ' + cls(L.mine) + '">' + fmtPct(L.mine / 100, 2) + "</b>"
-            + '<em class="mcd-gap ' + cls(gap) + '">' + fmtPp(gap / 100) + "</em></div>";
+            + '<em class="mcd-gap ' + cls(gap) + '">' + (win ? "跑赢 " : "跑输 ")
+            + Math.abs(gap).toFixed(2) + " 点</em></div>";
         }).join("")
         + (tr.nBuy || tr.nSell
           ? '<div class="mcd-trade">交易 · 买 ' + tr.nBuy + " 笔" + (tr.bAmt ? " " + wan(tr.bAmt) + "元" : "")

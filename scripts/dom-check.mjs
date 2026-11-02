@@ -2044,7 +2044,8 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
         want.push({ k: "综合", ix: wn * mo.ndx + ws * mo.spx + wj * ixj, mine: wn * rn + ws * rs + wj * rj });
       }
     }
-    const got = [...det.querySelectorAll(".mcd-line")].map((l) => ({
+    /* ⚠ 排除表头行 `.mcd-head`（2026-11-02 加）—— 它也是 .mcd-line，但没有 data-layer ✗ */
+    const got = [...det.querySelectorAll(".mcd-line:not(.mcd-head)")].map((l) => ({
       k: l.getAttribute("data-layer"),
       ix: Number(l.getAttribute("data-ix")),
       mine: Number(l.getAttribute("data-mine")),
