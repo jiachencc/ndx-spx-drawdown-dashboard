@@ -454,9 +454,24 @@ export function autoBlockIssues(model, dataSrc, posSrc) {
      阈值 2 天：净值晚 1~2 天是常态（那是 navDate 的事，形状校验里已保证 navDate ≤ priceDate ✓）；
      而**价格日**来自与 DEFAULT 同一批腾讯日K、由同一步写入 —— 落后 1 天＝「手工落了一期、那步还没跑」的正常态 ✓，
      落后 > 2 天则说明那步真没跑成（页面「溢价/折价」胶囊会比卡头那枚「场内 xx.xx」旧出好几天 ✗）。 */
+  /* ⚠ 2026-11-02 修：这条原来用**日历日**，于是每个周一都会误报 ——
+     周五收盘写进去的 premiums，到周一晚上正好差 3 个日历日 > 2 ✗，而这期间**一个交易日都没有**
+     （实测：11-02 周一手工落期时被这条拦下，写盘直接回滚）。
+     改成只数**工作日**（周一~周五）；没有节假日表也不要紧 —— 它只会让判据更宽松、不会漏报真停滞。
+     阈值仍是「> 2 个工作日」，牙齿不动 ✓ */
+  const bizDiff = (a, b) => {
+    const t0 = Date.parse(b), t1 = Date.parse(a);
+    if (!Number.isFinite(t0) || !Number.isFinite(t1)) return 0;
+    let n = 0;
+    for (let t = t0 + 86400000; t <= t1; t += 86400000) {
+      const w = new Date(t).getUTCDay();
+      if (w !== 0 && w !== 6) n++;
+    }
+    return n;
+  };
   const premDates = Object.entries(model?.POSITIONS?.premiums || {})
     .map(([c, p]) => [c, p.priceDate]).filter(([, d]) => isDate(d));
-  const premOld = mkt ? premDates.filter(([, d]) => diff(mkt, d) > 2) : [];
+  const premOld = mkt ? premDates.filter(([, d]) => bizDiff(mkt, d) > 2) : [];
   if (premOld.length)
     issues.push("AUTO 块陈旧：premiums 里 " + premOld.map(([c, d]) => c + " " + d).join("、") +
       " 的**价格日**落后场内行情日 " + mkt + " 超过 2 天 —— scripts/fetch_and_update.mjs 的溢价那步多半没跑成" +
