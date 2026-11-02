@@ -252,6 +252,13 @@ export function validateModel(m) {
       if (v.crossType !== "gold" && v.crossType !== "death" && v.crossType !== null)
         errors.push("TREND." + c + " crossType 非法：" + v.crossType);
       if (!(Number.isFinite(v.pos52) && v.pos52 >= 0 && v.pos52 <= 100)) errors.push("TREND." + c + " pos52 越界：" + v.pos52);
+      /* pos52 必须与它自己声明的尺子（pos52Lo~pos52Hi）自洽 —— 2026-11-02 才发现
+         卡面「成本位」与趋势行「现价分位」原来量在不同的区间上（盘中 vs 收盘），
+         同一张卡两个分位对不上 ✗。这条守住"分位与尺子必须配套"。 */
+      if (Number.isFinite(v.pos52Lo) && Number.isFinite(v.pos52Hi) && v.pos52Hi > v.pos52Lo) {
+        const want = Math.round(((v.px - v.pos52Lo) / (v.pos52Hi - v.pos52Lo)) * 100);
+        if (Math.abs(want - v.pos52) > 1) errors.push("TREND." + c + " pos52 " + v.pos52 + " ≠ 按尺子复算 " + want);
+      }
       if (v.rsi14 !== null && !(Number.isFinite(v.rsi14) && v.rsi14 >= 0 && v.rsi14 <= 100))
         errors.push("TREND." + c + " rsi14 越界：" + v.rsi14);
       /* 均线上下必须与实际价格自洽（抓错字段时最容易在这里露馅） */

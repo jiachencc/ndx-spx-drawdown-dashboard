@@ -2400,6 +2400,19 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       if (Number(el.getAttribute("data-rsi")) !== t.rsi14) bad.push(h.code + " RSI " + el.getAttribute("data-rsi") + " ≠ " + t.rsi14);
       if (Number(el.getAttribute("data-pos")) !== t.pos52) bad.push(h.code + " 位置 " + el.getAttribute("data-pos") + " ≠ " + t.pos52);
       /* 文案里的分档必须与 RSI 值一致（防止「RSI 70」配「中性」这种自相矛盾） */
+      /* 2026-11-02 补：卡面胶囊「成本位 X%」必须是用**同一把尺**算出来的成本分位 ——
+         这条正是当时用户报的「67% 与 76% 冲突」：胶囊量成本、趋势量现价，而两边区间还不同 ✗。
+         现在两边都取 TREND 的 pos52Lo~pos52Hi（盘中 52 周高低），所以：
+           成本位 ≡ round((成本 − pos52Lo) / (pos52Hi − pos52Lo) × 100)
+         且 现价 > 成本 ⇒ 现价分位 ≥ 成本位（同一把尺上单调）✓ */
+      const card = el.closest(".card") || el.closest("[class*=card]");
+      const cardTxt = card ? card.textContent.replace(/\s+/g, "") : "";
+      if (Number.isFinite(t.pos52Lo) && Number.isFinite(t.pos52Hi) && Number.isFinite(h.cost)) {
+        const wantCost = Math.round(((h.cost - t.pos52Lo) / (t.pos52Hi - t.pos52Lo)) * 100);
+        const okCost = [wantCost - 1, wantCost, wantCost + 1].some((v) => cardTxt.indexOf("成本位" + v + "%") >= 0);
+        if (!okCost) bad.push(h.code + " 胶囊成本位 ≠ 同尺复算 " + wantCost + "%");
+        if (t.px > h.cost && t.pos52 < wantCost - 1) bad.push(h.code + " 现价高于成本但分位更低（口径不一致）");
+      }
       const txt = el.textContent, r = t.rsi14;
       const want = r === null ? "—" : (r <= 35 ? "超卖" : r >= 70 ? "超买" : "中性");
       if (want !== "—" && txt.indexOf(want) < 0) bad.push(h.code + " 文案缺「" + want + "」");

@@ -34,7 +34,7 @@ const src = readFileSync(DATA, "utf8");
 const ctx = vm.createContext({});
 /* ⚠ 场内标的（含已清仓）在 HOLD_HIST.items（带 code / closed），
    不在 CLOSED.items —— 后者是**场外**已清仓的基金（债基那批）✗ 两个块容易混 */
-vm.runInContext(src + "\nthis.H=HOLD_HIST;", ctx, { timeout: 9000 });
+vm.runInContext(src + "\nthis.H=HOLD_HIST;this.D=DEFAULT;", ctx, { timeout: 9000 });
 const items = ((ctx.H && ctx.H.items) || []).filter((x) => x && x.code);
 if (!items.length) { console.log("没有场内标的，跳过"); process.exit(0); }
 
@@ -79,6 +79,15 @@ for (const it of items) {
   const w = cl.slice(-252);
   const hi = Math.max(...w), lo = Math.min(...w);
   const ma50 = sma(cl, 50), ma200 = sma(cl, 200);
+  /* ── 52 周分位用**哪把尺**（2026-11-02 定）────────────────────────────────
+     持仓卡上方那条水位梯用的是 DEFAULT[报价键] 的 low52 / ath（**盘中**最高最低），
+     胶囊里的「成本位」也是在**这把尺**上量的。
+     本块原先自己按收盘价取 252 根算区间（1.251~1.769），与卡面那把（1.244~1.795）不是同一把 ✗
+     → 同一张卡上出现「成本 67% / 现价 76%」，读者一算 (1.643−1.244)/(1.795−1.244)=72% 对不上 ✗
+     现在统一到**卡面那把尺**（pos52），收盘口径留作 pos52c 备查。 */
+  const QK = { ndx: "etfNdx", spx: "etfSpx" };
+  const dq = (ctx.D && ctx.D[QK[it.idx] || it.idx]) || null;
+  const useCard = !!(dq && Number.isFinite(dq.low52) && Number.isFinite(dq.ath) && dq.ath > dq.low52);
 
   out[it.code] = {
     name: it.name,
@@ -90,7 +99,10 @@ for (const it of items) {
     aboveMa50: ma50 === null ? null : last > ma50,
     aboveMa200: ma200 === null ? null : last > ma200,
     rsi14: rsiLast(cl) === null ? null : +rsiLast(cl).toFixed(0),
-    pos52: +(((last - lo) / (hi - lo)) * 100).toFixed(0),
+    pos52: +((((last - (useCard ? dq.low52 : lo)) / ((useCard ? dq.ath : hi) - (useCard ? dq.low52 : lo))) * 100).toFixed(0)),
+    pos52c: +(((last - lo) / (hi - lo)) * 100).toFixed(0),          // 收盘口径（备查，不在卡面出现）
+    pos52Lo: +(useCard ? dq.low52 : lo).toFixed(3),
+    pos52Hi: +(useCard ? dq.ath : hi).toFixed(3),
     hi52: +hi.toFixed(3),
     lo52: +lo.toFixed(3),
     distHi: +((last / hi - 1) * 100).toFixed(1),
@@ -106,7 +118,7 @@ for (const it of items) {
   const o = out[it.code];
   console.log("  " + it.code + " " + String(it.name).padEnd(14) + " 收 " + o.px + "（" + o.pxDate + "）"
     + " · MA200 " + (o.aboveMa200 ? "上" : "下") + " MA50 " + (o.aboveMa50 ? "上" : "下")
-    + " · RSI " + o.rsi14 + " · 位置 " + o.pos52 + "%"
+    + " · RSI " + o.rsi14 + " · 现价位置 " + o.pos52 + "%（尺 " + o.pos52Lo + "~" + o.pos52Hi + "）"
     + " · MACD " + (o.bull ? "多头" : "空头"));
 }
 

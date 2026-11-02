@@ -7135,7 +7135,10 @@ function holdCardHtml(row, i, ctx) {
        加仓档 chip 也从这一行挪到下方策略行 —— 它是"触发"类信息，与「未触发」同族。 */
     '<div class="lad-line">' + ladChain +
       '<span class="lad-chips"><span class="pos-tier ' + tier[0] + '" title="你的成本位（下方条上的青色点）在 52 周区间中的位置；三档按四舍五入后的整数分位判定：<35% 低 / 35–65% 中 / >65% 高">' +
-        '<span aria-hidden="true">' + tier[2] + '</span> 52周分位 ' + pct.toFixed(0) + '% · ' + tier[1] + '</span></span>' +
+        /* ⚠ 2026-11-02 改文案：这里量的是**成本价**（pctOf(p.idxAtCost)），不是现价 ——
+           原来写「52周分位 67%」与下方「趋势」行的「现价 72 分位」并排，读者会当成同一个数 ✗
+           （两者确实不同：成本 1.6153 vs 现价 1.643，同一把尺上 67% vs 72%）*/
+        '<span aria-hidden="true">' + tier[2] + '</span> 成本位 ' + pct.toFixed(0) + '% · ' + tier[1] + '</span></span>' +
     '</div>' +
     '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
@@ -8452,11 +8455,13 @@ function posLogHtml(p, r, pl) {
       const txt = "趋势  MA200 " + (t.aboveMa200 ? "上方" : "下方")
         + " · MA50 " + (t.aboveMa50 ? "上方" : "下方")
         + " · RSI " + rsiTxt
-        + " · 52 周 " + t.pos52 + " 分位";
+        + " · 现价 " + t.pos52 + " 分位";
       const tip = "均线：现价 " + t.px + "（" + t.pxDate + "） 对 MA200 " + (t.ma200 === null ? "—" : t.ma200)
         + " / MA50 " + (t.ma50 === null ? "—" : t.ma50) + "。\n"
         + "RSI14：50 为中性，≤35 记超卖、≥70 记超买（简单窗口口径）。\n"
-        + "52 周分位：现价在 " + t.lo52 + "~" + t.hi52 + " 里的位置（距高点 " + t.distHi + "%）。\n"
+        + "现价分位：现价在 52 周区间 " + t.pos52Lo + "~" + t.pos52Hi + " 里的位置 —— "
+        + "**与上方水位梯、胶囊「成本位」是同一把尺**（32 周盘中高低），所以两个数可以直接比大小 ✓\n"
+        + "（收盘口径下是 " + t.pos52c + " 分位，仅备查，卡面不用）\n"
         + "⚠ 只描述状态，不是买卖信号 —— 实测这三只的金叉 20 日胜率 63~65%，"
         + "与「随便哪天买」的基线持平甚至更低 ✗";
       out += '<div class="pos-trend" data-code="' + esc(p.code) + '"'
