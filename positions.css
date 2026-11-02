@@ -1624,9 +1624,16 @@
   .mc-row { border: 0; background: none; width: 100%; text-align: left; cursor: pointer;
     font-family: inherit; font-weight: 400; color: inherit; -webkit-appearance: none; appearance: none; }
   .mc-row:not(.mc-head):hover { background: var(--surface-2, rgba(147,163,187,.06)); }
-  .mc-row[aria-expanded="true"] { background: var(--surface-2, rgba(147,163,187,.06)); border-radius: 5px; }
-  .mc-row[aria-expanded="true"] .mc-m::after { content: "▾"; margin-left: 3px; font-size: 8px; opacity: .7; }
-  .mc-row[aria-expanded="false"] .mc-m::after { content: "▸"; margin-left: 3px; font-size: 8px; opacity: .45; }
+  /* 展开态：淡底 ＋ **左侧 2px 竖条** —— 箭头删掉后，单靠 --surface-2 那层淡底
+     在深色主题下几乎看不出来（用户会问"我点的是哪个月"）✗ 竖条一眼可见且不占空间 ✓ */
+  .mc-row[aria-expanded="true"] { background: rgba(90, 169, 255, .10);
+    border-radius: 0; box-shadow: inset 2px 0 0 var(--blue); }
+  /* ⚠ 圆角要去掉：留着 radius 会让左侧那条竖条两端被削圆，看着像个小括号 ✗ */
+  /* ⚠ 2026-11-02 去掉月份后面的 ▸/▾（用户：「那个箭头没必要 太小了」）——
+     8px 的三角在手机上≈看不清，反而像脏点 ✗；可发现性改由两处承担：
+       ① 展开/收起时**整行背景高亮**（下面那条 [aria-expanded] 规则 ✓）
+       ② 表下脚注首句写明「点任意月份可展开」✓
+     不再靠一个小到看不见的符号暗示 ✓ */
 
   /* 当月明细（2026-11-02）：三层配对「同期 → 我的 → 差」＋ 交易 ＋ 综合权重 */
   .mc-detail { margin: 2px 0 8px; padding: 7px 9px; border-radius: 6px;
