@@ -1617,8 +1617,12 @@
   .mc-sum b { color: var(--tx); }
   /* 行改成 <button>（2026-11-02 加，点击展开当月明细）：清掉 button 的默认外观，
      保持与原来 div 行完全一致的排版 ✓ */
+  /* ⚠ 用 button 时的字号坑（2026-11-02）：这里写了 `font: inherit` —— 它是**简写**，
+     会把上面 `.mc-row { font-size: var(--fs-xs) }` 一起重置成父级的 13px ✗
+     实测表格行渲染成 13px、而明细块是 11px，同一张卡里两档字 ✗（用户：「字体有点大」）
+     → 只继承字体族，字号交回上面的规则管 ✓ */
   .mc-row { border: 0; background: none; width: 100%; text-align: left; cursor: pointer;
-    font: inherit; color: inherit; -webkit-appearance: none; appearance: none; }
+    font-family: inherit; font-weight: 400; color: inherit; -webkit-appearance: none; appearance: none; }
   .mc-row:not(.mc-head):hover { background: var(--surface-2, rgba(147,163,187,.06)); }
   .mc-row[aria-expanded="true"] { background: var(--surface-2, rgba(147,163,187,.06)); border-radius: 5px; }
   .mc-row[aria-expanded="true"] .mc-m::after { content: "▾"; margin-left: 3px; font-size: 8px; opacity: .7; }
