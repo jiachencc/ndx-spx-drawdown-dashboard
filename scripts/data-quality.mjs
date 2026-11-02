@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, SELL_AFTER, DDHIST, PREM_SCAN };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, TREND, DDHIST, PREM_SCAN };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -236,19 +236,29 @@ export function validateModel(m) {
     if (missing.length) errors.push("PREM_LOG 缺标的（多半是合并时被静默删掉）：" + missing.join("、"));
   }
 
-  /* ── SELL_AFTER（已清仓标的的后市，2026-11-02 加）──────────────────────────
+  /* ── TREND（场内标的的技术面读数，2026-11-02 加）──────────────────────────
      它是 scripts/build-sell-after.mjs 抓的日线读数，**每只已清仓的场内标的都必须有**。
      缺了不会报错，只是「已清仓标的后市」卡少一行 —— 肉眼发现不了 ✗，所以机器守。 */
-  if (m.SELL_AFTER && m.SELL_AFTER.items && m.HOLD_HIST && Array.isArray(m.HOLD_HIST.items)) {
-    const closedRows = m.HOLD_HIST.items.filter((x) => x && x.closed && x.code);
-    const missSA = closedRows.filter((x) => !m.SELL_AFTER.items[x.code]).map((x) => x.code + " " + x.name);
-    if (missSA.length) errors.push("SELL_AFTER 缺已清仓标的（跑 scripts/build-sell-after.mjs）：" + missSA.join("、"));
-    Object.keys(m.SELL_AFTER.items).forEach((c) => {
-      const v = m.SELL_AFTER.items[c];
-      if (!(Number.isFinite(v.px) && v.px > 0)) errors.push("SELL_AFTER." + c + " px 非法：" + v.px);
-      if (!(Number.isFinite(v.dif) && Number.isFinite(v.dea))) errors.push("SELL_AFTER." + c + " MACD 非法");
+  if (m.TREND && m.TREND.items && m.HOLD_HIST && Array.isArray(m.HOLD_HIST.items)) {
+    /* 2026-11-02：TREND 覆盖**全部**场内标的（在持 ＋ 已清仓）—— 持仓卡的「趋势」一行要读在持那三只，
+       已清仓标的的后市卡要读清仓那两只，缺任何一只都会让某张卡静默少一行 ✗ */
+    const allRows = m.HOLD_HIST.items.filter((x) => x && x.code);
+    const missSA = allRows.filter((x) => !m.TREND.items[x.code]).map((x) => x.code + " " + x.name);
+    if (missSA.length) errors.push("TREND 缺场内标的（跑 scripts/build-trend.mjs）：" + missSA.join("、"));
+    Object.keys(m.TREND.items).forEach((c) => {
+      const v = m.TREND.items[c];
+      if (!(Number.isFinite(v.px) && v.px > 0)) errors.push("TREND." + c + " px 非法：" + v.px);
+      if (!(Number.isFinite(v.dif) && Number.isFinite(v.dea))) errors.push("TREND." + c + " MACD 非法");
       if (v.crossType !== "gold" && v.crossType !== "death" && v.crossType !== null)
-        errors.push("SELL_AFTER." + c + " crossType 非法：" + v.crossType);
+        errors.push("TREND." + c + " crossType 非法：" + v.crossType);
+      if (!(Number.isFinite(v.pos52) && v.pos52 >= 0 && v.pos52 <= 100)) errors.push("TREND." + c + " pos52 越界：" + v.pos52);
+      if (v.rsi14 !== null && !(Number.isFinite(v.rsi14) && v.rsi14 >= 0 && v.rsi14 <= 100))
+        errors.push("TREND." + c + " rsi14 越界：" + v.rsi14);
+      /* 均线上下必须与实际价格自洽（抓错字段时最容易在这里露馅） */
+      if (v.ma200 !== null && Number.isFinite(v.ma200) && v.aboveMa200 !== (v.px > v.ma200))
+        errors.push("TREND." + c + " aboveMa200 与 px/ma200 不一致");
+      if (v.ma50 !== null && Number.isFinite(v.ma50) && v.aboveMa50 !== (v.px > v.ma50))
+        errors.push("TREND." + c + " aboveMa50 与 px/ma50 不一致");
     });
   }
   /* DDHIST（回撤历史对照，2026-10-24 加）：事件与分布必须自洽 ——

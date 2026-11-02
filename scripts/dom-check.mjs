@@ -2378,23 +2378,54 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     bad.length === 0, bad.join("；") || "逐项一致 ✓");
 }
 
+/* ④s 持仓卡「趋势」一行（2026-11-02 加）—— 四个读数必须 ≡ 独立复算：
+     MA200 上下 / MA50 上下 / RSI 分档 / 52 周分位。复算只读 data.js 的 TREND ＋ POSITIONS.hold，
+     不读页面中间量 ✓（这类"一行小字"最容易被忽略地漂掉） */
+{
+  const rows = [...win.document.querySelectorAll(".pos-trend")];
+  if (!rows.length) {
+    check("持仓卡有「趋势」一行", false, "找不到 .pos-trend");
+  } else {
+    const DC = vm.createContext({});
+    vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.T=TREND;this.P=POSITIONS;", DC, { timeout: 9000 });
+    const T = DC.T.items || {}, held = (DC.P.hold || []).filter((x) => x.code);
+    const bad = [];
+    held.forEach((h) => {
+      const el = rows.find((r) => r.getAttribute("data-code") === h.code);
+      if (!el) { bad.push(h.code + " 没有趋势行"); return; }
+      const t = T[h.code];
+      if (!t) { bad.push(h.code + " 不在 TREND 里"); return; }
+      if (Number(el.getAttribute("data-ma200")) !== (t.aboveMa200 ? 1 : 0)) bad.push(h.code + " MA200 不符");
+      if (Number(el.getAttribute("data-ma50")) !== (t.aboveMa50 ? 1 : 0)) bad.push(h.code + " MA50 不符");
+      if (Number(el.getAttribute("data-rsi")) !== t.rsi14) bad.push(h.code + " RSI " + el.getAttribute("data-rsi") + " ≠ " + t.rsi14);
+      if (Number(el.getAttribute("data-pos")) !== t.pos52) bad.push(h.code + " 位置 " + el.getAttribute("data-pos") + " ≠ " + t.pos52);
+      /* 文案里的分档必须与 RSI 值一致（防止「RSI 70」配「中性」这种自相矛盾） */
+      const txt = el.textContent, r = t.rsi14;
+      const want = r === null ? "—" : (r <= 35 ? "超卖" : r >= 70 ? "超买" : "中性");
+      if (want !== "—" && txt.indexOf(want) < 0) bad.push(h.code + " 文案缺「" + want + "」");
+    });
+    check("持仓卡「趋势」行：MA200 / MA50 / RSI / 52 周位置（" + held.length + " 只）≡ 独立复算",
+      bad.length === 0, bad.length ? bad.join("；") : "逐只核对通过 ✓");
+  }
+}
+
 /* ④r 已清仓标的后市（2026-11-02 加）—— 两个数必须与**独立复算**一致：
-     ① 「现在」价 ＝ SELL_AFTER.items[code].px
+     ① 「现在」价 ＝ TREND.items[code].px
      ② 「比现在多拿 X」＝ 份数 × (卖出价 − 现价)（正数＝躲过下跌）
-   复算只读 data.js 的 HOLD_HIST / POSITIONS.log / SELL_AFTER，不读页面中间量 ✓ */
+   复算只读 data.js 的 HOLD_HIST / POSITIONS.log / TREND，不读页面中间量 ✓ */
 {
   const its = [...win.document.querySelectorAll("#sellafter-card .sa-item")];
   if (!its.length) {
     check("已清仓标的后市卡有条目", false, "找不到 #sellafter-card .sa-item");
   } else {
     const DC = vm.createContext({});
-    vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.P=POSITIONS;this.H=HOLD_HIST;this.S=SELL_AFTER;", DC, { timeout: 9000 });
+    vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.P=POSITIONS;this.H=HOLD_HIST;this.S=TREND;", DC, { timeout: 9000 });
     const P = DC.P, H = DC.H, S = DC.S;
     const bad = [];
     its.forEach((el) => {
       const code = el.getAttribute("data-code");
       const sa = (S.items || {})[code];
-      if (!sa) { bad.push(code + " 不在 SELL_AFTER 里"); return; }
+      if (!sa) { bad.push(code + " 不在 TREND 里"); return; }
       if (Math.abs(Number(el.getAttribute("data-px")) - sa.px) > 0.001)
         bad.push(code + " 现价 " + el.getAttribute("data-px") + " ≠ " + sa.px);
       const nm = ((H.items || []).find((x) => x.code === code) || {}).name;

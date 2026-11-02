@@ -2229,6 +2229,11 @@
 .pos-idxband { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3);
   margin-top: 7px; padding-top: 5px; border-top: 1px dashed var(--line-soft);
   font-feature-settings: "tnum"; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 趋势一行（2026-11-02 加）：紧跟「建仓区间」，同一视觉重量 —— 它是**状态描述**，
+   不是信号灯，所以整行保持中性灰，超买/超卖也不上色（上色等于暗示"该操作" ✗） */
+.pos-trend { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3);
+  margin-top: 4px; font-feature-settings: "tnum"; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 
 /* ===== 收益构成：两张并排小表（2026-10-20） =====
    拆「按性质 / 按账户」两个维度，各自内部标签左、金额右，扫读时列对齐。 */

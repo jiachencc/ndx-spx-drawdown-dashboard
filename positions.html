@@ -8099,19 +8099,19 @@ function renderBuyPos() {
    对每只已清仓的场内标的，把「清仓那笔的卖出价」与「现在的价」摆在一起，
    再折算成「若当时没卖、现在值多少」—— 比任何自我安慰都直接。
    ⚠ 数据分工：卖出价/份数/日期取 POSITIONS.log（事实，一份来源 ✓）；
-     现价与 MACD 取 data.js 的 SELL_AFTER（scripts/build-sell-after.mjs 抓东财日线 ✓）
+     现价与 MACD 取 data.js 的 TREND（scripts/build-trend.mjs 抓东财日线 ✓）
    ⚠ MACD 只作**观察**，刻意不画箭头、不写「金叉要涨」——
      实测这三只 ETF 的金叉胜率 51~65%、与「随便哪天买」的基线持平甚至更低 ✗
    ══════════════════════════════════════════════════════════════════════════ */
 function renderSellAfter() {
   const card = $("sellafter-card");
   if (!card) return;
-  const SA = (typeof SELL_AFTER !== "undefined" && SELL_AFTER.items) ? SELL_AFTER.items : {};
+  const SA = (typeof TREND !== "undefined" && TREND.items) ? TREND.items : {};
   const closed = {};
   (((typeof HOLD_HIST !== "undefined" && HOLD_HIST.items) || [])).forEach((x) => { if (x && x.closed && x.code) closed[x.name] = x; });
   const syms = Object.keys(closed).filter((sym) => SA[closed[sym].code]);
   const cnt = $("sellafter-cnt");
-  if (cnt) cnt.textContent = "（" + syms.length + " 只 · 现价至 " + ((typeof SELL_AFTER !== "undefined" && SELL_AFTER.asOf) || "—").slice(5).replace("-", ".") + "）";
+  if (cnt) cnt.textContent = "（" + syms.length + " 只 · 现价至 " + ((typeof TREND !== "undefined" && TREND.asOf) || "—").slice(5).replace("-", ".") + "）";
   if (!syms.length) { card.innerHTML = '<div class="bp-note">没有已清仓的场内标的。</div>'; return; }
 
   const rows = syms.map((sym) => {
@@ -8138,7 +8138,7 @@ function renderSellAfter() {
     const verdict = good
       ? "卖对了：比现在多拿 <b>" + fmtAbs2(r.gap) + "</b>"
       : "卖早了：少赚 <b>" + fmtAbs2(-r.gap) + "</b>";
-    /* data-* 给门禁读（④r：现价 ≡ SELL_AFTER、差额 ≡ 复算） */
+    /* data-* 给门禁读（④r：现价 ≡ TREND、差额 ≡ 复算） */
     return '<div class="sa-item" data-code="' + esc(r.h.code) + '" data-px="' + r.px.toFixed(3) + '"'
       + ' data-sellpx="' + r.sellPx + '" data-qty="' + r.qty + '" data-gap="' + r.gap.toFixed(2) + '">'
       + '<div class="sa-head"><span class="sa-nm">' + esc(r.sym) + '</span><span class="sa-code">' + esc(r.h.code) + "</span>"
@@ -8436,6 +8436,33 @@ function posLogHtml(p, r, pl) {
         + '" data-n="' + lv.length + '" title="' + esc("指数点位取「买入日之前最后一个收盘」—— 你在 A 股盘中下单时，屏幕上最新的一根就是它。"
         + "区间取这 " + lv.length + " 笔买入的 min / max（同一个指数），逐笔的点位见下方「逐笔流水」每行右侧。"
         + (now === null ? "" : "「现在」＝该指数最新收盘 " + fmtIdx(now) + "。")) + '">' + esc(span) + '</div>';
+    }
+  }
+  /* ── 趋势一行（2026-11-02 加，用户要「技术指标对当前趋势的说法」）─────────────
+     长期 MA200 / 中期 MA50 / RSI14 / 52 周位置 —— **只陈述状态**：
+       · 不画箭头、不写「该买 / 该卖 / 要涨」✗
+       · 依据：实测这三只的金叉 20 日胜率 63~65%，与「随便哪天买」的基线（64%/70%/58%）
+         持平甚至更低；RSI 超买反而胜率更高（标普 80%）→ 任何"信号"都不足以支撑操作 ✗
+     数据来自 data.js 的 TREND（scripts/build-trend.mjs，与「已清仓标的后市」共用同一份日线 ✓） */
+  {
+    const t = (typeof TREND !== "undefined" && TREND.items) ? TREND.items[p.code] : null;
+    if (t && Number.isFinite(t.px)) {
+      const rsiTxt = t.rsi14 === null ? "—"
+        : (t.rsi14 <= 35 ? t.rsi14 + " 超卖" : t.rsi14 >= 70 ? t.rsi14 + " 超买" : t.rsi14 + " 中性");
+      const txt = "趋势  MA200 " + (t.aboveMa200 ? "上方" : "下方")
+        + " · MA50 " + (t.aboveMa50 ? "上方" : "下方")
+        + " · RSI " + rsiTxt
+        + " · 52 周 " + t.pos52 + " 分位";
+      const tip = "均线：现价 " + t.px + "（" + t.pxDate + "） 对 MA200 " + (t.ma200 === null ? "—" : t.ma200)
+        + " / MA50 " + (t.ma50 === null ? "—" : t.ma50) + "。\n"
+        + "RSI14：50 为中性，≤35 记超卖、≥70 记超买（简单窗口口径）。\n"
+        + "52 周分位：现价在 " + t.lo52 + "~" + t.hi52 + " 里的位置（距高点 " + t.distHi + "%）。\n"
+        + "⚠ 只描述状态，不是买卖信号 —— 实测这三只的金叉 20 日胜率 63~65%，"
+        + "与「随便哪天买」的基线持平甚至更低 ✗";
+      out += '<div class="pos-trend" data-code="' + esc(p.code) + '"'
+        + ' data-ma200="' + (t.aboveMa200 ? 1 : 0) + '" data-ma50="' + (t.aboveMa50 ? 1 : 0) + '"'
+        + ' data-rsi="' + (t.rsi14 === null ? "" : t.rsi14) + '" data-pos="' + t.pos52 + '"'
+        + ' title="' + esc(tip) + '">' + esc(txt) + "</div>";
     }
   }
   out += '<details class="pos-log">' +
