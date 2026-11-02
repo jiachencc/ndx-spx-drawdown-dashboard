@@ -1600,6 +1600,59 @@
   .bench-row b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
   .bench-row .bench-sub { margin-left: auto; font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; }
   .bench-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  /* 逐月对照表（2026-11-02 二改，用户在胶囊版之后要「每个月的涨跌和我账户的关系」）——
+     一行一个月，四列：月份 / 纳指 / 我 / 相对上证。四列都用 tnum 右对齐 → 跨行同一条竖线 ✓
+     ⚠ 四列内容都短（6~7 字符），手机上 356px 完全放得下，不需要折行或横滚 ✓ */
+  .mc-tbl { margin-top: 10px; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
+  .mc-row { display: grid; grid-template-columns: 2.6em 1fr 1fr 1fr; gap: 2px 10px;
+    align-items: baseline; padding: 4px 0; font-size: var(--fs-xs); }
+  .mc-row > b { font-family: var(--mono); font-weight: 400; text-align: right;
+    font-feature-settings: "tnum"; white-space: nowrap; }
+  .mc-m { color: var(--tx3); white-space: nowrap; }
+  .mc-row.mc-head { padding-top: 0; padding-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+  .mc-row.mc-head > b, .mc-row.mc-head .mc-m { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }
+  /* 一句归纳（现算）：完整月里同向几个月 + 涨/跌两组的两边均值 ✓ */
+  .mc-sum { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xs); color: var(--tx2); line-height: 1.7; font-feature-settings: "tnum"; }
+  .mc-sum b { color: var(--tx); }
+  /* 行改成 <button>（2026-11-02 加，点击展开当月明细）：清掉 button 的默认外观，
+     保持与原来 div 行完全一致的排版 ✓ */
+  .mc-row { border: 0; background: none; width: 100%; text-align: left; cursor: pointer;
+    font: inherit; color: inherit; -webkit-appearance: none; appearance: none; }
+  .mc-row:not(.mc-head):hover { background: var(--surface-2, rgba(147,163,187,.06)); }
+  .mc-row[aria-expanded="true"] { background: var(--surface-2, rgba(147,163,187,.06)); border-radius: 5px; }
+  .mc-row[aria-expanded="true"] .mc-m::after { content: "▾"; margin-left: 3px; font-size: 8px; opacity: .7; }
+  .mc-row[aria-expanded="false"] .mc-m::after { content: "▸"; margin-left: 3px; font-size: 8px; opacity: .45; }
+
+  /* 当月明细（2026-11-02）：三层配对「同期 → 我的 → 差」＋ 交易 ＋ 综合权重 */
+  .mc-detail { margin: 2px 0 8px; padding: 7px 9px; border-radius: 6px;
+    background: var(--surface-2, rgba(147,163,187,.06)); border: 1px solid var(--line-soft); }
+  .mc-detail[hidden] { display: none; }
+  .mcd-h { font-size: var(--fs-xs); color: var(--tx); margin-bottom: 5px;
+    font-family: var(--mono); font-feature-settings: "tnum"; }
+  .mcd-h b { font-weight: 700; }
+  /* ⚠ 第一版用 grid `2.6em 1fr auto 1fr auto` —— 两个 1fr 被拉得很宽，「−6.61% → −4.49%」
+     中间空出一大段、读数要横着找 ✗。改成 flex ＋ **固定列宽**：左「同期」右「我的 / 差」，
+     中间的空白由 margin-left:auto 吃掉，四行（纳指/标普/综合）左缘右缘都对齐 ✓ */
+  .mcd-line { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; font-size: var(--fs-xs); }
+  .mcd-line > b { font-family: var(--mono); font-weight: 400; font-feature-settings: "tnum"; white-space: nowrap; }
+  .mcd-ix { flex: 0 0 4.4em; text-align: left; }
+  .mcd-me { flex: 0 0 4.4em; text-align: right; margin-left: auto; }
+  .mcd-k { color: var(--tx3); white-space: nowrap; flex: 0 0 3.2em; }
+  .mcd-arrow { font-style: normal; color: var(--tx3); opacity: .5; font-size: 10px; flex: 0 0 auto; }
+  /* 差值那列加一条极淡的左分隔线（2026-11-02）—— 原来它紧贴「我的」百分比，
+     「−4.49%  +2.12pp」读起来像一串数字 ✗；有了线才看得出「这是第三个数：两者之差」 */
+  .mcd-gap { font-style: normal; font-family: var(--mono); font-size: var(--fs-xxs);
+    flex: 0 0 4.6em; text-align: right; font-feature-settings: "tnum"; opacity: .95;
+    padding-left: 7px; border-left: 1px solid var(--line-soft); }
+  .mcd-trade { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xxs); color: var(--tx2); line-height: 1.6; }
+  .mcd-w { font-size: var(--fs-xxs); color: var(--tx3); margin-top: 2px; font-family: var(--mono);
+    font-feature-settings: "tnum"; }
+
+  .mc-note { margin-top: 7px; padding-top: 6px; border-top: 1px dashed var(--line-soft);
+    font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.65; }
+  .mc-note b { color: var(--tx2); }
   .bench-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border: 1px solid; border-radius: var(--radius-xs); padding: 1px 6px; white-space: nowrap; font-feature-settings: "tnum"; }
   .bench-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
   .bench-chip.down { color: var(--down); border-color: var(--down-line); background: var(--down-bg); }

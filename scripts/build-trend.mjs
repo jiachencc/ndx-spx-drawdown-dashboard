@@ -76,6 +76,19 @@ for (const it of items) {
     if (dif[i] > dea[i] && dif[i - 1] <= dea[i - 1]) { crossType = "gold"; crossIdx = i; break; }
     if (dif[i] < dea[i] && dif[i - 1] >= dea[i - 1]) { crossType = "death"; crossIdx = i; break; }
   }
+  /* ── 月末收盘（2026-11-02 加）───────────────────────────────────────────
+     用途：「场内账户统计」里点开某个月，要看「**我的纳指 ETF** 那个月涨多少」——
+     这个数只有 ETF 自己的月末收盘能算；HOLD_HIST 的 val 是**成本**（26,200 × 2.1229 = 55,619），
+     拿 val ÷ qty 当价格会得出「10 月 +1.49%」而真实是 −4.96% ✗
+     只存近 **12 个月末**（12 × 5 只 = 60 个数，几百字节）—— 再多也没人看 ✓ */
+  const mo = {};
+  rows.forEach((r) => {
+    const ym = r.d.slice(0, 7);
+    if (!mo[ym] || r.d > mo[ym].d) mo[ym] = { d: r.d, c: r.c };
+  });
+  const moOut = {};
+  Object.keys(mo).sort().slice(-12).forEach((ym) => { moOut[ym] = +mo[ym].c.toFixed(3); });
+
   const w = cl.slice(-252);
   const hi = Math.max(...w), lo = Math.min(...w);
   const ma50 = sma(cl, 50), ma200 = sma(cl, 200);
@@ -105,6 +118,7 @@ for (const it of items) {
     pos52Hi: +(useCard ? dq.ath : hi).toFixed(3),
     hi52: +hi.toFixed(3),
     lo52: +lo.toFixed(3),
+    mo: moOut,                       // 月末收盘（近 12 个月），给「逐月对照」用 ✓
     distHi: +((last / hi - 1) * 100).toFixed(1),
     dif: +dif[n - 1].toFixed(4),
     dea: +dea[n - 1].toFixed(4),

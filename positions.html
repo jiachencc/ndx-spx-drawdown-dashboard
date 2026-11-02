@@ -6427,19 +6427,170 @@ function renderAcctStats() {
     const B = typeof S.benchYtd === "number" ? S.benchYtd : null;
     if (B === null || typeof S.pnlPct !== "number") return "";
     const diff = S.pnlPct - B, bn = S.benchName || "基准";
-    const chips = (S.monthly || []).filter((r) => typeof r.pct === "number" && typeof r.bench === "number")
-      .map((r) => { const d = r.pct - r.bench; return '<span class="bench-chip ' + (d >= 0 ? "up" : "down") + '">' + r.m + " " + fmtPp(d / 100) + "</span>"; }).join("");
+    /* ── 逐月对照表（2026-11-02 二改；同日加「点开某个月」）────────────────────────
+       第一版是两排胶囊（相对上证 pp / 纳指当月），月份要读者自己对齐 ✗
+       第二版是一行一个月（月份 / 纳指 / 我 / 相对上证）✓
+       第三版：**点开某一行 → 展开那个月的三层明细**（同期 vs 我的：纳指 / 标普 / 综合）
+         —— 6 组数据一次只展开一个月，既不用 7 列挤在一行、也不用 chips 来回切 ✓
+       ⚠ 「我的纳指/标普」＝ **ETF 自己的月度涨跌**（TREND.items[code].mo 的月末收盘算），
+         不能用 HOLD_HIST 的 val ÷ qty —— 那个 val 是**成本**（26,200 × 2.1229 = 55,619），
+         当价格用会得出「10 月纳指ETF +1.49%」而真实是 −4.96% ✗
+       ⚠ 「综合」的权重 ＝ **上月末**的持仓市值（qty × 上月末收盘）；同期用指数涨跌、
+         我的用 ETF 涨跌，两边同权重 → 差额就是溢价/跟踪/汇率的合计影响 ✓
+       ⚠ 仍然**不把账户 pct 与指数相减**：App 那个是资金加权口径（7 月 −13.73%，
+         而当月 ETF 只跌 4.49%），相减出来的“超额”是假的 ✗ */
+    const YR = String(S.updated || "2026").slice(0, 4);
+    const ymOf = (r) => YR + "-" + String(Number(String(r.m).replace(/[^0-9]/g, ""))).padStart(2, "0");
+    const prevYm = (ym) => {
+      const y = +ym.slice(0, 4), m = +ym.slice(5);
+      return m === 1 ? (y - 1) + "-12" : y + "-" + String(m - 1).padStart(2, "0");
+    };
+    const etfMo = (code) => ((typeof TREND !== "undefined" && TREND.items && TREND.items[code] && TREND.items[code].mo) || {});
+    const qtyAt = (code, ym) => {
+      const it = (((typeof HOLD_HIST !== "undefined" && HOLD_HIST.items) || []).find((x) => x.code === code));
+      if (!it) return 0;
+      let q = 0;
+      for (const row of it.pts || []) { if (row[0].slice(0, 7) <= ym) q = row[2]; }
+      return q;
+    };
+    /* 日经指数月末涨跌（MONTHLY 只有纳指/标普；日经取 RECENT.nikkei） */
+    const nkRet = (ym) => {
+      const pts = (typeof RECENT !== "undefined" && RECENT.nikkei && RECENT.nikkei.pts) || null;
+      if (!pts) return null;
+      const endOf = (y) => { let hit = null; for (const x of pts) { if (x.d.slice(0, 7) <= y) hit = x; else break; } return hit; };
+      const a = endOf(prevYm(ym)), b = endOf(ym);
+      return (a && b && a.d !== b.d && a.c > 0) ? (b.c / a.c - 1) * 100 : null;
+    };
+    const etfRet = (code, ym) => {
+      const mo = etfMo(code), a = mo[prevYm(ym)], b = mo[ym];
+      return (a > 0 && b > 0) ? (b / a - 1) * 100 : null;
+    };
+    /* 三层：{ key, label, ix(同期%), mine(我的%) } —— 缺数据的层直接不给 */
+    const layersOf = (ym, mo) => {
+      const out2 = [];
+      if (mo) {
+        const rn = etfRet("159941", ym);
+        if (rn !== null) out2.push({ label: "纳指", ix: mo.ndx, mine: rn });
+        const rs = etfRet("513650", ym);
+        if (rs !== null) out2.push({ label: "标普", ix: mo.spx, mine: rs });
+        /* 综合：三只按「上月末市值」加权 */
+        const p = prevYm(ym), w = {}, val = {};
+        [["159941", "ndx"], ["513650", "spx"], ["513880", "n225"]].forEach(([c]) => {
+          const px = etfMo(c)[p];
+          val[c] = (px > 0 ? qtyAt(c, p) * px : 0);
+        });
+        const tot = (val["159941"] || 0) + (val["513650"] || 0) + (val["513880"] || 0);
+        if (tot > 0) {
+          const wn = val["159941"] / tot, ws = val["513650"] / tot, wj = val["513880"] / tot;
+          const ixj = nkRet(ym), rj = etfRet("513880", ym);
+          if (ixj !== null && rj !== null) {
+            out2.push({
+              label: "综合",
+              ix: wn * mo.ndx + ws * mo.spx + wj * ixj,
+              mine: wn * (etfRet("159941", ym) || 0) + ws * (etfRet("513650", ym) || 0) + wj * rj,
+              w: { ndx: wn, spx: ws, n225: wj },
+            });
+          }
+        }
+      }
+      return out2;
+    };
+    const tradeOf = (ym) => {
+      const t = (((typeof POSITIONS !== "undefined" && POSITIONS.log) || [])).filter((e) => String(e.d || "").slice(0, 7) === ym);
+      const isS = (e) => /卖出|减仓|清仓/.test(String(e.act || ""));
+      const buys = t.filter((e) => !isS(e)), sells = t.filter((e) => isS(e));
+      const amt = (arr) => arr.reduce((a, e) => a + (e.qty || 0) * (e.cost || 0), 0);
+      const bySym = {};
+      buys.forEach((e) => { bySym[e.sym] = (bySym[e.sym] || 0) + (e.qty || 0) * (e.cost || 0); });
+      return { nBuy: buys.length, nSell: sells.length, bAmt: amt(buys), sAmt: amt(sells), bySym };
+    };
+    const wan = (v) => (v >= 10000 ? (v / 10000).toFixed(1) + " 万" : Math.round(v).toLocaleString("en-US"));
+    const SHORT_SYM = { "纳指ETF广发": "纳指", "标普500ETF南方": "标普", "日经225ETF华安": "日经",
+      "港美互联网LOF": "港美", "中韩半导体ETF华泰": "中韩" };
+
+    const rows = (S.monthly || []).map((r) => {
+      const ym = ymOf(r);
+      const k = Number(String(r.m).replace(/[^0-9]/g, "")) - 1;
+      const mo = (typeof MONTHLY !== "undefined" && MONTHLY[k]) ? MONTHLY[k] : null;
+      const ixTxt = mo ? fmtPct(mo.ndx / 100, 2) : "—";
+      const mine = typeof r.pct === "number" ? fmtPct(r.pct / 100, 2) : "—";
+      const d = (typeof r.pct === "number" && typeof r.bench === "number") ? r.pct - r.bench : null;
+      const dTxt = d === null ? "—" : fmtPp(d / 100);
+      const layers = layersOf(ym, mo);
+      const tr = tradeOf(ym);
+      const tip = r.m + "：纳指 " + ixTxt + " · 我的 " + mine + "（App 券商口径）" + (d === null ? "" : " · 相对上证 " + dTxt)
+        + " · 当月盈亏 " + fmtAmt(r.pnl) + (layers.length ? "　（点开看当月明细）" : "");
+      /* 明细块：三层配对（同期 → 我的 → 差）＋ 交易 */
+      const detail = '<div class="mc-detail" data-layers="' + layers.length + '" hidden>'
+        + '<div class="mcd-h">' + esc(r.m) + " · <b class=\"" + cls(r.pnl) + "\">" + fmtAmt(r.pnl) + "</b>"
+        + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "）" : "") + "</div>"
+        + layers.map((L) => {
+          const gap = L.mine - L.ix;
+          return '<div class="mcd-line" data-layer="' + esc(L.label) + '"'
+            + ' data-ix="' + L.ix.toFixed(4) + '" data-mine="' + L.mine.toFixed(4) + '">'
+            + '<span class="mcd-k">' + esc(L.label) + "</span>"
+            + '<b class="mcd-ix ' + cls(L.ix) + '">' + fmtPct(L.ix / 100, 2) + "</b>"
+            + '<i class="mcd-arrow" aria-hidden="true">→</i>'
+            + '<b class="mcd-me ' + cls(L.mine) + '">' + fmtPct(L.mine / 100, 2) + "</b>"
+            + '<em class="mcd-gap ' + cls(gap) + '">' + fmtPp(gap / 100) + "</em></div>";
+        }).join("")
+        + (tr.nBuy || tr.nSell
+          ? '<div class="mcd-trade">交易 · 买 ' + tr.nBuy + " 笔" + (tr.bAmt ? " " + wan(tr.bAmt) + "元" : "")
+            + (Object.keys(tr.bySym).length
+              ? "（" + Object.keys(tr.bySym).sort((a2, b2) => tr.bySym[b2] - tr.bySym[a2])
+                .map((s2) => (SHORT_SYM[s2] || s2) + " " + wan(tr.bySym[s2])).join(" / ") + "）"
+              : "")
+            + (tr.nSell ? " · 卖 " + tr.nSell + " 笔 " + wan(tr.sAmt) + "元" : "") + "</div>"
+          : '<div class="mcd-trade">交易 · 无</div>')
+        + (layers.length && layers[layers.length - 1].w
+          ? '<div class="mcd-w">综合权重（上月末市值）· 纳指 ' + Math.round(layers[layers.length - 1].w.ndx * 100) + "% · 标普 "
+            + Math.round(layers[layers.length - 1].w.spx * 100) + "% · 日经 " + Math.round(layers[layers.length - 1].w.n225 * 100) + "%</div>"
+          : "")
+        + "</div>";
+      return '<button type="button" class="mc-row" data-ym="' + ym + '" title="' + esc(tip) + '" aria-expanded="false">'
+        + '<span class="mc-m">' + esc(r.m) + "</span>"
+        + '<b class="mc-ix ' + cls(mo ? mo.ndx : 0) + '">' + ixTxt + "</b>"
+        + '<b class="mc-me ' + cls(typeof r.pct === "number" ? r.pct : 0) + '">' + mine + "</b>"
+        + '<b class="mc-pp ' + cls(d === null ? 0 : d) + '">' + dTxt + "</b></button>"
+        + detail;
+    }).join("");
     return '<div class="bench-row"><span class="bench-l">相对' + bn + "</span>" +
         '<b class="' + (diff >= 0 ? "up" : "down") + '">' + fmtPp(diff / 100) + "</b>" +
         '<span class="bench-sub">你 ' + fmtPct(S.pnlPct / 100, 2) + "（App 口径）· " + bn + " " + fmtPct(B / 100, 2) + "</span>" +
         '<button type="button" class="strat-hint" data-note="acct-bench-q" aria-label="基准口径" aria-expanded="false">?</button></div>' +
       '<div class="strat-note" id="acct-bench-q">基准取券商对账单每行右侧的「' + bn + "」涨跌（App 原样给出，本页未换算）。"
         + "pp 是<b>百分点</b>：账户收益率 − 基准涨跌，正数＝跑赢。<br>"
-        + "⚠ 这只是个现成参照物：你的持仓 2/3 是美股（纳指 + 标普），<b>上证不是合适基准</b>；"
-        + "真正该比的是纳指 / 标普同期涨跌，那需要另补数据。<br>"
+        + "⚠ 这只是个现成参照物：你的持仓 2/3 是美股（纳指 + 标普），<b>上证不是合适基准</b>。"
+        + "下面那张表里的「纳指」列才是该看的参照（2026-11-02 补上，取 MONTHLY）✓<br>"
         + "⚠ 账户那个百分比是 <b>App 自带口径</b>（见「账户累计盈亏」的 ?），与指数涨跌并不同源，"
-        + "相减只能当粗略参照，别当成「跑输 X pp」的结论。</div>" +
-      (chips ? '<div class="bench-chips">' + chips + "</div>" : "");
+        + "相减只能当粗略参照，别当成「跑输 X pp」的结论。</div>"
+      /* 一句话归纳「关系」：只统计**完整月**（排除首条＝建仓月，它的 pct 分母含未投入资金、会失真；
+         再排除指数数据还没入表的进行中月），然后按指数涨/跌分组算两边均值 ✓ 现算，不写死 */
+      + (() => {
+        const full = (S.monthly || []).map((r, i) => {
+          const k = Number(String(r.m).replace(/[^0-9]/g, "")) - 1;
+          const mo = (typeof MONTHLY !== "undefined" && MONTHLY[k]) ? MONTHLY[k] : null;
+          return { i, r, mo };
+        }).filter((x) => x.i > 0 && x.mo && typeof x.r.pct === "number");
+        if (full.length < 3) return "";
+        const ups = full.filter((x) => x.mo.ndx > 0), dns = full.filter((x) => x.mo.ndx <= 0);
+        const avg = (arr, f) => arr.reduce((a, x) => a + f(x), 0) / arr.length;
+        const same = full.filter((x) => Math.sign(x.r.pct) === Math.sign(x.mo.ndx)).length;
+        const part = [];
+        if (ups.length) part.push("涨的 " + ups.length + " 个月：指数均 " + fmtPct(avg(ups, (x) => x.mo.ndx) / 100, 2)
+          + " / 你均 " + fmtPct(avg(ups, (x) => x.r.pct) / 100, 2));
+        if (dns.length) part.push("跌的 " + dns.length + " 个月：指数均 " + fmtPct(avg(dns, (x) => x.mo.ndx) / 100, 2)
+          + " / 你均 " + fmtPct(avg(dns, (x) => x.r.pct) / 100, 2));
+        return '<div class="mc-sum"><b>完整 ' + full.length + " 个月里 " + same + " 个月与纳指同向</b> · "
+          + part.join(" · ") + "</div>";
+      })()
+      + (rows ? '<div class="mc-tbl">'
+        + '<div class="mc-row mc-head"><span class="mc-m">月份</span><b class="mc-ix">纳指</b>'
+        + '<b class="mc-me">我</b><b class="mc-pp">相对上证</b></div>'
+        + rows + "</div>"
+        + '<div class="mc-note">纳指当月取自 data.js 的 MONTHLY（标普在悬停里）；「我」是券商 App 的月度收益率'
+        + "（<b>资金加权</b>口径 —— 7 月显示 −13.73%，而当时持有的 ETF 当月只跌 4.43%，因为你在月中加过仓）。"
+        + "两列并排是让你看<b>关系</b>（同向？放大几倍？），<b>不要相减当超额收益</b> ✗</div>" : "");
   }
   const W = el.clientWidth || 360, H = 128, mT = 16, mB = 18, mL = 10, mR = 10;
   const maxAbs = Math.max.apply(null, S.monthly.map((r) => Math.abs(r.pnl)).concat([1]));
@@ -6482,6 +6633,34 @@ function renderAcctStats() {
       + "→ 想看统一的资金加权口径（你的钱实际赚了多少），见「本金与收益 · 收益率口径」里的 <b>XIRR</b>。</div>" +
     benchHtml() +
     '<div class="otc-note">月度盈亏为券商 App 口径（含已实现盈亏与税费），与上方总资产走势的归因口径（恒等式拆分）不同，两图互补勿混用；每月初在 data.js 的 ACCT_STATS 手动补读数。</div>';
+
+  /* ── 点开某个月看明细（2026-11-02 加，用户：「可以点击每个月，然后展开？」）──────────
+     事件**委托在卡上**（重绘不用重绑 ✓）；一次只开一个月 —— 6 组数据全摊开会很高 ✗
+     ⚠ 点的是整行 <button>，不是柱子：柱子才 ~18px，手机上点不中 ✗ */
+  if (!el.dataset.mcBound) {
+    el.dataset.mcBound = "1";
+    el.addEventListener("click", (ev) => {
+      const btn = ev.target.closest && ev.target.closest(".mc-row[data-ym]");
+      if (!btn) return;
+      const det = btn.nextElementSibling;
+      const wasOpen = !!(det && det.classList.contains("mc-detail") && !det.hidden);
+      el.querySelectorAll(".mc-detail").forEach((x) => { x.hidden = true; });
+      el.querySelectorAll(".mc-row[data-ym]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+      if (!wasOpen && det && det.classList.contains("mc-detail")) {
+        det.hidden = false;
+        btn.setAttribute("aria-expanded", "true");
+      }
+    });
+  }
+  /* 默认展开**最近一个有明细的完整月**（11 月是指数数据还没入表，展开只有交易 ✗） */
+  if (!el.querySelector(".mc-detail:not([hidden])")) {
+    const withD = [...el.querySelectorAll(".mc-detail")].filter((x) => Number(x.getAttribute("data-layers")) > 0);
+    if (withD.length) {
+      const lastD = withD[withD.length - 1];
+      lastD.hidden = false;
+      if (lastD.previousElementSibling) lastD.previousElementSibling.setAttribute("aria-expanded", "true");
+    }
+  }
 }
 /* 场内核月度图的**缩放重绘**（2026-10-09 修）——
    这张图与走势图、归因列头图一样是按**真实像素宽**画的 ✓（W = el.clientWidth），

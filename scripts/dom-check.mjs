@@ -1965,6 +1965,101 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     colKeys.length > 0 && bad2.length === 0, bad2.join("；") || (colKeys.length + " 列 · 全部点都在面板内 ✓"));
 }
 
+/* ④t 场内账户统计卡的「逐月对照表」（2026-11-02 加，二改）——
+     这张卡的注释早写着「上证不是合适基准，真正该比的是纳指/标普，那需要另补数据」；
+     MONTHLY 本来就有 2026 各月涨跌。表里每一行必须与两处数据逐格咬合：
+       ① 行数 ＝ ACCT_STATS.monthly 的月份数（少一个月就是少一行，肉眼很难发现 ✗）
+       ② 「纳指」列 ≡ MONTHLY[k].ndx（没进 MONTHLY 的月份显示「—」，不是 0.00% ✗）
+       ③ 「我」列 ≡ ACCT_STATS.monthly[].pct（券商 App 口径原样） */
+{
+  const rows = [...win.document.querySelectorAll(".mc-row")].filter((r) => !r.classList.contains("mc-head"));
+  if (!rows.length) {
+    check("场内账户统计卡有「逐月对照表」", false, "找不到 .mc-row");
+  } else {
+    const DC = vm.createContext({});
+    vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.A=ACCT_STATS;this.M=MONTHLY;", DC, { timeout: 9000 });
+    const A = DC.A, M = DC.M;
+    const bad = [];
+    if (rows.length !== (A.monthly || []).length) bad.push("行数 " + rows.length + " ≠ 月份 " + A.monthly.length);
+    (A.monthly || []).forEach((r, i) => {
+      const el = rows[i];
+      if (!el) return;
+      const k = Number(String(r.m).replace(/[^0-9]/g, "")) - 1;
+      const mo = M[k];
+      const cells = [...el.querySelectorAll("b")].map((b) => b.textContent.replace(/\s+/g, ""));
+      const sign = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+      if (mo) {
+        if (cells[0] !== sign(mo.ndx)) bad.push(r.m + " 纳指「" + cells[0] + "」≠ " + sign(mo.ndx));
+      } else if (cells[0] !== "—") bad.push(r.m + " 无 MONTHLY 数据却没显示「—」");
+      if (typeof r.pct === "number" && cells[1] !== sign(r.pct)) bad.push(r.m + " 我「" + cells[1] + "」≠ " + sign(r.pct));
+    });
+    check("场内账户统计：逐月对照表（" + rows.length + " 行）≡ MONTHLY ＋ ACCT_STATS 逐格核对",
+      bad.length === 0, bad.length ? bad.join("；") : "逐月一致 ✓");
+  }
+}
+
+/* ④u 「场内账户统计」点开某个月的明细（2026-11-02 加）——
+     每个 .mc-detail 里的三层（纳指 / 标普 / 综合）都必须 ≡ 独立复算：
+       同期 ＝ MONTHLY[k].ndx|spx ；综合＝上月末市值加权（日经用 RECENT.nikkei 的指数涨跌）
+       我的 ＝ TREND.items[code].mo 的**月末收盘**算出的 ETF 月度涨跌
+       ⚠ 不能用 HOLD_HIST 的 val ÷ qty —— 那个 val 是**成本**（26,200 × 2.1229 = 55,619），
+         当价格用会得出「10 月纳指ETF +1.49%」而真实是 −4.96% ✗
+     这批数全是「口头说得清、代码容易抄错」的类型（权重用月末还是上月末、日经用指数还是 ETF），
+     所以逐层对着 data.js 复算一遍 ✓ */
+{
+  const dets = [...win.document.querySelectorAll(".mc-detail")];
+  const bad = [];
+  if (!dets.length) bad.push("没有 .mc-detail");
+  const DC = vm.createContext({});
+  vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8")
+    + "\nthis.A=ACCT_STATS;this.M=MONTHLY;this.T=TREND;this.H=HOLD_HIST;this.P=POSITIONS;this.R=RECENT;", DC, { timeout: 12000 });
+  const A = DC.A, M = DC.M, T = DC.T.items || {}, H = DC.H.items || [], REC = DC.R;
+  const YR = String(A.updated || "").slice(0, 4);
+  const prevYm = (ym) => { const y = +ym.slice(0, 4), m = +ym.slice(5); return m === 1 ? (y - 1) + "-12" : y + "-" + String(m - 1).padStart(2, "0"); };
+  const etfMo = (c) => (T[c] && T[c].mo) || {};
+  const etfRet = (c, ym) => { const a = etfMo(c)[prevYm(ym)], b = etfMo(c)[ym]; return (a > 0 && b > 0) ? (b / a - 1) * 100 : null; };
+  const qtyAt = (c, ym) => { const it = H.find((x) => x.code === c); if (!it) return 0; let q = 0; for (const r of it.pts || []) if (r[0].slice(0, 7) <= ym) q = r[2]; return q; };
+  const nkRet = (ym) => {
+    const pts = (REC.nikkei && REC.nikkei.pts) || null; if (!pts) return null;
+    const eo = (y) => { let h = null; for (const x of pts) { if (x.d.slice(0, 7) <= y) h = x; else break; } return h; };
+    const a = eo(prevYm(ym)), b = eo(ym);
+    return (a && b && a.d !== b.d && a.c > 0) ? (b.c / a.c - 1) * 100 : null;
+  };
+  dets.forEach((det) => {
+    const btn = det.previousElementSibling;
+    const ym = btn && btn.getAttribute("data-ym");
+    if (!ym) { bad.push("明细块前面没有带 data-ym 的行"); return; }
+    const mo = M[(+ym.slice(5)) - 1];
+    const want = [];
+    if (mo) {
+      const rn = etfRet("159941", ym), rs = etfRet("513650", ym);
+      if (rn !== null) want.push({ k: "纳指", ix: mo.ndx, mine: rn });
+      if (rs !== null) want.push({ k: "标普", ix: mo.spx, mine: rs });
+      const p2 = prevYm(ym), val = {};
+      [["159941"], ["513650"], ["513880"]].forEach(([c]) => { const px = etfMo(c)[p2]; val[c] = px > 0 ? qtyAt(c, p2) * px : 0; });
+      const tot = (val["159941"] || 0) + (val["513650"] || 0) + (val["513880"] || 0);
+      const ixj = nkRet(ym), rj = etfRet("513880", ym);
+      if (tot > 0 && ixj !== null && rj !== null) {
+        const wn = val["159941"] / tot, ws = val["513650"] / tot, wj = val["513880"] / tot;
+        want.push({ k: "综合", ix: wn * mo.ndx + ws * mo.spx + wj * ixj, mine: wn * rn + ws * rs + wj * rj });
+      }
+    }
+    const got = [...det.querySelectorAll(".mcd-line")].map((l) => ({
+      k: l.getAttribute("data-layer"),
+      ix: Number(l.getAttribute("data-ix")),
+      mine: Number(l.getAttribute("data-mine")),
+    }));
+    if (got.length !== want.length) { bad.push(ym + " 层数 " + got.length + " ≠ 复算 " + want.length); return; }
+    want.forEach((w, i) => {
+      if (got[i].k !== w.k) bad.push(ym + " 第 " + (i + 1) + " 层是「" + got[i].k + "」而应为「" + w.k + "」");
+      if (Math.abs(got[i].ix - w.ix) > 0.005) bad.push(ym + "/" + w.k + " 同期 " + got[i].ix.toFixed(2) + " ≠ " + w.ix.toFixed(2));
+      if (Math.abs(got[i].mine - w.mine) > 0.005) bad.push(ym + "/" + w.k + " 我的 " + got[i].mine.toFixed(2) + " ≠ " + w.mine.toFixed(2));
+    });
+  });
+  check("场内账户统计：点开月份的明细（" + dets.length + " 个月）≡ MONTHLY ＋ TREND.mo 逐层复算",
+    bad.length === 0, bad.length ? bad.join("；") : "同期 / 我的 / 层数逐月一致 ✓");
+}
+
 /* ④o 场外账户统计卡（2026-10-10 加，用户：「场内账户统计 模块是不是可以加上场外账户统计？
    因为有数据在 finance/index.html 里了」）────────────────────────────────────────────────
    卡里的数全部来自 finance/finance-data.js（FIN_PL）✓ —— 本块**独立复算**一份再对：
