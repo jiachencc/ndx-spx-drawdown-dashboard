@@ -34,6 +34,8 @@ const STEPS = [
      顺序反了那三个块会拿旧流水算一遍 ✗（虽然它们只用到成交笔，但没必要留这个隐患）。
      ⚠ 幂等：账已平时打印「已齐，跳过写盘」，不影响其它步骤 ✓ */
   { key: "dca", label: "场外定投补记（OTC_LOG）", file: "scripts/sync-otc-dca.mjs" },
+  /* 已清仓标的的后市（2026-11-02 加）：给「已清仓标的后市」卡提供现价与 MACD（东财日线，2 个请求） */
+  { key: "sellafter", label: "已清仓标的后市（SELL_AFTER）", file: "scripts/build-sell-after.mjs" },
   { key: "rng", label: "当日区间（RANGE_LOG）", file: "scripts/fetch-trade-range.mjs" },
   { key: "hold", label: "各标的浮盈曲线（HOLD_HIST）", file: "scripts/fetch-hold-history.mjs" },
   { key: "prem", label: "逐笔溢价（PREM_LOG）", file: "scripts/fetch-trade-premium.mjs" },

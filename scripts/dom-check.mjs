@@ -2378,6 +2378,41 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     bad.length === 0, bad.join("；") || "逐项一致 ✓");
 }
 
+/* ④r 已清仓标的后市（2026-11-02 加）—— 两个数必须与**独立复算**一致：
+     ① 「现在」价 ＝ SELL_AFTER.items[code].px
+     ② 「比现在多拿 X」＝ 份数 × (卖出价 − 现价)（正数＝躲过下跌）
+   复算只读 data.js 的 HOLD_HIST / POSITIONS.log / SELL_AFTER，不读页面中间量 ✓ */
+{
+  const its = [...win.document.querySelectorAll("#sellafter-card .sa-item")];
+  if (!its.length) {
+    check("已清仓标的后市卡有条目", false, "找不到 #sellafter-card .sa-item");
+  } else {
+    const DC = vm.createContext({});
+    vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.P=POSITIONS;this.H=HOLD_HIST;this.S=SELL_AFTER;", DC, { timeout: 9000 });
+    const P = DC.P, H = DC.H, S = DC.S;
+    const bad = [];
+    its.forEach((el) => {
+      const code = el.getAttribute("data-code");
+      const sa = (S.items || {})[code];
+      if (!sa) { bad.push(code + " 不在 SELL_AFTER 里"); return; }
+      if (Math.abs(Number(el.getAttribute("data-px")) - sa.px) > 0.001)
+        bad.push(code + " 现价 " + el.getAttribute("data-px") + " ≠ " + sa.px);
+      const nm = ((H.items || []).find((x) => x.code === code) || {}).name;
+      const mine = (P.log || []).filter((e) => e.sym === nm && /卖出|减仓|清仓/.test(String(e.act || "")))
+        .sort((a, b) => (a.d < b.d ? 1 : -1));
+      if (!mine.length) { bad.push(code + " 找不到卖出记录"); return; }
+      const qty = mine[0].qty, sp = mine[0].cost;
+      const gap = qty * (sp - sa.px);
+      if (Math.abs(Number(el.getAttribute("data-gap")) - gap) > 1)
+        bad.push(code + " 差额 " + el.getAttribute("data-gap") + " ≠ 复算 " + gap.toFixed(2));
+      if (Math.abs(Number(el.getAttribute("data-sellpx")) - sp) > 0.0005)
+        bad.push(code + " 卖出价 ≠ log " + sp);
+    });
+    check("已清仓标的后市：现价 / 卖出价 / 差额（" + its.length + " 只）≡ 独立复算",
+      bad.length === 0, bad.length ? bad.join("；") : "逐只核对通过 ✓");
+  }
+}
+
 /* ④q 买入坐标散点图（2026-10-31 加）—— 三类数必须与**独立复算**一致：
      ① 点数 ＝ 有指数日线且有溢价读数的买入笔数
      ② 「买在高位」＝ 落在指数 52 周分位 ≥60% 的买入**金额**占比

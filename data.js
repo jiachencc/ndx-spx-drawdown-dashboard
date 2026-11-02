@@ -9316,8 +9316,8 @@ const PREM_SCAN = {
    "code": "159941",
    "name": "纳指ETF广发",
    "dropped": 0,
-   "scale": 379,
-   "turnover": 12.25,
+   "scale": 377,
+   "turnover": 5.02,
    "cur": 12.13,
    "date": "2026-10-30",
    "q3": 63,
@@ -9333,8 +9333,8 @@ const PREM_SCAN = {
    "code": "513100",
    "name": "纳指ETF国泰",
    "dropped": 1,
-   "scale": 217,
-   "turnover": 4.56,
+   "scale": 216,
+   "turnover": 2.29,
    "cur": 13.87,
    "date": "2026-10-30",
    "q3": 68,
@@ -9351,7 +9351,7 @@ const PREM_SCAN = {
    "name": "纳斯达克ETF华夏",
    "dropped": 0,
    "scale": 148,
-   "turnover": 5.28,
+   "turnover": 2.33,
    "cur": 9.75,
    "date": "2026-10-30",
    "q3": 54,
@@ -9368,7 +9368,7 @@ const PREM_SCAN = {
    "name": "纳斯达克ETF华安",
    "dropped": 0,
    "scale": 128,
-   "turnover": 3.79,
+   "turnover": 2.04,
    "cur": 8.95,
    "date": "2026-10-30",
    "q3": 43,
@@ -9384,8 +9384,8 @@ const PREM_SCAN = {
    "code": "159501",
    "name": "纳指ETF嘉实",
    "dropped": 0,
-   "scale": 153,
-   "turnover": 1.12,
+   "scale": 152,
+   "turnover": 0.71,
    "cur": 16.83,
    "date": "2026-10-30",
    "q3": 86,
@@ -9402,7 +9402,7 @@ const PREM_SCAN = {
    "name": "纳斯达克100ETF招商",
    "dropped": 0,
    "scale": 112,
-   "turnover": 1.91,
+   "turnover": 1.03,
    "cur": 10.85,
    "date": "2026-10-30",
    "q3": 75,
@@ -9419,7 +9419,7 @@ const PREM_SCAN = {
    "name": "纳斯达克100ETF大成",
    "dropped": 0,
    "scale": 91,
-   "turnover": 3.49,
+   "turnover": 1.36,
    "cur": 8.74,
    "date": "2026-10-30",
    "q3": 48,
@@ -9436,7 +9436,7 @@ const PREM_SCAN = {
    "name": "纳指ETF华泰柏瑞",
    "dropped": 0,
    "scale": 55,
-   "turnover": 3.07,
+   "turnover": 1.66,
    "cur": 8.75,
    "date": "2026-10-30",
    "q3": 37,
@@ -9453,7 +9453,7 @@ const PREM_SCAN = {
    "name": "纳指ETF汇添富",
    "dropped": 0,
    "scale": 61,
-   "turnover": 1.69,
+   "turnover": 0.75,
    "cur": 9.74,
    "date": "2026-10-30",
    "q3": 60,
@@ -9470,7 +9470,7 @@ const PREM_SCAN = {
    "name": "纳指100ETF博时",
    "dropped": 0,
    "scale": 68,
-   "turnover": 2.4,
+   "turnover": 1.28,
    "cur": 9.67,
    "date": "2026-10-30",
    "q3": 62,
@@ -9615,7 +9615,7 @@ const DDHIST = {
 };
 
 const HOLD_HIST = {
- "asOf": "2026-10-30",
+ "asOf": "2026-11-02",
  "source": "Tencent qfq daily + POSITIONS.log",
  "items": [
   {
@@ -9623,7 +9623,7 @@ const HOLD_HIST = {
    "name": "纳指ETF广发",
    "idx": "ndx",
    "first": "2026-06-23",
-   "last": "2026-10-30",
+   "last": "2026-11-02",
    "closed": false,
    "closedDate": null,
    "realized": 0,
@@ -9631,7 +9631,7 @@ const HOLD_HIST = {
    "ifHeld": null,
    "qty": 113300,
    "avg": 1.6144,
-   "pl": 3918,
+   "pl": 2898,
    "pts": [
     [
      "2026-06-23",
@@ -10248,6 +10248,13 @@ const HOLD_HIST = {
      113300,
      1.6144,
      182914
+    ],
+    [
+     "2026-11-02",
+     2898,
+     113300,
+     1.6144,
+     182914
     ]
    ],
    "phantom": []
@@ -10257,7 +10264,7 @@ const HOLD_HIST = {
    "name": "标普500ETF南方",
    "idx": "spx",
    "first": "2026-06-24",
-   "last": "2026-10-30",
+   "last": "2026-11-02",
    "closed": false,
    "closedDate": null,
    "realized": 0,
@@ -10265,7 +10272,7 @@ const HOLD_HIST = {
    "ifHeld": null,
    "qty": 98900,
    "avg": 1.975,
-   "pl": 696,
+   "pl": -392,
    "pts": [
     [
      "2026-06-24",
@@ -10875,6 +10882,13 @@ const HOLD_HIST = {
      98900,
      1.975,
      195324
+    ],
+    [
+     "2026-11-02",
+     -392,
+     98900,
+     1.975,
+     195324
     ]
    ],
    "phantom": []
@@ -10884,7 +10898,7 @@ const HOLD_HIST = {
    "name": "日经225ETF华安",
    "idx": "n225",
    "first": "2026-06-23",
-   "last": "2026-10-30",
+   "last": "2026-11-02",
    "closed": false,
    "closedDate": null,
    "realized": 0,
@@ -11509,6 +11523,13 @@ const HOLD_HIST = {
      26200,
      2.1229,
      55619
+    ],
+    [
+     "2026-11-02",
+     -1726,
+     26200,
+     2.1229,
+     55619
     ]
    ],
    "phantom": []
@@ -11523,7 +11544,7 @@ const HOLD_HIST = {
    "closedDate": "2026-10-09",
    "realized": -5275,
    "invested": 39715,
-   "ifHeld": -678,
+   "ifHeld": -676,
    "qty": 0,
    "avg": 2.0139,
    "pl": -176,
@@ -12250,6 +12271,13 @@ const HOLD_HIST = {
      2100,
      2.0139,
      4229
+    ],
+    [
+     "2026-11-02",
+     -869,
+     2100,
+     2.0139,
+     4229
     ]
    ]
   },
@@ -12263,7 +12291,7 @@ const HOLD_HIST = {
    "closedDate": "2026-10-09",
    "realized": -13217,
    "invested": 85674,
-   "ifHeld": -12859,
+   "ifHeld": -10306,
    "qty": 0,
    "avg": 5.3852,
    "pl": -12772,
@@ -12885,6 +12913,13 @@ const HOLD_HIST = {
      15200,
      5.3852,
      81856
+    ],
+    [
+     "2026-11-02",
+     -23001,
+     15200,
+     5.3852,
+     81856
     ]
    ]
   }
@@ -12941,6 +12976,37 @@ const FLOWS = [];   // 留空（收入侧指纹，不入库）
  *     是**「近半年」窗口**（2026-04-16 ~ 当日）✗ —— 与本块 `total/count/winRate` **不是同一个窗口**
  *     （本块 18 行含 03-05 建仓的申万菱信等，早已出窗 ✓），**不采用、勿拿它覆盖聚合三值** ✗。
  *   ⚠ 这一笔的落账口径（回款记为**外部流出**、已实现不加回「在持」）见 positions-data.js 的 SNAPSHOTS 10-14 期与 OTC_CLEARED。 */
+const SELL_AFTER = {
+  "asOf": "2026-11-02",
+  "note": "已清仓场内标的的后市读数（东财日线 fqt=1）：px＝最新收盘；MACD(12,26,9) 只作观察、不进任何决策。由 scripts/build-sell-after.mjs 生成。",
+  "items": {
+    "160644": {
+      "name": "港美互联网LOF",
+      "px": 1.603,
+      "pxDate": "2026-11-02",
+      "dif": -0.0588,
+      "dea": -0.0454,
+      "bull": false,
+      "aboveZero": false,
+      "crossType": "death",
+      "crossDate": "2026-10-12",
+      "crossAgo": 15
+    },
+    "513310": {
+      "name": "中韩半导体ETF华泰",
+      "px": 3.872,
+      "pxDate": "2026-11-02",
+      "dif": -0.2423,
+      "dea": -0.2527,
+      "bull": true,
+      "aboveZero": false,
+      "crossType": "gold",
+      "crossDate": "2026-11-02",
+      "crossAgo": 0
+    }
+  }
+};
+
 const CLOSED = {
   updated: "2026-09-30",   // = 完整版「清仓分析」截图日（09-30 23:35 三张）；统计区间由 buy/sell 两列现算，不再靠这个日期
                            //   ⚠ 2026-10-16 起本块是**复合来源**：17 行仍是 09-30 那版的原读数（含各自的 after），

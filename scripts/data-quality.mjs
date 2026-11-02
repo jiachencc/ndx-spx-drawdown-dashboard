@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, DDHIST, PREM_SCAN };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, SELL_AFTER, DDHIST, PREM_SCAN };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -234,6 +234,22 @@ export function validateModel(m) {
     const syms = [...new Set(m.POSITIONS.log.map((e) => e.sym).filter(Boolean))];
     const missing = syms.filter((s) => !(s in plg.items));
     if (missing.length) errors.push("PREM_LOG 缺标的（多半是合并时被静默删掉）：" + missing.join("、"));
+  }
+
+  /* ── SELL_AFTER（已清仓标的的后市，2026-11-02 加）──────────────────────────
+     它是 scripts/build-sell-after.mjs 抓的日线读数，**每只已清仓的场内标的都必须有**。
+     缺了不会报错，只是「已清仓标的后市」卡少一行 —— 肉眼发现不了 ✗，所以机器守。 */
+  if (m.SELL_AFTER && m.SELL_AFTER.items && m.HOLD_HIST && Array.isArray(m.HOLD_HIST.items)) {
+    const closedRows = m.HOLD_HIST.items.filter((x) => x && x.closed && x.code);
+    const missSA = closedRows.filter((x) => !m.SELL_AFTER.items[x.code]).map((x) => x.code + " " + x.name);
+    if (missSA.length) errors.push("SELL_AFTER 缺已清仓标的（跑 scripts/build-sell-after.mjs）：" + missSA.join("、"));
+    Object.keys(m.SELL_AFTER.items).forEach((c) => {
+      const v = m.SELL_AFTER.items[c];
+      if (!(Number.isFinite(v.px) && v.px > 0)) errors.push("SELL_AFTER." + c + " px 非法：" + v.px);
+      if (!(Number.isFinite(v.dif) && Number.isFinite(v.dea))) errors.push("SELL_AFTER." + c + " MACD 非法");
+      if (v.crossType !== "gold" && v.crossType !== "death" && v.crossType !== null)
+        errors.push("SELL_AFTER." + c + " crossType 非法：" + v.crossType);
+    });
   }
   /* DDHIST（回撤历史对照，2026-10-24 加）：事件与分布必须自洽 ——
      事件是「峰→谷」的日期对 + 负跌幅；分布是单调的（≥5% 的段数 ≥ ≥10% ≥ ≥15% ≥ ≥20%）；

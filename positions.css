@@ -2193,6 +2193,31 @@
 .bp-note { font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.6; margin-top: 6px;
   padding-top: 6px; border-top: 1px dashed var(--line-soft); }
 
+/* ══ 已清仓标的后市卡（2026-11-02 加）════════════════════════════════════
+   每只一块：名称+已实现 / 「卖出 vs 现在」两行数字 / 结论（卖对了 or 卖早了）/ MACD 观察
+   ⚠ 结论行用 good（绿底）/ bad（红底）**两套配色**，而不是只靠数字正负 ——
+     「−14.8%」对持仓是坏事，对已清仓是好事 ✗ 光看颜色会读反。 */
+.sa-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.sa-item { flex: 1 1 260px; min-width: 0; padding: 8px 10px; border-radius: 8px;
+  background: var(--surface-2, rgba(147,163,187,.06)); border: 1px solid var(--line-soft); }
+.sa-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.sa-nm { font-size: var(--fs-sm); font-weight: 600; }
+.sa-code { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); }
+.sa-real { margin-left: auto; font-family: var(--mono); font-size: var(--fs-xxs); }
+.sa-nums { display: grid; grid-template-columns: auto auto 1fr; gap: 1px 8px; align-items: baseline;
+  margin-top: 5px; font-size: var(--fs-xs); }
+.sa-nums .sa-k { color: var(--tx3); white-space: nowrap; }
+.sa-nums b { font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+.sa-nums i { font-style: normal; color: var(--tx3); font-family: var(--mono); font-size: var(--fs-xxs); }
+.sa-verdict { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 5px;
+  padding: 3px 7px; border-radius: 5px; font-size: var(--fs-xs); }
+.sa-verdict.good { background: rgba(20,140,100,.12); border: 1px solid rgba(20,140,100,.25); }
+.sa-verdict.bad { background: rgba(208,36,64,.10); border: 1px solid rgba(208,36,64,.22); }
+.sa-verdict em { font-style: normal; font-family: var(--mono); font-weight: 700; font-feature-settings: "tnum"; }
+.sa-verdict span { color: var(--tx2); }
+.sa-verdict b { font-family: var(--mono); }
+.sa-macd { margin-top: 5px; font-size: var(--fs-xxs); color: var(--tx3); font-family: var(--mono); }
+
 /* 逐笔流水的「成交时溢价」chip（2026-10-20 加） */
 .log-prem { font-family: var(--mono); font-size: 10px; color: var(--tx3); white-space: nowrap; }
 .log-prem.hot { color: var(--yellow); }
