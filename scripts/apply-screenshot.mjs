@@ -93,10 +93,14 @@ for (const f of input.otc || []) {
      → 本期就该记 null ✓（把上一期那个 −213.45 再记一遍＝重复计入 ✗）。
      原校验要求 day 必须有限数 → 这种「尚未更新」的合法状态**根本写不进去** ✗（与数据模型自相矛盾 ✗）。
      value / pnl / qty 仍必须是数（沿用上一期也要显式写出来 ✓）。 */
-  for (const k of ["value", "pnl", "qty"]) if (!Number.isFinite(f[k])) errors.push(labelOf(f.code) + " 缺 " + k);
+  /* ⚠ 这里只能用**代码**，不能用 labelOf —— 它和 NAME_MAP 都声明在下面（第 158 行附近），
+     在模块顶层提前引用会直接 `Cannot access 'labelOf' before initialization` ✗
+     （2026-11-02 踩到：某只漏给 qty 时走的就是这条分支，一崩连"缺哪个字段"都看不到） */
+  const tagOf = (code) => String(code);
+  for (const k of ["value", "pnl", "qty"]) if (!Number.isFinite(f[k])) errors.push(tagOf(f.code) + " 缺 " + k);
   if (!(Number.isFinite(f.day) || f.day === null))
-    errors.push(labelOf(f.code) + " 的 day 必须是数或 null（null = 该净值日未更新，勿用 0 冒充 ✗）");
-  if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(labelOf(f.code) + " 缺 navClose/navDate");
+    errors.push(tagOf(f.code) + " 的 day 必须是数或 null（null = 该净值日未更新，勿用 0 冒充 ✗）");
+  if (!Number.isFinite(f.navClose) || !isDate(f.navDate)) errors.push(tagOf(f.code) + " 缺 navClose/navDate");
   /* upd 必须**不早于**本期快照日：页面按它判「已同步」，日期早了就会显示「N 只未更新」、
      并把该只的当日收益从合计里剔除（2026-09-23 自检时正是这样被 dom-check 抓到的 —— 沿用上期 upd 即翻车）。
      ⚠ 2026-10-16：判据**移到 positions-logic.js 的 POS_LOGIC.synced**（与页面、门禁同一份源码 ✓）——
