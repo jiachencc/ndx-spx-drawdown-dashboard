@@ -40,6 +40,9 @@
     <div class="legend" id="asset-note"></div>
   </div>
 
+  <h2 class="sec"><span aria-hidden="true">💎</span> 总资产走势 <span class="cnt">只有 3 个可信时点：9 月末、10 月末（倒推）、11-03</span></h2>
+  <div class="card"><div id="total-hist"></div></div>
+
   <h2 class="sec"><span aria-hidden="true">📈</span> 收益总览 <span class="cnt" id="pl-cnt"></span></h2>
   <div class="card"><div class="kpis" id="kpis"></div></div>
 
@@ -92,6 +95,7 @@ const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
 const sum = (a) => a.reduce((x, y) => x + (y || 0), 0);
 const monthLabel = (m) => +m.slice(5) + "月";
 /* 「当月最强 / 最弱」那列要短名：招商银行 → 招行、平安证券 → 平安 ✓（4 列挤在 414px 里） */
+const y0 = (v) => Math.round(v).toLocaleString("en-US");
 const shortAcct = (n) => String(n).replace(/招商银行/, "招行").replace(/蚂蚁财富/, "蚂蚁")
   .replace(/平安证券/, "平安").replace(/南方基金/, "南方").replace(/博时基金/, "博时")
   .replace(/广发基金/, "广发").replace(/华安基金/, "华安");
@@ -329,6 +333,36 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
       + '<span class="mbar ' + (v >= 0 ? "pos" : "neg") + '" style="width:' + w.toFixed(2) + '%"></span></span>'
       + '<span class="mv ' + cls(v) + '">' + fmt(v) + "</span></div>";
   }).join("") + "</div>";
+})();
+
+/* ---- ②b 总资产走势（2026-11-03 加，用户选 A：只做数据可信的月份）----
+ * 三个点：9 月末（实测）、10 月末（倒推）、11-03（实测）✓
+ * ⚠ 10 月末是**倒推**：＝9 月末 ＋ 10 月收益，前提是"当月无外部净流入" ✓
+ *   页面必须把这个前提写出来 —— 否则读者会以为是实测 ✗ */
+(function renderTotalHist() {
+  const el = document.getElementById("total-hist");
+  if (!el || typeof FIN_TOTAL_HIST === "undefined") return;
+  const H = FIN_TOTAL_HIST;
+  const rows = H.map((r, i) => {
+    const prev = i > 0 ? H[i - 1] : null;
+    const dv = prev ? r.v - prev.v : null;
+    const mark = r.src === "measured" ? '<i class="th-ok" title="7 个账户余额逐项实测">✓ 实测</i>'
+      : '<i class="th-dev" title="＝上月末 ＋ 当月收益（假设当月无外部资金进出）">◐ 倒推</i>';
+    return '<div class="th-row"><span class="th-d">' + r.d + "</span>"
+      + '<b class="th-v">' + Math.round(r.v).toLocaleString("en-US") + "</b>"
+      + '<b class="th-dv ' + (dv === null ? "muted" : cls(dv)) + '">' + (dv === null ? "—" : fmt0(dv)) + "</b>"
+      + '<span class="th-mark">' + mark + "</span>"
+      + '<span class="th-note">' + r.note + "</span></div>";
+  }).join("");
+  const first = H[0], last = H[H.length - 1];
+  const chg = last.v - first.v, pct = (chg / first.v) * 100;
+  el.innerHTML = '<div class="th">'
+    + '<div class="th-row th-head"><span class="th-d">时点</span><b class="th-v">总资产</b><b class="th-dv">变化</b><span class="th-mark">来源</span><span class="th-note"></span></div>'
+    + rows
+    /* 绝对额不带正负号（fmt0 会给正数加 + ✗）*/
+    + '</div><div class="th-sum">从 <b>' + y0(first.v) + "</b> 到 <b>" + y0(last.v) + "</b>："
+    + '<b class="' + cls(chg) + '">' + fmt0(chg) + "（" + (pct >= 0 ? "+" : "−") + Math.abs(pct).toFixed(1) + "%）</b>"
+    + " · 全部来自投资收益，<b>没有外部资金进出</b>（那 3.5 万是招行→平安的内部搬家，不影响总额）✓</div>";
 })();
 
 /* ---- ③b 月度对比（2026-11-03 加，用户：「给我每个月一个数据对比」）----
