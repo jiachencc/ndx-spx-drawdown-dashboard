@@ -61,7 +61,7 @@
   <div class="card"><div class="notes" id="notes"></div></div>
 
   <footer>
-    <b>进度</b>：①「收益看板」✅（本页下面全部，月频账户级）｜ ②「总资产」✅ <b>当期版</b>（2026-09 月末构成，见页首；
+    <b>进度</b>：①「收益看板」✅（本页下面全部，月频账户级）｜ ②「总资产」✅ <b>当期版</b>（各账户最近一次读数构成，见页首；
     历史月末余额不好找 → 暂只做当期，堆叠面积等攒够月度余额再画）｜ ③「收支看板」待做。<br>
     ③ 需要银行 / 支付宝的流水（当月转入 / 转出 → 结余率）；数据层已预留 <code>FIN_FLOW</code>，<b>只填数、不改结构</b>。<br>
     ⚠ 收支口径要先定：<b>投资账户之间的转账不算支出</b>（应单列一类），否则储蓄率会算错。<br>
@@ -178,7 +178,8 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
     + '<tr class="sum"><td class="acct">投资合计</td><td class="pct">100.0%</td><td>' + y(invTotal) + "</td></tr>";
   /* ⑤ 结构 × 收益（联动结论，2026-10-01 加）——
      把「钱在哪」与「赚 / 亏 / 波动在哪」摆到一起：单看资产看不出风险集中，单看收益看不出仓位。
-     ⚠ 仓位一律用**9 月末余额占比**（不是全年平均仓位）→ 比率只作量级参考，故口径行如实标注。
+     ⚠ 仓位一律用**各账户最新一次余额**的占比（不是全年平均、也不是事件发生当月的仓位）
+       → 2026-11-03 起余额更新到 11 月，这里的百分比会跟着变；比率只作量级参考，口径行如实标注 ✓
      结论全部现算：余额、月度、收益任何一处变了，这几行会自己跟着变。 */
   const yrOf = (a) => annualOf(a.id);
   const volOf = (a) => sum(Object.values(rowOf(a.id)).filter((v) => typeof v === "number").map(Math.abs));
@@ -203,7 +204,7 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
     [monthShort(worst.m) + "那波 " + fmt(worst.v), "归因：" + wRows.map((r) =>
       "<b>" + r.a.name + "</b> " + fmt(r.v) + "（占 " + sh(r.v, worst.v) + "，仓位 " + sh(r.b, invTotal) + "）").join(" ｜ ")
       + " —— 前 3 家占 " + sh(sum(wRows.map((r) => r.v)), worst.v)],
-    ["口径", "「波动」= Σ|当月收益|（盈亏不互相抵消）；「仓位」= <b>9 月末</b>余额占比，不是全年平均仓位 → 比率只看量级，别当精确值", true],
+    ["口径", "「波动」= Σ|当月收益|（盈亏不互相抵消）；「仓位」= <b>各账户最新余额</b>占比（2026-11-03 → 11 月），不是全年平均、也不是事件当月的实际仓位 → 比率只看量级，别当精确值", true],
   ];
   document.getElementById("asset-brief").innerHTML = brief.map((b) =>
     '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("");
