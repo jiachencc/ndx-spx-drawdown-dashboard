@@ -1542,9 +1542,24 @@
   .trend-readout { font-size: var(--fs-xs); color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; text-align: center; padding: 6px 8px; margin-bottom: 6px;
  background: var(--card2); border: 1px solid var(--line-soft); border-radius: 8px; line-height: 1.6; display: flex; flex-direction: column; justify-content: center; }
   .trend-readout.live { border-color: var(--accent-line); }
+  /* crosshair 平滑吸附（2026-11-03 加）——
+     原来 showXhair 每帧直接改 cx/cy，相邻期的 y 可能差 100px+（比如 6 月 ÷ 7 月那个坑），
+     鼠标一划圆点就"瞬移"，主观感受就是**上蹿下跳** ✗
+     90ms 缓动 ≈ 5~6 帧，既跟得上手、又把瞬移改成滑动 ✓
+     ⚠ 用 SVG 几何属性做过渡，Chrome 79+ 支持；不支持时退化为原来的瞬移，不影响功能 ✓ */
+  /* 横向 60ms（3~4 帧，跟手不拖沓）、纵向 90ms（相邻期 y 差可达 100px+，需要更长的缓动才不晃）*/
+  .xhair-line { transition: x1 .06s ease-out, x2 .06s ease-out; }
+  .xhair-dot { transition: cx .06s ease-out, cy .09s ease-out; }
+  /* 触摸/拖拽时不加过渡（否则手指快速划过会「追」得慢半拍）*/
+  @media (prefers-reduced-motion: reduce) {
+    .xhair-line, .xhair-dot { transition: none; }
+  }
   .trend-readout b { color: var(--tx); }
   /* ↓ 金额视图的三层结构：状态头 / 三列主数 / 归因等式 */
-  .trend-readout.ro-rich { text-align: left; min-height: 78px; }
+  /* ⚠ 2026-11-03：min-height 78 → **82**。实测「金额」视图第 1 期内容少、撑到 78，
+     第 5 期撑到 82 → 鼠标横划时读数条高度在 78/82 之间跳，**下方图表跟着上下移动 4px** ✗
+     82 是各视图的自然高度（除「区间统计」110，那个是刻意的多行统计块）✓ */
+  .trend-readout.ro-rich { text-align: left; min-height: 82px; }
   .trend-readout .nb { white-space: nowrap; }
   /* 窄屏口径行必须能折行（2026-10-04）：「盈亏全程」视图那条口径文案很长，nowrap 下它会以单行
      摊开（实测 739px，把 390px 视口顶出 381px 横向滚动）。光去掉 nowrap 不够 —— 它在 .ro-attr
