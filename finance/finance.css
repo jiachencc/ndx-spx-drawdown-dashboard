@@ -116,6 +116,16 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
 /* 11 月（进行中）：淡底 ＋ 右侧虚线，明确它不在累计里 ✗ */
 .mcmp-mtd { background: var(--surface-2, rgba(147, 163, 187, .06)); border-radius: 4px;
   padding-left: 4px; padding-right: 4px; border-bottom-style: dashed; }
+/* ---- 每月要点（2026-11-03 加）----
+   表格给"数字对比"，这块给"一句话"：主因 ＋ 相对上证 ＋ 操作强度。
+   ⚠ 月份做左标签、内容右对齐会读成表格；这里**月份固定窄列 + 正文自然折行** ✓ */
+.mcmp-keys { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line-soft); }
+.mcmp-keys-h { font-size: var(--fs-xxs); color: var(--tx3); margin-bottom: 6px; }
+.mcmp-keys-h i { font-style: normal; opacity: .75; }
+.mcmp-k { display: grid; grid-template-columns: 2.9em 1fr; gap: 2px 8px;
+  padding: 3px 0; font-size: var(--fs-xs); line-height: 1.55; color: var(--tx2); }
+.mcmp-km { color: var(--tx3); font-family: var(--mono); white-space: nowrap; }
+
 .mcmp-note { margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
   font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.65; }
 .mcmp-note b { color: var(--tx2); }

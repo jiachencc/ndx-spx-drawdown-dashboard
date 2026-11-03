@@ -381,7 +381,51 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
       + '<span class="mcmp-ext"><b class="' + cls(s2[0].v) + '">' + shortAcct(s2[0].n) + " " + fmtS(s2[0].v) + "</b><i>／</i>"
       + '<b class="' + cls(s2[s2.length - 1].v) + '">' + shortAcct(s2[s2.length - 1].n) + " " + fmtS(s2[s2.length - 1].v) + "</b></span></div>";
   })() : "";
-  el.innerHTML = '<div class="mcmp">' + head + body + mtdRow + "</div>";
+  /* ── 每月要点（2026-11-03 加，用户：「我想看的是月度的简单总结 / 当月从数据分析出来什么」）──
+     每一句都是**现算**的，不写主观评价（不出现"太急了""追高了"这类判断）✗
+     三要素：① 主因（哪家、占多少）② 相对表现（只对平安，它才有月度百分比＋基准）
+             ③ 操作强度（当月交易笔数） */
+  const fmtPp1 = (v) => (v >= 0 ? "跑赢 " : "跑输 ") + Math.abs(v).toFixed(1) + "pp";
+  /* ⚠ 财务页没有 fmtPct（那是持仓页的工具）→ 自己算一个，减号统一用 − 而不是 ASCII 连字符 ✗ */
+  const pctTxt = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%";
+  const keyOf = (m, tot, vals) => {
+    const sorted = vals.slice().sort((x, y) => y.v - x.v);
+    const best = sorted[0], worst = sorted[sorted.length - 1];
+    const parts = [];
+    /* ① 主因：最大拖累（亏月）或最大贡献（赚月） */
+    const lead = tot < 0 ? worst : best;
+    const share = tot !== 0 ? Math.abs(lead.v / tot) * 100 : 0;
+    if (lead && Math.abs(lead.v) > 1) {
+      parts.push(shortAcct(lead.n) + " " + fmt0(lead.v)
+        + (share >= 40 && share <= 100 ? "（占 " + share.toFixed(0) + "%）" : ""));
+    }
+    /* ② 相对表现：只有平安有月度百分比＋基准，且当月有交易时才有意义 */
+    /* ⚠ 财务页没有 ACCT_STATS（那是持仓页的）→ 用本页的 FIN_BENCH ✓ 它存了平安的月度 pct ＋ 上证基准 */
+    const ac = (typeof FIN_BENCH !== "undefined" && FIN_BENCH[m]) || null;
+    if (ac && typeof ac.pct === "number" && typeof ac.bench === "number") {
+      parts.push("平安 " + pctTxt(ac.pct) + " " + fmtPp1(ac.pct - ac.bench));
+    }
+    /* ③ 操作强度 */
+    const n = (typeof FIN_TRADES !== "undefined" && FIN_TRADES[m]) || 0;
+    if (n) parts.push(n + " 笔交易");
+    return parts.join(" · ");
+  };
+  /* 11 月（进行中）也来一行 —— 它不在 rows 里（不进累计）✓ */
+  const mtdKey = (() => {
+    const m2 = MTD && MTD.month;
+    if (!m2) return "";
+    const vals = A.map((a) => ({ n: a.name, v: (MTD.pl || {})[a.id] })).filter((x) => typeof x.v === "number");
+    if (!vals.length) return "";
+    const tot = vals.reduce((t, x) => t + x.v, 0);
+    return '<div class="mcmp-k"><b class="mcmp-km">' + monthShort(m2) + "</b><span>仅 2 个交易日 · "
+      + keyOf(m2, tot, vals) + "</span></div>";
+  })();
+  const keys = rows.map((r) => {
+    const vals = A.map((a) => ({ n: a.name, v: (PL[a.id] || {})[r.m] })).filter((x) => typeof x.v === "number");
+    return '<div class="mcmp-k"><b class="mcmp-km">' + monthShort(r.m) + "</b><span>" + keyOf(r.m, r.v, vals) + "</span></div>";
+  }).join("");
+  el.innerHTML = '<div class="mcmp">' + head + body + mtdRow + "</div>"
+    + '<div class="mcmp-keys"><div class="mcmp-keys-h">每月要点 <i>· 现算：主因 ＋ 相对上证（仅平安有基准）＋ 操作强度</i></div>' + keys + mtdKey + "</div>";
 })();
 
 /* ---- ④ 账户年度排行（**自左向右、无中轴**，2026-10-10 第四版）----
