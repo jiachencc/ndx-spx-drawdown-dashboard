@@ -49,6 +49,11 @@
   <h2 class="sec"><span aria-hidden="true">📈</span> 逐月合计 <span class="cnt">条自左向右＝量级（同一把尺）· <b>红＝盈、绿＝亏</b> · 每月都标完整数字</span></h2>
   <div class="card"><div id="bars"></div></div>
 
+  <h2 class="sec"><span aria-hidden="true">📅</span> 月度对比 <span class="cnt">一月一行：当月 / 累计 / 当月最强 ＋ 最弱 · 逐格悬停给完整数字</span></h2>
+  <div class="card"><div id="mcmp"></div>
+    <div class="mcmp-note">「累计」从 1 月起加；<b>11 月是进行中</b>（只 2 个交易日）→ 单独排在最后、<b>不进累计</b> ⚠ 「最好 / 最差」按当月<b>金额</b>，不看收益率（小额账户百分比会失真 ✗）；某月全赚时「最差」＝赚得最少的那个 ✓</div>
+  </div>
+
   <h2 class="sec"><span aria-hidden="true">🏆</span> 账户年度排行 <span class="cnt" id="rank-cnt"></span></h2>
   <div class="card"><div id="rank"></div></div>
 
@@ -81,9 +86,15 @@ const A = FIN_ACCOUNTS, MS = FIN_MONTHS, PL = FIN_PL, DER = FIN_DERIVED, BAL = F
 const MTD = (typeof FIN_MTD !== "undefined") ? FIN_MTD : null;
 const fmt = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (v) => (v >= 0 ? "+" : "−") + Math.round(Math.abs(v)).toLocaleString("en-US");
+/* 小额取整会变成「+0」看不出所以然 ✗（蚂蚁 1 月的 +0.31）→ 不足 10 元的保留两位 ✓ */
+const fmtS = (v) => (Math.abs(v) < 10 ? fmt(v) : fmt0(v));
 const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
 const sum = (a) => a.reduce((x, y) => x + (y || 0), 0);
 const monthLabel = (m) => +m.slice(5) + "月";
+/* 「当月最强 / 最弱」那列要短名：招商银行 → 招行、平安证券 → 平安 ✓（4 列挤在 414px 里） */
+const shortAcct = (n) => String(n).replace(/招商银行/, "招行").replace(/蚂蚁财富/, "蚂蚁")
+  .replace(/平安证券/, "平安").replace(/南方基金/, "南方").replace(/博时基金/, "博时")
+  .replace(/广发基金/, "广发").replace(/华安基金/, "华安");
 /* 第三阶段的标签从数据里取（keys 顺序：1–6月 / 7月 / 8–10月）→ 加月不用改页面 ✓ */
 const PHASE3 = (() => {
   const ks = Object.keys((typeof FIN_CLAIMS !== "undefined" && FIN_CLAIMS.phases) || {});
@@ -317,6 +328,60 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
       + '<span class="mbar ' + (v >= 0 ? "pos" : "neg") + '" style="width:' + w.toFixed(2) + '%"></span></span>'
       + '<span class="mv ' + cls(v) + '">' + fmt(v) + "</span></div>";
   }).join("") + "</div>";
+})();
+
+/* ---- ③b 月度对比（2026-11-03 加，用户：「给我每个月一个数据对比」）----
+ * 目的：矩阵是「账户 × 月」，横着看是"某个月谁赚谁亏"，但**看不出这个月整体怎么样** ✗
+ * 这张表一月一行，四列：当月 / 累计 / 当月最强 / 当月最弱 → 一行读完一个月的画像 ✓
+ * ⚠ 累计**不含 11 月**（进行中，只 2 个交易日）—— 与其它卡的口径一致 ✓
+ * ⚠ 最强/最弱按**金额**不按收益率：小额账户（如华安 8,881 元）赚 200 就是 +2.3%，
+ *   按比率排会把它顶到第一，读起来像"它最好"，其实只赚了 200 ✗ */
+(function renderMonthCompare() {
+  const el = document.getElementById("mcmp");
+  if (!el) return;
+  let cum = 0;
+  const rows = MS.map((m) => {
+    const v = colTot(m);
+    cum += v;
+    const cells = A.map((a) => ({ n: a.name, v: (PL[a.id] || {})[m] }))
+      .filter((x) => typeof x.v === "number");
+    const sorted = cells.slice().sort((x, y) => y.v - x.v);
+    return { m, v, cum, best: sorted[0], worst: sorted[sorted.length - 1], n: cells.length };
+  });
+  const head = '<div class="mcmp-row mcmp-head"><span>月份</span><span>当月</span><span>累计</span><span>当月最好 / 最差</span></div>';
+  const body = rows.map((r) => {
+    const tip = monthLabel(r.m) + "：当月 " + fmt(r.v) + " · 累计 " + fmt(r.cum)
+      + " · " + r.n + " 个账户有读数"
+      + (r.best ? " · 最强 " + r.best.n + " " + fmt(r.best.v) : "")
+      + (r.worst && r.worst !== r.best ? " · 最弱 " + r.worst.n + " " + fmt(r.worst.v) : "");
+    const ext = (r.best && r.worst && r.best !== r.worst)
+      ? '<b class="' + cls(r.best.v) + '">' + shortAcct(r.best.n) + " " + fmtS(r.best.v) + "</b>"
+        + '<i>／</i><b class="' + cls(r.worst.v) + '">' + shortAcct(r.worst.n) + " " + fmtS(r.worst.v) + "</b>"
+      : (r.best
+        ? '<b class="' + cls(r.best.v) + '">' + shortAcct(r.best.n) + " " + fmtS(r.best.v) + '</b><i>／</i><span class="muted">—</span>'
+        : '<span class="muted">—</span>');
+    return '<div class="mcmp-row" title="' + tip + '">'
+      + '<span class="mcmp-m">' + monthShort(r.m) + "</span>"
+      + '<b class="' + cls(r.v) + '">' + fmt0(r.v) + "</b>"
+      + '<b class="muted">' + fmt0(r.cum) + "</b>"
+      + '<span class="mcmp-ext">' + ext + "</span></div>";
+  }).join("");
+  /* 11 月（进行中）另起一段，明确不进累计 */
+  const mtd = MTD && MTD.month;
+  const mtdRow = (mtd && (FIN_MONTHS || []).indexOf(mtd) < 0) ? (() => {
+    const vals = A.map((a) => ({ n: a.name, v: (MTD.pl || {})[a.id] })).filter((x) => typeof x.v === "number");
+    if (!vals.length) return "";
+    const s2 = vals.slice().sort((x, y) => y.v - x.v);
+    const tot = vals.reduce((t, x) => t + x.v, 0);
+    const tip = monthLabel(mtd) + "（进行中，仅 " + vals.length + " 个账户读数）：合计 " + fmt(tot) + " —— **不进累计**";
+    return '<div class="mcmp-row mcmp-mtd" title="' + tip + '">'
+      + '<span class="mcmp-m">' + monthShort(mtd) + '<i>进行中</i></span>'
+      + '<b class="' + cls(tot) + '">' + fmt0(tot) + "</b>"
+      + '<b class="muted">—</b>'
+      + '<span class="mcmp-ext"><b class="' + cls(s2[0].v) + '">' + shortAcct(s2[0].n) + " " + fmtS(s2[0].v) + "</b><i>／</i>"
+      + '<b class="' + cls(s2[s2.length - 1].v) + '">' + shortAcct(s2[s2.length - 1].n) + " " + fmtS(s2[s2.length - 1].v) + "</b></span></div>";
+  })() : "";
+  el.innerHTML = '<div class="mcmp">' + head + body + mtdRow + "</div>";
 })();
 
 /* ---- ④ 账户年度排行（**自左向右、无中轴**，2026-10-10 第四版）----

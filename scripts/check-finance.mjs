@@ -121,7 +121,8 @@ scanMoney("现金", FIN_CASH);   // 现金与余额分开存：余额 = 投资�
 Object.entries(FIN_FLOW).forEach(([id, ms]) => {
   if (!KNOWN.has(id)) fieldBad.流水.push("未知账户 " + id);
   Object.entries(ms || {}).forEach(([m, v]) => {
-    if (FIN_MONTHS.indexOf(m) < 0) fieldBad.流水.push(id + " 月份非法：" + m);
+    /* 流水与余额同一条放宽：允许 FIN_MTD.month（转账是随手就能记的，不用等月末收官 ✓）*/
+    if (FIN_MONTHS.indexOf(m) < 0 && m !== FIN_MTD.month) fieldBad.流水.push(id + " 月份非法：" + m);
     else if (!v || !num(v.in) || !num(v.out)) fieldBad.流水.push(id + "/" + m + " 缺 in / out 数字");
   });
 });

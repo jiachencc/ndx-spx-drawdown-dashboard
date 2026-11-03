@@ -91,6 +91,35 @@ sup.dv { color: var(--warn); font-weight: 700; font-size: 9px; margin-left: 2px;
  * 9 行等距，每行三段：月份 ｜ 条 ｜ 金额（完整千分位）。数字独占一列 → 任何机型都放得下 ✓
  * ⚠ 中轴线（.mtrack::after 那条 50% 竖线）**已删** ✗ —— 条不再从中轴发散，一律自左向右 ✓
  *   （用户 2026-10-10：「不用中轴了，就从左往右，红绿代表涨跌就行」） */
+/* ---- 月度对比表（2026-11-03 加）----
+   一月一行、四列：月份 / 当月 / 累计 / 当月最强＋最弱。
+   ⚠ 第 4 列放两个账户（最强／最弱），用「／」分隔 —— 拆成两列在 414px 上会把数字压成
+     5~6 个字符宽、全部换行 ✗ 塞进一格反而读得快 ✓
+   ⚠ 全部 tnum ＋ 右对齐 → 12 行下来竖着能扫 ✓ */
+.mcmp { display: flex; flex-direction: column; }
+.mcmp-row { display: grid; grid-template-columns: 3.6em minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.24fr);
+  gap: 2px 9px; align-items: baseline; padding: 5px 0; font-size: var(--fs-xs);
+  border-bottom: 1px dashed var(--line-soft); }
+.mcmp-row:last-child { border-bottom: 0; }
+.mcmp-row > b { font-family: var(--mono); font-weight: 400; text-align: right;
+  font-feature-settings: "tnum"; white-space: nowrap; }
+.mcmp-m { color: var(--tx3); white-space: nowrap; }
+.mcmp-m i { font-style: normal; font-size: var(--fs-xxs); color: var(--info, #5aa9ff);
+  margin-left: 2px; opacity: .85; }
+.mcmp-ext { text-align: right; font-family: var(--mono); font-feature-settings: "tnum";
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcmp-ext b { font-weight: 400; }
+.mcmp-ext i { font-style: normal; color: var(--tx3); margin: 0 2px; opacity: .45; }
+.mcmp-head { padding-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+.mcmp-head > span, .mcmp-head > b { font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400;
+  font-family: inherit; }
+/* 11 月（进行中）：淡底 ＋ 右侧虚线，明确它不在累计里 ✗ */
+.mcmp-mtd { background: var(--surface-2, rgba(147, 163, 187, .06)); border-radius: 4px;
+  padding-left: 4px; padding-right: 4px; border-bottom-style: dashed; }
+.mcmp-note { margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.65; }
+.mcmp-note b { color: var(--tx2); }
+
 .mbars { display: flex; flex-direction: column; gap: 4px; }
 .mrow { display: grid; grid-template-columns: 32px 1fr 78px; align-items: center; gap: 8px; font-size: var(--fs-xs); }
 .mk { font-family: var(--mono); color: var(--tx3); }
