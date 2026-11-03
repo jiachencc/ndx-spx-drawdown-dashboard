@@ -1,6 +1,6 @@
 /* 由 scripts/build.mjs 生成，请勿手改。数据源与口径见 scripts/fetch.mjs 与页面「数据与口径」面板。 */
 const META = {
- "builtAt": "2026-10-31 07:38:25",
+ "builtAt": "2026-11-03 01:23:12",
  "source": {
   "spx": {
    "name": "History of Market",
@@ -27,21 +27,21 @@ const META = {
  "quotes": {
   "ndx": {
    "name": "纳斯达克100",
-   "price": 28384.8452,
-   "chgPct": -3.46,
-   "asOf": "2026-10-30"
+   "price": 27989.8197,
+   "chgPct": -1.39,
+   "asOf": "2026-11-02"
   },
   "spx": {
    "name": "标普500指数",
-   "price": 7580.0698,
-   "chgPct": -1.82,
-   "asOf": "2026-10-30"
+   "price": 7541.3999,
+   "chgPct": -0.51,
+   "asOf": "2026-11-02"
   },
   "sox": {
    "name": "费交所半导体股指数",
-   "price": 10688.7996,
-   "chgPct": -7.2,
-   "asOf": "2026-10-30"
+   "price": 10328.3287,
+   "chgPct": -3.37,
+   "asOf": "2026-11-02"
   }
  }
 };
