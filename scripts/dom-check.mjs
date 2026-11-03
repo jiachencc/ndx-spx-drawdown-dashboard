@@ -2372,6 +2372,14 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
   const fd = fw.document;
   const MX = fd.querySelector("table.mx");
   const hd = MX ? [...MX.querySelectorAll("thead th")].map((x) => x.textContent.replace(/\s+/g, " ").trim()) : [];
+  /* 月份数从数据层读 —— 写死 9（原值）在 10 月收官后必然误报 ✗ */
+  const nFinMonths = (() => {
+    try {
+      const c2 = vm.createContext({});
+      vm.runInContext(readFileSync(path.join(root, "finance/finance-data.js"), "utf8") + "\nthis.M=FIN_MONTHS;", c2, { timeout: 5000 });
+      return c2.M.length;
+    } catch (e) { return 9; }
+  })();
   const nMon = hd.filter((x) => /^\d+月$/.test(x)).length;
   const mtdTh = hd.filter((x) => /进行中/.test(x));
   const cellNum = (td) => {
@@ -2379,7 +2387,7 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     return m ? +m[0].replace(/,/g, "") : NaN;
   };
   check("财务页：矩阵有「本月 · 进行中」列（" + nMon + " 个已收官月份 ＋ 1 列进行中）",
-    !!MX && nMon === 9 && mtdTh.length === 1,
+    !!MX && nMon === nFinMonths && mtdTh.length === 1,
     MX ? "月份列 " + nMon + " · 进行中表头 " + JSON.stringify(mtdTh) + " · 全部表头 " + hd.join("｜") : "页面没有 table.mx");
   const rows2 = MX ? [...MX.querySelectorAll("tbody tr")] : [];
   const badRow2 = [];
@@ -2388,16 +2396,21 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     const msum = tds.slice(1, 1 + nMon).reduce((a, td) => a + (Number.isFinite(cellNum(td)) ? cellNum(td) : 0), 0);
     const totV = cellNum(tds[tds.length - 1]);
     if (!Number.isFinite(totV) || Math.abs(totV - msum) > 0.51) {
-      badRow2.push(tds[0].textContent.replace(/\s+/g, "").slice(0, 6) + " 全年 " + totV + " vs 1–9 月和 " + msum.toFixed(2));
+      badRow2.push(tds[0].textContent.replace(/\s+/g, "").slice(0, 6) + " 全年 " + totV + " vs 1–" + nMon + " 月和 " + msum.toFixed(2));
     }
   });
-  check("财务页：每行「全年」= 该行 1–9 月之和（＝ 进行中那格**没有**被并进合计）",
+  check("财务页：每行「全年」= 该行 1–" + nMon + " 月之和（＝ 进行中那格**没有**被并进合计）",
     rows2.length > 0 && badRow2.length === 0, badRow2.join("；") || (rows2.length + " 行逐行验过 ✓（含合计行）"));
   const mtdTds = MX ? [...MX.querySelectorAll("tbody td.mtd")] : [];
   const mtdKnown = mtdTds.filter((td) => !td.classList.contains("na") && !td.classList.contains("part"));
   const mtdNa = mtdTds.filter((td) => td.classList.contains("na"));
+  /* ⚠ 2026-11-03：原来写死 `mtdNa.length >= 1`（那时只有 3/7 账户提供读数，4 格是「·」）——
+     11 月七个账户全给了读数 → 未提供＝0，断言反而误报 ✗
+     真正要守的是「每格要么有读数、要么是「·」，**不许拿 0 冒充**」，不是「必须存在空格」✓ */
   check("财务页：进行中列 = 有读数（数字）＋ 未提供（「·」，不许写成 0 ✗）",
-    mtdTds.length === rows2.length && mtdKnown.length >= 1 && mtdNa.length >= 1 && mtdNa.every((td) => !/\d/.test(td.textContent)),
+    mtdTds.length === rows2.length && mtdKnown.length >= 1
+      /* ⚠ 合计行那格是「合计值」，既不算「有读数」也不算「未提供」→ 用「非合计行数」比 ✗ */
+      && mtdKnown.length + mtdNa.length === rows2.length - 1 && mtdNa.every((td) => !/\d/.test(td.textContent)),
     "格数 " + mtdTds.length + "（应 = 行数 " + rows2.length + "）· 有读数 " + mtdKnown.length + " · 未提供 " + mtdNa.length);
   const bars = [...fd.querySelectorAll("#bars .mbar, #rank .rank-bar")];
   const axis = bars.filter((b) => /left\s*:\s*50%|right\s*:\s*50%/.test(b.getAttribute("style") || ""));

@@ -84,6 +84,11 @@ const fmt0 = (v) => (v >= 0 ? "+" : "−") + Math.round(Math.abs(v)).toLocaleStr
 const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
 const sum = (a) => a.reduce((x, y) => x + (y || 0), 0);
 const monthLabel = (m) => +m.slice(5) + "月";
+/* 第三阶段的标签从数据里取（keys 顺序：1–6月 / 7月 / 8–10月）→ 加月不用改页面 ✓ */
+const PHASE3 = (() => {
+  const ks = Object.keys((typeof FIN_CLAIMS !== "undefined" && FIN_CLAIMS.phases) || {});
+  return ks.length >= 3 ? ks[2] : "8–9 月";
+})();
 const monthShort = (m) => String(+m.slice(5)) + "月";
 const rowOf = (id) => PL[id] || {};
 const colTot = (m) => sum(A.map((a) => rowOf(a.id)[m]));
@@ -104,8 +109,24 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
  *   · 活钱里招行那笔最大（活期 ＋ 朝朝宝）；其余 4 账户 App 显示 0.00；广发 / 南方截图无此栏 → 缺键=未确认
  * ⚠ 全部**现算**：补一格余额或活钱，三分、占比、合计、堆叠条都会自己跟着变（本页纪律：不许写死）。 */
 (function renderAssets() {
-  const MON = MS[MS.length - 1];                                     // 本期（2026-09）
-  const gv = (src, id) => { const v = (src[id] || {})[MON]; return v === undefined ? null : v; };
+  /* 余额比收益先更新一步（收益要等月末收官，余额是随手截图）——
+     所以这里取「**余额数据里最新的那个月**」，而不是「FIN_MONTHS 的最后一个月」✗
+     例：2026-11-03 的招行「账户总览」已经能给出 11 月余额，但 11 月收益还没收官 ✓
+     ⚠ 各账户可能停在不同月份 → 逐格 title 写明读数日（见下方 balAsOf）✓ */
+  const lastBalMon = (() => {
+    let mx = MS[MS.length - 1];
+    Object.values(BAL || {}).forEach((row) => Object.keys(row).forEach((m) => { if (m > mx) mx = m; }));
+    return mx;
+  })();
+  const MON = lastBalMon;
+  /* ⚠ 各账户取**自己**最新的一格（2026-11-03）：收益要等月末收官，余额却是随手截图 ——
+     招行已经能给出 11 月，其余 6 家还停在 9 月。取同一个 MON 会让构成图只剩一根柱 ✗
+     → 各取最新，并在标题里写清「各账户最近一次读数，日期不同」✓ */
+  const gvMon = (src, id) => {
+    const ks = Object.keys(src[id] || {}).sort();
+    return ks.length ? ks[ks.length - 1] : null;
+  };
+  const gv = (src, id) => { const m2 = gvMon(src, id); return m2 === null ? null : src[id][m2]; };
   const y = (v) => Math.round(v).toLocaleString("en-US");
   const share = (v, base) => (base ? (v / base * 100).toFixed(1) + "%" : "—");
   /* ① 三类（银行 / 券商 / 基金）：堆叠条、图例、KPI 都用这一份结果 */
@@ -177,7 +198,14 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
     '<span class="b-k">' + b[0] + '</span><span class="b-v' + (b[2] ? " miss" : "") + '">' + b[1] + "</span>").join("");
 
   /* ⑥ 标题计数 + 口径 */
-  document.getElementById("asset-cnt").textContent = "（" + (+MON.slice(5)) + " 月末 · " + rows.length + " 账户 · 单位：元）";
+  /* 2026-11-03：余额比收益先更新（招行的「账户总览」随手就能截）→ 常常只有 1~2 个账户
+     有最新月的读数。别写成「11 月末」——那是月末快照的口径，这里其实是「最近一次截图读数」✗ */
+  /* 各账户读数日不同 → 标题写清"最近一次读数"，并把最晚的那个日期点出来 ✓ */
+  const balDates = A.map((a) => gvMon(BAL, a.id)).filter(Boolean).sort();
+  const latest = balDates.length ? balDates[balDates.length - 1] : MON;
+  const diffs = new Set(balDates);
+  document.getElementById("asset-cnt").textContent = "（各账户最近一次读数 · " + rows.length + " 账户 · 单位：元"
+    + (diffs.size > 1 ? "；最新一格是 " + (+latest.slice(5)) + " 月（其余为更早月份）" : "") + "）";
   document.getElementById("asset-note").innerHTML =
     "<b>口径</b>：余额取 App 的「<b>投资市值</b>」（与持仓页同口径，7 账户逐项对账见数据层 FIN_BALANCE 注释；"
     + "活钱<b>不并入</b>余额，单列一格）。<br>投资 " + y(invTotal) + " ＋ 活钱 " + y(cashTotal) + " ＝ <b>总资产 " + y(total) + " 元</b>。"
@@ -200,7 +228,9 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
     cell("全年收益", TOTAL, A.length + " 个账户合计 · 基准日 " + FIN_ASOF, true) +
     cell("1–6 月", p16, "建仓前段：4 个账户有数（广发/平安 6 月才入）", true) +
     cell("7 月", p7, "全年最大单月回撤 · 占全年月度绝对波动 " + shareOfWave.toFixed(0) + "%", true) +
-    cell("8–9 月", p89, "修复段：把 7 月的坑填回 " + repair.toFixed(0) + "%", true) +
+    /* 2026-11-03：10 月收官 → 第三阶段从「8–9 月」扩为「8–10 月」；
+       标签按 FIN_CLAIMS.phases 的第一个键自动取，别再硬编码 ✗（硬编码那次 10 月进来后仍写 8–9 月） */
+    cell(PHASE3, p89, "修复段：把 7 月的坑填回 " + repair.toFixed(0) + "%", true) +
     cell("最好账户", best.v, best.a.name, true) +
     cell("最差账户", worst.v, worst.a.name + " · " + nPos + " 盈 " + (A.length - nPos) + " 亏", true);
 })();
@@ -242,7 +272,8 @@ const C_UP = cssVar("--up") || "#f26d7d", C_DOWN = cssVar("--down") || "#2dd4a7"
     + (mtdOn ? '<th class="mtd" title="' + monthLabel(MTD.month) + "（进行中，复核日 " + MTD.cutoff
         + "）：只有部分账户有读数、且各户截止日可能不同（逐格悬停可见）——**本列不进任何合计**，月频口径要整月\">"
         + monthShort(MTD.month) + '<i class="thsub">进行中</i></th>' : "")
-    + '<th class="tot">全年<i class="thsub">1–9 月</i></th></tr></thead><tbody>';
+    /* 全年列的小字也跟着月份走（原来写死 1–9 月，10 月收官后还印 1–9 月 ✗）*/
+    + '<th class="tot">全年<i class="thsub">1–' + MS.length + ' 月</i></th></tr></thead><tbody>';
   A.forEach((a) => {
     const note = FIN_ACCT_NOTES[a.id];
     h += "<tr><td class=\"acct\" title=\"" + (note ? note.replace(/\*\*/g, "").replace(/"/g, "&quot;") : a.products + "（自 " + a.since + " 起）") + "\">"

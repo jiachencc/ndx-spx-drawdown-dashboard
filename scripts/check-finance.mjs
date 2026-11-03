@@ -67,13 +67,14 @@ const badCol = FIN_MONTHS.filter((m) => !near(colTot[m], FIN_CLAIMS.monthly[m]))
   .map((m) => m + " 实算 " + money(colTot[m]) + " ≠ 声明 " + money(FIN_CLAIMS.monthly[m]));
 check("列合计 = 逐月合计（" + FIN_MONTHS.length + " 列）", badCol.length === 0, badCol.join("；"));
 
-/* ── ④ 阶段（1–6 / 7 / 8–9）+ 全年 ─────────────────────────────────── */
+/* ── ④ 阶段（1–6 / 7 / 8–10）+ 全年 ─────────────────────────────────
+   2026-11-03：10 月收官 → 第三阶段从「8–9 月」扩为「8–10 月」（slice(7) 自动跟着走 ✓）*/
 const p16 = sum(FIN_MONTHS.slice(0, 6).map((m) => colTot[m]));
 const p7 = colTot["2026-07"];
 const p89 = sum(FIN_MONTHS.slice(7).map((m) => colTot[m]));
-check("阶段 1–6 月 = " + money(FIN_CLAIMS.phases["1–6月"]), near(p16, FIN_CLAIMS.phases["1–6月"]), "实算 " + money(p16));
-check("阶段 7 月 = " + money(FIN_CLAIMS.phases["7月"]), near(p7, FIN_CLAIMS.phases["7月"]), "实算 " + money(p7));
-check("阶段 8–9 月 = " + money(FIN_CLAIMS.phases["8–9月"]), near(p89, FIN_CLAIMS.phases["8–9月"]), "实算 " + money(p89));
+check("阶段 1–6 月 = " + money(FIN_CLAIMS.phases["1–6 月"]), near(p16, FIN_CLAIMS.phases["1–6 月"]), "实算 " + money(p16));
+check("阶段 7 月 = " + money(FIN_CLAIMS.phases["7 月"]), near(p7, FIN_CLAIMS.phases["7 月"]), "实算 " + money(p7));
+check("阶段 8–10 月 = " + money(FIN_CLAIMS.phases["8–10 月"]), near(p89, FIN_CLAIMS.phases["8–10 月"]), "实算 " + money(p89));
 check("全年 = Σ阶段 = " + money(FIN_CLAIMS.total), near(p16 + p7 + p89, FIN_CLAIMS.total) && near(sum(Object.values(colTot)), FIN_CLAIMS.total),
   "Σ阶段 " + money(p16 + p7 + p89) + "｜Σ列 " + money(sum(Object.values(colTot))));
 
@@ -106,7 +107,11 @@ const scanMoney = (name, obj) => {
   Object.entries(obj).forEach(([id, ms]) => {
     if (!KNOWN.has(id)) fieldBad[name].push("未知账户 " + id);
     Object.entries(ms || {}).forEach(([m, v]) => {
-      if (FIN_MONTHS.indexOf(m) < 0) fieldBad[name].push(id + " 月份非法：" + m);
+      /* 余额 / 现金允许多存一个进行中的月（= FIN_MTD.month）——
+         收益要等月末收官，而余额是随手截的图，往往比收益早一步更新 ✓
+         例：11-03 的招行「账户总览」就是 2026-11 的读数，而 11 月收益还没收官 */
+      const okM = FIN_MONTHS.indexOf(m) >= 0 || m === FIN_MTD.month;
+      if (!okM) fieldBad[name].push(id + " 月份非法：" + m);
       else if (!num(v)) fieldBad[name].push(id + "/" + m + " = " + v + "（应为数字）");
     });
   });
