@@ -1559,7 +1559,10 @@
   /* ⚠ 2026-11-03：min-height 78 → **82**。实测「金额」视图第 1 期内容少、撑到 78，
      第 5 期撑到 82 → 鼠标横划时读数条高度在 78/82 之间跳，**下方图表跟着上下移动 4px** ✗
      82 是各视图的自然高度（除「区间统计」110，那个是刻意的多行统计块）✓ */
-  .trend-readout.ro-rich { text-align: left; min-height: 82px; }
+  /* 92 → **111**（2026-11-03）：四个视图的格子数/副标行数不同，实测自然高度是
+     pnl/金额/回撤 111、收益率 95（少一行副标）→ 切视图时下方图表会跳 16px ✗
+     统一到最高的 111 后四个视图一模一样，图表纹丝不动 ✓ */
+  .trend-readout.ro-rich { text-align: left; min-height: 111px; }
   .trend-readout .nb { white-space: nowrap; }
   /* 窄屏口径行必须能折行（2026-10-04）：「盈亏全程」视图那条口径文案很长，nowrap 下它会以单行
      摊开（实测 739px，把 390px 视口顶出 381px 横向滚动）。光去掉 nowrap 不够 —— 它在 .ro-attr
@@ -1579,18 +1582,43 @@
   .ro-pos { margin-left: auto; white-space: nowrap; }
   /* 三列主数：**标签与数值同一行**（原先标签另起一行，被读成「标签折行」）。
      每个「标签 数值」是原子单元，窄屏整块换行，绝不把标签和数字拆开。 */
-  .ro-grid { display: flex; flex-wrap: wrap; gap: 4px 12px; }
-  .ro-cell { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; white-space: nowrap; }
+  /* 读数条主数据区（2026-11-03 重排，用户：「鼠标联动的数据格式化一下，现在太乱了」）——
+     原来是 flex wrap，每格宽度按内容长短自适应 → 五格排成一行时数值**没有一条右缘对齐**，
+     标签和数值还挤在同一行（「累计盈亏 −28,247   当月 −33,603」读起来像流水账）✗
+     现在：① grid 等宽列（auto-fit，窄屏自动折行、不会溢出）
+           ② 每格三行：标签 / 数值 / 副标（日期、基准），数值统一 tnum 左缘对齐 ✓
+           ③ 所有视图共用这套结构 → 切视图时读数条高度不变，下方图表不会上下窜 ✓ */
+  /* ⚠ 用 flex ＋ min-width，不要 grid 的 1fr（2026-11-03）：grid 在格子少时会把整行**均分**
+     —— 桌面 1100px 上五格各占 220px，中间大片空白、读数要横着跳 ✗
+     flex 让每格按内容宽（下限 5.6em），自然靠左紧凑排列 ✓ */
+  /* gap 20 → 10（2026-11-03）：414px 可用 350px，五格 62px＋四道 20px 空隙 ＝ 390 > 350 ✗
+     会折成「4＋1」两行、读数条从 92px 涨到 180px ✗ 缩到 10px 后 350 正好放下 5 列 ✓ */
+  .ro-grid { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+  .ro-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+    flex: 0 0 auto; min-width: 5em; }
+  .ro-cell .ro-k { order: 1; }
+  .ro-cell .ro-v { order: 2; }
+  .ro-cell .ro-sub { order: 3; }
   .ro-k { font-size: var(--fs-xxs); color: var(--tx3); }
-  .ro-v { color: var(--tx); font-weight: 700; white-space: nowrap; }
+  .ro-v { color: var(--tx); font-weight: 700; white-space: nowrap; line-height: 1.35;
+    font-variant-numeric: tabular-nums; }
   .ro-v.up { color: var(--up); } .ro-v.down { color: var(--down); }
   .ro-sub { font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; }
   .ro-attr { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 3px; margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line-soft); font-size: var(--fs-xxs); color: var(--tx3); }
+  /* 「当月拆分场内 −17,378」原来粘在一起 ✗ —— 标签后统一留半格 */
+  .ro-attr .ro-k { margin-right: 5px; }
+  /* 底部两段之间的分隔竖线（比空格明确，比「·」不抢眼） */
+  .ro-sep { display: inline-block; width: 1px; height: 9px; background: var(--line-soft);
+    margin: 0 7px; align-self: center; }
   .ro-attr b { color: var(--tx); }
   .ro-attr b.up { color: var(--up); } .ro-attr b.down { color: var(--down); } .ro-attr b.info { color: var(--info); }
   /* 归因行：一组「原子单元」（标签＋数值＋方向词），单元内绝不折行，折行只发生在单元之间 */
   .ro-attr .nb { white-space: nowrap; }
   .ro-attr .ro-op { color: var(--tx3); }
+  /* 「市场 +4,203盈」原来数字和「盈」粘在一起 ✗ —— ro-w 是数字后的小字标签，留 3px */
+  .ro-attr .ro-w { margin-left: 3px; }
+  /* 底部归因行的「＝」「＋」左右各留一点，别再和数字挤 */
+  .ro-attr .ro-op { margin: 0 2px; }
   /* 方向词的颜色：.ro-attr 自身设了灰色，会盖掉全局 .up/.down/.info，故显式覆盖 */
   .ro-attr .ro-w.up { color: var(--up); }
   .ro-attr .ro-w.down { color: var(--down); }

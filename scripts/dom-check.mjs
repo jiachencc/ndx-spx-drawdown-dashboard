@@ -484,8 +484,10 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
     "SVG 里 " + draws.length + " 条折线 · 图例：" + ((win.document.getElementById("trend-legend") || {}).textContent || "").replace(/\s+/g, " ").trim().slice(0, 60));
   /* 读数条新增三样（2026-10-04）：距峰值 / 场内当月 / 当月拆分；且拆分两项之和必须 = 当月 */
   const roTxt = (win.document.getElementById("trend-readout") || {}).textContent || "";
-  check("读数条含「距峰值」「场内当月」「当月拆分」",
-    /距峰值/.test(roTxt) && /场内当月/.test(roTxt) && /当月拆分/.test(roTxt), roTxt.replace(/\s+/g, " ").trim().slice(0, 90));
+  /* 2026-11-03：标签「当月拆分」→「拆分」（前面那格已经写着「当月 −33,603」，语境够清楚；
+     省下 2 个字给窄屏挤格子）→ 断言跟着改成 /拆分/ ✓ */
+  check("读数条含「距峰值」「场内当月」「拆分」",
+    /距峰值/.test(roTxt) && /场内当月/.test(roTxt) && /拆分/.test(roTxt), roTxt.replace(/\s+/g, " ").trim().slice(0, 90));
   {
     const nums = (s) => (s.match(/[-−]?\d[\d,]*(?:\.\d+)?/g) || []).map((x) => +x.replace(/,/g, "").replace("−", "-"));
     const attr = win.document.querySelector("#trend-readout .ro-attr");

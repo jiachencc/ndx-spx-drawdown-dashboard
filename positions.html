@@ -3851,10 +3851,15 @@ function renderTrend(todayVal, todayCost) {
   trendCtx = { v: todayVal, c: todayCost };
   const snaps = (typeof SNAPSHOTS !== "undefined") ? SNAPSHOTS : [];
   const allPts = buildTrendPts(todayVal, todayCost);
-  normalizeTrendRange(allPts);   // 必须在过滤前：否则图用旧档位、chips 高亮新档位
+  /* ⚠ 档位判定要用**当前视图自己的点集**（2026-11-03）：
+     「盈亏全程」的数据是**月度**点（ACCT_STATS.monthly / FIN_PL），不吃"近 N 期快照"那套 ——
+     若仍拿快照点集去判可用性，「近5次」在 pnl 视图会被算成"与全部同一批"而**被隐藏** ✗，
+     可它明明能把 10 个月切成 5 个 ✓ */
+  const chipBase = (trendView === "pnl") ? ((buildPnlSeries() || {}).all || []) : allPts;
+  normalizeTrendRange(chipBase);   // 必须在过滤前：否则图用旧档位、chips 高亮新档位
   const pts = filterTrendPts(allPts);
   trendPts = pts;
-  renderTrendChips(allPts);
+  renderTrendChips(chipBase);
   renderTrendViews();
   renderTrendLegend();
   renderTrendKpis(pts);
@@ -4011,7 +4016,18 @@ function renderTrend(todayVal, todayCost) {
    ⚠ 不含现金；招行理财/黄金按用户口径不计入（那是债基、低风险）。口径细节见 buildPnlSeries 与图例 ⓘ。 */
 function renderPnlView(box) {
   const SR = buildPnlSeries();
-  const pts = SR.all;
+  /* ── 区间档位对月度视图同样生效（2026-11-03，用户选 b）────────────────────
+     原来这里直接 `const pts = SR.all` —— 无论点「近5次 / 近10次 / 近1月」都是 10 期，
+     按钮能点却没反应 ✗（review 时逐组合测出来的）
+     · 数字档（5 / 10）→ `slice(-N)`，月度点天然就是"近 N 个月" ✓ 语义正好对上
+     · 天数档（1m/3m/6m/1y）→ rangeFilterPts 已按 d 截断 ✓
+     ⚠ 三条线（合计/场内/场外）必须用**同一批月份**切，否则场内、场外会冲出时间窗 ✗ */
+  const allMonths = SR.all;
+  const pts = rangeFilterPts(allMonths, trendRange);
+  const keepYm = {};
+  pts.forEach((p) => { keepYm[p.d.slice(0, 7)] = 1; });
+  const etfPts = SR.etf.filter((p) => keepYm[p.d.slice(0, 7)]);
+  const otcPts = SR.otc.filter((p) => keepYm[p.d.slice(0, 7)]);
   if (pts.length < 2) {
     box.innerHTML = '<div class="trend-empty">暂无月度盈亏读数：在 data.js 的 ACCT_STATS.monthly 补 App 月度盈亏，即可生成建仓以来全程曲线。</div>';
     return;
@@ -4021,7 +4037,7 @@ function renderPnlView(box) {
   const t0 = Math.min.apply(null, xs), t1 = Math.max.apply(null, xs), span = t1 - t0 || 1;
   const X = (i) => mL + (xs[i] - t0) / span * (W - mL - mR);
   /* 值域要覆盖**三条线**（否则场内/场外那两条会被裁到框外）；含 0 保证零轴在视野内 */
-  const vs = pts.map((p) => p.pl).concat(SR.etf.map((p) => p.pl), SR.otc.map((p) => p.pl), [0]);
+  const vs = pts.map((p) => p.pl).concat(etfPts.map((p) => p.pl), otcPts.map((p) => p.pl), [0]);
   let lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
   const pad = (hi - lo) * 0.15 || Math.abs(lo) * 0.2 || 100;
   lo -= pad; hi += pad;
@@ -4060,7 +4076,7 @@ function renderPnlView(box) {
      按下标取 X() 会串位。画在合计之前，让合计那条压在它们上面。 */
   const XD = (d) => mL + (Date.parse(d) - t0) / span * (W - mL - mR);
   if (pnlHasOtc()) {
-    [["cyan", SR.etf], ["yellow", SR.otc]].forEach((pair) => {
+    [["cyan", etfPts], ["yellow", otcPts]].forEach((pair) => {
       const arr = pair[1];
       if (arr.length < 2) return;
       svg += '<polyline class="pnl-comp" points="' + arr.map((p) => P(XD(p.d)) + "," + P(Y(p.pl))).join(" ") +
@@ -4209,8 +4225,14 @@ function showXhair(i) {
      共用零件：roHead（日期 + 口径徽章 + 第 k/n 期）、roCell（标签＋数值同一行，整格 nowrap）。 */
   ro.classList.toggle("ro-rich", true);
   ro.classList.toggle("live", hover);
-  const roCell = (label, val, sub, c) => '<div class="ro-cell"><span class="ro-k">' + label + '</span>' +
-    '<span class="ro-v' + (c ? " " + c : "") + '">' + val + (sub || "") + "</span></div>";
+  /* ⚠ sub 必须放在 .ro-v **外面**（2026-11-03）—— 它在里面时 `.ro-cell > .ro-sub` 的选择器
+     选不到，flex column 的 order 也就不生效，于是「−33,603」和「06.30」粘成一串 ✗
+     兼容老调用：sub 已是 `<span class="ro-sub">…</span>` 就直接用，否则包一层 ✓ */
+  const roCell = (label, val, sub, c) => {
+    const subHtml = !sub ? "" : (/^<span/.test(String(sub)) ? sub : '<span class="ro-sub">' + sub + "</span>");
+    return '<div class="ro-cell"><span class="ro-k">' + label + '</span>'
+      + '<span class="ro-v' + (c ? " " + c : "") + '">' + val + "</span>" + subHtml + "</div>";
+  };
   const roPct = (v) => '<b class="' + cls(v) + '">' + fmtPct(v, 2) + "</b>";
   const roHead = (badge, badgeCls, tip) => '<div class="ro-head"><span class="ro-date">' + (p.isToday ? "今日" : dt) + "</span>" +
     '<span class="ro-badge' + (badgeCls ? " " + badgeCls : "") + '" title="' + tip + '">' + badge + "</span>" +
@@ -4235,23 +4257,27 @@ function showXhair(i) {
     ro.innerHTML = roHead("按月", "", "月度读数：App 的月度盈亏（" + (pnlHasOtc() ? "合计 ＝ 场内 ＋ 场外 5 个基金渠道" : "场内账户") + "，含已实现），每期一个点，不是每日") +
       '<div class="ro-grid">' + roCell("累计盈亏", fmtAmt(p.pl), null, cls(p.pl)) +
         (mon === null ? "" : roCell("当月", fmtAmt(mon), null, cls(mon))) +
-        roCell("距最深", fmtAmt(off), '<span class="ro-sub">（' + mdOf(deep.d) + "）</span>", cls(off)) +
-        roCell("距峰值", fmtAmt(dPeak), '<span class="ro-sub">（' + mdOf(peak.d) + "）</span>", cls(dPeak)) +
+        roCell("距最深", fmtAmt(off), '<span class="ro-sub">' + mdOf(deep.d) + "</span>", cls(off)) +
+        roCell("距峰值", fmtAmt(dPeak), '<span class="ro-sub">' + mdOf(peak.d) + "</span>", cls(dPeak)) +
+        /* 2026-11-03：副标去掉中文括号（原来「−33,603（06.30）」括号紧贴数字，缩成小字后更难读 ✗）；
+           上证那句原来拼成「−13.73%vs 上证 −6.40%」—— **`%` 和 `vs` 之间没有空格** ✗ 现在分两行 ✓ */
         (hasPx
           ? roCell("场内当月", fmtPct(bm.pct / 100, 2),
-            '<span class="ro-sub">vs 上证 ' + (Number.isFinite(bm.bench) ? fmtPct(bm.bench / 100, 2) : "—") + "</span>", cls(bm.pct))
+            /* 「上证 −6.40%」去掉中间空格 → 10 字符，正好收进 5em 的格子 ✓ 否则它是最宽的那格，
+               会把五格挤成两行 ✗ */
+            '<span class="ro-sub">上证' + (Number.isFinite(bm.bench) ? fmtPct(bm.bench / 100, 2) : "—") + "</span>", cls(bm.pct))
           : roCell("场内当月", "—", '<span class="ro-sub">该月无场内读数</span>', "")) + "</div>" +
       /* 口径行只留一句短的（原先把整段来源说明摊在这里，窄屏会顶出横向滚动 ✗）；
          完整说明收进原生 title —— 用户 2026-10-04 意见：「合计口径 这行太长了，精简一些」。
          ① 当月拆分也放这一行（做成小字、不占格子：5 格在 390px 下已经够挤了）*/
-      '<div class="ro-attr">' +
-      (mon === null || !bm ? "" : '<span class="nb" title="当月 ＝ 场内（券商 App 月度读数）＋ 场外（平台 App 月度账单的 5 个基金渠道）；两项之和就是上面那个「当月」">' +
-        '<span class="ro-k">当月拆分</span>场内 <b class="' + cls(bm.etf) + '">' + fmtAmt(bm.etf) +
-        '</b> · 场外 <b class="' + cls(bm.otc) + '">' + fmtAmt(bm.otc) + "</b></span>") +
-      '<span class="nb"><span class="ro-k"' + (pnlHasOtc()
-        ? ' title="合计 ＝ 场内（券商 App 月度读数，含已实现）＋ 场外 5 个基金渠道（平台 App 月度账单：蚂蚁 / 南方 / 博时 / 广发 / 华安）。不含现金；招行理财与黄金按用户口径（债基、低风险）不计入。' + esc(otcTwoNoteText()) + '"'
-        : ' title="场外月度读数未加载，故图上只有场内（券商 App 月度读数，含已实现）"') + ">"
-        + (pnlHasOtc() ? "合计 · 场内＋场外（不含现金）" : "场内口径 · 含已实现") + "</span></span></div>";
+      /* ⚠ 合并成**一段**（2026-11-03）：手机上 `.ro-attr .nb` 是 `display:block`（见 1569 行媒体查询），
+         两段就会占两行 → 读数条 127px，而「金额 / 回撤」只有一段是 111px ✗ 切视图下方图表会跳 16px。
+         合一段后四个视图统一 111px ✓（口径说明整段收进 title，卡面只留「合计不含现金」五个字）*/
+      '<div class="ro-attr"><span class="nb" title="拆分 ＝ 场内（券商 App 月度读数）＋ 场外（平台 App 月度账单的 5 个基金渠道）；'
+      + "合计为两者之和、不含现金；招行理财与黄金按用户口径（债基、低风险）不计入。" + esc(otcTwoNoteText()) + '">'
+      + (mon === null || !bm ? "" : '<span class="ro-k">拆分</span>场内 <b class="' + cls(bm.etf) + '">' + fmtAmt(bm.etf)
+        + '</b> · 场外 <b class="' + cls(bm.otc) + '">' + fmtAmt(bm.otc) + "</b> · ")
+      + (pnlHasOtc() ? "合计不含现金" : "场内口径 · 含已实现") + "</span></div>";
   } else if (mode === "rate") {
     const N = trendNavCached(L.pts), tw = N.nav[k] - 1;
     const bi = benchRelAt(L.pts, k);
@@ -4272,7 +4298,7 @@ function showXhair(i) {
     for (let j = 1; j <= k; j++) if (N.nav[j] >= N.nav[pk]) pk = j;
     const ago = k - pk;
     ro.innerHTML = roHead("净值口径", "snap", "资金流调整后的单位净值回撤（逐期剔除转入 / 转出）；0 在顶、越深越亏") +
-      '<div class="ro-grid">' + roCell("回撤", fmtPct(N.dd[k], 2), ago === 0 ? '<span class="ro-sub">（峰值）</span>' : null, N.dd[k] < -0.0005 ? "down" : "up") +
+      '<div class="ro-grid">' + roCell("回撤", fmtPct(N.dd[k], 2), ago === 0 ? '<span class="ro-sub">峰值</span>' : null, N.dd[k] < -0.0005 ? "down" : "up") +
         roCell("单位净值", N.nav[k].toFixed(4)) +
         roCell("距前高", ago === 0 ? "—" : ago + " 期") + "</div>" +
       '<div class="ro-attr"><span class="nb"><span class="ro-k">与「最大浮亏」（App 口径）不同：这里逐期剔除转入 / 转出，避免把转账当成回撤</span></span></div>';
@@ -4304,7 +4330,7 @@ function showXhair(i) {
         '<span class="ro-pos">第 ' + (k + 1) + "/" + L.pts.length + " 期</span></div>" +
       '<div class="ro-grid">' +
         roCell("资产", fmtYuan(p.val)) + roCell("投入", fmtYuan(p.cost)) +
-        roCell(pl >= 0 ? "浮盈" : "浮亏", fmtAmt(pl), '<span class="ro-sub">（' + fmtPct(rate, 2) + "）</span>", cls(pl)) +
+        roCell(pl >= 0 ? "浮盈" : "浮亏", fmtAmt(pl), '<span class="ro-sub">' + fmtPct(rate, 2) + "</span>", cls(pl)) +
       "</div>" +
       (net === null ? "" :
         '<div class="ro-attr"><span class="nb"><span class="ro-k">较上期</span>' +
