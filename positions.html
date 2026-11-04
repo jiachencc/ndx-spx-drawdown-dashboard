@@ -7452,13 +7452,20 @@ function costScatterHtml(i) {
   const padY = Math.max((hi - lo) * 0.08, 0.003);   /* 18% → 8%：原来上下大片空白、点挤成一条线 ✗ */
   const Y0 = lo - padY, Y1 = hi + padY;
 
-  /* ⚠ viewBox 的宽高比必须贴近实际显示尺寸（约 330×120 ≈ 2.75），
-     否则 `preserveAspectRatio="none"` 会横向拉伸 —— 圆变成椭圆（2026-11-04 第一版就是 100×46＝2.17）✗
-     100 / 36 ≈ 2.78 ✓ */
-  const W = 100, H = 36;
-  /* X 方向「同日错开」（2026-11-04，参考 Kcnarf/d3-beeswarm 的 beeswarm 思路）——
-     同一天买多笔时，原来的点完全重合、图上只剩 1 个（11-03/11-04 各 5 笔就是这样）✗
-     这里只错开 **X（±1.5 天）**、Y 保持精确 → 时间和成本都能读 ✓
+  /* ── 坐标改用 **百分比 + 像素尺寸的 div**（2026-11-04 第三版）──────────────
+     ⚠ 前两版用 SVG + `preserveAspectRatio="none"`，桌面宽屏下容器 1000+px、高只 118px，
+       横向拉伸 3 倍 → **圆全被压成椭圆**（用户截图反馈「拉长的太难看」✗）
+     div + `left/top%` 定位、宽高写 px → 点永远是正圆，与容器宽高比无关 ✓
+     网格线与成本线同理（1px 高的绝对定位条），也不会被拉粗 ✓ */
+  const pctX = (d, jit) => {
+    const t = ((Date.parse(d) + (jit || 0)) - t0) / span;
+    return Math.max(6, Math.min(94, t * 100));       /* 留边 6%：点直径最大 17px（332px 容器里≈5%）+ 半宽，贴边必被裁 ✗ */
+  };
+  const pctY = (v) => (1 - (v - Y0) / (Y1 - Y0)) * 100;     // 0% ＝ 顶部（贵）
+
+  /* X 方向「同日错开」（Kcnarf/d3-beeswarm 思路）——
+     同一天买多笔时原来的点完全重合、图上只剩 1 个（11-03/11-04 各 5 笔就是这样）✗
+     只错开 X（±1.5 天）、Y 保持精确 → 时间和成本都能读 ✓
      ⚠ 代价：某天买 3 笔，图上看着像分散在 3 天 ✗ 所有蜂群图都有这个取舍 */
   const byDate = {};
   buys.forEach((e) => { (byDate[e.d] = byDate[e.d] || []).push(e); });
@@ -7468,49 +7475,36 @@ function costScatterHtml(i) {
     const idx = arr.indexOf(e);
     return ((idx / (k - 1)) * 2 - 1) * 1.5 * 86400000;      // ±1.5 天
   };
-  const X = (d, jit) => {
-    const x = 2 + ((Date.parse(d) + (jit || 0)) - t0) / span * (W - 4);
-    return Math.max(1.2, Math.min(W - 1.2, x));
-  };
-  const Y = (v) => H - 2 - (v - Y0) / (Y1 - Y0) * (H - 4);
   const amts = buys.map((e) => e.cost * e.qty);
   const maxAmt = Math.max.apply(null, amts) || 1;
-  const rOf = (e) => 1.1 + 2.0 * Math.sqrt((e.cost * e.qty) / maxAmt);   /* 25 笔同带，半径 4 会连成串 ✗ */
+  /* 直径 7~17px（面积 ∝ √金额）—— 用 px 而不是 SVG 半径，缩放不会变形 ✓ */
+  const szOf = (e) => (7 + 10 * Math.sqrt((e.cost * e.qty) / maxAmt)).toFixed(1);
 
-  let svg = "";
-  /* 横向网格（2026-11-04）：原来背景全黑，看不出点落在哪一档 ✗ → 3 条极淡线 */
-  [0.25, 0.5, 0.75].forEach((t) => {
-    const gy = (2 + t * (H - 4)).toFixed(2);
-    svg += '<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy
-      + '" stroke="currentColor" stroke-width=".15" opacity=".16"/>';
-  });
-  /* 摊薄成本线（虚线）与现价线（实线）—— 一眼看出"我的成本在现价上方还是下方" ✓ */
+  let marks = "";
+  /* 横向网格：3 条 */
+  [25, 50, 75].forEach((t) => { marks += '<i class="cs-gl" style="top:' + t + '%"></i>'; });
+  /* 摊薄成本线（虚线）与现价线（实线） */
   if (hold && Number.isFinite(hold.cost)) {
-    svg += '<line x1="1.5" y1="' + Y(hold.cost).toFixed(2) + '" x2="' + (W - 1.5) + '" y2="' + Y(hold.cost).toFixed(2)
-      + '" stroke="var(--cyan, #4ecdc4)" stroke-width=".45" stroke-dasharray="1.6 1.2" opacity=".8"/>';
+    marks += '<i class="cs-cost" style="top:' + pctY(hold.cost).toFixed(2) + '%" title="摊薄成本 '
+      + hold.cost.toFixed(4) + '"></i>';
   }
   if (Number.isFinite(close)) {
-    svg += '<line x1="1.5" y1="' + Y(close).toFixed(2) + '" x2="' + (W - 1.5) + '" y2="' + Y(close).toFixed(2)
-      + '" stroke="var(--tx3)" stroke-width=".35" opacity=".55"/>';
+    marks += '<i class="cs-now" style="top:' + pctY(close).toFixed(2) + '%" title="现价 ' + close + '"></i>';
   }
   /* 卖出：红空心圈 */
   sells.forEach((e) => {
-    svg += '<circle cx="' + X(e.d).toFixed(2) + '" cy="' + Y(e.cost).toFixed(2) + '" r="2.1" fill="none"'
-      + ' stroke="var(--down, #d02440)" stroke-width=".55"><title>' + e.d + " 卖出 @" + e.cost + "</title></circle>";
+    marks += '<b class="cs-sell" style="left:' + pctX(e.d).toFixed(2) + "%;top:" + pctY(e.cost).toFixed(2)
+      + '%" title="' + e.d + " 卖出 @" + e.cost + '"></b>';
   });
-  /* 买入：绿实心，面积 ∝ 金额；带 data-d → 点流水可定位 ✓ */
+  /* 买入：实心圆，面积 ∝ 金额；带 data-d → 点流水可定位 ✓ */
   buys.forEach((e) => {
-    /* 分色：买在**现价之下**＝便宜（绿）、之上＝贵（琥珀）——
-       "哪几笔买贵了"一眼可见 ✓（原来全绿，看不出贵贱 ✗）*/
+    /* 分色：买在现价之下＝便宜（绿）、之上＝贵（琥珀）—— 哪几笔买贵了一眼可见 ✓ */
     const dear = Number.isFinite(close) && e.cost > close;
-    const col = dear ? "var(--warn, #d8a13a)" : "var(--up, #2dd4a7)";
-    svg += '<circle class="cs-buy' + (dear ? " cs-dear" : "") + '" cx="' + X(e.d, jitOf(e)).toFixed(2)
-      + '" cy="' + Y(e.cost).toFixed(2) + '" r="' + rOf(e).toFixed(2)
-      + '" data-d="' + e.d + '" fill="' + col + '" fill-opacity=".85"'
-      + ' stroke="' + col + '" stroke-width=".35" stroke-opacity=".9"><title>'
+    marks += '<b class="cs-buy cs-pt' + (dear ? " cs-dear" : "") + '" style="left:'
+      + pctX(e.d, jitOf(e)).toFixed(2) + "%;top:" + pctY(e.cost).toFixed(2)
+      + "%;width:" + szOf(e) + "px;height:" + szOf(e) + 'px" data-d="' + e.d + '" title="'
       + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + "（" + Math.round(e.cost * e.qty).toLocaleString("en-US")
-      + " 元）" + (dear ? " · 高于现价" : " · 低于现价")
-      + "</title></circle>";
+      + " 元）" + (dear ? " · 高于现价" : " · 低于现价") + '"></b>';
   });
 
   /* ② 成本分布：横向柱状（2026-11-04 第二版，参考 TradingView 的 Volume Profile / POC）——
@@ -7549,7 +7543,7 @@ function costScatterHtml(i) {
     <summary><span class="cs-t">建仓分布</span><span class="cs-s">${sub}</span></summary>
     <div class="cs-body">
       <div class="cs-yh">${yHead}</div>
-      <svg class="cs-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(sym)}：按日期的买入成本分布">${svg}</svg>
+      <div class="cs-plot" role="img" aria-label="${esc(sym)}：按日期的买入成本分布">${marks}</div>
     </div>
     ${vp}
     <div class="cs-legend">${legend}</div>

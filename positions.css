@@ -2558,10 +2558,33 @@
 .cs-yh { display: flex; flex-direction: column; justify-content: space-between;
   font-family: var(--mono); font-size: 8px; color: var(--tx3); text-align: right;
   padding: 1px 0 1px; font-feature-settings: "tnum"; }
-.cs-svg { flex: 1 1 auto; min-width: 0; height: 118px; display: block;
-  background: linear-gradient(180deg, transparent, rgba(147,163,187,.04)); border-radius: 3px; }
-.cs-svg circle.cs-buy { cursor: pointer; }
-.cs-svg circle.cs-buy.cs-spot { stroke: var(--tx); stroke-width: .7; }
+/* ⚠ 2026-11-04 第三版：从 SVG 换成「百分比定位的 div」
+   前两版用 `<svg preserveAspectRatio="none">` —— 桌面宽屏时容器 1000+px、高只有 118px，
+   横向拉伸 3 倍 → **圆全被压成椭圆**（用户截图反馈「拉长的太难看」✗）
+   div + left/top% 定位 + 宽高写 px → 点永远是正圆，与容器宽高比无关 ✓
+   高度也不再固定 118px：宽屏给到 170px，图形不会被拉扁 ✓ */
+.cs-plot { position: relative; flex: 1 1 auto; min-width: 0; height: clamp(124px, 17vw, 172px);
+  overflow: visible;
+  border-radius: 3px; background: linear-gradient(180deg, transparent, rgba(147,163,187,.045)); }
+/* 网格线：1px 高、绝对定位 —— 不会被拉伸变粗 ✓ */
+.cs-gl { position: absolute; left: 0; right: 0; height: 0;
+  border-top: 1px solid var(--tx3); opacity: .16; }
+/* 摊薄成本（虚线）／现价（实线） */
+.cs-cost, .cs-now { position: absolute; left: 0; right: 0; height: 0; }
+.cs-cost { border-top: 1.5px dashed var(--cyan, #4ecdc4); opacity: .85; }
+.cs-now { border-top: 1px solid var(--tx3); opacity: .5; }
+/* 成本线的数值标签已去掉（2026-11-04）：挂左边会和第一笔的点重叠 ✗ 挂右边会被裁 ✗
+   卡头 KPI 里本来就有「成本价 X 元」，图例也说明了虚线是摊薄成本 ✓ 不用重复 */
+/* 数据点：translate(-50%,-50%) 让 left/top 命中圆心 */
+.cs-pt { position: absolute; transform: translate(-50%, -50%); border-radius: 50%;
+  cursor: pointer; }
+.cs-buy { background: var(--up, #2dd4a7); box-shadow: 0 0 0 .5px var(--up, #2dd4a7); }
+.cs-buy.cs-dear { background: var(--warn, #d8a13a); box-shadow: 0 0 0 .5px var(--warn, #d8a13a); }
+.cs-sell { position: absolute; transform: translate(-50%, -50%); width: 7px; height: 7px;
+  border-radius: 50%; border: 1.5px solid var(--down, #d02440); background: transparent; }
+/* 定位高亮：白圈 + 放大，2.4s 后撤掉 */
+.cs-pt.cs-spot { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px currentColor;
+  transform: translate(-50%, -50%) scale(1.4); transition: transform .18s ease-out; }
 /* 热力条：20 格，深浅＝该价位加了几笔 */
 .cs-heat { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
 .cs-heat-l { font-family: var(--mono); font-size: 8px; color: var(--tx3); white-space: nowrap;
@@ -2578,7 +2601,7 @@
 .cs-legend .lg-now { width: 10px; height: 0; border-top: 1.5px solid var(--tx3); border-radius: 0; margin-left: 8px; }
 .cs-hint { margin-left: auto; opacity: .8; }
 @media (max-width: 430px) {
-  .cs-svg { height: 104px; }
+  .cs-plot { height: 132px; }
   .cs-hint { margin-left: 0; width: 100%; }
 }
 
@@ -2586,7 +2609,7 @@
    每档一根横向柱，长度 ∝ 金额；最长那根标 POC（成本最密集的价位）✓
    ⚠ 空档直接不渲染（原来是 20 格里大半是空的，白占高度 ✗） */
 .vp { display: flex; flex-direction: column; gap: 1px; margin-top: 6px;
-  border-top: 1px dashed var(--line-soft); padding-top: 6px; }
+  border-top: 1px dashed var(--line-soft); padding-top: 6px; padding-right: 2px; }
 .vp-r { display: grid; grid-template-columns: 3.4em 1fr 2.6em; gap: 6px; align-items: center;
   font-size: var(--fs-xxs); }
 .vp-p { font-family: var(--mono); color: var(--tx3); text-align: right;
