@@ -167,8 +167,16 @@ const sumText = sum ? sum.textContent.replace(/\s+/g, "") : "";   // 仍留给�
 /* ⚠ 2026-10-20：每个交易日收盘后、用户还没提供当日快照之前，CI 会先把场内 ETF 报价更新到当天。
    此时页面汇总卡显示的是「今日估值」（用新报价 × 份数），**天然不等于**昨日快照的 total ——
    原来三条断言因此每天晚上必红一次（并非页面错）。报价领先快照时跳过这三条，并打印原因。 */
-const quoteDay = (readFileSync(path.join(root, "data.js"), "utf8")
-  .match(/etfNdx:\s*\{[^}]*?priceDate:\s*"([\d-]+)"/) || [])[1] || null;
+/* ⚠ 2026-11-04 修：原来只读 **etfNdx** 的 priceDate —— 但 5 只 ETF 的更新进度并不一致
+   （实测：11-04 早上 etfSpx / n225 已到 11-04，而 etfNdx 还停在 11-03）✗
+   于是 quoteAhead 判成 false、"今日估值"却已经领先快照 → 三条断言每天早上必红 ✗
+   改成取 5 只里**最晚**的 priceDate ✓ */
+const quoteDay = (() => {
+  const src = readFileSync(path.join(root, "data.js"), "utf8");
+  const ds = [...src.matchAll(/(?:etfNdx|etfSpx|kr|n225|hkus):\s*\{[^}]*?priceDate:\s*"([\d-]+)"/g)]
+    .map((m) => m[1]).filter(Boolean).sort();
+  return ds.length ? ds[ds.length - 1] : null;
+})();
 const quoteAhead = !!(quoteDay && latest && latest.d && quoteDay > latest.d);
 const QUOTE_AHEAD = quoteAhead;
 if (quoteAhead) {
