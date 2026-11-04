@@ -2545,7 +2545,12 @@
 /* ===== 建仓分布：成本 × 时间 散点 ＋ 热力条（2026-11-04 加）=====
    替代原来那条「每笔一个绿点」的位置条（25 笔挤 130px、最挤一格 5 笔，必然互相盖住 ✗）
    ⚠ 默认折叠（details）：手机上多占半屏 ✗ 想看时一点即开 ✓ */
-.cs-wrap { margin: 6px 0 2px; border-top: 1px dashed var(--line-soft); }
+.cs-wrap { margin: 8px 0 2px; border-top: 1px dashed var(--line-soft); }
+/* 折叠入口（2026-11-04）：从「插在位置图中间」挪到「位置图之后」——
+   做成一条**整宽的浅底入口条**，一眼看出它是"再往下一层看"的入口，而不是图的一部分 ✓ */
+.cs-wrap > summary { background: var(--card2, rgba(147,163,187,.05)); border-radius: 4px;
+  padding: 6px 8px; margin-top: 6px; }
+.cs-wrap[open] > summary { border-radius: 4px 4px 0 0; }
 .cs-wrap > summary { display: flex; align-items: baseline; gap: 8px; padding: 6px 2px 5px;
   cursor: pointer; list-style: none; font-size: var(--fs-xxs); color: var(--tx3); }
 .cs-wrap > summary::-webkit-details-marker { display: none; }
