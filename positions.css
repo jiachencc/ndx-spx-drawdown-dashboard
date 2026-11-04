@@ -982,6 +982,13 @@
   .buy-mark.t-mid b { background: color-mix(in srgb, var(--up) 80%, transparent); box-shadow: inset 0 0 0 1px var(--up); }
   .buy-mark.t-new b { background: var(--up); box-shadow: inset 0 0 0 1px var(--up), 0 0 5px var(--up-fill); }
   .buy-mark.flash b { animation: buyflash .5s ease-in-out 3; }
+  /* 定位高亮环（2026-11-04）：绿点只有 6~14px，滑动定位后一闪容易错过 ✗
+     给它套一圈 2px 的环 + 轻微放大，比单纯闪点更容易被眼睛抓到 ✓ */
+  .buy-mark.spot b, .sell-mark.spot b { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px currentColor;
+    transform: scale(1.35); transition: transform .18s ease-out; }
+  .buy-mark.spot::after, .sell-mark.spot::after {
+    content: ""; position: absolute; bottom: -7px; width: 2px; height: 7px;
+    background: currentColor; opacity: .55; }
   @keyframes buyflash { 0%, 100% { transform: scale(1); box-shadow: 0 0 5px var(--up-fill); } 50% { transform: scale(1.9); box-shadow: 0 0 14px var(--up-solid); } }
   .log-item.linkable { cursor: pointer; }
   .log-item.linkable:hover .log-date { color: var(--green); }
@@ -2524,3 +2531,13 @@
   .ldb-base i, .ldb-base b { font-size: 9px; }
   .ld-legend2-note { margin-left: 0; width: 100%; }
 }
+
+/* ---- 流水折叠（2026-11-04）----
+   默认 6 笔，其余 .log-folded 隐藏；「展开全部 N 笔」是整宽低调按钮
+   ⚠ 隐藏用 display:none 而不是 height:0 —— 前者让展开时不必重排过渡，手机滑动更跟手 ✓ */
+.log-item.log-folded, .swing-item.log-folded { display: none; }
+.log-more { display: block; width: 100%; margin: 2px 0 4px; padding: 7px 0;
+  background: none; border: 0; border-top: 1px dashed var(--line-soft);
+  font: inherit; font-size: var(--fs-xxs); color: var(--tx3);
+  text-align: center; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.log-more:hover, .log-more:focus-visible { color: var(--tx2); }

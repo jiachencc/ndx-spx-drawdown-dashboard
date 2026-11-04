@@ -1309,6 +1309,11 @@ function renderImpl() {
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(positionLadderFills);
   observeLadders();   /* 卡内图元高度受行高/字体/展开内容影响，需 RO 监听 */
 
+  /* ⚠ 流水折叠必须在这里调（2026-11-04 踩过）：applyLogFold 定义在下面很远的地方、
+     而函数声明会提升 ✓，但**此时 DOM 还没渲染完**就调 → 一个 .log-list 都找不到、按钮永远不出现 ✗
+     实测：折叠前 32/28/21 行全展示、.log-more 数量 0 ✗ */
+  if (typeof applyLogFold === "function") applyLogFold();
+
   /* 走势图 cost 必须与快照 snapCost 同口径（＝持仓成本 ＋ 现金 ＋ 全额清仓漏出的已实现 ✓）——
      直接传 totalCost（不含现金）会让今日点少减一个现金项、浮盈亏虚增 OTC.cash，把浮亏显示成浮盈；
      漏掉 closedCostGap 时，今日点的成本会比其它期少一截、两线间距凭空多出已兑现的 18,492
@@ -8720,12 +8725,46 @@ function flashBuyMark(item) {
   const card = document.querySelector('.card[data-sym="' + item.dataset.sym + '"]');
   if (!card) return;
   const mk = card.querySelector('.buy-mark[data-d="' + item.dataset.d + '"], .sell-mark[data-d="' + item.dataset.d + '"]');
-  card.scrollIntoView({ behavior: "smooth", block: "center" });
-  if (!mk) return;
+  /* ⚠ 2026-11-04 修（用户：「手机上点击的时候不能回追到绿标上」）——
+     原来滚的是**整张卡**（block:center），但绿标在卡片**底部**的建仓位置条里，
+     手机上卡片很高（还带着长流水）→ 滚到中心时绿标仍在屏外 ✗ 只能看到页面动了、看不到闪 ✗
+     → 改成滚**绿标自己**（block:center 让它落在视口正中）✓
+     顺带把 flash 从 1.6s 延到 2.4s（滑屏 + 眼睛找过去通常要 1s 以上）✗ */
+  if (!mk) { card.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+  mk.scrollIntoView({ behavior: "smooth", block: "center" });
   mk.classList.remove("flash");
   void mk.offsetWidth;
   mk.classList.add("flash");
-  setTimeout(() => mk.classList.remove("flash"), 1600);
+  /* 再给一层「瞄一眼就能看见」的环：绿点只有 6~14px，手机上一个 flash 很容易滑过去 */
+  mk.classList.add("spot");
+  setTimeout(() => { mk.classList.remove("flash"); mk.classList.remove("spot"); }, 2400);
+}
+/* ---- 流水折叠（2026-11-04，用户：「手机上 逐笔流水 太长了」）-------------------
+ * 每只卡的「操作记录」展开后有 20~30 笔，手机上要滑动两三屏，翻到底还找不到最近那笔 ✗
+ * 做法：默认只显示**最近 6 笔**，其余用 .folded 收起来 ＋ 一行「展开全部 27 笔」
+ * ⚠ 只加 class、**不删 DOM** —— dom-check 按 `.log-item` 数量断言，删了会全红 ✗
+ * ⚠ 用「最近的 6 笔」而不是「前 6 笔」：流水是**倒序**（最新在最上），前 6 条本来就是最近 ✓ */
+const LOG_FOLD = 6;
+function applyLogFold() {
+  document.querySelectorAll(".log-list").forEach((list) => {
+    const items = [...list.querySelectorAll(":scope > .log-item, :scope > .swing-item")];
+    if (items.length <= LOG_FOLD + 1) return;                     // 本来就不长，不折
+    let btn = list.nextElementSibling;
+    if (!btn || !btn.classList.contains("log-more")) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "log-more";
+      list.after(btn);
+    }
+    const setOpen = (open) => {
+      items.forEach((it, i) => { it.classList.toggle("log-folded", !open && i >= LOG_FOLD); });
+      btn.textContent = (open ? "收起" : "展开全部 " + items.length + " 笔") + (open ? " ▴" : " ▾");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.dataset.n = items.length;
+    };
+    btn.onclick = () => setOpen(btn.getAttribute("aria-expanded") !== "true");
+    if (btn.getAttribute("aria-expanded") !== "true") setOpen(false);
+  });
 }
 $("pos-list").addEventListener("click", (e) => {
   const item = e.target.closest(".log-item.linkable");
