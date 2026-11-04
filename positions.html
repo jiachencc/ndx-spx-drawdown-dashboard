@@ -8956,59 +8956,99 @@ render();
  *   标普 −10~−15% +12.8%；日经 −15~−20% +7.0%）→ 深档加仓在历史上是有效的 ✓
  *   而浅档（0~−5%）60 日只有 +2~4% —— 所以底仓 40% 就够，不必在浅档重仓 ✗ */
 const LADDER = {
-  /* 金字塔：越跌加越多（浅档 8% → 深档 16%），底仓 40% 打底（防踏空） */
-  steps: [
-    { dd: -5, w: 8 }, { dd: -10, w: 10 }, { dd: -15, w: 12 }, { dd: -20, w: 14 }, { dd: -25, w: 16 },
-  ],
-  base: 40,
-  /* 各标的「距 52 周高点」历史最深（用于判断深档等不等得到） */
+  /* 2026-11-04 重定（用户质疑：「纳指标普牛长熊短，不一定等到那么深的回撤」）——
+     实测支持他：纳指 −20% 一年只有 **10%** 概率触及、标普 −20% 只有 **3%** ✗
+     而等不到时标的平均涨了 **+33~38%** ✗ 等深档的代价远大于收益 ✓
+     → 三处改动：① 档位按各自波动定（不再统一）② 底仓 40 → **55** ③ 加**时间兜底**
+     实测（一年内触及概率）：
+       纳指  −5% 52% · −10% 31% · −15% 17%
+       标普  −5% 48% · −10% 27% · −15% 13%
+       日经  −5% 65% · −10% 51% · −15% 35% · −20% 18%
+     所以：纳指最深 −15%、标普 −10%、日经 −25%（日经波动大，深档真等得到）✓ */
+  base: 55,
+  stepW: 9,          // 5 批 × 9% ＝ 45%；55 ＋ 45 ＝ 100 ✓
+  months: 2,         // 时间兜底：距上次买入满 2 个月，不管跌没跌都投这一批
+  levels: {
+    "159941": [-3, -6, -9, -12, -15],
+    "513650": [-2, -4, -6, -8, -10],
+    "513880": [-5, -10, -15, -20, -25],
+  },
   deepest: { "159941": -31.1, "513650": -21.2, "513880": -28.1 },
 };
+/* 各标的「最近一次买入日」—— 时间兜底从这里起算 ✓（改流水后自动跟着变）*/
+function lastBuyOf(sym) {
+  const L = (typeof POSITIONS !== "undefined" && POSITIONS.log) || [];
+  let d = null;
+  L.forEach((e) => { if (e.sym === sym && /买入|加仓|申购/.test(String(e.act)) && (!d || e.d > d)) d = e.d; });
+  return d;
+}
+function addMonths(ymd, m) {
+  const d = new Date(ymd + "T00:00:00");
+  d.setMonth(d.getMonth() + m);
+  const p = (x) => String(x).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
 function ladderHtml() {
-  /* ⚠ neg 必须在最前面定义 —— 下面的 rows 先用到它，放后面会 `Cannot access before initialization` ✗
-     （2026-11-04 踩到：整张卡静默变空、只有 console 有一行 warning）*/
-  const neg = (v) => "−" + Math.abs(v) + "%";          /* 减号统一 U+2212 */
-  const neg1 = (v) => "−" + Math.abs(v).toFixed(1) + "%";   /* 带一位小数（回撤值）*/
+  /* ⚠ neg / neg1 必须在最前面 —— 下面的 rows 先用到，放后面会 TDZ、整卡静默变空 ✗ */
+  const neg = (v) => "−" + Math.abs(v) + "%";
+  const neg1 = (v) => "−" + Math.abs(v).toFixed(1) + "%";
   const T = (typeof TREND !== "undefined" && TREND.items) || {};
   const CODES = ["159941", "513650", "513880"];
   const NAME = { "159941": "纳指ETF广发", "513650": "标普500ETF南方", "513880": "日经225ETF华安" };
+  const TODAY = (typeof TREND !== "undefined" && TREND.asOf) || new Date().toISOString().slice(0, 10);
+
   const rows = CODES.map((c) => {
     const it = T[c] || {};
     const dd = Number.isFinite(it.distHi) ? it.distHi : null;
     if (dd === null) return "";
-    /* 已触发几档 + 累计该投多少 */
-    const hit = LADDER.steps.filter((s2) => dd <= s2.dd);
-    const cum = hit.reduce((a, s2) => a + s2.w, 0) + LADDER.base;
-    const next = LADDER.steps.find((s2) => dd > s2.dd);
-    const gap = next ? Math.abs(next.dd - dd) : null;
-    const deepest = LADDER.deepest[c];
+    const lv = LADDER.levels[c];
+    const hit = lv.filter((L) => dd <= L);
+    const cum = LADDER.base + hit.length * LADDER.stepW;
+    const next = lv.find((L) => dd > L);
+    const gap = next === undefined ? null : Math.abs(next - dd);
+    /* 时间兜底：距上次买入满 N 个月的那天 */
+    const lb = lastBuyOf(NAME[c]);
+    const due = lb ? addMonths(lb, LADDER.months) : null;
+    const overdue = due && TODAY >= due;
+    const nextTxt = next === undefined
+      ? '已到最深档 · 只剩时间兜底'
+      : neg(next) + " 还差 " + gap.toFixed(1) + "pp"
+        + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\">或 " + (due.slice(0, 4) === TODAY.slice(0, 4) ? due.slice(5) : due) + " 兜底</b>" : "");
     return '<div class="ld-row">'
       + '<span class="ld-nm">' + NAME[c] + "</span>"
       + '<b class="ld-dd">' + neg1(dd) + "</b>"
-      + '<span class="ld-step"><b>' + (hit.length ? "已过 " + hit.length + " 档" : "未触发") + "</b>"
-      + '<i>累计 ' + cum + "%</i></span>"
-      + '<span class="ld-next">' + (next ? (neg(next.dd) + " 还差 " + gap.toFixed(1) + "pp · 加 " + next.w + "%") : "已到最深档") + "</span>"
-      + '<span class="ld-deep">历史最深 ' + neg1(deepest) + "</span>"
+      + '<span class="ld-step"><b>' + (hit.length ? "已过 " + hit.length + "/" + lv.length + " 档" : "未触发") + "</b>"
+      + "<i>累计 " + cum + "%</i></span>"
+      + '<span class="ld-next">' + (hit.length >= lv.length ? "全部触发 · 已满仓" : "下次 " + nextTxt) + "</span>"
+      + '<span class="ld-deep">最深 ' + neg1(LADDER.deepest[c]) + "</span>"
       + "</div>";
   }).join("");
-  /* 档位条：把 5 档横排，标出现在落在哪 */
-  const scale = LADDER.steps.map((s2) => '<span class="ld-sc"><i>' + neg(s2.dd) + "</i><b>" + s2.w + "%</b></span>").join("");
+
+  /* 档位尺：底仓 + 5 批（每批一个标的最小/最深，写"按标的"更清楚）*/
+  const scale = '<span class="ld-sc ld-base"><i>底仓</i><b>' + LADDER.base + "%</b></span>"
+    + Array.from({ length: 5 }, (_, i) =>
+      '<span class="ld-sc"><i>第 ' + (i + 1) + " 批</i><b>" + LADDER.stepW + "%</b></span>").join("");
+
   const card = document.getElementById("ladder-card");
   if (!card) return;
   card.innerHTML = '<div class="ld">'
-    + '<div class="ld-legend"><span>标的</span><b>当前回撤</b><span>已触发</span><span>下一档</span><span>历史最深</span></div>'
+    + '<div class="ld-legend"><span>标的</span><b>当前回撤</b><span>已触发</span><span>下一次（回撤 或 时间）</span><span>历史最深</span></div>'
     + rows
-    + '<div class="ld-scale-w"><span class="ld-scale-t">档位 · 占该标的计划投入</span><div class="ld-scale">'
-    + '<span class="ld-sc ld-base"><i>底仓</i><b>' + LADDER.base + "%</b></span>" + scale + "</div></div>"
+    + '<div class="ld-scale-w"><span class="ld-scale-t">档位 · 占该标的计划投入（底仓立即买，剩下 45% 分 5 批）</span><div class="ld-scale">' + scale + "</div>"
+    + '<div class="ld-lv">'
+    + '<span><i>纳指</i>−3 / −6 / −9 / −12 / −15</span>'
+    + '<span><i>标普</i>−2 / −4 / −6 / −8 / −10</span>'
+    + '<span><i>日经</i>−5 / −10 / −15 / −20 / −25</span>'
+    + "</div></div>"
     + '<div class="ld-note">'
-    + "<b>怎么用</b>：给每只定一个「计划总投入」（比如纳指 25 万），底仓 40% 现在就买、剩下的按档位往下打 ✓"
-    + "<br><b>⚠ 现在的执行顺序</b>：日经 −" + Math.abs((T["513880"] || {}).distHi || 0).toFixed(1) + "% 已过 3 档、纳指 −"
-    + Math.abs((T["159941"] || {}).distHi || 0).toFixed(1) + "% 过 1 档、标普 −" + Math.abs((T["513650"] || {}).distHi || 0).toFixed(1)
-    + "% 还没进第 1 档 —— <b>该加的是日经，不是纳指</b> ✗"
-    + "<br><b>⚠ 前提</b>：本页场内可用现金 <b>0</b>，阶梯第 1 档就执行不了 ✗ 弹药得从「新转进来的钱」留出，或从超配的那只匀一半出来 —— 否则这套表只是看的 ✓"
+    + "<b>为什么档位不一样</b>：按各自波动定 —— 纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，"
+    + "设那么深等于永远不投 ✗；而等不到时标的平均涨了 <b>+33~38%</b>，所以底仓给到 " + LADDER.base + "% ✓"
+    + "<br><b>时间兜底</b>：距上次买入满 <b>" + LADDER.months + " 个月</b>，不管跌没跌都投下一批 —— "
+    + "这才是防「牛市永远等不到」的那条 ✓"
+    + "<br><b>⚠ 前提</b>：场内可用现金 <b>0</b>，第一档就执行不了 ✗ 弹药从「新转进来的钱」留出，或从超配的那只匀"
     + "</div></div>";
   const cnt = document.getElementById("ladder-cnt");
-  if (cnt) cnt.textContent = "档位按各标的自身历史回撤深度定 · 底仓 " + LADDER.base + "% ＋ 5 档";
+  if (cnt) cnt.textContent = "底仓 " + LADDER.base + "% ＋ 5 批 × " + LADDER.stepW + "% · 回撤或 " + LADDER.months + " 个月先到先做";
 }
 renderLadderSafe();
 function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("ladder:", e.message); } }
