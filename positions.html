@@ -7190,8 +7190,17 @@ function holdCardHtml(row, i, ctx) {
   /* 区间着色带：现价↔成本之间 = 当前浮盈(绿)/浮亏(红)区间；带内箭头从成本端指向现价端 */
   const segC = pctOf(p.idxAtCost), segN = pctOf(m.close);
   const segWv = Math.abs(segC - segN);
+  /* ⚠ 2026-11-04 重做：不再用 45° 斜纹 + clip-path 箭头
+     ① 斜纹在 12px 高的条上只有 3~4 条纹 → 看着像「加载中/故障」，不像"区间"✗
+     ② clip-path 箭头在短距离（<4% 时不加、4~8% 时尖角被压扁）根本读不出方向 ✗
+     → 改成**水平渐变 ＋ 两端半圆的胶囊**：任何宽度都不变形，渐变本身就在说"从这儿到那儿" ✓
+        方向编码为「左淡右浓」—— 右端是现价（"现在"），该更醒目 ✓ */
   const seg = (m.close && p.idxAtCost && segWv > 0.01)
-    ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + (segWv >= 4 && m.close !== p.idxAtCost ? (m.close > p.idxAtCost ? " s-r" : " s-l") : "") + '" style="left:' + Math.min(segC, segN) + '%;width:' + segWv + '%"></span>' : "";
+    ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + '" style="left:' + Math.min(segC, segN)
+      + "%;width:" + segWv + '%">'
+      + (segWv >= 7 ? '<em class="seg-d">' + fmtPct(r, 1) + "</em>" : "")   /* 太窄就不放，会糊成一团 ✗ */
+      + "</span>"
+    : "";
   const prem = (POSITIONS.premiums || {})[p.code];
   /* 溢价/折价胶囊（2026-09-23 从独立一行挪到卡头，紧跟「场内 09.22」之后）：
      那枚胶囊说"这是哪天的场内价"，这枚说"这个价比基金实际净值贵多少"，同属"怎么读这个价格"；

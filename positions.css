@@ -905,20 +905,40 @@
   .bar-title b { color: var(--tx2); font-size: var(--fs-sm); }   /* 分位数字略强调，档位标签弱化形成层级 */
   /* 中性底（不再用误导性固定渐变）；红/绿只在现价↔成本间的 .seg 区间带出现，颜色即「浮亏/浮盈」 */
   /* 胶囊轨道 + 内阴影质感（"轨道"而不是"色块"，配合游标 marker 读位置） */
-  .bar-track { position: relative; height: 12px; border-radius: 999px; background: var(--line-soft); box-shadow: var(--shadow-inset); }
+  .bar-track { position: relative; height: 14px; border-radius: 999px; background: var(--line-soft); box-shadow: var(--shadow-inset); }
   .bar-track .seg { position: absolute; top: 0; bottom: 0; border-radius: 4px; pointer-events: none; overflow: hidden; }
   /* 四分位刻度（2026-10-16 加）：轴就是「52周分位」，25/50/75% 三档给它参照 ——
      极淡（--tx3 的 45%）、不抢区间带与游标；写在 seg 之前，故压在它们之下 ✓ */
   .bar-track .bar-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--tx2); opacity: .75; pointer-events: none; }
-  /* 斜纹填充：盈亏区间有质感，且与纯色游标区分开 */
-  .bar-track .seg.gain { background: repeating-linear-gradient(135deg, var(--up-fill) 0 4px, var(--up-bg) 4px 9px); }
-  .bar-track .seg.loss { background: repeating-linear-gradient(135deg, var(--down-fill) 0 4px, var(--down-bg) 4px 9px); }
-  /* 区间带剪成箭头形：平端 = 成本位，尖角端 = 指向现价位（现价在右 s-r、在左 s-l）；无字符、方向藏在形状里 */
-  .bar-track .seg.s-r { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); }
-  .bar-track .seg.s-l { clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%); }
+  /* ── 盈亏区间带（2026-11-04 重做）────────────────────────────────────────
+     旧版：45° 斜纹 ＋ clip-path 箭头
+       ① 12px 高的条上斜纹只有 3~4 条 → 读起来像「加载中 / 画面故障」，不像"一段区间"✗
+       ② 箭头在短距离会被压扁（<4% 干脆不加）→ 方向时有时无 ✗
+     新版：**水平渐变 ＋ 两端半圆胶囊**
+       · 渐变本身就在说「从这里走到这里」，比花纹语义更准 ✓
+       · 胶囊形状任何宽度都成立，不会像箭头那样变形 ✓
+       · 左淡右浓 —— 右端是现价（"现在"），该更醒目 ✓ */
+  /* 这段宽度是客观事实：1.5% 的价差在 52 周区间（1.244~1.795）里只占约 5%，
+     在 550px 的条上就是 27px，渐变基本看不出来 ✗ 所以加外发光让它有存在感，
+     真正的数值交给上方那行「成本 1.6162 +1.5% → 现价 1.640」✓ */
+  .bar-track .seg { border-radius: 999px; min-width: 8px;
+    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent),
+                0 0 8px -2px var(--up-fill); }
+  .bar-track .seg.loss { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent),
+                0 0 8px -2px var(--down-fill); }
+  .bar-track .seg.gain { background: linear-gradient(90deg, color-mix(in srgb, var(--up) 22%, transparent),
+                                              color-mix(in srgb, var(--up) 72%, transparent)); }
+  .bar-track .seg.loss { background: linear-gradient(90deg, color-mix(in srgb, var(--down) 22%, transparent),
+                                              color-mix(in srgb, var(--down) 72%, transparent)); }
+  /* 带中央的涨跌幅（宽度 ≥7% 才有位置放；太窄会糊成一团 ✗）*/
+  .bar-track .seg-d { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-style: normal; font-size: 8px; font-weight: 700; font-family: var(--mono);
+    font-feature-settings: "tnum"; color: var(--card); white-space: nowrap;
+    text-shadow: 0 0 3px rgba(0, 0, 0, .45); pointer-events: none; }
   /* 游标形态（替代细竖线）：成本=青圆、现价=白圆（略大，代表"当下"），都带描边+光晕 */
   .bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: none; padding: 0; margin: 0; cursor: pointer; }
-  .bar-marker.cost { background: var(--cyan); box-shadow: 0 0 0 2px var(--card), 0 0 9px var(--info-fill); }
+  .bar-marker.cost { width: 10px; height: 10px; background: var(--cyan);
+    box-shadow: 0 0 0 2px var(--card), 0 0 9px var(--info-fill); }
   .bar-end { position: absolute; right: -2px; top: 50%; transform: translateY(-50%); width: 6px; height: 18px; border-radius: 3px; background: var(--yellow); box-shadow: 0 0 9px var(--warn-solid); }
   /* 现价游标：**竖线**（2026-10-16 改）—— 原先与成本位同为圆点、只差颜色与 2px 直径 ✗，
      色盲 / 强光 / 小屏下会退化成两个圆点；改后**形状本身**就能区分（成本＝实心青圆 · 现价＝贯穿竖线）✓。
@@ -2642,3 +2662,13 @@
 .vp-poc .vp-t::after { content: "POC"; position: absolute; right: 3px; top: 50%;
   transform: translateY(-50%); font-size: 7px; letter-spacing: .04em;
   color: var(--card); opacity: .85; font-weight: 700; }
+
+/* ---- 卡内小排版打磨（2026-11-04）----
+   「成本 1.6162 +1.5% → 现价 1.640」这行原来数字和箭头几乎贴着 ✗ → 给箭头两侧留白；
+   图例与下面的「详细」入口也离得太近 → 加一点下边距 ✓ */
+.lad-line { line-height: 1.9; }
+.lad-line .lad-arrow { margin: 0 4px; opacity: .8; }
+.bar-wrap .bar-legend { margin-top: 7px; }
+.bar-wrap { margin-bottom: 9px; }
+/* 「今日 +1.86%…· 未触发 [chip]」这行：chip 与前文之间要有气口 ✗ */
+.strat-row .lad-chip { margin-left: 5px; }
