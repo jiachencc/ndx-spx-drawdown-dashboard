@@ -7368,6 +7368,7 @@ function holdCardHtml(row, i, ctx) {
     '</div>' +
     '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
+      costScatterHtml(i) +
       /* 四分位刻度（2026-10-16 加）：这条轴的横轴就是「52周分位」，而这个数页面上到处在用
          （胶囊「52周分位 64%」、体检表、归因），条上原先却只有两端两个价格 ✗ → 加 25/50/75% 三条极淡刻度，
          成本位落在哪一档不必再靠目测 ✓。刻度无 z-index、且写在 seg 之前 → 压在区间带与游标之下 ✓ */
@@ -7409,6 +7410,119 @@ function holdCardHtml(row, i, ctx) {
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 /* ---- 水位梯填充定位 ---- */
+/* ===== 建仓分布：成本 × 时间 散点 ＋ 成本密度热力条（2026-11-04 加）=================
+ * 用户：「绿标还有别的优化方案吗 … 这里数据会越来越多」
+ *
+ * 为什么必须换掉原来那条：老设计是「52 周分位」当横轴、每笔一个绿点。
+ * 实测（11-04）：纳指 25 笔挤在约 130px、最挤一格 **5 笔**；标普 21 笔／4 笔；日经 14 笔／3 笔
+ * → 绿点本身 6~14px，必然互相盖住 ✗ 而用户 11-03 / 11-04 两天就加了 9 笔，只会更糟 ✗
+ * 根因不是"点太大"，是**横轴选错**：成本价跨度天然只有 8~15%，
+ * 而且**完全丢了时间** —— 「什么时候买的、节奏如何」才是该看的 ✓
+ *
+ * 新版两张图各说一件事：
+ *   ① 散点（X=日期，Y=成本价，面积∝金额）—— 看节奏与成本带，天然可扩展到几百笔 ✓
+ *   ② 热力条（20 格，深浅＝该价位加了几笔）—— 永不重叠，看集中度 ✓
+ * 卖出点画成红空心圈，与买入同处一张散点 → 买卖能对照 ✓
+ * ⚠ 默认折叠（<details>）：手机上多占半屏 ✗ 但想看时一点即开 ✓
+ */
+function costScatterHtml(i) {
+  /* ⚠ 入参用 **索引**，不要传 h.sym —— holdCardHtml 的作用域里没有 h ✗（只有 row/p/m）
+     实测：写 h.sym 时整块静默返回 undefined，.cs-wrap 数量 0、控制台无报错，很难发现 ✗ */
+  const holdRow = ((typeof POSITIONS !== "undefined" && POSITIONS.hold) || [])[i];
+  if (!holdRow) return "";
+  const sym = holdRow.sym;
+  const L = ((typeof POSITIONS !== "undefined" && POSITIONS.log) || []).filter((e) => e.sym === sym);
+  const buys = L.filter((e) => /买入|加仓/.test(String(e.act)) && Number.isFinite(e.cost));
+  const sells = L.filter((e) => /卖出|减仓|清仓/.test(String(e.act)) && Number.isFinite(e.cost));
+  if (buys.length < 2) return "";
+  const hold = ((POSITIONS.hold || []).find((h) => h.sym === sym)) || null;
+  /* ⚠ DEFAULT[hold.idx] 是**指数点位**（ndx=28,180），不是 ETF 价格 ✗ ——
+     直接拿它当 Y 轴，会把刻度拉成 3 万多、点全挤在底部（2026-11-04 踩到）
+     ETF 报价在 DEFAULT.etfNdx / etfSpx / n225 / kr / hkus ✓ 先查映射表 */
+  const ETF_KEY = { ndx: "etfNdx", spx: "etfSpx", n225: "n225", kr: "kr", hkus: "hkus" };
+  const etfK = ETF_KEY[hold && hold.idx];
+  const close = (typeof DEFAULT !== "undefined" && DEFAULT && etfK && DEFAULT[etfK] && Number.isFinite(DEFAULT[etfK].close))
+    ? DEFAULT[etfK].close : null;
+
+  const ds = L.map((e) => e.d).sort();
+  const t0 = Date.parse(ds[0]), t1 = Date.parse(ds[ds.length - 1]);
+  const span = Math.max(1, t1 - t0);
+  const pxAll = buys.concat(sells).map((e) => e.cost).concat([hold ? hold.cost : null, close].filter(Boolean));
+  const lo = Math.min.apply(null, pxAll), hi = Math.max.apply(null, pxAll);
+  const padY = Math.max((hi - lo) * 0.18, 0.005);
+  const Y0 = lo - padY, Y1 = hi + padY;
+
+  /* ⚠ viewBox 的宽高比必须贴近实际显示尺寸（约 330×120 ≈ 2.75），
+     否则 `preserveAspectRatio="none"` 会横向拉伸 —— 圆变成椭圆（2026-11-04 第一版就是 100×46＝2.17）✗
+     100 / 36 ≈ 2.78 ✓ */
+  const W = 100, H = 36;
+  const X = (d) => 2 + (Date.parse(d) - t0) / span * (W - 4);
+  const Y = (v) => H - 2 - (v - Y0) / (Y1 - Y0) * (H - 4);
+  const amts = buys.map((e) => e.cost * e.qty);
+  const maxAmt = Math.max.apply(null, amts) || 1;
+  const rOf = (e) => 1.1 + 2.0 * Math.sqrt((e.cost * e.qty) / maxAmt);   /* 25 笔同带，半径 4 会连成串 ✗ */
+
+  let svg = "";
+  /* 摊薄成本线（虚线）与现价线（实线）—— 一眼看出"我的成本在现价上方还是下方" ✓ */
+  if (hold && Number.isFinite(hold.cost)) {
+    svg += '<line x1="1.5" y1="' + Y(hold.cost).toFixed(2) + '" x2="' + (W - 1.5) + '" y2="' + Y(hold.cost).toFixed(2)
+      + '" stroke="var(--cyan, #4ecdc4)" stroke-width=".45" stroke-dasharray="1.6 1.2" opacity=".8"/>';
+  }
+  if (Number.isFinite(close)) {
+    svg += '<line x1="1.5" y1="' + Y(close).toFixed(2) + '" x2="' + (W - 1.5) + '" y2="' + Y(close).toFixed(2)
+      + '" stroke="var(--tx3)" stroke-width=".35" opacity=".55"/>';
+  }
+  /* 卖出：红空心圈 */
+  sells.forEach((e) => {
+    svg += '<circle cx="' + X(e.d).toFixed(2) + '" cy="' + Y(e.cost).toFixed(2) + '" r="2.1" fill="none"'
+      + ' stroke="var(--down, #d02440)" stroke-width=".55"><title>' + e.d + " 卖出 @" + e.cost + "</title></circle>";
+  });
+  /* 买入：绿实心，面积 ∝ 金额；带 data-d → 点流水可定位 ✓ */
+  buys.forEach((e) => {
+    svg += '<circle class="cs-buy" cx="' + X(e.d).toFixed(2) + '" cy="' + Y(e.cost).toFixed(2) + '" r="' + rOf(e).toFixed(2)
+      + '" data-d="' + e.d + '" fill="var(--up, #2dd4a7)" fill-opacity=".82"><title>'
+      + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + "（" + Math.round(e.cost * e.qty).toLocaleString("en-US") + " 元）"
+      + "</title></circle>";
+  });
+
+  /* ② 热力条：按成本价分 20 格，深浅＝笔数（对齐 52 周分位那条的视觉语言）*/
+  const B = 20;
+  const cnt = new Array(B).fill(0);
+  const cLo = Math.min.apply(null, buys.map((e) => e.cost)), cHi = Math.max.apply(null, buys.map((e) => e.cost));
+  buys.forEach((e) => {
+    const b = cHi > cLo ? Math.min(B - 1, Math.floor((e.cost - cLo) / (cHi - cLo) * B)) : 0;
+    cnt[b]++;
+  });
+  const maxC = Math.max.apply(null, cnt) || 1;
+  const heat = cnt.map((n, i) => {
+    const op = n === 0 ? 0 : 0.16 + 0.72 * (n / maxC);
+    const v0 = cLo + (cHi - cLo) * i / B, v1 = cLo + (cHi - cLo) * (i + 1) / B;
+    return '<i style="opacity:' + op.toFixed(2) + '" title="' + v0.toFixed(3) + "~" + v1.toFixed(3) + "　" + n + ' 笔"></i>';
+  }).join("");
+
+  /* ⚠ 这里原本是一长串 `+` 拼接，实测在 7500 行附近抛
+     `Unexpected identifier 'cs'` —— 长链里某一处引号闭合提前，很难肉眼定位 ✗
+     改成**模板字符串**（反引号）：内部的双引号不再需要转义，一次就能看全 ✓ */
+  const heatBar = '<span class="cs-heat-l">' + cLo.toFixed(2) + '</span>'
+    + '<span class="cs-heat-b">' + heat + '</span>'
+    + '<span class="cs-heat-l">' + cHi.toFixed(2) + '</span>';
+  const yHead = '<span>' + Y1.toFixed(2) + '</span><span>' + ((Y1 + Y0) / 2).toFixed(2) + '</span><span>' + Y0.toFixed(2) + '</span>';
+  const legend = '<i class="lg-buy"></i>买入（面积∝金额）<i class="lg-sell"></i>卖出'
+    + '<i class="lg-cost"></i>摊薄成本' + (Number.isFinite(close) ? '<i class="lg-now"></i>现价' : '')
+    + '<span class="cs-hint">热力条：该价位加了几笔（越亮越多）</span>';
+  const sub = buys.length + ' 笔买入' + (sells.length ? ' · ' + sells.length + ' 笔卖出' : '')
+    + ' · ' + ds[0].slice(5) + ' ~ ' + ds[ds.length - 1].slice(5);
+  return `<details class="cs-wrap">
+    <summary><span class="cs-t">建仓分布</span><span class="cs-s">${sub}</span></summary>
+    <div class="cs-body">
+      <div class="cs-yh">${yHead}</div>
+      <svg class="cs-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(sym)}：按日期的买入成本分布">${svg}</svg>
+    </div>
+    <div class="cs-heat">${heatBar}</div>
+    <div class="cs-legend">${legend}</div>
+  </details>`;
+}
+
 function positionLadderFills() {
   document.querySelectorAll(".ladder").forEach((lad) => {
     const fill = lad.querySelector(".lad-fill");
@@ -8724,6 +8838,17 @@ $("pl-list").addEventListener("click", (e) => {
 function flashBuyMark(item) {
   const card = document.querySelector('.card[data-sym="' + item.dataset.sym + '"]');
   if (!card) return;
+  /* ⚠ 优先定位**新散点图**里的点（2026-11-04）：绿标那条已经挤不下 25 笔，
+     散点图才是能看清"这笔在哪"的地方 ✓ 找不到再回退老绿标 ✓ */
+  const cs = card.querySelector('.cs-buy[data-d="' + item.dataset.d + '"]');
+  if (cs) {
+    const det = cs.closest("details");
+    if (det && !det.open) det.open = true;            // 折叠着就自动展开，否则点了没反应 ✗
+    cs.scrollIntoView({ behavior: "smooth", block: "center" });
+    cs.classList.add("cs-spot");
+    setTimeout(() => cs.classList.remove("cs-spot"), 2400);
+    return;
+  }
   const mk = card.querySelector('.buy-mark[data-d="' + item.dataset.d + '"], .sell-mark[data-d="' + item.dataset.d + '"]');
   /* ⚠ 2026-11-04 修（用户：「手机上点击的时候不能回追到绿标上」）——
      原来滚的是**整张卡**（block:center），但绿标在卡片**底部**的建仓位置条里，

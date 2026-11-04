@@ -2541,3 +2541,42 @@
   font: inherit; font-size: var(--fs-xxs); color: var(--tx3);
   text-align: center; cursor: pointer; -webkit-appearance: none; appearance: none; }
 .log-more:hover, .log-more:focus-visible { color: var(--tx2); }
+
+/* ===== 建仓分布：成本 × 时间 散点 ＋ 热力条（2026-11-04 加）=====
+   替代原来那条「每笔一个绿点」的位置条（25 笔挤 130px、最挤一格 5 笔，必然互相盖住 ✗）
+   ⚠ 默认折叠（details）：手机上多占半屏 ✗ 想看时一点即开 ✓ */
+.cs-wrap { margin: 6px 0 2px; border-top: 1px dashed var(--line-soft); }
+.cs-wrap > summary { display: flex; align-items: baseline; gap: 8px; padding: 6px 2px 5px;
+  cursor: pointer; list-style: none; font-size: var(--fs-xxs); color: var(--tx3); }
+.cs-wrap > summary::-webkit-details-marker { display: none; }
+.cs-wrap > summary::before { content: "▸"; font-size: 9px; opacity: .6; transition: transform .15s; }
+.cs-wrap[open] > summary::before { transform: rotate(90deg); }
+.cs-t { color: var(--tx2); font-weight: 600; }
+.cs-s { margin-left: auto; font-family: var(--mono); }
+.cs-body { display: flex; gap: 5px; padding: 2px 0 0; }
+/* Y 轴三档刻度（上/中/下）—— 只标数字，不画轴线，省地方 ✓ */
+.cs-yh { display: flex; flex-direction: column; justify-content: space-between;
+  font-family: var(--mono); font-size: 8px; color: var(--tx3); text-align: right;
+  padding: 1px 0 1px; font-feature-settings: "tnum"; }
+.cs-svg { flex: 1 1 auto; min-width: 0; height: 118px; display: block;
+  background: linear-gradient(180deg, transparent, rgba(147,163,187,.04)); border-radius: 3px; }
+.cs-svg circle.cs-buy { cursor: pointer; }
+.cs-svg circle.cs-buy.cs-spot { stroke: var(--tx); stroke-width: .7; }
+/* 热力条：20 格，深浅＝该价位加了几笔 */
+.cs-heat { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+.cs-heat-l { font-family: var(--mono); font-size: 8px; color: var(--tx3); white-space: nowrap;
+  font-feature-settings: "tnum"; }
+.cs-heat-b { flex: 1 1 auto; display: flex; gap: 1px; height: 9px; min-width: 0; }
+.cs-heat-b > i { flex: 1 1 0; min-width: 0; background: var(--up, #2dd4a7); border-radius: 1px; }
+.cs-legend { display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  margin-top: 6px; font-size: var(--fs-xxs); color: var(--tx3); }
+.cs-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.cs-legend .lg-buy { background: var(--up, #2dd4a7); margin-left: 2px; }
+.cs-legend .lg-sell { border: 1px solid var(--down, #d02440); margin-left: 8px; }
+.cs-legend .lg-cost { width: 10px; height: 0; border-top: 1.5px dashed var(--cyan, #4ecdc4); border-radius: 0; margin-left: 8px; }
+.cs-legend .lg-now { width: 10px; height: 0; border-top: 1.5px solid var(--tx3); border-radius: 0; margin-left: 8px; }
+.cs-hint { margin-left: auto; opacity: .8; }
+@media (max-width: 430px) {
+  .cs-svg { height: 104px; }
+  .cs-hint { margin-left: 0; width: 100%; }
+}
