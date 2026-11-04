@@ -7449,20 +7449,41 @@ function costScatterHtml(i) {
   const span = Math.max(1, t1 - t0);
   const pxAll = buys.concat(sells).map((e) => e.cost).concat([hold ? hold.cost : null, close].filter(Boolean));
   const lo = Math.min.apply(null, pxAll), hi = Math.max.apply(null, pxAll);
-  const padY = Math.max((hi - lo) * 0.18, 0.005);
+  const padY = Math.max((hi - lo) * 0.08, 0.003);   /* 18% → 8%：原来上下大片空白、点挤成一条线 ✗ */
   const Y0 = lo - padY, Y1 = hi + padY;
 
   /* ⚠ viewBox 的宽高比必须贴近实际显示尺寸（约 330×120 ≈ 2.75），
      否则 `preserveAspectRatio="none"` 会横向拉伸 —— 圆变成椭圆（2026-11-04 第一版就是 100×46＝2.17）✗
      100 / 36 ≈ 2.78 ✓ */
   const W = 100, H = 36;
-  const X = (d) => 2 + (Date.parse(d) - t0) / span * (W - 4);
+  /* X 方向「同日错开」（2026-11-04，参考 Kcnarf/d3-beeswarm 的 beeswarm 思路）——
+     同一天买多笔时，原来的点完全重合、图上只剩 1 个（11-03/11-04 各 5 笔就是这样）✗
+     这里只错开 **X（±1.5 天）**、Y 保持精确 → 时间和成本都能读 ✓
+     ⚠ 代价：某天买 3 笔，图上看着像分散在 3 天 ✗ 所有蜂群图都有这个取舍 */
+  const byDate = {};
+  buys.forEach((e) => { (byDate[e.d] = byDate[e.d] || []).push(e); });
+  const jitOf = (e) => {
+    const arr = byDate[e.d]; const k = arr.length;
+    if (k <= 1) return 0;
+    const idx = arr.indexOf(e);
+    return ((idx / (k - 1)) * 2 - 1) * 1.5 * 86400000;      // ±1.5 天
+  };
+  const X = (d, jit) => {
+    const x = 2 + ((Date.parse(d) + (jit || 0)) - t0) / span * (W - 4);
+    return Math.max(1.2, Math.min(W - 1.2, x));
+  };
   const Y = (v) => H - 2 - (v - Y0) / (Y1 - Y0) * (H - 4);
   const amts = buys.map((e) => e.cost * e.qty);
   const maxAmt = Math.max.apply(null, amts) || 1;
   const rOf = (e) => 1.1 + 2.0 * Math.sqrt((e.cost * e.qty) / maxAmt);   /* 25 笔同带，半径 4 会连成串 ✗ */
 
   let svg = "";
+  /* 横向网格（2026-11-04）：原来背景全黑，看不出点落在哪一档 ✗ → 3 条极淡线 */
+  [0.25, 0.5, 0.75].forEach((t) => {
+    const gy = (2 + t * (H - 4)).toFixed(2);
+    svg += '<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy
+      + '" stroke="currentColor" stroke-width=".15" opacity=".16"/>';
+  });
   /* 摊薄成本线（虚线）与现价线（实线）—— 一眼看出"我的成本在现价上方还是下方" ✓ */
   if (hold && Number.isFinite(hold.cost)) {
     svg += '<line x1="1.5" y1="' + Y(hold.cost).toFixed(2) + '" x2="' + (W - 1.5) + '" y2="' + Y(hold.cost).toFixed(2)
@@ -7479,37 +7500,49 @@ function costScatterHtml(i) {
   });
   /* 买入：绿实心，面积 ∝ 金额；带 data-d → 点流水可定位 ✓ */
   buys.forEach((e) => {
-    svg += '<circle class="cs-buy" cx="' + X(e.d).toFixed(2) + '" cy="' + Y(e.cost).toFixed(2) + '" r="' + rOf(e).toFixed(2)
-      + '" data-d="' + e.d + '" fill="var(--up, #2dd4a7)" fill-opacity=".82"><title>'
-      + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + "（" + Math.round(e.cost * e.qty).toLocaleString("en-US") + " 元）"
+    /* 分色：买在**现价之下**＝便宜（绿）、之上＝贵（琥珀）——
+       "哪几笔买贵了"一眼可见 ✓（原来全绿，看不出贵贱 ✗）*/
+    const dear = Number.isFinite(close) && e.cost > close;
+    const col = dear ? "var(--warn, #d8a13a)" : "var(--up, #2dd4a7)";
+    svg += '<circle class="cs-buy' + (dear ? " cs-dear" : "") + '" cx="' + X(e.d, jitOf(e)).toFixed(2)
+      + '" cy="' + Y(e.cost).toFixed(2) + '" r="' + rOf(e).toFixed(2)
+      + '" data-d="' + e.d + '" fill="' + col + '" fill-opacity=".85"'
+      + ' stroke="' + col + '" stroke-width=".35" stroke-opacity=".9"><title>'
+      + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + "（" + Math.round(e.cost * e.qty).toLocaleString("en-US")
+      + " 元）" + (dear ? " · 高于现价" : " · 低于现价")
       + "</title></circle>";
   });
 
-  /* ② 热力条：按成本价分 20 格，深浅＝笔数（对齐 52 周分位那条的视觉语言）*/
-  const B = 20;
-  const cnt = new Array(B).fill(0);
-  const cLo = Math.min.apply(null, buys.map((e) => e.cost)), cHi = Math.max.apply(null, buys.map((e) => e.cost));
-  buys.forEach((e) => {
-    const b = cHi > cLo ? Math.min(B - 1, Math.floor((e.cost - cLo) / (cHi - cLo) * B)) : 0;
-    cnt[b]++;
-  });
-  const maxC = Math.max.apply(null, cnt) || 1;
-  const heat = cnt.map((n, i) => {
-    const op = n === 0 ? 0 : 0.16 + 0.72 * (n / maxC);
-    const v0 = cLo + (cHi - cLo) * i / B, v1 = cLo + (cHi - cLo) * (i + 1) / B;
-    return '<i style="opacity:' + op.toFixed(2) + '" title="' + v0.toFixed(3) + "~" + v1.toFixed(3) + "　" + n + ' 笔"></i>';
-  }).join("");
+  /* ② 成本分布：横向柱状（2026-11-04 第二版，参考 TradingView 的 Volume Profile / POC）——
+     第一版是 20 格热力条（深浅＝笔数），信息量够但**看不出量级差** ✗
+     改成横向柱：每档一根，长度 ∝ **金额**（不是笔数）→ "钱堆在哪个价位"更直观 ✓
+     最长那根标 POC（Point of Control ＝ 成本最密集的价位）✓ */
+  const B = 10;
+  const cLo0 = Math.min.apply(null, buys.map((e) => e.cost));
+  const cHi0 = Math.max.apply(null, buys.map((e) => e.cost));
+  const binOf = (v) => (cHi0 > cLo0 ? Math.min(B - 1, Math.floor((v - cLo0) / (cHi0 - cLo0) * B)) : 0);
+  const amtAt = new Array(B).fill(0), cntAt = new Array(B).fill(0);
+  buys.forEach((e) => { const b = binOf(e.cost); amtAt[b] += e.cost * e.qty; cntAt[b]++; });
+  const maxBin = Math.max.apply(null, amtAt) || 1;
+  const pocBin = amtAt.indexOf(maxBin);
+  const vpRows = [];
+  for (let i = B - 1; i >= 0; i--) {
+    if (!cntAt[i]) continue;                       // 空档不画，省地方 ✓
+    const v0 = cLo0 + (cHi0 - cLo0) * i / B;
+    const w = amtAt[i] / maxBin * 100;
+    vpRows.push('<div class="vp-r' + (i === pocBin ? " vp-poc" : "") + '" title="'
+      + v0.toFixed(3) + " 附近：" + cntAt[i] + " 笔 · " + Math.round(amtAt[i]).toLocaleString("en-US") + " 元"
+      + (i === pocBin ? "（POC · 钱最集中的价位）" : "") + '">'
+      + '<span class="vp-p">' + v0.toFixed(2) + "</span>"
+      + '<span class="vp-t"><i style="width:' + w.toFixed(1) + '%"></i></span>'
+      + '<span class="vp-n">' + cntAt[i] + "</span></div>");
+  }
+  const vp = '<div class="vp">' + vpRows.join("") + "</div>";
 
-  /* ⚠ 这里原本是一长串 `+` 拼接，实测在 7500 行附近抛
-     `Unexpected identifier 'cs'` —— 长链里某一处引号闭合提前，很难肉眼定位 ✗
-     改成**模板字符串**（反引号）：内部的双引号不再需要转义，一次就能看全 ✓ */
-  const heatBar = '<span class="cs-heat-l">' + cLo.toFixed(2) + '</span>'
-    + '<span class="cs-heat-b">' + heat + '</span>'
-    + '<span class="cs-heat-l">' + cHi.toFixed(2) + '</span>';
   const yHead = '<span>' + Y1.toFixed(2) + '</span><span>' + ((Y1 + Y0) / 2).toFixed(2) + '</span><span>' + Y0.toFixed(2) + '</span>';
-  const legend = '<i class="lg-buy"></i>买入（面积∝金额）<i class="lg-sell"></i>卖出'
+  const legend = '<i class="lg-buy"></i>买在现价下方<i class="lg-dear"></i>买在现价上方<i class="lg-sell"></i>卖出'
     + '<i class="lg-cost"></i>摊薄成本' + (Number.isFinite(close) ? '<i class="lg-now"></i>现价' : '')
-    + '<span class="cs-hint">热力条：该价位加了几笔（越亮越多）</span>';
+    + '<span class="cs-hint">下方柱：该价位的投入金额（POC＝最密集）</span>';
   const sub = buys.length + ' 笔买入' + (sells.length ? ' · ' + sells.length + ' 笔卖出' : '')
     + ' · ' + ds[0].slice(5) + ' ~ ' + ds[ds.length - 1].slice(5);
   return `<details class="cs-wrap">
@@ -7518,7 +7551,7 @@ function costScatterHtml(i) {
       <div class="cs-yh">${yHead}</div>
       <svg class="cs-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(sym)}：按日期的买入成本分布">${svg}</svg>
     </div>
-    <div class="cs-heat">${heatBar}</div>
+    ${vp}
     <div class="cs-legend">${legend}</div>
   </details>`;
 }
