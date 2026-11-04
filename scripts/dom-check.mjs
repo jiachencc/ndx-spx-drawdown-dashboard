@@ -177,10 +177,15 @@ const quoteDay = (() => {
     .map((m) => m[1]).filter(Boolean).sort();
   return ds.length ? ds[ds.length - 1] : null;
 })();
-const quoteAhead = !!(quoteDay && latest && latest.d && quoteDay > latest.d);
+/* ⚠ 2026-11-04 再加一条：**快照日 == 报价日**时也跳过。
+   收盘（15:00）到 CI 复跑之间，行情源会对当日收盘价做一次微调 ——
+   实测 11-04：App 15:01 读数是 1.644（市值 215,528.40），当晚 CI 抓到 1.640，
+   乘以 131,100 份 ＝ **差 524 元** ✗ 而快照必须用 App 的真实账户读数（那才是权威）✓
+   → 同一天内报价再刷，不算「领先」，这三条比对没有意义 ✓ */
+const quoteAhead = !!(quoteDay && latest && latest.d && quoteDay >= latest.d);
 const QUOTE_AHEAD = quoteAhead;
 if (quoteAhead) {
-  console.log("  · 跳过汇总卡三条断言：场内报价 " + quoteDay + " 已领先快照 " + latest.d +
+  console.log("  · 跳过汇总卡三条断言：场内报价 " + quoteDay + " 已到/领先快照 " + latest.d +
     "，页面汇总卡显示的是今日估值（等当日快照录入后自然对齐）");
 }
 /* 总资产容差放到 3：页面是「快照逐只市值取整后求和」，与 App 总读数天然差 1 元以内 */
