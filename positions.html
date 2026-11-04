@@ -7494,16 +7494,22 @@ function costScatterHtml(i) {
   /* 卖出：红空心圈 */
   sells.forEach((e) => {
     marks += '<b class="cs-sell" style="left:' + pctX(e.d).toFixed(2) + "%;top:" + pctY(e.cost).toFixed(2)
-      + '%" title="' + e.d + " 卖出 @" + e.cost + '"></b>';
+      + '%" data-d="' + e.d + '" data-kind="sell"'
+      + ' data-info="' + e.d + " 卖出 " + fmtQty(e.qty) + " 份 @" + e.cost + '"></b>';
   });
   /* 买入：实心圆，面积 ∝ 金额；带 data-d → 点流水可定位 ✓ */
   buys.forEach((e) => {
     /* 分色：买在现价之下＝便宜（绿）、之上＝贵（琥珀）—— 哪几笔买贵了一眼可见 ✓ */
     const dear = Number.isFinite(close) && e.cost > close;
+    const amtTxt = Math.round(e.cost * e.qty).toLocaleString("en-US");
+    /* ⚠ 手机上**没有悬停** —— 只靠 title 等于没数据 ✗（用户反馈）
+       所以把信息另存进 data-info，点击时由下方读数条显示 ✓ title 仍留着给桌面悬停 */
     marks += '<b class="cs-buy cs-pt' + (dear ? " cs-dear" : "") + '" style="left:'
       + pctX(e.d, jitOf(e)).toFixed(2) + "%;top:" + pctY(e.cost).toFixed(2)
-      + "%;width:" + szOf(e) + "px;height:" + szOf(e) + 'px" data-d="' + e.d + '" title="'
-      + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + "（" + Math.round(e.cost * e.qty).toLocaleString("en-US")
+      + "%;width:" + szOf(e) + "px;height:" + szOf(e) + 'px" data-d="' + e.d + '" data-kind="buy"'
+      + ' data-info="' + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + " · " + amtTxt + " 元"
+      + (dear ? " · 高于现价" : " · 低于现价") + '" title="'
+      + e.d + " 买入 " + fmtQty(e.qty) + " 份 @" + e.cost + "（" + amtTxt
       + " 元）" + (dear ? " · 高于现价" : " · 低于现价") + '"></b>';
   });
 
@@ -7545,6 +7551,7 @@ function costScatterHtml(i) {
       <div class="cs-yh">${yHead}</div>
       <div class="cs-plot" role="img" aria-label="${esc(sym)}：按日期的买入成本分布">${marks}</div>
     </div>
+    <div class="cs-tip" aria-live="polite">点一下圆点看这笔明细</div>
     ${vp}
     <div class="cs-legend">${legend}</div>
   </details>`;
@@ -8918,10 +8925,32 @@ function applyLogFold() {
     if (btn.getAttribute("aria-expanded") !== "true") setOpen(false);
   });
 }
+/* ---- 散点点击读数（2026-11-04）------------------------------------------------
+ * 用户：「鼠标放上去才有提示 但是手机没有鼠标 就看不到数据了，改成点击显示」
+ * 手机上 `title` 完全不生效（长按也只是浏览器自带的、还会被系统菜单挡）✗
+ * → 点圆点：① 该点放大高亮 ② 图**下方**那行读数显示明细 ✓
+ *   读数放在图下方而不是浮动气泡：不用算定位、不会被裁、也不会盖住相邻的点 ✓
+ * ⚠ 必须用**事件委托**绑在 pos-list 上 —— .cs-pt 是每次渲染重建的，直接绑会失效 ✗ */
 $("pos-list").addEventListener("click", (e) => {
-  const item = e.target.closest(".log-item.linkable");
-  if (item) flashBuyMark(item);
+  const pt = e.target.closest(".cs-pt, .cs-sell");
+  if (!pt) return;
+  const plot = pt.closest(".cs-plot");
+  /* ⚠ tip 现在在 .cs-body 之外（在 .cs-wrap 里）—— 从 plot 往上找 ✗ 不能用 parentElement */
+  const wrap = pt.closest(".cs-wrap");
+  const tip = wrap && wrap.querySelector(".cs-tip");
+  /* 清掉同一张图里其它的高亮 */
+  if (plot) plot.querySelectorAll(".cs-spot").forEach((x) => { if (x !== pt) x.classList.remove("cs-spot"); });
+  pt.classList.toggle("cs-spot");
+  if (!tip) return;
+  if (pt.classList.contains("cs-spot")) {
+    tip.textContent = pt.dataset.info || "";
+    tip.classList.add("on");
+  } else {
+    tip.textContent = "点一下圆点看这笔明细";
+    tip.classList.remove("on");
+  }
 });
+
 $("pos-list").addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const item = e.target.closest(".log-item.linkable");

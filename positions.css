@@ -2578,10 +2578,21 @@
 /* 数据点：translate(-50%,-50%) 让 left/top 命中圆心 */
 .cs-pt { position: absolute; transform: translate(-50%, -50%); border-radius: 50%;
   cursor: pointer; }
-.cs-buy { background: var(--up, #2dd4a7); box-shadow: 0 0 0 .5px var(--up, #2dd4a7); }
-.cs-buy.cs-dear { background: var(--warn, #d8a13a); box-shadow: 0 0 0 .5px var(--warn, #d8a13a); }
+/* 半透明（2026-11-04，用户：「圆圈改淡一些？半透明会更好看」）——
+   比实心柔和，重叠处会自然加深、反而能看出"同一价位买了几笔" ✓
+   ⚠ 用 background + opacity 而不是 rgba 硬编码颜色 —— 深浅主题下都跟着令牌走 ✓ */
+.cs-buy { background: var(--up, #2dd4a7); opacity: .62; }
+.cs-buy.cs-dear { background: var(--warn, #d8a13a); }
+.cs-pt:hover, .cs-pt:focus-visible { opacity: .95; }
+.cs-pt.cs-spot { opacity: 1; }
+.cs-sell { opacity: .72; }
 .cs-sell { position: absolute; transform: translate(-50%, -50%); width: 7px; height: 7px;
   border-radius: 50%; border: 1.5px solid var(--down, #d02440); background: transparent; }
+/* 图下读数条：手机点圆点后显示这一笔的明细 */
+.cs-tip { margin-top: 5px; padding-left: 2px; font-size: var(--fs-xxs); color: var(--tx3);
+  font-family: var(--mono); font-feature-settings: "tnum"; line-height: 1.5;
+  min-height: 1.5em; transition: color .15s; }
+.cs-tip.on { color: var(--tx2); }
 /* 定位高亮：白圈 + 放大，2.4s 后撤掉 */
 .cs-pt.cs-spot { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px currentColor;
   transform: translate(-50%, -50%) scale(1.4); transition: transform .18s ease-out; }
