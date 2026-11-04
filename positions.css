@@ -882,7 +882,10 @@
   .lad-gap.down { color: var(--red); }
   .lad-gap.warn { color: var(--yellow); }
   .lad-arrow { color: var(--tx3); }
-  .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  /* ⚠ 2026-11-04：去掉 margin-left:auto —— 原来它被推到整行最右，浮在位置图右上角、
+     与左边那串「成本 → 现价 → 高点」没有视觉联系，位置显得随意 ✗
+     改成紧跟文字流，`.lad-line` 的 gap:14px 已经够分隔 ✓ */
+  .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .lad-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 6px; border: 1px solid; white-space: nowrap; font-feature-settings: "tnum"; }
   .lad-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
   .lad-chip.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
@@ -958,7 +961,10 @@
   .idx-pop .ip-tip { margin-top: 5px; font-size: var(--fs-xs); color: var(--tx2); line-height: 1.65; border-top: 1px dashed var(--line); padding-top: 5px; }
   .idx-pop .ip-note { margin-top: 4px; font-size: var(--fs-xxs); color: var(--tx3); }
   @keyframes ipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-  .strat-row { margin-top: 8px; font-size: var(--fs-xs); color: var(--tx3); line-height: 1.6; overflow-wrap: break-word; }
+  /* ⚠ 2026-11-04：`?` 原来是普通 inline 元素，chip 一长就被挤到第二行、孤零零一个 ✗
+     → 行设 relative、按钮绝对定位到右上，正文让出 20px 不重叠 ✓ */
+  .strat-row { position: relative; padding-right: 20px; margin-top: 8px;
+    font-size: var(--fs-xs); color: var(--tx3); line-height: 1.6; overflow-wrap: break-word; }
   .strat-row .lad-chip { margin-left: 6px; vertical-align: 1px; }   /* 加仓档 chip 自 2026-09-23 起挂在这一行（原挂三档读数行） */
   .held { font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); font-feature-settings: "tnum"; }
   /* 数据新鲜度的**相对时间**文字（今日 / N 天前）与「同步 X/8」计数：
@@ -979,7 +985,9 @@
   .strat-hint::after, .sum-info::after, .tip::after { content: ""; position: absolute; top: -6px; right: -6px; bottom: -6px; left: -6px; }
   .strat-note { display: none; font-size: var(--fs-xs); color: var(--tx3); margin-top: 6px; line-height: 1.55; padding: 7px 9px; border: 1px dashed var(--line-soft); border-radius: 8px; }
   .strat-note.open { display: block; }
-  .bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-top: 8px; font-feature-settings: "tnum"; }
+  /* padding 2px：轨道的圆角半径让两端视觉内缩约 2px，价格数字贴 0 会显得浮出去 ✗ */
+  .bar-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-xxs); color: var(--tx3); margin-top: 8px; padding: 0 2px;
+  font-feature-settings: "tnum"; }
   .bar-legend { display: flex; gap: 10px; margin-top: 6px; font-size: var(--fs-xxs); color: var(--tx3); flex-wrap: wrap; opacity: .85; }
   .bar-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
   /* 买入位置分布 */
@@ -1037,7 +1045,8 @@
   .kpi-row.kpi3 { grid-template-columns: repeat(3, 1fr); }   /* 场内卡 3 格版：浮盈并入市值格，与竖梯 chips 去重 */
   .kpi-row.kpi2 { grid-template-columns: repeat(2, 1fr); }   /* 场内卡 2 格版（2026-09-30）：没卖出的标的没有第三格，别留空位 */
   /* KPI 卡片统一为一套：原 8px 4 / 10px 8 / 8px 6 三种 padding 同位不同高，列内行高不齐 */
-  .kpi, .sum-cell, .sw-kpi { padding: 10px 8px; border-radius: var(--radius-md); }
+  /* 上下 10 → 8（2026-11-04）：两行内容（数值 + 副标）在 10px 下显得格子里空荡荡 ✗ */
+  .kpi, .sum-cell, .sw-kpi { padding: 8px; border-radius: var(--radius-md); }
   .kpi { background: var(--card2); border: 1px solid var(--line-soft); text-align: center; min-width: 0; }
   .kpi .k-label { font-size: var(--fs-xxs); color: var(--tx3); margin-bottom: 3px; }
   .kpi .k-val { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; }
@@ -2672,3 +2681,5 @@
 .bar-wrap { margin-bottom: 9px; }
 /* 「今日 +1.86%…· 未触发 [chip]」这行：chip 与前文之间要有气口 ✗ */
 .strat-row .lad-chip { margin-left: 5px; }
+/* .strat-row 里的「?」固定到右上角（2026-11-04）*/
+.strat-row > .strat-hint { position: absolute; right: 0; top: 1px; margin-left: 0; }

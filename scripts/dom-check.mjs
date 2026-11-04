@@ -411,7 +411,10 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
     /* ③ 今日必须带金额 —— 正则**紧贴百分比之后**（2026-10-16 收紧：原先写成 /今日.*%（.*元≈/
        会一路匹配到本行末尾那个「?」浮层的说明文字里，等于放宽成"整卡有「元≈」就行" ✗） */
     const stratTxt = (card.querySelector(".strat-row") ? card.querySelector(".strat-row").textContent : "").replace(/\s+/g, "");
-    if (!/今日[-+−]?\d[\d.]*%（[-+−][\d,]+元≈）/.test(stratTxt)) noDayAmt.push(sym + "：" + stratTxt.slice(0, 50));
+    /* ⚠ 2026-11-04 文案改版：「（+3,999 元 ≈）」→「（约 +3,999 元）」
+       —— 符号吊在末尾太怪、直接换 ≈ 又会和正号撞成「≈+3,999」✗
+       正则跟着放宽：允许「约」在前、空格可有可无 ✓ */
+    if (!/今日[-+−]?\d[\d.]*%（约\s*[-+−][\d,]+\s*元）/.test(stratTxt)) noDayAmt.push(sym + "：" + stratTxt.slice(0, 50));
     /* ⑤ 持有天数带首笔日期 */
     const heldTxt = (card.querySelector(".held") ? card.querySelector(".held").textContent : "").replace(/\s+/g, "");
     if (!/持有\d+天（首笔\d\d\.\d\d）/.test(heldTxt)) noFirstD.push(sym + "：" + heldTxt.slice(0, 40));
@@ -421,7 +424,7 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
   });
   check("场内卡「摊薄」那格带动词（省下 / 多花 / 成本未变）—— 不是光给一个符号 ✗", noVerb.length === 0, noVerb.join("；") || "全部带动词 ✓");
   check("场内卡：同一个成本价只有一种精度（4 位；2 位形式不得出现在成本价语境）", twoDp.length === 0, twoDp.join("；") || "精度统一 ✓");
-  check("场内卡策略行「今日」同时给 % 与金额（≈ 元）", noDayAmt.length === 0, noDayAmt.join("；") || "全部带金额 ✓");
+  check("场内卡策略行「今日」同时给 % 与金额（约 X 元）", noDayAmt.length === 0, noDayAmt.join("；") || "全部带金额 ✓");
   check("场内卡「持有 N 天」带首笔日期", noFirstD.length === 0, noFirstD.join("；") || "全部带首笔 ✓");
   check("场内卡溢价 ≥ " + 3 + "% 时悬停给出**规模**（≈ 多少元是溢价）", premGapMiss.length === 0, premGapMiss.join("、") || "溢价规模已给 ✓");
 }
