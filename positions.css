@@ -2457,3 +2457,70 @@
 /* 时间兜底日期：未到期=灰蓝，已过期=琥珀（该投了）*/
 .ld-due { color: var(--tx3); }
 .ld-due-now { color: var(--warn, #d8a13a); font-weight: 700; }
+
+/* ---- 加仓阶梯 · 分段进度条（2026-11-04 第二版，用户：「可视化更好一些，类似柱状图」）----
+   一条 = 100% 计划投入，按「底仓 55 ＋ 5 批 × 9」分段：
+     已触发 = 实心（绿/蓝渐变），下一档 = 琥珀描边＋斜纹，未触发 = 虚框
+   比表格直观：一眼看出「投到第几批、下一个门槛在哪」✓ */
+.ldb-row { padding: 10px 0; border-bottom: 1px dashed var(--line-soft); }
+.ldb-row:last-of-type { border-bottom: 0; }
+.ldb-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.ldb-nm { font-size: var(--fs-xs); color: var(--tx2); flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ldb-dd { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--down);
+  font-feature-settings: "tnum"; }
+.ldb-cum { font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; }
+.ldb-cum b { color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; }
+
+/* 轨道：flex 比例 = 投入占比（55 : 9 : 9 : 9 : 9 : 9）*/
+.ldb-track { display: flex; gap: 2px; height: 26px; align-items: stretch; }
+.ldb-seg { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0; min-width: 0; overflow: hidden; border-radius: 3px;
+  border: 1px solid var(--line-soft); background: transparent; line-height: 1.15; }
+.ldb-seg i { font-style: normal; font-size: 9px; color: var(--tx3); white-space: nowrap;
+  font-family: var(--mono); }
+.ldb-seg b { font-size: 9px; font-weight: 700; color: var(--tx3); font-family: var(--mono);
+  font-feature-settings: "tnum"; white-space: nowrap; }
+/* 底仓段最宽，字能大一点 */
+.ldb-base { flex: 55; }
+.ldb-base i, .ldb-base b { font-size: 10px; }
+/* 5 批各占 9 */
+.ldb-track > .ldb-seg:not(.ldb-base) { flex: 9; }
+/* 已触发：实心（用涨色系但压暗，避免和「当日涨跌」混淆）*/
+.ldb-seg.done { background: rgba(45, 212, 167, .18); border-color: rgba(45, 212, 167, .45); }
+.ldb-seg.done i { color: var(--tx2); }
+.ldb-seg.done b { color: var(--up, #2dd4a7); }
+.ldb-base.done { background: rgba(90, 169, 255, .16); border-color: rgba(90, 169, 255, .40); }
+.ldb-base.done b { color: var(--blue); }
+/* 下一档：琥珀描边 ＋ 斜纹底 —— 一眼看出「就差这一档」*/
+.ldb-seg.next { border-color: var(--warn, #d8a13a); border-style: dashed;
+  background: repeating-linear-gradient(135deg, rgba(216,161,58,.14) 0 4px, transparent 4px 8px); }
+.ldb-seg.next i { color: var(--warn, #d8a13a); }
+.ldb-seg.next b { color: var(--warn, #d8a13a); }
+
+.ldb-foot { display: flex; align-items: baseline; gap: 6px; margin-top: 5px;
+  font-size: var(--fs-xxs); color: var(--tx3); }
+.ldb-foot > :first-child { flex: 1 1 auto; min-width: 0; }
+.ldb-foot b { color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; }
+.ldb-allhit { color: var(--up, #2dd4a7) !important; }
+.ldb-deep { white-space: nowrap; font-family: var(--mono); }
+
+/* 图例 */
+.ld-legend2 { display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx3); }
+.ld-legend2 i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 6px; }
+.ld-legend2 i:first-child { margin-left: 0; }
+.lg-done { background: rgba(45,212,167,.25); border: 1px solid rgba(45,212,167,.5); }
+.lg-next { background: repeating-linear-gradient(135deg, rgba(216,161,58,.3) 0 3px, transparent 3px 6px);
+  border: 1px dashed var(--warn, #d8a13a); }
+.lg-todo { border: 1px solid var(--line-soft); }
+.ld-legend2-note { margin-left: auto; }
+@media (max-width: 430px) {
+  /* ⚠ 档位值（−3 / −6 …）**不能藏**（2026-11-04 第一版藏了，条上只剩「✓ ✓ 9% 9%」看不出门槛 ✗）
+     414px 下 9% 的段约 30px，`−9%` 三个字符按 8px 算是 18px，放得下 ✓ 只是要压紧 */
+  .ldb-track { height: 32px; gap: 1px; }
+  .ldb-seg i, .ldb-seg b { font-size: 8px; }
+  .ldb-base i, .ldb-base b { font-size: 9px; }
+  .ld-legend2-note { margin-left: 0; width: 100%; }
+}

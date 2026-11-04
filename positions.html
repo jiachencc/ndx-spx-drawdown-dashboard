@@ -8997,6 +8997,9 @@ function ladderHtml() {
   const NAME = { "159941": "纳指ETF广发", "513650": "标普500ETF南方", "513880": "日经225ETF华安" };
   const TODAY = (typeof TREND !== "undefined" && TREND.asOf) || new Date().toISOString().slice(0, 10);
 
+  /* ── 每只一行：名称＋回撤 ／ 分段进度条（底仓 ＋ 5 批）／ 累计 ／ 下一次 ──
+     进度条 = 已投的段实心、未投的段描边；当前回撤落在哪段，那段加描边高亮 ✓
+     这样一眼能看出「投到第几批了、下一个门槛在哪」，比纯表格直观 ✓ */
   const rows = CODES.map((c) => {
     const it = T[c] || {};
     const dd = Number.isFinite(it.distHi) ? it.distHi : null;
@@ -9006,45 +9009,51 @@ function ladderHtml() {
     const cum = LADDER.base + hit.length * LADDER.stepW;
     const next = lv.find((L) => dd > L);
     const gap = next === undefined ? null : Math.abs(next - dd);
-    /* 时间兜底：距上次买入满 N 个月的那天 */
     const lb = lastBuyOf(NAME[c]);
     const due = lb ? addMonths(lb, LADDER.months) : null;
     const overdue = due && TODAY >= due;
-    const nextTxt = next === undefined
-      ? '已到最深档 · 只剩时间兜底'
-      : neg(next) + " 还差 " + gap.toFixed(1) + "pp"
-        + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\">或 " + (due.slice(0, 4) === TODAY.slice(0, 4) ? due.slice(5) : due) + " 兜底</b>" : "");
-    return '<div class="ld-row">'
-      + '<span class="ld-nm">' + NAME[c] + "</span>"
-      + '<b class="ld-dd">' + neg1(dd) + "</b>"
-      + '<span class="ld-step"><b>' + (hit.length ? "已过 " + hit.length + "/" + lv.length + " 档" : "未触发") + "</b>"
-      + "<i>累计 " + cum + "%</i></span>"
-      + '<span class="ld-next">' + (hit.length >= lv.length ? "全部触发 · 已满仓" : "下次 " + nextTxt) + "</span>"
-      + '<span class="ld-deep">最深 ' + neg1(LADDER.deepest[c]) + "</span>"
-      + "</div>";
-  }).join("");
 
-  /* 档位尺：底仓 + 5 批（每批一个标的最小/最深，写"按标的"更清楚）*/
-  const scale = '<span class="ld-sc ld-base"><i>底仓</i><b>' + LADDER.base + "%</b></span>"
-    + Array.from({ length: 5 }, (_, i) =>
-      '<span class="ld-sc"><i>第 ' + (i + 1) + " 批</i><b>" + LADDER.stepW + "%</b></span>").join("");
+    /* 分段：底仓（权重 base）＋ 5 批（各 stepW）；done = 已触发 */
+    const segBase = '<span class="ldb-seg ldb-base done" title="底仓 ' + LADDER.base + '% · 立即买入">'
+      + "<i>底仓</i><b>" + LADDER.base + "%</b></span>";
+    const segs = lv.map((L, i) => {
+      const done = dd <= L;
+      const isNext = next === L;
+      return '<span class="ldb-seg' + (done ? " done" : "") + (isNext ? " next" : "") + '"'
+        + ' title="第 ' + (i + 1) + " 批 · 回撤 " + neg(L) + " 时投 " + LADDER.stepW + "%"
+        + (done ? "（已触发）" : isNext ? "（下一档，还差 " + gap.toFixed(1) + "pp）" : "（未触发）") + '">'
+        + "<i>" + neg(L) + "</i><b>" + (done ? "✓" : LADDER.stepW + "%") + "</b></span>";
+    }).join("");
+
+    /* 下一次：回撤 或 时间兜底，两个都写出来 */
+    const nextTxt = next === undefined
+      ? '<b class="ldb-allhit">5 批已全部触发</b>'
+      : "下次 <b>" + neg(next) + "</b> 还差 <b>" + gap.toFixed(1) + "pp</b>"
+        + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\">或 "
+          + (due.slice(0, 4) === TODAY.slice(0, 4) ? due.slice(5) : due) + " 兜底</b>" : "");
+
+    return '<div class="ldb-row">'
+      + '<div class="ldb-head">'
+      + '<span class="ldb-nm">' + NAME[c] + "</span>"
+      + '<b class="ldb-dd">' + neg1(dd) + "</b>"
+      + '<span class="ldb-cum">已投 <b>' + cum + "%</b></span>"
+      + "</div>"
+      + '<div class="ldb-track">' + segBase + segs + "</div>"
+      + '<div class="ldb-foot">' + nextTxt
+      + '<span class="ldb-deep">最深 ' + neg1(LADDER.deepest[c]) + "</span>"
+      + "</div></div>";
+  }).join("");
 
   const card = document.getElementById("ladder-card");
   if (!card) return;
   card.innerHTML = '<div class="ld">'
-    + '<div class="ld-legend"><span>标的</span><b>当前回撤</b><span>已触发</span><span>下一次（回撤 或 时间）</span><span>历史最深</span></div>'
     + rows
-    + '<div class="ld-scale-w"><span class="ld-scale-t">档位 · 占该标的计划投入（底仓立即买，剩下 45% 分 5 批）</span><div class="ld-scale">' + scale + "</div>"
-    + '<div class="ld-lv">'
-    + '<span><i>纳指</i>−3 / −6 / −9 / −12 / −15</span>'
-    + '<span><i>标普</i>−2 / −4 / −6 / −8 / −10</span>'
-    + '<span><i>日经</i>−5 / −10 / −15 / −20 / −25</span>'
-    + "</div></div>"
+    + '<div class="ld-legend2"><i class="lg-done"></i>已触发 <i class="lg-next"></i>下一档 <i class="lg-todo"></i>未触发'
+    + '<span class="ld-legend2-note">条长比例＝投入占比：底仓 ' + LADDER.base + "% ＋ 5 批 × " + LADDER.stepW + "%</span></div>"
     + '<div class="ld-note">'
-    + "<b>为什么档位不一样</b>：按各自波动定 —— 纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，"
-    + "设那么深等于永远不投 ✗；而等不到时标的平均涨了 <b>+33~38%</b>，所以底仓给到 " + LADDER.base + "% ✓"
-    + "<br><b>时间兜底</b>：距上次买入满 <b>" + LADDER.months + " 个月</b>，不管跌没跌都投下一批 —— "
-    + "这才是防「牛市永远等不到」的那条 ✓"
+    + "<b>档位按各自波动定</b>：纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，设那么深等于永远不投 ✗；"
+    + "而等不到时标的平均涨了 <b>+33~38%</b>，所以底仓给到 " + LADDER.base + "% ✓"
+    + "<br><b>时间兜底</b>：距上次买入满 <b>" + LADDER.months + " 个月</b>，不管跌没跌都投下一批 —— 防「牛市整年等不到」✓"
     + "<br><b>⚠ 前提</b>：场内可用现金 <b>0</b>，第一档就执行不了 ✗ 弹药从「新转进来的钱」留出，或从超配的那只匀"
     + "</div></div>";
   const cnt = document.getElementById("ladder-cnt");
