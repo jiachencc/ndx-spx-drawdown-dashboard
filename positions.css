@@ -2401,3 +2401,50 @@
 .cb-agg > summary::-webkit-details-marker { display: none; }
 .cb-agg > summary::before { content: "▸ "; font-family: var(--mono); }
 .cb-agg[open] > summary::before { content: "▾ "; }
+
+/* ---- 加仓阶梯（2026-11-04 加）----
+   四行数据 + 一条档位尺。手机竖屏把「下一档」挤到第二行 → 用 grid 两段式：
+   第一行 名称 / 回撤 / 档位，第二行「下一档 · 历史最深」通栏 ✓ */
+.ld { display: flex; flex-direction: column; gap: 0; }
+.ld-legend, .ld-row { display: grid;
+  grid-template-columns: 8.2em 5.4em 6.6em minmax(0, 1fr) 6.4em;
+  gap: 3px 10px; align-items: baseline; }
+.ld-legend { padding-bottom: 5px; border-bottom: 1px solid var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx3); }
+.ld-legend > b { font-weight: 400; text-align: right; }
+.ld-row { padding: 7px 0; border-bottom: 1px dashed var(--line-soft); font-size: var(--fs-xs); }
+.ld-row:last-of-type { border-bottom: 0; }
+.ld-nm { color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ld-dd { font-family: var(--mono); font-weight: 700; text-align: right; font-feature-settings: "tnum";
+  color: var(--down); }
+.ld-step { display: flex; flex-direction: column; gap: 0; line-height: 1.3; }
+.ld-step b { font-weight: 700; font-size: var(--fs-xs); }
+.ld-step i { font-style: normal; font-size: var(--fs-xxs); color: var(--tx3); }
+.ld-next { color: var(--tx2); font-size: var(--fs-xxs); line-height: 1.45; }
+.ld-deep { color: var(--tx3); font-size: var(--fs-xxs); text-align: right; font-family: var(--mono);
+  font-feature-settings: "tnum"; white-space: nowrap; }
+/* 档位尺：底仓 + 5 档横排，用竖线分隔 */
+.ld-scale-w { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line-soft); }
+.ld-scale-t { font-size: var(--fs-xxs); color: var(--tx3); }
+.ld-scale { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+.ld-sc { display: flex; flex-direction: column; align-items: center; gap: 0;
+  min-width: 3.4em; padding: 3px 2px; border-radius: 4px;
+  background: var(--surface-2, rgba(147,163,187,.06)); }
+.ld-sc i { font-style: normal; font-size: var(--fs-xxs); color: var(--tx3); font-family: var(--mono); }
+.ld-sc b { font-size: var(--fs-xs); font-family: var(--mono); font-weight: 700; color: var(--tx2);
+  font-feature-settings: "tnum"; }
+.ld-base { background: rgba(90, 169, 255, .12); }
+.ld-base b { color: var(--blue); }
+.ld-note { margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.7; }
+.ld-note b { color: var(--tx2); }
+@media (max-width: 430px) {
+  /* 五列塞不进 356px → 拆两行：第一行 名称/回撤/档位，第二行 下一档 + 历史最深 */
+  .ld-legend { display: none; }
+  .ld-row { grid-template-columns: 1fr auto auto; gap: 2px 8px; }
+  .ld-nm { grid-column: 1; }
+  .ld-dd { grid-column: 2; }
+  .ld-step { grid-column: 3; align-items: flex-end; }
+  .ld-next { grid-column: 1 / 3; text-align: left; }
+  .ld-deep { grid-column: 3; }
+}

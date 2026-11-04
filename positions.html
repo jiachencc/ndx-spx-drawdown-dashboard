@@ -169,6 +169,13 @@ try {
   <h2 class="sec-title" id="sec-prem"><span aria-hidden="true">🎫</span> 溢价扫描 · 同赛道该买哪只 <span class="cnt" id="prem-scan-cnt"></span></h2>
   <div class="card tight" id="prem-scan-card"></div>
 
+  <!-- 加仓阶梯（2026-11-04 加，用户：「帮我做一个加仓阶梯，每跌百分之几加多少」）
+       ⚠ 位置：紧跟溢价扫描 —— 溢价回答「该用哪只买」，阶梯回答「买多少」，顺序不能倒 ✓
+       ⚠ 档位依据：各标的自己历史上「距 52 周高点回撤」能到多深（实测见 data 注释），
+         不是凭感觉定 —— 标普只跌到 −21%，档位设到 −30% 就永远等不到 ✗ -->
+  <h2 class="sec-title" id="sec-ladder"><span aria-hidden="true">🪜</span> 加仓阶梯 · 跌多少加多少 <span class="cnt" id="ladder-cnt"></span></h2>
+  <div class="card tight" id="ladder-card"></div>
+
   <!-- 今年这几次跌 · 历史坐标（2026-10-24 加，用户要求「把当年几次大的回撤做一个历史对照的结论」）
        ⚠ 位置：刻意放在「操作体检」**之前** —— 先看**外部跌到什么程度**，再看**我在这个环境里的操作**
          （体检卡讲溢价/追高/成交位置），顺序才对 ✓；再往前放就会打断 ①~⑧ 那条对账链 ✗。
@@ -8936,6 +8943,76 @@ function render() {
 render();
 /* 操作体检表：挂在自己的静态容器上（#checkup-card 不由 render 重建），所以放在 render() 之后即可。
    数据自己读 POSITIONS / OTC，不依赖 render 的产物。 */
+/* ===== 加仓阶梯（2026-11-04 加）=====
+ * 用户：「每跌百分之几，加多少 —— 我加仓的节奏有点错，应该有一些标准」
+ *
+ * 档位不是拍脑袋：用各标的**自己历史上「距 52 周高点回撤」能到多深**定的 ✓
+ *   纳指(159941, 11 年)   −5% 占 19.9% 时间 · −10% 11.2% · −15% 7.6% · −20% 8.1% · 最深 −31.1%
+ *   标普(513650, 3.6 年)  −5% 13.1% · −10% 4.0% · −15% 仅 0.8% · 最深 −21.2%
+ *   日经(513880, 7.4 年)  −5% 23.8% · −10% 21.3% · −15% 6.4% · −20% 8.0% · 最深 −28.1%
+ * → 统一 5 档（好记），但每只在卡上标出**它自己的历史最深**，深档能不能等到一目了然 ✓
+ *
+ * 另一个实测依据：首次触及各档后的 60 日均涨（纳指 −10~−15% 档 +7.9%、−20~−30% 档 +7.7%；
+ *   标普 −10~−15% +12.8%；日经 −15~−20% +7.0%）→ 深档加仓在历史上是有效的 ✓
+ *   而浅档（0~−5%）60 日只有 +2~4% —— 所以底仓 40% 就够，不必在浅档重仓 ✗ */
+const LADDER = {
+  /* 金字塔：越跌加越多（浅档 8% → 深档 16%），底仓 40% 打底（防踏空） */
+  steps: [
+    { dd: -5, w: 8 }, { dd: -10, w: 10 }, { dd: -15, w: 12 }, { dd: -20, w: 14 }, { dd: -25, w: 16 },
+  ],
+  base: 40,
+  /* 各标的「距 52 周高点」历史最深（用于判断深档等不等得到） */
+  deepest: { "159941": -31.1, "513650": -21.2, "513880": -28.1 },
+};
+function ladderHtml() {
+  /* ⚠ neg 必须在最前面定义 —— 下面的 rows 先用到它，放后面会 `Cannot access before initialization` ✗
+     （2026-11-04 踩到：整张卡静默变空、只有 console 有一行 warning）*/
+  const neg = (v) => "−" + Math.abs(v) + "%";          /* 减号统一 U+2212 */
+  const neg1 = (v) => "−" + Math.abs(v).toFixed(1) + "%";   /* 带一位小数（回撤值）*/
+  const T = (typeof TREND !== "undefined" && TREND.items) || {};
+  const CODES = ["159941", "513650", "513880"];
+  const NAME = { "159941": "纳指ETF广发", "513650": "标普500ETF南方", "513880": "日经225ETF华安" };
+  const rows = CODES.map((c) => {
+    const it = T[c] || {};
+    const dd = Number.isFinite(it.distHi) ? it.distHi : null;
+    if (dd === null) return "";
+    /* 已触发几档 + 累计该投多少 */
+    const hit = LADDER.steps.filter((s2) => dd <= s2.dd);
+    const cum = hit.reduce((a, s2) => a + s2.w, 0) + LADDER.base;
+    const next = LADDER.steps.find((s2) => dd > s2.dd);
+    const gap = next ? Math.abs(next.dd - dd) : null;
+    const deepest = LADDER.deepest[c];
+    return '<div class="ld-row">'
+      + '<span class="ld-nm">' + NAME[c] + "</span>"
+      + '<b class="ld-dd">' + neg1(dd) + "</b>"
+      + '<span class="ld-step"><b>' + (hit.length ? "已过 " + hit.length + " 档" : "未触发") + "</b>"
+      + '<i>累计 ' + cum + "%</i></span>"
+      + '<span class="ld-next">' + (next ? (neg(next.dd) + " 还差 " + gap.toFixed(1) + "pp · 加 " + next.w + "%") : "已到最深档") + "</span>"
+      + '<span class="ld-deep">历史最深 ' + neg1(deepest) + "</span>"
+      + "</div>";
+  }).join("");
+  /* 档位条：把 5 档横排，标出现在落在哪 */
+  const scale = LADDER.steps.map((s2) => '<span class="ld-sc"><i>' + neg(s2.dd) + "</i><b>" + s2.w + "%</b></span>").join("");
+  const card = document.getElementById("ladder-card");
+  if (!card) return;
+  card.innerHTML = '<div class="ld">'
+    + '<div class="ld-legend"><span>标的</span><b>当前回撤</b><span>已触发</span><span>下一档</span><span>历史最深</span></div>'
+    + rows
+    + '<div class="ld-scale-w"><span class="ld-scale-t">档位 · 占该标的计划投入</span><div class="ld-scale">'
+    + '<span class="ld-sc ld-base"><i>底仓</i><b>' + LADDER.base + "%</b></span>" + scale + "</div></div>"
+    + '<div class="ld-note">'
+    + "<b>怎么用</b>：给每只定一个「计划总投入」（比如纳指 25 万），底仓 40% 现在就买、剩下的按档位往下打 ✓"
+    + "<br><b>⚠ 现在的执行顺序</b>：日经 −" + Math.abs((T["513880"] || {}).distHi || 0).toFixed(1) + "% 已过 3 档、纳指 −"
+    + Math.abs((T["159941"] || {}).distHi || 0).toFixed(1) + "% 过 1 档、标普 −" + Math.abs((T["513650"] || {}).distHi || 0).toFixed(1)
+    + "% 还没进第 1 档 —— <b>该加的是日经，不是纳指</b> ✗"
+    + "<br><b>⚠ 前提</b>：本页场内可用现金 <b>0</b>，阶梯第 1 档就执行不了 ✗ 弹药得从「新转进来的钱」留出，或从超配的那只匀一半出来 —— 否则这套表只是看的 ✓"
+    + "</div></div>";
+  const cnt = document.getElementById("ladder-cnt");
+  if (cnt) cnt.textContent = "档位按各标的自身历史回撤深度定 · 底仓 " + LADDER.base + "% ＋ 5 档";
+}
+renderLadderSafe();
+function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("ladder:", e.message); } }
+
 renderPremScan();                        // 溢价扫描（2026-10-28 加，紧跟场内持仓之后）
 renderDdRef();                           // 今年这几次跌 · 历史坐标（2026-10-24 加，紧跟体检之前）
 renderBuyPos();                             // 买入坐标（2026-10-31 加，紧跟体检之后）
