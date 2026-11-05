@@ -2106,6 +2106,37 @@ function saDetailView(C) {
       + "按快照期归属资金流、不是日频 ✗；不含费用与汇率 ✗。"
       + (bench ? " 期初存量（第一份含该只的快照 " + bench.base + " 上的成本）按当期基准价折成份额 ✓。" : "")
       + (themeOfCode && themeOfCode !== "ndx" ? " ⚠ 该只不是纳指类（" + themeOfCode + "）—— 这里只能当跨基准参照看 ✓。" : "");
+    /* ── 场外的「逐期轨迹」汇总块（代替明细表）──────────────────────────
+       用户：「场外的明细表格不显示了，有一个简单的汇总就行 —— 有时候能加有时候不能加、
+             不稳定，而且截图麻烦」
+       给四件事：多少期 / 生涯累计 / 最好最差那一期 / 申赎合计 ✓
+       ⚠ 不给逐期金额 —— 场外那几期之间没有"操作"可对照，逐期数字只会让人误以为是交易日 ✓ */
+    const otcTraceSummary = () => {
+      const vs = chrono.map((x) => x.v);
+      const best = vs.length ? Math.max.apply(null, vs) : 0;
+      const worst = vs.length ? Math.min.apply(null, vs) : 0;
+      const bestD = vs.length ? chrono[vs.indexOf(best)].d : null;
+      const worstD = vs.length ? chrono[vs.indexOf(worst)].d : null;
+      const logs = ((typeof OTC_LOG !== "undefined" && OTC_LOG && OTC_LOG[code]) || [])
+        .filter((t) => t.status === "成功");
+      const buy = logs.filter((t) => /申购|定投/.test(String(t.act))).reduce((a, t) => a + (+t.amt || 0), 0);
+      const sell = logs.filter((t) => /赎回/.test(String(t.act))).reduce((a, t) => a + (+t.amt || 0), 0);
+      const cell = (k, v, cls2) => '<div class="ots-it"><span>' + k + "</span><b" + (cls2 ? ' class="' + cls2 + '"' : "") + ">" + v + "</b></div>";
+      return '<div class="ots">'
+        + '<div class="ots-h"><b>场外定投 · 不做逐期归因</b>'
+        + '<i>没有主动操作可复盘；且 QDII 净值滞后、常缺 2~3 只 → 只给汇总 ✓</i></div>'
+        + '<div class="ots-grid">'
+        + cell("快照期数", hist.length + " 期")
+        + cell("生涯累计", fmtAmt(total), cls(total))
+        + cell("申赎合计", "申购 " + fmtAmt(buy) + " · 赎回 " + fmtAmt(sell))
+        + (vs.length ? cell("单期最好", fmtAmt(best) + "（" + mdOf(bestD) + "）", cls(best)) : "")
+        + (vs.length ? cell("单期最差", fmtAmt(worst) + "（" + mdOf(worstD) + "）", cls(worst)) : "")
+        + cell("当前持仓", fmtYuan(lastIt && lastIt.val) + " · 浮盈 " + fmtAmt(lastIt ? lastIt.pl : 0),
+          cls(lastIt ? lastIt.pl : 0))
+        + "</div>"
+        + '<div class="ots-note">想看场外的整体走势，用上面那张小图（市价 vs 摊薄成本）——'
+        + "逐期数字在这里没有决策意义 ✓</div></div>";
+    };
     const chart = traceSparkSvg(boxW, pts, evs, { carryD: hasAnchor ? C.baseD : null });
     return '<div class="sa-detail" data-hold-total="' + total.toFixed(2) + '" data-hold-n="' + hist.length + '">'
       + '<div class="sd-head"><button type="button" class="sa-back" data-nav="' + (back ? "cell" : "period") + '">← 返回</button>'
@@ -2132,10 +2163,17 @@ function saDetailView(C) {
            和左边的「−7,483 元」自相矛盾 ✓（首版就踩了 ✓）→ 用带符号的比值 ✓ */
         + (bench.benchVal ? "（相对纳指那侧 " + fmtPct(bench.diff / bench.benchVal, 1) + "）" : "")
         + " · 期间净投入 " + fmtAmt(bench.flows) + " 元</div>" : "")
-      + '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th>'
-      + '<th class="c-qty">份数</th><th class="c-px">单价</th>'
-      + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>累计</th></tr></thead><tbody>"
-      + rows.join("") + "</tbody></table></div></div>";
+      /* ⚠ 2026-11-05：**场外不画逐期明细表**（用户：「南方纳指I·逐期轨迹 的表格」）
+         理由：场外全是定投、没有主动操作 → 逐期归因没有复盘价值 ✗
+              而且 QDII 净值 T+1/T+2、6 只各要一张截图，经常缺 2~3 只 → 数据本身不稳定 ✗
+         → 只给一块汇总：几期、生涯累计、最好/最差那一期、申赎合计 ✓ */
+      + (exch
+        ? '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th>'
+          + '<th class="c-qty">份数</th><th class="c-px">单价</th>'
+          + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>累计</th></tr></thead><tbody>"
+          + rows.join("") + "</tbody></table></div>"
+        : otcTraceSummary())
+      + "</div>";
   };
   /* 视图④ 某一列的**逐期贡献 ＋ 累计**图（2026-10-09 第四步 A，起于用户：「点击表头 是不是也可以按日来做图？」）
      ——「按日」拆成两半看 ✓：

@@ -1507,6 +1507,26 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
           check("归因下钻：再点「← 返回」退回整期视图 ✓",
             !!box4 && !box4.hasAttribute("data-cell-sum") && !box4.hasAttribute("data-hold-total"),
             !box4 ? "返回后没有明细块 ✗" : "返回后仍停在格 / 轨迹视图 ✗");
+          /* ④l-3 **场外**不走逐期明细表（2026-11-05，用户：「场外的明细表格不显示，一个简单汇总就行」）——
+             点开一只场外基金后：必须有 `.ots` 汇总块、**不得**有 `.sd-tbl` 明细表 ✓
+             找一个 0 开头的代码（场内全是 6 位、以 1/5 开头 ✓） */
+          {
+            const otcRow = [...mx.querySelectorAll(".sa-detail-box .sd-click[data-hold]")]
+              .find((x) => /^0/.test(x.getAttribute("data-hold") || ""));
+            if (!otcRow) {
+              check("归因下钻：场外只给汇总、不画逐期明细表", false, "该格里没有场外标的可测");
+            } else {
+              otcRow.click();
+              const hasTbl = !!mx.querySelector("#snap-attr .sa-detail-box .sd-tbl");
+              const hasOts = !!mx.querySelector("#snap-attr .sa-detail-box .ots");
+              check("归因下钻：场外只给汇总（.ots）、不画逐期明细表（.sd-tbl）",
+                hasOts && !hasTbl,
+                "场外 " + otcRow.getAttribute("data-hold") + "：汇总块 " + (hasOts ? "有" : "无 ✗")
+                  + " · 明细表 " + (hasTbl ? "有 ✗（应去掉）" : "无 ✓"));
+              const bk = mx.querySelector(".sa-detail-box [data-nav]");
+              if (bk) bk.click();
+            }
+          }
           /* ④l-2 **已清仓**那一支单测一遍 ✓（上面那只碰巧是在持的 ✓，closeReal 分支没被覆盖 ✗）：
              先从快照里独立找一只「出现过、却不在最新一期」的标的（＝已清仓 ✓），
              点它出现的那一期 → 在整期视图里点它 → 生涯累计应 ＝ 流水里那笔 realized ✓（与 closedGapTo 同判据 ✓） */

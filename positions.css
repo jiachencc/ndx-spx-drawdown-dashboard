@@ -2719,3 +2719,25 @@
   /* 事件列给更多宽度（它承担了份数+单价的信息）*/
   #snap-attr table.sd-tbl td:nth-child(2) { max-width: 9em; }
 }
+
+/* ---- 场外「逐期轨迹」的汇总块（2026-11-05，代替明细表）----
+   场外是定投、没有主动操作 → 逐期表格没有复盘价值，且数据常缺 ✗
+   只给：几期 / 生涯累计 / 申赎合计 / 单期最好最差 / 当前持仓 ✓ */
+.ots { margin-top: 8px; padding: 9px 10px; border-radius: 6px;
+  background: var(--card2); border: 1px solid var(--line-soft); }
+.ots-h { margin-bottom: 8px; }
+.ots-h b { font-size: var(--fs-xs); color: var(--tx2); }
+.ots-h i { display: block; font-style: normal; font-size: var(--fs-xxs);
+  color: var(--tx3); line-height: 1.55; margin-top: 2px; }
+.ots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5em, 1fr));
+  gap: 6px 14px; }
+.ots-it { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-size: var(--fs-xxs); }
+.ots-it > span { color: var(--tx3); white-space: nowrap; }
+.ots-it > b { font-family: var(--mono); font-weight: 700; color: var(--tx2);
+  font-feature-settings: "tnum"; white-space: nowrap; text-align: right; }
+.ots-note { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.6; }
+@media (max-width: 430px) {
+  .ots-grid { grid-template-columns: 1fr; gap: 4px; }
+}
