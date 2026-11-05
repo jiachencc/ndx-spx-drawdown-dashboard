@@ -809,8 +809,17 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     const real = doc ? doc.querySelectorAll('#hh-box polyline[stroke-dasharray="4 3"]') : [];
     const phantom = doc ? doc.querySelectorAll('#hh-box polyline[stroke-dasharray="2 3"]') : [];
     const lg = doc && doc.getElementById("hh-legend") ? doc.getElementById("hh-legend").textContent : "";
-    check("各标的累计盈亏：3 实线 + 2 清仓虚线 + 2 条「假设没卖」延续线 · 清仓图例印「已实现」",
-      solid.length === 3 && real.length === 2 && phantom.length === 2 && /已实现/.test(lg),
+    /* ⚠ 实线条数**跟着持仓走**（2026-11-05：588170 建仓后从 3 变 4，写死就误报 ✗）
+       清仓虚线 / 延续线仍是 2（中韩、港美两只已清仓的），这个数没变 ✓ */
+    const nLive = (() => {
+      try {
+        const c2 = vm.createContext({});
+        vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.H=POSITIONS.hold;", c2, { timeout: 5000 });
+        return (c2.H || []).length;
+      } catch (e) { return 3; }
+    })();
+    check("各标的累计盈亏：" + nLive + " 实线（＝在场只数）+ 2 清仓虚线 + 2 条「假设没卖」延续线 · 清仓图例印「已实现」",
+      solid.length === nLive && real.length === 2 && phantom.length === 2 && /已实现/.test(lg),
       "实线 " + solid.length + " / 清仓虚线 " + real.length + " / 延续线 " + phantom.length + " · 图例「" + lg.replace(/\s+/g, " ").slice(0, 40) + "」");
   }
 }

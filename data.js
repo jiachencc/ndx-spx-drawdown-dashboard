@@ -34,8 +34,9 @@ const DEFAULT = {
   n225:   { close: 1.991, chg: -1.78, low52: 1.63, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-11-05" },   // n225 持仓（场内价口径；**10-22 收盘手填**＝平安市值 51,400 ÷ 25,000 份 ✓，与 CI 的腾讯日K 完全一致 ✓✓）
   hkus:   { close: 1.51, chg: -4.13, low52: 1.43, ath: 2.508, athDate: "2026-05-27", prevYr: 1.492, priceDate: "2026-11-05" },   // hkus 持仓（场内价口径；已清仓 → 只有 CI 在刷，取远端 ✓）
   /* 2026-11-05 新增：科创半导体ETF华夏 588170（A 股科创板）
-     ⚠ 目前是**手工价**，CI 不抓 → 要自动更新得往 scripts/fetch-*.mjs 的标列表里加 588170 */
-  kc:     { close: 0.728, chg: -0.37, low52: 0.6, ath: 0.95, athDate: "2026-10-15", prevYr: 0.7, priceDate: "2026-11-05" },
+     ⚠ close 是**手工价**（App 17:14），CI 不抓；low52 / ath 取自 build-trend 算出的真实 52 周区间
+       （0.441 ~ 1.397，原来是手估的 0.6~0.95 → 会让 pos52 和「距高点」都失真 ✗）*/
+  kc:     { close: 0.728, chg: -0.37, low52: 0.441, ath: 1.397, athDate: "2026-10-15", prevYr: 0.7, priceDate: "2026-11-05" },
   // AUTO：纳指/标普 ETF 自身场内价口径（腾讯日K，52周区间），供持仓页水位梯/买入分布用（与真实流水成交价同口径）
   // ⚠ 09-24 这五条同样是**按用户平安证券截图手填**（push 不触发行情抓取，详见 handoff.md §3.3 SOP 第 6 步）：
   //   收盘价 × 份额 必须等于当期快照 items[].val —— 1.707 × 81,100 = 138,437.70 ✓、2.002 × 65,500 = 131,131.00 ✓
@@ -9709,11 +9710,11 @@ const HOLD_HIST = {
    "closed": false,
    "closedDate": null,
    "realized": 0,
-   "invested": 211749,
+   "invested": 218289,
    "ifHeld": null,
-   "qty": 131100,
-   "avg": 1.6152,
-   "pl": 3255,
+   "qty": 135100,
+   "avg": 1.6158,
+   "pl": 3275,
    "pts": [
     [
      "2026-06-23",
@@ -10354,10 +10355,10 @@ const HOLD_HIST = {
     ],
     [
      "2026-11-05",
-     3255,
-     131100,
-     1.6152,
-     211749
+     3275,
+     135100,
+     1.6158,
+     218289
     ]
    ],
    "phantom": []
@@ -13109,6 +13110,31 @@ const HOLD_HIST = {
      81856
     ]
    ]
+  },
+  {
+   "code": "588170",
+   "name": "科创半导体ETF华夏",
+   "idx": "kc",
+   "first": "2026-11-05",
+   "last": "2026-11-05",
+   "closed": false,
+   "closedDate": null,
+   "realized": 0,
+   "invested": 40396,
+   "ifHeld": null,
+   "qty": 55300,
+   "avg": 0.7305,
+   "pl": -27,
+   "pts": [
+    [
+     "2026-11-05",
+     -27,
+     55300,
+     0.7305,
+     40396
+    ]
+   ],
+   "phantom": []
   }
  ]
 };
@@ -13164,32 +13190,21 @@ const FLOWS = [];   // 留空（收入侧指纹，不入库）
  *     （本块 18 行含 03-05 建仓的申万菱信等，早已出窗 ✓），**不采用、勿拿它覆盖聚合三值** ✗。
  *   ⚠ 这一笔的落账口径（回款记为**外部流出**、已实现不加回「在持」）见 positions-data.js 的 SNAPSHOTS 10-14 期与 OTC_CLEARED。 */
 const TREND = {
-  "asOf": "2026-11-04",
+  "asOf": "2026-11-05",
   "note": "场内标的的技术面读数（东财日线 fqt=1）：均线 / RSI14（简单窗口）/ 52 周位置 / MACD(12,26,9)。MACD 与 RSI 只作观察、不进任何决策。由 scripts/build-trend.mjs 生成。",
   "items": {
-    /* 2026-11-05 新增标的：TREND 由 scripts/build-trend.mjs 生成
-       ⚠ 需把 588170 加进那个脚本的标列表，否则下一次 CI 会**覆盖掉**这条 ✗
-         先按 App 读数手填，字段与其它条目同构 ✓ */
-    "588170": { name: "科创半导体ETF华夏", closed: false, px: 0.728, pxDate: "2026-11-05",
-      ma50: 0.728, ma200: 0.728, aboveMa50: false, aboveMa200: false, rsi14: 50,
-      /* pos52 ＝ (0.728 − 0.60) ÷ (0.95 − 0.60) ＝ 36.6 → 37 ✓（pos52c 用同一把尺，暂无收盘修正）*/
-      pos52: 37, pos52c: 37, pos52Lo: 0.6, pos52Hi: 0.95, hi52: 0.95, lo52: 0.6,
-      mo: { "2026-11": 0.728 },
-      distHi: -23.4, dif: 0, dea: 0, bull: false, aboveZero: false,
-      /* ⚠ 刚建仓，没有足够日线算 MACD/交叉 → crossType 用 "none"，crossDate/Ago 置空 */
-      crossType: null, crossDate: null, crossAgo: null },
     "159941": {
       "name": "纳指ETF广发",
       "closed": false,
-      "px": 1.644,
-      "pxDate": "2026-11-04",
+      "px": 1.635,
+      "pxDate": "2026-11-05",
       "ma50": 1.678,
-      "ma200": 1.536,
+      "ma200": 1.537,
       "aboveMa50": false,
       "aboveMa200": true,
-      "rsi14": 39,
-      "pos52": 73,
-      "pos52c": 76,
+      "rsi14": 32,
+      "pos52": 71,
+      "pos52c": 74,
       "pos52Lo": 1.244,
       "pos52Hi": 1.795,
       "hi52": 1.769,
@@ -13206,29 +13221,29 @@ const TREND = {
         "2026-08": 1.653,
         "2026-09": 1.735,
         "2026-10": 1.649,
-        "2026-11": 1.644
+        "2026-11": 1.635
       },
-      "distHi": -7.1,
-      "dif": -0.0133,
-      "dea": -0.0027,
+      "distHi": -7.6,
+      "dif": -0.0149,
+      "dea": -0.0051,
       "bull": false,
       "aboveZero": false,
       "crossType": "death",
       "crossDate": "2026-10-19",
-      "crossAgo": 12
+      "crossAgo": 13
     },
     "160644": {
       "name": "港美互联网LOF",
       "closed": true,
-      "px": 1.575,
-      "pxDate": "2026-11-04",
-      "ma50": 1.778,
+      "px": 1.509,
+      "pxDate": "2026-11-05",
+      "ma50": 1.773,
       "ma200": 1.79,
       "aboveMa50": false,
       "aboveMa200": false,
-      "rsi14": 40,
-      "pos52": 13,
-      "pos52c": 14,
+      "rsi14": 33,
+      "pos52": 7,
+      "pos52c": 7,
       "pos52Lo": 1.43,
       "pos52Hi": 2.508,
       "hi52": 2.473,
@@ -13245,29 +13260,29 @@ const TREND = {
         "2026-08": 1.79,
         "2026-09": 1.978,
         "2026-10": 1.599,
-        "2026-11": 1.575
+        "2026-11": 1.509
       },
-      "distHi": -36.3,
-      "dif": -0.0674,
-      "dea": -0.0531,
+      "distHi": -39,
+      "dif": -0.0726,
+      "dea": -0.057,
       "bull": false,
       "aboveZero": false,
       "crossType": "death",
       "crossDate": "2026-10-12",
-      "crossAgo": 17
+      "crossAgo": 18
     },
     "513310": {
       "name": "中韩半导体ETF华泰",
       "closed": true,
-      "px": 3.922,
-      "pxDate": "2026-11-04",
-      "ma50": 4.442,
-      "ma200": 4.565,
+      "px": 3.787,
+      "pxDate": "2026-11-05",
+      "ma50": 4.423,
+      "ma200": 4.569,
       "aboveMa50": false,
       "aboveMa200": false,
-      "rsi14": 52,
-      "pos52": 34,
-      "pos52c": 37,
+      "rsi14": 47,
+      "pos52": 31,
+      "pos52c": 34,
       "pos52Lo": 2.275,
       "pos52Hi": 7.12,
       "hi52": 6.687,
@@ -13284,29 +13299,29 @@ const TREND = {
         "2026-08": 4.816,
         "2026-09": 4.697,
         "2026-10": 3.704,
-        "2026-11": 3.922
+        "2026-11": 3.787
       },
-      "distHi": -41.3,
-      "dif": -0.2162,
-      "dea": -0.2436,
+      "distHi": -43.4,
+      "dif": -0.2052,
+      "dea": -0.2359,
       "bull": true,
       "aboveZero": false,
       "crossType": "gold",
       "crossDate": "2026-11-02",
-      "crossAgo": 2
+      "crossAgo": 3
     },
     "513650": {
       "name": "标普500ETF南方",
       "closed": false,
-      "px": 1.969,
-      "pxDate": "2026-11-04",
+      "px": 1.995,
+      "pxDate": "2026-11-05",
       "ma50": 2.009,
-      "ma200": 1.875,
+      "ma200": 1.876,
       "aboveMa50": false,
       "aboveMa200": true,
-      "rsi14": 46,
-      "pos52": 78,
-      "pos52c": 79,
+      "rsi14": 47,
+      "pos52": 84,
+      "pos52c": 85,
       "pos52Lo": 1.61,
       "pos52Hi": 2.071,
       "hi52": 2.06,
@@ -13323,29 +13338,29 @@ const TREND = {
         "2026-08": 2.043,
         "2026-09": 2.004,
         "2026-10": 1.982,
-        "2026-11": 1.969
+        "2026-11": 1.995
       },
-      "distHi": -4.4,
-      "dif": -0.0109,
-      "dea": -0.0077,
+      "distHi": -3.2,
+      "dif": -0.0091,
+      "dea": -0.008,
       "bull": false,
       "aboveZero": false,
       "crossType": "death",
       "crossDate": "2026-10-15",
-      "crossAgo": 14
+      "crossAgo": 15
     },
     "513880": {
       "name": "日经225ETF华安",
       "closed": false,
-      "px": 2.027,
-      "pxDate": "2026-11-04",
-      "ma50": 2.122,
-      "ma200": 1.999,
+      "px": 1.991,
+      "pxDate": "2026-11-05",
+      "ma50": 2.12,
+      "ma200": 2.001,
       "aboveMa50": false,
-      "aboveMa200": true,
-      "rsi14": 37,
-      "pos52": 50,
-      "pos52c": 50,
+      "aboveMa200": false,
+      "rsi14": 27,
+      "pos52": 45,
+      "pos52c": 46,
       "pos52Lo": 1.63,
       "pos52Hi": 2.425,
       "hi52": 2.418,
@@ -13362,16 +13377,55 @@ const TREND = {
         "2026-08": 2.142,
         "2026-09": 2.188,
         "2026-10": 2.057,
-        "2026-11": 2.027
+        "2026-11": 1.991
       },
-      "distHi": -16.2,
-      "dif": -0.0283,
-      "dea": -0.0207,
+      "distHi": -17.7,
+      "dif": -0.0321,
+      "dea": -0.023,
       "bull": false,
       "aboveZero": false,
       "crossType": "death",
       "crossDate": "2026-10-16",
-      "crossAgo": 13
+      "crossAgo": 14
+    },
+    "588170": {
+      "name": "科创半导体ETF华夏",
+      "closed": false,
+      "px": 0.728,
+      "pxDate": "2026-11-05",
+      "ma50": 0.872,
+      "ma200": 0.803,
+      "aboveMa50": false,
+      "aboveMa200": false,
+      "rsi14": 40,
+      "pos52": 30,
+      "pos52c": 30,
+      "pos52Lo": 0.441,
+      "pos52Hi": 1.397,
+      "hi52": 1.397,
+      "lo52": 0.441,
+      "mo": {
+        "2025-12": 0.502,
+        "2026-01": 0.601,
+        "2026-02": 0.621,
+        "2026-03": 0.528,
+        "2026-04": 0.656,
+        "2026-05": 0.816,
+        "2026-06": 1.377,
+        "2026-07": 0.92,
+        "2026-08": 1.007,
+        "2026-09": 0.91,
+        "2026-10": 0.586,
+        "2026-11": 0.728
+      },
+      "distHi": -47.9,
+      "dif": -0.0701,
+      "dea": -0.0725,
+      "bull": true,
+      "aboveZero": false,
+      "crossType": "gold",
+      "crossDate": "2026-11-05",
+      "crossAgo": 0
     }
   }
 };
