@@ -131,7 +131,8 @@ try {
        原来它放在明细列表之后（卡前面），于是归因视图里出现「标签排 → 🎯 盈亏归因 标题 → 卡片」的怪序 ✗，
        而且切换时#sec-snap（在切换器上方）被隐藏 → 整排标签往上跳 79px ✗（用户两次报的都是这一处根因）。
        两个标题同槽后：标题永远在标签上方 ✓、切换时标签纹丝不动 ✓、setSnapView 里那段补偿滚动退化成保险 ✓。 -->
-  <h2 class="sec-title" id="sec-attr" hidden><span aria-hidden="true">🎯</span> 盈亏归因</h2>
+  <h2 class="sec-title" id="sec-attr" hidden><span aria-hidden="true">🎯</span> 盈亏归因
+    <span class="cnt">场内逐只 · 场外只给合计（定投、无主动操作，不做逐只归因）</span></h2>
   <div class="view-switch" id="snap-switch" role="tablist" aria-label="快照对比视图">
     <button class="vs-btn on" data-view="log" role="tab" aria-selected="true">逐期明细</button>
     <button class="vs-btn" data-view="attr" role="tab" aria-selected="false">盈亏归因</button>
@@ -1491,12 +1492,20 @@ function saCtx() {
        · 且与主题部分重合：广发基金 = 广发纳指F（纳指）＋ 广发精选（全球） 又一格并了两种市场。
      平台维度的真正用途是**对账** ✓（这数是哪个 App 给的、去哪一页核对）—— 按需切一下就能看。
      （DIMS 字典随拆分移入 saMatrixHtml —— 只有矩阵的切换器用它，数据准备不需要它）。 */
+  /* ⚠ 2026-11-05 改（用户：「场外的明细表格不显示，一个简单汇总就行 ——
+     有时候能加有时候不能加、不稳定，而且截图麻烦」）：
+     **场外一律归到「场外」一列**，不再按主题/平台拆开 ✓
+     理由：场外全是定投、没有主动操作 → 逐只归因没有复盘价值 ✗
+     但它占总资产 ~13%，合计必须留着才能对上总资产 ✓
+     （这也让「按平台」维度只剩「平安证券 ＋ 场外」两列，更有意义 ✓）*/
   const colKeyOf = (c) => {
-    if (saDim === "plat") return isOnExchange(c) ? "平安证券" : (srcLabel(c).f || "场外");
-    if (saDim === "acct") return isOnExchange(c) ? "场内" : "场外";
+    if (!isOnExchange(c)) return "场外";
+    if (saDim === "plat") return "平安证券";
     return TKEY(SA_THEME[c] || "global");
   };
-  const colNameOf = (k) => (saDim === "theme" ? ((SA_META[k] || ["全球"])[0]) : k);   // 平台 / 账户：键即显示名
+  /* 「场外」不是 SA_META 的键 → 必须先拦一道，否则 theme 维度下会取到 undefined ✗ */
+  const colNameOf = (k) => (k === "场外" ? "场外（定投）"
+    : saDim === "theme" ? ((SA_META[k] || ["全球"])[0]) : k);
   const segOf = (p) => {                                  // 该期按**当前维度**聚合（大的在前）
     const o = {};
     Object.entries(p.items).forEach(([c, v]) => { const k = colKeyOf(c); o[k] = (o[k] || 0) + v; });
@@ -1555,7 +1564,9 @@ function saCtx() {
 
 /* ── ② 矩阵表：维度切换器 ＋ 单元格/期初结转格 ＋ 口径对照行 ＋ 表（新在上 / 期初结转 / 全期）── */
 function saMatrixHtml(C) {
-  const DIMS = { theme: "按主题", plat: "按平台", acct: "场内·场外" };   // 自 saCtx 移入 ✓（只有切换器用）
+  /* 2026-11-05：去掉 acct（场内·场外）—— 场外现在在**所有**维度下都是单独一列 ✓
+     留它只会让「按主题」和「场内·场外」两个选项几乎重复 ✗ */
+  const DIMS = { theme: "按主题", plat: "按平台" };   // 自 saCtx 移入 ✓（只有切换器用）
   /* 单元格：三态**分开表达**（借 finance 收益矩阵的同一套思路 ✓）
      ① 该期该主题「没有可归因的标的」（当时尚未持有 → 没有 Δpl）→ 淡色「·」＋ tooltip 明说是「缺」不是 0
      ② 变动恰为 0 → 照常画出 0（0 是**真实读数**，与"缺"是两回事）

@@ -1372,7 +1372,8 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
     const footSum = numOf(footCells.length ? footCells[footCells.length - 1] : null);
     /* 换维度不该改任何数（2026-10-09 加，用户要求 B）——「平台 / 场内·场外」两种维度下，
        逐行合计必须与主题维度**同一批真值**一致 ✓（维度只决定"列怎么切"，不参与金额 ✓） */
-    ["plat", "acct"].forEach((dim) => {
+    /* 2026-11-05：acct（场内·场外）维度已删 —— 场外现在在**所有**维度下都是单独一列 ✓ */
+    ["plat"].forEach((dim) => {
       const b2 = mx.querySelector('[data-dim="' + dim + '"]');
       if (b2) b2.click();
       const rows2 = [...mx.querySelectorAll("tbody tr")].filter((tr) => !tr.classList.contains("mx-foot"));
@@ -1930,7 +1931,7 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
        主题维度只是**碰巧**没越界，所以这个坑一直没暴露 ✗ → 本断言逐维度盯着 ✓） */
   {
     const badA = [];
-    ["theme", "plat", "acct"].forEach((dm) => {
+    ["theme", "plat"].forEach((dm) => {
       const btn = [...win.document.querySelectorAll("#snap-attr [data-dim]")].find((b) => b.dataset.dim === dm);
       if (!btn) { badA.push(dm + "：没有维度按钮"); return; }
       btn.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
@@ -1983,7 +1984,7 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       if (svgTab !== "0") badA.push(dm + "：svg 不可聚焦（tabindex=" + svgTab + "）");
     });
     check("归因「合计」列头（整表累计曲线）：三种维度下折线都在画布内 ＋ 关键点位/悬停层齐备", badA.length === 0,
-      badA.slice(0, 4).join("；") || "theme / plat / acct 逐维度验过：无出界 ✓");
+      badA.slice(0, 4).join("；") || "theme / plat 逐维度验过：无出界 ✓");
     const backA = [...win.document.querySelectorAll("#snap-attr [data-dim]")].find((b) => b.dataset.dim === "theme");
     if (backA) backA.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));   // 复位，别把状态留给后面的断言 ✗
   }
