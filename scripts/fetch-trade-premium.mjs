@@ -36,6 +36,8 @@ const CODE = {
   日经225ETF华安: "513880",
   港美互联网LOF: "160644",
   中韩半导体ETF华泰: "513310",
+  科创半导体ETF华夏: "588170",   /* 2026-11-05 新建仓 —— 不加进来会让 PREM_LOG 丢这条，
+                                    data-quality 报「缺标的」→ daily 整段回滚 ✗ */
 };
 
 async function navSeries(code) {
