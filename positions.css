@@ -2683,3 +2683,14 @@
 .strat-row .lad-chip { margin-left: 5px; }
 /* .strat-row 里的「?」固定到右上角（2026-11-04）*/
 .strat-row > .strat-hint { position: absolute; right: 0; top: 1px; margin-left: 0; }
+
+/* ---- 逐期轨迹「本期贡献」列加细条（2026-11-05）----
+   35 行纯数字扫下来看不出「哪几期最重」✗ 加一条按幅值比例的细条（正绿负红）→ 一眼定位 ✓
+   ⚠ 细条宽度按 |贡献| ÷ 本只最大的 |贡献|，不按百分比 —— 百分比在分母为负时无意义 ✗ */
+.sd-cv { display: block; }
+.sd-cbar { display: block; height: 3px; margin-top: 2px; border-radius: 2px;
+  background: rgba(147, 163, 187, .12); overflow: hidden; }
+.sd-cbar > i { display: block; height: 100%; border-radius: 2px; opacity: .75; }
+/* 「累计」列已经是单值了，给它一点视觉重量（它是这行的小结 ✓）*/
+.sd-tbl td:last-child { font-weight: 700; color: var(--tx2) !important; }
+.sd-tbl tr.sum td:last-child { color: var(--tx) !important; }

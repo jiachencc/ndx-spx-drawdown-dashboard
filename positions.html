@@ -2003,13 +2003,25 @@ function saDetailView(C) {
        份数 / 单价 / 成本 / 市值 取该段**末值** ✓，被折掉的日期列在悬停里 ✓。
        默认**不折** ✓ —— 折了会藏掉那几期的明细 ✗，只在期数变多时给个选择 ✓。 */
     const rows = [];
+    /* 贡献条的基准＝本只所有期里最大的 |贡献|（这样最长那根一定满格 ✓）*/
+    const maxAbs = Math.max.apply(null, chrono.map((x) => Math.abs(x.v)).concat([1]));
     const enriched = chrono.map((h2) => {
       const i = C.live.findIndex((p) => p.d === h2.d);
       const prevD = i > 0 ? C.live[i - 1].d : C.baseD;
       return { h2, ev: eventsOf(code, prevD, h2.d) };
     });
+    /* ── 「累计」列（2026-11-05 第三版，用户选 C）──────────────────────
+       原来是「占累计 = 本期贡献 ÷ 生涯累计」✗ 分母为负时符号全部反转：
+         生涯累计 −4,008（整体亏）→ 亏 5,025 显示 **+125%**、赚 4,404 显示 **−110%**
+       数学上没错（各期加起来 ≡ 100%），但读起来完全反直觉 ✗
+       → 换成**累计余额**：期期往前加，一眼看出「当时累计到哪儿了」✓
+         不给百分比，就不会有 >100% / 负数的困惑 ✓
+       ⚠ 顺序是**旧 → 新**，所以游标从「期初结转」起、每行往前加 ✓ */
+    let runCum = Number(C.carryItems[code]) || 0;
+
     const pushRow = (item) => {
       const h2 = item.h2, ev = item.ev, A = item.h2.rawA, B = item.h2.rawB;
+      runCum += h2.v;
       /* 按**列**判断箭头 ✗→✓：首版用行级一个标志，结果「成本因四舍五入差 1 元」会让**份数**列也挂上
          「44,000 → 44,000」这种没意义的箭头 ✗（实测 09.08 行 ✓）。
          成本阈值 2 元 ✓：手填快照的 1 元左右抖动要忽略 ✗，真交易是 5 / 200 / 上千 ✓ 不会漏 ✓。 */
@@ -2027,14 +2039,17 @@ function saDetailView(C) {
         + '<td class="r num">' + (B ? fpx(pxs(B)) : "—") + "</td>"
         + '<td class="r num">' + (B ? pair(A && A.cost, B.cost, fmtYuan, chgC) : "—") + "</td>"
         + '<td class="r num">' + (B ? fmtYuan(B.val) : "—") + "</td>"
-        + '<td class="r num ' + cls(h2.v) + '">' + fmtAmt(h2.v) + "</td>"
-        + '<td class="r num mut">' + pctTxt(h2.v, total) + "</td></tr>");
+        /* 本期贡献：数字 ＋ 一条按幅值比例的细条（正负分色）→ 35 行扫下来能看出哪几期最重 ✓ */
+        + '<td class="r num ' + cls(h2.v) + '"><span class="sd-cv">' + fmtAmt(h2.v) + "</span>"
+        + '<span class="sd-cbar"><i style="width:' + Math.min(100, Math.abs(h2.v) / maxAbs * 100).toFixed(1)
+        + "%;background:" + (h2.v >= 0 ? "var(--up)" : "var(--down)") + '"></i></span></td>'
+        + '<td class="r num mut">' + fmtAmt(runCum) + "</td></tr>");
     };
     if (C.carryItems[code] !== undefined) {
       rows.push('<tr class="carry"><td>期初结转</td><td>账户起点 → ' + mdOf(C.baseD) + "</td>"
         + '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>'
         + '<td class="r num ' + cls(carryV) + '">' + fmtAmt(carryV) + "</td>"
-        + '<td class="r num mut">' + pctTxt(carryV, total) + "</td></tr>");
+        + '<td class="r num mut">' + fmtAmt(C.num(C.carryItems[code])) + "</td></tr>");
     }
     if (!sdFoldTrace) {
       enriched.forEach(pushRow);
@@ -2042,6 +2057,7 @@ function saDetailView(C) {
       let run = null;
       const flushRun = () => {
         if (!run) return;
+        runCum += run.sum;              /* 折叠段的累计：把这段的和并进游标 ✓ */
         const last = run.list[run.list.length - 1];
         const B = last.h2.rawB;
         rows.push('<tr class="fold" title="' + esc("被折掉的期：" + run.list.map((x) => mdOf(x.h2.d)).join(" · ")) + '">'
@@ -2050,8 +2066,10 @@ function saDetailView(C) {
           + (B ? '<td class="r num">' + fmtQty(B.qty) + '</td><td class="r num">' + fpx(pxs(B)) + "</td>"
             + '<td class="r num">' + fmtYuan(B.cost) + '</td><td class="r num">' + fmtYuan(B.val) + "</td>"
             : '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>')
-          + '<td class="r num ' + cls(run.sum) + '">' + fmtAmt(run.sum) + "</td>"
-          + '<td class="r num mut">' + pctTxt(run.sum, total) + "</td></tr>");
+          + '<td class="r num ' + cls(run.sum) + '"><span class="sd-cv">' + fmtAmt(run.sum) + "</span>"
+          + '<span class="sd-cbar"><i style="width:' + Math.min(100, Math.abs(run.sum) / maxAbs * 100).toFixed(1)
+          + "%;background:" + (run.sum >= 0 ? "var(--up)" : "var(--down)") + '"></i></span></td>'
+          + '<td class="r num mut">' + fmtAmt(runCum) + "</td></tr>");
         run = null;
       };
       enriched.forEach((item) => {
@@ -2063,7 +2081,7 @@ function saDetailView(C) {
     }
     rows.push('<tr class="sum"><td>合计</td><td>＋ 期初结转</td><td class="r" colspan="4"></td>'
       + '<td class="r num ' + cls(total) + '">' + fmtAmt(total) + "</td>"
-      + '<td class="r num mut">100%</td></tr>');
+      + '<td class="r num mut">' + fmtAmt(total) + "</td></tr>");
     /* ⑥ 同节奏纳指（只做参照 ✓）：口径与边界全写进 title，不让人猜 ✓ */
     const bench = sameRhythmBench(code, C.baseD, lastD);
     const themeOfCode = exch
@@ -2101,7 +2119,7 @@ function saDetailView(C) {
         + (bench.benchVal ? "（相对纳指那侧 " + fmtPct(bench.diff / bench.benchVal, 1) + "）" : "")
         + " · 期间净投入 " + fmtAmt(bench.flows) + " 元</div>" : "")
       + '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th><th>份数</th><th>单价</th>'
-      + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>占累计</th></tr></thead><tbody>"
+      + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>累计</th></tr></thead><tbody>"
       + rows.join("") + "</tbody></table></div></div>";
   };
   /* 视图④ 某一列的**逐期贡献 ＋ 累计**图（2026-10-09 第四步 A，起于用户：「点击表头 是不是也可以按日来做图？」）
