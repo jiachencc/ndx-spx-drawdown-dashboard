@@ -1382,8 +1382,11 @@ try {
 let saSel = null;
 /* 轨迹的「折叠无操作期」开关（2026-10-12 加）：**默认不折** ✓ ——
    折了会藏掉那几期的明细 ✗，只在期数变多时给个选择 ✓（与 trendView / snapAttrDim 同一套持久化做法 ✓） */
-let sdFoldTrace = false;
-try { sdFoldTrace = localStorage.getItem("traceFold") === "1"; } catch (err) { /* 隐私模式下忽略 */ }
+/* 默认为 **true**（2026-11-05 改，用户：「1，2，3 一起做」）——
+   35 期里真正有交易的只有 12 期，其余 23 期全是「—」✗ 默认展开要滑好几屏 ✓
+   localStorage 仍可覆盖（用户自己切过就以他的为准 ✓）*/
+let sdFoldTrace = true;
+try { const v = localStorage.getItem("traceFold"); if (v !== null) sdFoldTrace = v === "1"; } catch (err) { /* 隐私模式下忽略 */ }
 /* 当前选中的**期**（2026-10-10 改为**模块级** ✓）—— 与 saSel 完全同一理由（见上 ✗，我当时漏了它 ✗）：
    选择态一变就整块重渲染，而 `let cur` 原先写在渲染函数**内部** → 点完行刚设的期立刻被重置回默认期
    →「点日期格 / 点期行 / 点期初行」全都看着没反应 ✗（2026-10-10 用户报的正是这个）。
@@ -2035,8 +2038,8 @@ function saDetailView(C) {
       rows.push('<tr' + (ev.length ? ' class="sd-traded"' : "") + "><td>" + mdOf(h2.d) + kindMark(h2.kind) + "</td>"
         + "<td>" + (ev.length ? '<span class="sd-ev" title="' + esc(ev.join("\n")) + '">' + esc(evShort) + "</span>"
           : '<span class="mut">—</span>') + "</td>"
-        + '<td class="r num">' + (B ? pair(A && A.qty, B.qty, fmtQty, chgQ) : "—") + "</td>"
-        + '<td class="r num">' + (B ? fpx(pxs(B)) : "—") + "</td>"
+        + '<td class="r num c-qty">' + (B ? pair(A && A.qty, B.qty, fmtQty, chgQ) : "—") + "</td>"
+        + '<td class="r num c-px">' + (B ? fpx(pxs(B)) : "—") + "</td>"
         + '<td class="r num">' + (B ? pair(A && A.cost, B.cost, fmtYuan, chgC) : "—") + "</td>"
         + '<td class="r num">' + (B ? fmtYuan(B.val) : "—") + "</td>"
         /* 本期贡献：数字 ＋ 一条按幅值比例的细条（正负分色）→ 35 行扫下来能看出哪几期最重 ✓ */
@@ -2047,7 +2050,7 @@ function saDetailView(C) {
     };
     if (C.carryItems[code] !== undefined) {
       rows.push('<tr class="carry"><td>期初结转</td><td>账户起点 → ' + mdOf(C.baseD) + "</td>"
-        + '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>'
+        + '<td class="r c-qty"></td><td class="r c-px"></td><td class="r"></td><td class="r"></td>'
         + '<td class="r num ' + cls(carryV) + '">' + fmtAmt(carryV) + "</td>"
         + '<td class="r num mut">' + fmtAmt(C.num(C.carryItems[code])) + "</td></tr>");
     }
@@ -2063,9 +2066,9 @@ function saDetailView(C) {
         rows.push('<tr class="fold" title="' + esc("被折掉的期：" + run.list.map((x) => mdOf(x.h2.d)).join(" · ")) + '">'
           + "<td>" + mdOf(run.list[0].h2.d) + " → " + mdOf(last.h2.d) + "</td>"
           + '<td><span class="mut">无操作 ' + run.list.length + " 期</span></td>"
-          + (B ? '<td class="r num">' + fmtQty(B.qty) + '</td><td class="r num">' + fpx(pxs(B)) + "</td>"
+          + (B ? '<td class="r num c-qty">' + fmtQty(B.qty) + '</td><td class="r num c-px">' + fpx(pxs(B)) + "</td>"
             + '<td class="r num">' + fmtYuan(B.cost) + '</td><td class="r num">' + fmtYuan(B.val) + "</td>"
-            : '<td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>')
+            : '<td class="r c-qty"></td><td class="r c-px"></td><td class="r"></td><td class="r"></td>')
           + '<td class="r num ' + cls(run.sum) + '"><span class="sd-cv">' + fmtAmt(run.sum) + "</span>"
           + '<span class="sd-cbar"><i style="width:' + Math.min(100, Math.abs(run.sum) / maxAbs * 100).toFixed(1)
           + "%;background:" + (run.sum >= 0 ? "var(--up)" : "var(--down)") + '"></i></span></td>'
@@ -2118,7 +2121,8 @@ function saDetailView(C) {
            和左边的「−7,483 元」自相矛盾 ✓（首版就踩了 ✓）→ 用带符号的比值 ✓ */
         + (bench.benchVal ? "（相对纳指那侧 " + fmtPct(bench.diff / bench.benchVal, 1) + "）" : "")
         + " · 期间净投入 " + fmtAmt(bench.flows) + " 元</div>" : "")
-      + '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th><th>份数</th><th>单价</th>'
+      + '<div class="sd-tbl-wrap"><table class="sd-tbl"><thead><tr><th>期</th><th>事件</th>'
+      + '<th class="c-qty">份数</th><th class="c-px">单价</th>'
       + "<th>持仓成本</th><th>市值</th><th>本期贡献</th><th>累计</th></tr></thead><tbody>"
       + rows.join("") + "</tbody></table></div></div>";
   };

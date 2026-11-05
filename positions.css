@@ -2694,3 +2694,28 @@
 /* 「累计」列已经是单值了，给它一点视觉重量（它是这行的小结 ✓）*/
 .sd-tbl td:last-child { font-weight: 700; color: var(--tx2) !important; }
 .sd-tbl tr.sum td:last-child { color: var(--tx) !important; }
+
+/* ---- 逐期轨迹表：吸顶表头 ＋ 手机窄屏列合并（2026-11-05，用户要的 ②③）---- */
+
+/* ② 表头吸顶：滚到第 30 行时列名早看不见了，份数/单价/成本/市值全靠记 ✗
+   ⚠ 不能用 position:sticky 到 .sd-tbl-wrap（它没有固定高度）→ 直接吸在视口顶，
+      并给一个不透明底，否则数字会从表头底下透出来 ✗ */
+#snap-attr table.sd-tbl thead th {
+  /* top: 40px —— 让开顶部那条 sticky 的 .sec-nav（它 top:6px、高约 30px）
+     ⚠ z-index 必须低于 .sec-nav 的 20，否则表头会盖在导航上 ✗ */
+  position: sticky; top: 40px; z-index: 3;
+  background: var(--card); box-shadow: inset 0 -1px 0 var(--line-soft);
+}
+
+/* ③ 手机（≤430px）：隐藏「份数」「单价」两列
+   —— 每列只剩 50px、数字全换行 ✗ 而这两列只在**有交易的行**才有内容，
+      且交易行的「事件」列本来就写着「09.08 买入 5,000 份 @1.611」✓ 信息不丢 ✓
+   用列 class 而不是 :nth-child —— 合计行有 colspan="4"，用序号必错位 ✗ */
+@media (max-width: 430px) {
+  #snap-attr table.sd-tbl { min-width: 0; }
+  #snap-attr table.sd-tbl .c-qty,
+  #snap-attr table.sd-tbl .c-px { display: none; }
+  #snap-attr table.sd-tbl th, #snap-attr table.sd-tbl td { padding: 3px 5px; }
+  /* 事件列给更多宽度（它承担了份数+单价的信息）*/
+  #snap-attr table.sd-tbl td:nth-child(2) { max-width: 9em; }
+}
