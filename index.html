@@ -585,7 +585,7 @@
   .mc-tab { flex: 1; padding: 6px 0; border: 1px solid var(--line); background: var(--card2); color: var(--tx2); border-radius: 8px; font-size: 12px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: .15s; }
   .mc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(74,158,255,.32); }
   .mc-tab:active { transform: scale(.98); }
-  .mchart-wrap { display: flex; gap: 10px; margin-top: 8px; }
+  .mchart-wrap { display: flex; gap: 10px; margin-top: 14px; }
   .mchart-axis { width: 36px; flex-shrink: 0; height: 230px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--tx3); text-align: right; }
   .mchart-axis span:nth-child(3) { color: var(--tx2); }
   .mchart-axis span:nth-child(2), .mchart-axis span:nth-child(4) { opacity: .6; }
@@ -600,6 +600,16 @@
   .mc-bar.pos { bottom: 50%; border-radius: 4px 4px 0 0; }
   .mc-bar.neg { top: 50%; border-radius: 0 0 4px 4px; }
   .mc-val { position: absolute; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; }
+  .mc-val .mc-pct { font-style: normal; opacity: .8; }
+  /* ⚠ 手机端（≤430px）：11 列 × 约 32px，`+15.6%` 宽约 40px 会互相压 ✗
+     → 隐藏 `%`（数值本身已经带正负号，单位由轴和标题说明承担）+ 字号降到 9.5px ✓ */
+  @media (max-width: 430px) {
+    .mc-val { font-size: 9.5px; }
+    .mc-val .mc-pct { display: none; }
+    .mc-val.best, .mc-val.worst { font-size: 10.5px; }
+    .mchart { gap: 3px; }
+    .mc-bar { left: 30%; width: 40%; }
+  }
   /* ── 最强 / 最弱月加描边 + 角标（2026-11-07 加，用户要求「突出异常波动月份」）──
      ⚠ 只加描边不加底色：底色一变就看不出正负了 ✗
        角标贴在柱子**外侧**（正值在柱顶上方、负值在柱底下方），不挡数值 ✓ */
@@ -612,8 +622,8 @@
   .mc-val.best, .mc-val.worst { font-weight: 700; font-size: 11.5px; }
   .mc-group.best .mc-label { color: var(--green); font-weight: 700; }
   .mc-group.worst .mc-label { color: var(--red); font-weight: 700; }
-  .mc-bar.pos .mc-val { top: -16px; }
-  .mc-bar.neg .mc-val { bottom: -16px; }
+  .mc-bar.pos .mc-val { top: -17px; }
+  .mc-bar.neg .mc-val { bottom: -17px; }
   .mc-label { text-align: center; font-size: 11px; color: var(--tx2); margin-top: 6px; font-family: var(--mono); }
   .mchart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 11.5px; color: var(--tx2); }
   .mchart-legend .li { display: inline-flex; align-items: center; gap: 6px; }
@@ -2263,15 +2273,23 @@ function renderMonthly() {
   const otherKey = mcSel === "ndx" ? "spx" : "ndx";
   const otherName = mcSel === "ndx" ? "标普500 (SPX)" : "纳指100 (NDX)";
   const half = 115;            // 230px 绘图区的一半
-  const pxPer = half / MC_MAX; // 每 1% 对应像素
-  /* 轴标签与说明随 MC_MAX 数据驱动，避免双源漂移 */
-  $("mc-axpos").textContent = "+" + MC_MAX + "%";
-  $("mc-axneg").textContent = "-" + MC_MAX + "%";
-  /* 中间两档（±MC_MAX/2）：有元素就填，没有就跳过（轴 HTML 可能被别处替换）*/
-  const halfLbl = (MC_MAX / 2) % 1 === 0 ? String(MC_MAX / 2) : (MC_MAX / 2).toFixed(1);
+  /* ⚠ 2026-11-07 改**动态满刻度**（用户：「数值 +15.6% 顶到上方导致 UI 过于拥挤」）：
+     原来写死 MC_MAX = 16，而 4 月是 +15.64% → 柱高 112.4px / 115px，
+     柱顶距图顶只剩 **2.6px**，数值标签（top:-16px）直接顶出绘图区、和上边框挤在一起 ✗
+     现在按「当月最大绝对值的 1.18 倍、向上取偶」自动留白：
+       4 月 15.64 × 1.18 = 18.5 → 满刻度 20 → 柱顶距顶 **25px**，标签有地方站 ✓
+     ⚠ 取整到偶数是为了让中间两档（±一半）也是整数，轴标签不会出现 +9.5% 这种 ✗ */
+  const peak = Math.max(1, ...MONTHLY.flatMap((d) => [Math.abs(d.idx || d.ndx) || 0, Math.abs(d.spx) || 0]));
+  const AX_MAX = Math.max(4, Math.ceil((peak * 1.18) / 2) * 2);
+  const pxPer = half / AX_MAX; // 每 1% 对应像素
+  /* 轴标签与说明随 AX_MAX 数据驱动，避免双源漂移 */
+  $("mc-axpos").textContent = "+" + AX_MAX + "%";
+  $("mc-axneg").textContent = "-" + AX_MAX + "%";
+  /* 中间两档（±AX_MAX/2）：有元素就填，没有就跳过 */
+  const halfLbl = (AX_MAX / 2) % 1 === 0 ? String(AX_MAX / 2) : (AX_MAX / 2).toFixed(1);
   if ($("mc-axmid")) $("mc-axmid").textContent = "+" + halfLbl + "%";
   if ($("mc-axmid2")) $("mc-axmid2").textContent = "-" + halfLbl + "%";
-  $("mc-max").textContent = MC_MAX;
+  $("mc-max").textContent = AX_MAX;
   const mh = sourceHealth("monthly");
   $("mc-asof").textContent = (mh.asOf || "日期未核验") + " · " + mh.text;
   let html = "";
@@ -2299,7 +2317,7 @@ function renderMonthly() {
         <div class="mc-line zero" style="top:50%"></div>
         <div class="mc-line mid" style="top:75%"></div>
         <div class="mc-line" style="bottom:0"></div>
-        <div class="mc-bar ${dir}${mark}" style="height:${h.toFixed(1)}px;background:${col}"><span class="mc-val${mark}" style="color:${col}">${sign}${v.toFixed(1)}%</span></div>
+        <div class="mc-bar ${dir}${mark}" style="height:${h.toFixed(1)}px;background:${col}"><span class="mc-val${mark}" style="color:${col}">${sign}${v.toFixed(1)}<i class="mc-pct">%</i></span></div>
       </div>
       <div class="mc-label">${d.m}</div>
     </div>`;
