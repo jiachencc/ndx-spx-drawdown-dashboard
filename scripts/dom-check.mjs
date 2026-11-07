@@ -2786,7 +2786,7 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
      ① 无 JS 报错
      ② NDX / SPX 卡「回撤」≡ (close / ath − 1)
      ③ ATH 与「涨回新高需」≡ 复算
-     ④ 横幅「NDX 回撤」≡ 卡内回撤（同一个数的两处显示，防漂移 —— 与 ④c 同一手法 ✓）
+     ④ （2026-11-07 删）横幅「NDX 回撤」≡ 卡内回撤 —— 横幅整块已移除 ✓
      ⑤ 「距 15% 档」≡ 回撤 − thresholds.t2（阈值口径独立复算 ✓）
    ⚠ 真值读 **data.js 文件**（不是页面里的 D）：页面若漏写 / 改错字段，断言才抓得到 ✓ */
 {
@@ -2819,8 +2819,9 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     || !near2(numOf(p + "-toath"), (Dv[p].ath / Dv[p].close - 1) * 100))
     .map((p) => p.toUpperCase() + " ATH 页面 " + txtOf(p + "-ath") + " vs " + Dv[p].ath + " · 涨回新高 " + txtOf(p + "-toath"));
   check("决策看板：NDX / SPX 卡「ATH / 涨回新高需」= 独立复算", badAth.length === 0, badAth.join("；") || "逐档一致 ✓");
-  check("决策看板：横幅「NDX 回撤」= 指数卡内回撤（同一个数两处显示，不许漂 ✗）",
-    txtOf("sk-dd") !== "--" && numOf("sk-dd") === numOf("ndx-dd"), "横幅 " + txtOf("sk-dd") + " vs 卡内 " + txtOf("ndx-dd"));
+  /* ⚠ 2026-11-07：横幅「关注区，仅观察」整块已删（用户要求），
+     那条「横幅 NDX 回撤 ≡ 卡内回撤」的防漂移断言随之失效 ✗ 一并删掉 ✓
+     （同一个数的两处显示只剩卡内一处，不会漂了 ✓）*/
   const to15 = ddOfP("ndx") - Dv.thresholds.t2, t15 = txtOf("ndx-to15");
   check("决策看板：「距 15% 档」= 回撤 − thresholds.t2（阈值口径独立复算）",
     to15 <= 1e-9 ? /已到档/.test(t15) : near2(numOf("ndx-to15"), to15),

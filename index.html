@@ -101,37 +101,6 @@
     transition: border-color .2s;
   }
   .chip b { color: var(--cyan); font-weight: 700; }
-  /* ===== Signal banner ===== */
-  .signal-banner {
-    border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-    border: 1px solid var(--line);
-    background: linear-gradient(135deg, rgba(91,163,255,.07), rgba(177,149,251,.05)), var(--card);
-    box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset, 0 8px 32px -12px rgba(0,0,0,.5);
-  }
-  .signal-banner .sig-icon {
-    width: 52px; height: 52px; font-size: 26px;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--card2); border: 1px solid var(--line); border-radius: 14px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-    flex-shrink: 0;
-  }
-  .signal-banner .sig-main { flex: 1; min-width: 220px; }
-  .signal-banner .sig-title { font-size: 20px; font-weight: 800; letter-spacing: .4px; line-height: 1.3; }
-  .signal-banner .sig-desc { font-size: 12.5px; color: var(--tx2); margin-top: 4px; line-height: 1.6; }
-  .signal-banner .sig-plain { font-size: 12.5px; color: var(--tx2); line-height: 1.65; margin-top: 8px; padding: 7px 11px; border-left: 3px solid var(--blue); background: rgba(255,255,255,.035); border-radius: 0 6px 6px 0; }
-  .sig-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .sig-kpis .sk {
-    display: inline-flex; align-items: baseline; gap: 7px;
-    background: var(--card2); border: 1px solid var(--line-soft); border-radius: 9px;
-    padding: 5px 11px; font-size: 11px;
-  }
-  .sig-kpis .sk-l { color: var(--tx3); }
-  .sig-kpis .sk b { font-family: var(--mono); font-size: 13.5px; font-weight: 800; letter-spacing: .2px; }
-  .signal-banner .sig-tag {
-    font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 700;
-    font-family: var(--mono);
-  }
   .chip-stale { border-color: rgba(240,97,109,.55); color: var(--red); background: rgba(240,97,109,.1); }
   .chip-stale b { color: var(--red); }
   /* ===== 数据时间条（美股时区换算） ===== */
@@ -256,8 +225,6 @@
        现在它 flex: 1 0 100% 独占一行 → 说明文字在最宽处折行，不再溢出。 */
     .trig-right { flex: 1 0 100%; max-width: 100%; min-width: 0; align-items: flex-start; margin-top: 3px; }
     .trig-dist { text-align: left; overflow-wrap: anywhere; }
-    .signal-banner { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; }
-    .signal-banner .sig-tag { align-self: flex-start; }
     .scale-stats { flex-wrap: wrap; gap: 10px; }
     .scale-stats .ss { min-width: 90px; }
     .cal-pri { font-size: 9.5px; padding: 2px 6px; }
@@ -756,22 +723,6 @@
 </div>
 
 <details class="asof-bar" id="source-details"><summary id="source-summary">数据来源与有效性</summary><div id="source-rows" style="font-size:12px;overflow-wrap:anywhere"></div><p style="font-size:11px;color:var(--tx3)">有效期＝来源日期 + 工作日容忍窗口（未计交易所节假日）；不代表实时行情；抓取时刻不替代来源日期。</p></details>
-
-<!-- ======= Signal banner ======= -->
-<div class="signal-banner" id="banner" role="alert" aria-live="polite">
-  <div class="sig-icon" id="sig-icon">--</div>
-  <div class="sig-main">
-    <div class="sig-title" id="sig-title">--</div>
-    <div class="sig-desc" id="sig-desc">--</div>
-    <div class="sig-plain" id="sig-plain">--</div>
-    <div class="sig-kpis" id="sig-kpis">
-      <span class="sk"><span class="sk-l">NDX 回撤</span><b id="sk-dd">--</b></span>
-      <span class="sk"><span class="sk-l">Fwd ERP<button class="hint-i" type="button" aria-label="查看释义" data-h="erp">?</button></span><b id="sk-erp">--</b></span>
-      <span class="sk"><span class="sk-l">止盈档位</span><b id="sk-tp">--</b></span>
-    </div>
-  </div>
-  <div class="sig-tag" id="sig-tag">--</div>
-</div>
 
 <!-- ======= Top grid ======= -->
 <div class="grid g-top" aria-label="核心指数">
@@ -1334,7 +1285,6 @@ function renderAll() {
   renderHist(ndxDD);
 
   /* banner */
-  renderBanner(ndxDD);
 
   /* golden line */
   renderGolden(ndxDD, spxDD);
@@ -1694,37 +1644,6 @@ function renderConds() {
 }
 
 
-/* ================= Banner ================= */
-function renderBanner(ndxDD) {
-  const th = D.thresholds;
-  const state = evaluateDecision(D);
-  const icon = state.healthy ? "=" : "!";
-  const title = state.status;
-  const tagCls = state.healthy ? "tag-yellow" : "tag-red";
-  const tagTxt = state.healthy ? "规则评估" : "数据受限";
-  const desc = !state.healthy
-    ? "关键输入未核验或已过期：" + state.invalid.map(h => h.label).join("、") + "。历史读数仍可查看，暂不生成操作结论。"
-    : "回撤 " + pct(state.dd) + "；确认 " + state.count + "/4。页头与矩阵共用同一规则；多档同时满足时显示最高止盈档，买卖规则冲突需人工复核。";
-  $("sig-icon").innerHTML = '<span aria-hidden="true">' + icon + '</span>';
-  $("sig-title").textContent = title;
-  $("sig-desc").textContent = desc;
-  $("sig-plain").textContent = state.plain;
-  $("sig-plain").style.borderLeftColor = state.healthy ? "var(--blue)" : "var(--red)";
-  $("sig-tag").innerHTML = tagTxt;   // tagTxt 内含 aria-hidden 的装饰 emoji，需按 HTML 赋值
-  $("sig-tag").className = "sig-tag " + tagCls;
-  /* 结论锚定：关键数字 */
-  $("sk-dd").textContent = pct(ndxDD);
-  $("sk-dd").style.color = ddColor(ndxDD, th);
-  const erpF = state.erp;
-  $("sk-erp").textContent = pct(erpF);
-  $("sk-erp").style.color = bandColor(erpF, RULES.erp);
-  const ytd = ytdOf(D.ndx);
-  const distAth = -ndxDD;
-  $("sk-tp").textContent = !state.healthy ? "暂不评估" : state.exit ? state.exit.id + " 已触发" : "未触发";
-  $("sk-tp").style.color = state.healthy && state.exit ? "var(--yellow)" : "var(--tx3)";
-
-  renderDCA();
-}
 
 /* ================= Data staleness ================= */
 /* 近 12 个月日线（2026-09-27 加、10-03 由 130 根扩到 252 根并补 12M 档）：
