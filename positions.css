@@ -2741,3 +2741,53 @@
 @media (max-width: 430px) {
   .ots-grid { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* ---- 这波跌多久能修复（2026-11-07 加）----
+   一块 = 当前回撤 ＋ 同档统计 ＋ 概率 ＋ 账户口径提醒。
+   ⚠ 「峰→收复」是**交易日**，括号里的月份是折算的日历日约数 —— 两种单位同屏必须写清 ✗ */
+.rp { display: flex; flex-direction: column; gap: 0; }
+.rp-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--line-soft); }
+.rp-now { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.rp-now b { font-family: var(--mono); font-size: var(--fs-lg); font-weight: 700;
+  font-feature-settings: "tnum"; }
+.rp-now i { font-style: normal; font-size: var(--fs-xxs); color: var(--tx3); }
+.rp-past { font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap; }
+.rp-past b { color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; }
+
+.rp-tbl { margin-top: 8px; }
+.rp-tr { display: grid; grid-template-columns: 1fr 3.2em 1fr 1fr;
+  gap: 2px 10px; align-items: baseline; padding: 4px 0; font-size: var(--fs-xxs); }
+.rp-tr > b { font-family: var(--mono); font-weight: 400; text-align: right;
+  font-feature-settings: "tnum"; color: var(--tx2); }
+.rp-tr > b i { display: block; font-style: normal; color: var(--tx3); font-size: 9px; }
+.rp-th { color: var(--tx3); border-bottom: 1px dashed var(--line-soft); padding-bottom: 3px; }
+.rp-th > b { font-weight: 400; color: var(--tx3); }
+.rp-lb { color: var(--tx2); white-space: nowrap; }
+
+.rp-left { margin-top: 8px; padding: 7px 9px; border-radius: 6px;
+  background: var(--surface-2, rgba(147,163,187,.06));
+  font-size: var(--fs-xs); color: var(--tx2); line-height: 1.6; }
+.rp-left b { color: var(--tx); }
+.rp-left i { display: block; font-style: normal; font-size: var(--fs-xxs); color: var(--tx3); margin-top: 2px; }
+
+.rp-prs { margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft); }
+.rp-prs-h { font-size: var(--fs-xxs); color: var(--tx3); margin-bottom: 5px; }
+.rp-pr { display: grid; grid-template-columns: 1fr 3.4em 3.4em;
+  gap: 2px 8px; align-items: baseline; padding: 2px 0; font-size: var(--fs-xxs); color: var(--tx2); }
+.rp-pr b { font-family: var(--mono); font-weight: 700; text-align: right;
+  font-feature-settings: "tnum"; color: var(--tx); }
+.rp-pr i { font-style: normal; font-family: var(--mono); text-align: right;
+  color: var(--tx3); font-size: 9px; }
+
+.rp-acct { margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx3); line-height: 1.65; }
+.rp-acct b { color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; }
+.rp-note { margin-top: 8px; font-size: var(--fs-xxs); color: var(--tx4, var(--tx3));
+  line-height: 1.6; opacity: .9; }
+.rp-empty { font-size: var(--fs-xs); color: var(--tx3); padding: 6px 0; }
+@media (max-width: 430px) {
+  .rp-tr { grid-template-columns: 1fr auto auto; }
+  .rp-tr > b:last-child { grid-column: 1 / -1; text-align: left; }
+  .rp-th > b:last-child { display: none; }
+}

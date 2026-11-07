@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, TREND, DDHIST, PREM_SCAN };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, TREND, DDHIST, PREM_SCAN, NDX_DD };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -234,6 +234,41 @@ export function validateModel(m) {
     const syms = [...new Set(m.POSITIONS.log.map((e) => e.sym).filter(Boolean))];
     const missing = syms.filter((s) => !(s in plg.items));
     if (missing.length) errors.push("PREM_LOG 缺标的（多半是合并时被静默删掉）：" + missing.join("、"));
+  }
+
+  /* ── NDX_DD（纳指回撤事件表，AUTO，scripts/build-ndx-dd.mjs 写；2026-11-07 加）──
+     页面「这波跌多久能修复」全靠它 → 结构坏了会静默显示"没有数据" ✗ 故硬校验 ✓ */
+  {
+    const nd = m.NDX_DD;
+    if (!nd) errors.push("NDX_DD: 整块缺失（跑 scripts/build-ndx-dd.mjs）");
+    else {
+      if (!isDate(nd.asOf)) errors.push("NDX_DD: asOf 非法 " + nd.asOf);
+      if (!Array.isArray(nd.events) || nd.events.length < 10)
+        errors.push("NDX_DD: events 少于 10 次（纳指 30 年应有 ~20 次 ≥10% 回撤）");
+      else {
+        nd.events.forEach((e, i) => {
+          if (![e.dd, e.toTrough].every(Number.isFinite))
+            errors.push("NDX_DD.events[" + i + "]: dd/toTrough 非数");
+          if (e.dd > 0) errors.push("NDX_DD.events[" + i + "]: dd 应为负 " + e.dd);
+          if (e.ongoing) {
+            if (e.recover !== null || e.total !== null)
+              errors.push("NDX_DD.events[" + i + "]: 进行中的事件不该有 recover/total");
+          } else if (!(Number.isFinite(e.total) && Number.isFinite(e.toRecover)))
+            errors.push("NDX_DD.events[" + i + "]: 已完成的事件缺 total/toRecover");
+        });
+        if (nd.events.filter((e) => e.ongoing).length > 1)
+          errors.push("NDX_DD: 进行中的事件只能有 1 个");
+      }
+      if (!Array.isArray(nd.stats) || nd.stats.length !== 4)
+        errors.push("NDX_DD: stats 应为 4 档（−10~15 / −15~20 / −20~30 / ≤−30）");
+      else nd.stats.forEach((st) => {
+        if (!Number.isFinite(st.n)) errors.push("NDX_DD.stats." + st.k + ": n 非数");
+        if (st.n > 0 && !Number.isFinite(st.medianTotal))
+          errors.push("NDX_DD.stats." + st.k + ": 有样本却没有 medianTotal");
+        if (Array.isArray(st.within) && st.within.some((w) => w.k > w.n))
+          errors.push("NDX_DD.stats." + st.k + ": within 的 k > n（占比不可能 >100%）");
+      });
+    }
   }
 
   /* ── TREND（场内标的的技术面读数，2026-11-02 加）──────────────────────────

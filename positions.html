@@ -185,6 +185,13 @@ try {
   <h2 class="sec-title" id="sec-ddref"><span aria-hidden="true">🎯</span> 今年这几次跌 · 历史坐标 <span class="cnt" id="ddref-cnt"></span></h2>
   <div class="card tight" id="ddref-card"></div>
 
+  <!-- 这波跌多久能修复（2026-11-07 加，用户：「通过历史数据，预估纳指目前的跌幅需要多久修复？」）
+       ⚠ 数据：data.js 的 NDX_DD（AUTO，scripts/build-ndx-dd.mjs 生成，纳指 1995 至今 8,000+ 日）
+         DDHIST 只有 5 个近期事件、样本太小 ✗ 故单开一块 ✓
+       ⚠ 位置：紧跟「历史坐标」—— 先说"跌到什么程度"，再说"历史上这种程度要修多久" ✓ -->
+  <h2 class="sec-title" id="sec-repair"><span aria-hidden="true">🕐</span> 这波跌多久能修复 <span class="cnt" id="repair-cnt"></span></h2>
+  <div class="card tight" id="repair-card"></div>
+
   <!-- 操作体检（2026-09-27 建；2026-09-30 移位）：原来嵌在各持仓卡与盈亏总览行里（两处重复），改为「单独做一块」。
        13 只集中横向对比，按最弱档位排序（有问题的排前面）。数据全部来自 opCheckup()，无新增口径。
        ⚠ 位置：它是对**持仓本身**的诊断，故紧跟「持仓与操作记录」——此前排在板块②，夹在「盈亏总览」与
@@ -8405,6 +8412,98 @@ function renderDdRef() {
     + "</div>";
   if (cnt) cnt.textContent = "（NDX 收盘口径 · 数据至 " + md(H.asOf) + " · 排名按近 10 年 " + (H.dist ? H.dist.n5 : "—") + " 段 ≥5% 的回撤）";
 }
+/* ===== 这波跌多久能修复（2026-11-07 加）=============================================
+ * 用户：「通过历史数据，预估纳指目前的跌幅需要多久修复？」
+ * 做法：拿 NDX_DD（纳指 1995 至今、回撤 ≥10% 的 20 次事件），
+ *       按**当前跌幅**找同档的历史事件，给出「峰→收复」的中位/区间/概率 ✓
+ *
+ * ⚠ 三个必须写在卡面上的前提（否则会被当成预测 ✗）：
+ *   ① 样本量小（−10~−15% 档只有 11 次），中位只是"常见情况"，不是保证；
+ *   ② 分布右尾很厚（最快 39 日、最慢 265 日），"2.5 个月"是乐观参考；
+ *   ③ 「修复」＝ 指数回到**前高**，与「你的账户回本」不是一回事 ——
+ *      你的持仓成本可能高于/低于指数前高，卡上同时给出"账户还差多少"✓
+ */
+function renderRepair() {
+  const box = $("repair-card"), cnt = $("repair-cnt");
+  if (!box) return;
+  const D = (typeof DEFAULT !== "undefined" && DEFAULT.ndx) || null;
+  const N = (typeof NDX_DD !== "undefined" && NDX_DD) || null;
+  if (!D || !N || !N.events || !N.stats) { box.innerHTML = '<div class="rp-empty">没有 NDX_DD 数据</div>'; return; }
+
+  /* 当前回撤：优先用 NDX_DD 里那次 ongoing 事件（与历史事件同一套算法 ✓），
+     没有再退回 DEFAULT.ndx（ath / close 相除）*/
+  const og = N.events.filter((e) => e.ongoing).sort((a, b) => (a.peak < b.peak ? 1 : -1))[0] || null;
+  const ddPct = og ? og.dd : (D.ath && D.close ? (D.close / D.ath - 1) * 100 : null);
+  if (!Number.isFinite(ddPct)) { box.innerHTML = '<div class="rp-empty">算不出当前回撤</div>'; return; }
+  const pastDays = og ? og.toTrough : (Number.isFinite(D.days) ? D.days : null);
+  const peakD = og ? og.peak : D.athDate;
+  const troughD = og ? og.trough : null;
+
+  /* 落在哪一档 */
+  const st = N.stats.find((x) => ddPct <= -x.label.match(/−?(\d+)/)[1] * 1 === false) || null;
+  const bucket = N.stats.find((x) => {
+    if (x.k === "d10") return ddPct > -15;
+    if (x.k === "d15") return ddPct <= -15 && ddPct > -20;
+    if (x.k === "d20") return ddPct <= -20 && ddPct > -30;
+    return ddPct <= -30;
+  }) || null;
+
+  const cal = (n) => Math.round(n * 1.4);                       // 交易日 → 日历日约数
+  const mo = (n) => (cal(n) / 30.4).toFixed(1);                 // 月
+  const left = bucket && Number.isFinite(bucket.medianTotal) && Number.isFinite(pastDays)
+    ? Math.max(0, bucket.medianTotal - pastDays) : null;
+
+  /* 概率四档 */
+  const probs = bucket && bucket.within ? bucket.within.map((w) => {
+    const pctV = w.n ? Math.round(w.k / w.n * 100) : null;
+    return '<div class="rp-pr"><span>≤ ' + (w.days / 21).toFixed(0) + " 个月</span>"
+      + '<b>' + (pctV === null ? "—" : pctV + "%") + "</b>"
+      + '<i>' + w.k + "/" + w.n + "</i></div>";
+  }).join("") : "";
+
+  /* 账户口径：指数涨多少你才回本 */
+  const costAll = (() => {
+    const cur = (typeof SNAPSHOTS !== "undefined" ? SNAPSHOTS.filter((x) => x.items).slice(-1)[0] : null);
+    if (!cur) return null;
+    let c = 0, v = 0;
+    Object.values(cur.items).forEach((it) => { c += it.cost || 0; v += it.val || 0; });
+    return c > 0 ? { c: c, v: v, gap: (c / v - 1) * 100 } : null;
+  })();
+
+  box.innerHTML = '<div class="rp">'
+    + '<div class="rp-head">'
+    + '<span class="rp-now"><b class="down">' + fmtPct(ddPct / 100, 1) + "</b>"
+    + '<i>距 ' + mdFull(peakD) + " 的高点" + (troughD ? "（谷底 " + mdFull(troughD) + "）" : "") + "</i></span>"
+    + (Number.isFinite(pastDays) ? '<span class="rp-past">已过 <b>' + pastDays + "</b> 个交易日</span>" : "")
+    + "</div>"
+    + (bucket && bucket.n
+      ? '<div class="rp-tbl"><div class="rp-tr rp-th"><span>同类跌幅</span><b>次数</b><b>峰→收复中位</b><b>区间</b></div>'
+        + '<div class="rp-tr"><span class="rp-lb">' + bucket.label + "</span>"
+        + "<b>" + bucket.n + "</b>"
+        + "<b>" + bucket.medianTotal + " 交易日" + '<i>约 ' + mo(bucket.medianTotal) + " 个月</i></b>"
+        + "<b>" + bucket.p25 + "~" + bucket.p75 + " 日</b></div></div>"
+        + (left !== null
+          ? '<div class="rp-left">按这一档的中位：已过 ' + pastDays + " 日 → <b>还需约 " + left
+            + " 个交易日（约 " + mo(left) + " 个月）</b>"
+            + '<i>最快 ' + Math.max(0, bucket.p25 - pastDays) + " 日 · 最慢 " + Math.max(0, bucket.p75 - pastDays) + " 日</i></div>"
+          : "")
+        + (probs ? '<div class="rp-prs"><div class="rp-prs-h">从高点起算，多久内收复</div>' + probs + "</div>" : "")
+      : '<div class="rp-empty">这一档没有已完成的历史样本（当前跌幅 ' + fmtPct(ddPct / 100, 1) + "）</div>")
+    + (costAll
+      ? '<div class="rp-acct">⚠ 「修复」指指数回到前高，与你的账户回本不是一回事 —— '
+        + "你的持仓成本合计 <b>" + fmtYuan(costAll.c) + "</b>、市值 <b>" + fmtYuan(costAll.v) + "</b>，"
+        + "指数只需再涨 <b class=" + cls(costAll.gap) + ">" + fmtPct(costAll.gap / 100, 1) + "</b> 就回本"
+        + "（不用等创新高）</div>"
+      : "")
+    + '<div class="rp-note">口径：纳指 1995 至今 ' + N.days + " 个交易日，" + N.thresh
+    + "% 以上回撤共 " + N.events.length + " 次（DDHIST 只有近期 5 次，样本太小 ✗ 故单开这块）。"
+    + "天数一律<b>交易日</b>，括号里的月份按 ×1.4 折算日历日 ✓。"
+    + "⚠ 样本量小、右尾厚（最快 39 日 / 最慢 265 日）→ 中位只是「常见情况」，不是预测 ✗</div>"
+    + "</div>";
+
+  if (cnt) cnt.textContent = "按当前跌幅找历史同档 · 数据 " + N.asOf;
+}
+
 /* 操作体检表（2026-09-27）：把原先嵌在持仓卡 / 盈亏总览行里的体检**集中到一张表**（用户要求「单独做一块」）。
    数据全部来自 opCheckup() —— 与之前那两处同一套计算，不新增任何口径。
    排序：按最弱档位（D → C → B → A，"—" 视为无），同档按现值降序 —— 需要看的排前面。
@@ -9358,7 +9457,8 @@ renderLadderSafe();
 function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("ladder:", e.message); } }
 
 renderPremScan();                        // 溢价扫描（2026-10-28 加，紧跟场内持仓之后）
-renderDdRef();                           // 今年这几次跌 · 历史坐标（2026-10-24 加，紧跟体检之前）
+renderDdRef();
+renderRepair();                          // 这波跌多久能修复（2026-11-07 加）                           // 今年这几次跌 · 历史坐标（2026-10-24 加，紧跟体检之前）
 renderBuyPos();                             // 买入坐标（2026-10-31 加，紧跟体检之后）
 renderSellAfter();                          // 已清仓标的后市（2026-11-02 加）
 renderCheckup();
