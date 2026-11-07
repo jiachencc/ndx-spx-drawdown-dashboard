@@ -581,6 +581,9 @@
   .recent-readout .down { color: var(--red); }
   .recent-readout .sep { opacity: .45; margin: 0 6px; }
   .recent-readout .pin { color: var(--purple); }
+  /* 操作提示另起一行（2026-11-07）：不参与数据流，小一号、更暗 ✓ */
+  .recent-readout .rd-hint { display: block; margin-top: 3px; font-size: 10px;
+    color: var(--tx3); opacity: .8; }
   /* 图下「常用数据」统计条（2026-09-27 用户要求「下面还有一些空位，根据数据给一些算好的常用的数据」）——
      范式照本页既有的 .mchart-summary（月图那块）：无底色块、一条上边线分隔、数值走等宽字体、flex 折行。
      每项 = 标签（弱色 i）+ 数值（b）+ 注解（.an 小一号弱色）；项与项 nowrap，断行只发生在项之间。 */
@@ -1551,7 +1554,9 @@ function drawRecent() {
   const fmt2 = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const iNow = recentHover === null ? n - 1 : Math.min(recentHover, n - 1);   // 夹住：hover 索引永远落在当前区间内
   let s = "";
-  [yHi, (yHi + yLo) / 2, yLo].forEach((t) => {
+  /* ⚠ 2026-11-07：3 个刻度 → **5 个**（用户：「日线与回撤参考 还能优化吗」）
+     3 个刻度时曲线剧烈波动读不出具体位置，中间那段全靠猜 ✗ */
+  [yHi, yHi - (yHi - yLo) * 0.25, (yHi + yLo) / 2, yLo + (yHi - yLo) * 0.25, yLo].forEach((t) => {
     /* 深色下 --line-soft(#1c2538) 压在 #121826 卡片上几乎看不见（2026-10-17 改）→ 提一档用 --line */
     s += '<line x1="' + mL + '" y1="' + py(t).toFixed(1) + '" x2="' + (W - mR) + '" y2="' + py(t).toFixed(1) + '" stroke="var(--line)" stroke-dasharray="2 4"/>'
       + '<text x="' + (mL - 7) + '" y="' + (py(t) + 3.5).toFixed(1) + '" text-anchor="end" fill="var(--tx3)" style="font:11px var(--mono)">' + fmt(t) + "</text>";
@@ -1685,9 +1690,13 @@ function drawRecent() {
         + ">" + (flatD ? "≈0.00%" : recentPct(day)) + "</span>";
     }
   }
-  t += '<span class="sep">·</span>' + (Number.isInteger(recentPin)
-    ? "移动鼠标看两点变化率 · 点空白清除"
-    : "点一下钉住 A（再移动 = 两点变化率）");
+  /* ⚠ 2026-11-07：操作提示从数据行里拆出来（用户：「读数行太长，手机折两行」）——
+     原来「最新 11-06 · 26,989.99 · vs 起点 −9.19% · 日 +1.35% · 点一下钉住 A（再移动 = 两点变化率）」
+     是**一句到底**，手机上必然折两行、而且半行是操作说明而不是数据 ✗
+     → 数据仍在这一行；提示另起 .rd-hint（小一号、更暗）✓ */
+  t += '<span class="rd-hint">' + (Number.isInteger(recentPin)
+    ? "移动看两点变化率 · 点空白清除"
+    : "点一下钉住 A（再移动 = 两点变化率）") + "</span>";
   out.innerHTML = t;
 }
 function renderRecent() {
@@ -1753,6 +1762,8 @@ function renderRecentStats() {
   const vol = sd * Math.sqrt(252) * 100;
   const pos = (last - lo) / ((hi - lo) || 1) * 100;
   const iUp = rets.indexOf(Math.max(...rets)), iDn = rets.indexOf(Math.min(...rets));
+  /* 窗口名（给「窗口内位置」用）*/
+  const SPAN_LABEL = { 22: "1M", 65: "3M", 130: "6M", 252: "12M" };
   const item = (label, val, vCls, note, tip) =>
     '<span class="st" title="' + tip + '"><i>' + label + "</i><b" + (vCls ? ' class="' + vCls + '"' : "") + ">" +
       val + '</b><span class="an">' + note + "</span></span>";
@@ -1769,15 +1780,25 @@ function renderRecentStats() {
       "最新收盘相对**历史最高收盘** " + f2(dq.ath) + "（" + md(dq.athDate) + "）；" +
       String(th2).replace("-", "−") + "% 档 ＝ ATH × " + (1 + th2 / 100).toFixed(2) + " ＝ " +
       f2(dq.ath * (1 + th2 / 100)) + "（阈值取 DEFAULT.thresholds.t2）")) +
-    item("区间最高", f2(hi), "", md(pts[iHi].d) + " · 距现价 " + sg((last / hi - 1) * 100),
-      "区间内最高收盘 " + f2(hi) + "（" + md(pts[iHi].d) + "）；距现价 = 最新收盘相对它差多少（负 = 还在高点下方）") +
+    /* ⚠ 2026-11-07：**区间最高**这行删掉（用户：「六行里有三行在说同一件事」）
+       —— 当 ATH 就落在当前窗口内时（10-06 在 3M/6M/12M 里），
+          「区间最高 31,224.47 · 距现价 −13.56%」与上一行「距历史高点 −13.94%」是**同一个点** ✗
+       只在 ATH **不在**本窗口时才补这一行（例：1M 窗口里看不到 10-06 那个高点）✓ */
+    ((dq && md(pts[iHi].d) === md(dq.athDate))
+      ? "" : item("区间最高", f2(hi), "", md(pts[iHi].d) + " · 距现价 " + sg((last / hi - 1) * 100),
+        "区间内最高收盘 " + f2(hi) + "（" + md(pts[iHi].d) + "）；距现价 = 最新收盘相对它差多少（负 = 还在高点下方）。"
+        + "区间最高点与历史高点（" + (dq ? md(dq.athDate) : "—") + "）不是同一天，故单列 ✓")) +
     item("最大回撤", sg(mdd * 100), "down", md(pts[iPeak].d) + " → " + md(pts[iTrough].d) + " · " + (last >= cs[iPeak] ? "已收复" : "未收复"),
       "区间内「峰 → 之后谷」的最大跌幅：峰 " + f2(cs[iPeak]) + "（" + md(pts[iPeak].d) + "）→ 谷 " + f2(cs[iTrough]) +
       "（" + md(pts[iTrough].d) + "）；" + (last >= cs[iPeak] ? "最新收盘已回到峰之上" : "最新收盘仍低于峰 " + sg((last / cs[iPeak] - 1) * 100))) +
     item("区间最低", f2(lo), "", md(pts[iLo].d) + " · 距现价 " + sg((last / lo - 1) * 100),
       "区间内最低收盘 " + f2(lo) + "（" + md(pts[iLo].d) + "）；距现价 = 最新收盘相对它高出多少") +
-    item("区间位置", pos.toFixed(0) + "%", "", "",
-      "最新收盘在区间 [最低 " + f2(lo) + ", 最高 " + f2(hi) + "] 里的分位；越接近 100 = 越贴近区间高位") +
+    /* ⚠ 2026-11-07：「区间位置」→「窗口内位置」并带上窗口名
+       原名叫「区间位置」，而上面指数卡有一个「52 周位置 49%」——
+       同一屏两个"位置"、口径完全不同（一个 52 周、一个当前窗口），看着像有一个错了 ✗ */
+    item("窗口内位置", pos.toFixed(0) + "%", "", SPAN_LABEL[recentSpan] || "",
+      "最新收盘在本**窗口**（" + (SPAN_LABEL[recentSpan] || recentSpan + " 日") + "）区间 [最低 " + f2(lo) + ", 最高 " + f2(hi)
+      + "] 里的分位；越接近 100 = 越贴近窗口高位。⚠ 与指数卡的「52 周位置」不是一个口径 ✗") +
     item("年化波动", vol.toFixed(1) + "%", "", "日 σ " + (sd * 100).toFixed(2) + "%",
       "日收益的样本标准差 × √252；样本只有 " + rets.length + " 个交易日，只是近月尺度的粗估，不代表长期波动率") +
     item("最大单日", sg(rets[iUp] * 100), "up", md(pts[iUp + 1].d) + " · 最差 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）",
