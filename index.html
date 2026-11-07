@@ -517,18 +517,31 @@
     font-weight: 700; text-align: right; color: var(--tx3); white-space: nowrap; }
   .hm-diff.down { color: var(--red); }
   .hm-diff.up { color: var(--green); }
-  /* ── 「这波跌多久能修复」（2026-11-07 从 positions.html 搬来，精简成三行）── */
-  .hist-repair { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line-soft); }
-  .hr-head { font-size: 12px; color: var(--tx2); margin-bottom: 6px; }
-  .hr-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); margin-left: 6px; }
-  .hr-line { font-size: 11.5px; color: var(--tx3); line-height: 1.75;
+  /* ── 「这波跌多久能修复」（2026-11-07 从 positions.html 搬来，再按用户要求改成表格）──
+     与上面那张「事件 / 纳指 / 标普 / 耗时」用同一套视觉语言，不另造一套 ✓ */
+  .hist-repair { margin-top: 14px; padding-top: 11px; border-top: 1px dashed var(--line-soft); }
+  .hr-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    font-size: 12px; color: var(--tx2); margin-bottom: 7px; }
+  .hr-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
+  .hr-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono);
     font-feature-settings: "tnum"; }
-  .hr-line b { color: var(--tx2); font-family: var(--mono); }
-  .hr-line .hr-big { color: var(--tx); font-family: var(--mono); font-weight: 700; }
-  .hr-pr { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px;
-    font-size: 11px; color: var(--tx3); font-family: var(--mono); }
-  .hr-pr b { color: var(--tx2); }
-  @media (max-width: 430px) { .hr-pr { gap: 3px 9px; } }
+  .hr-tbl th, .hr-tbl td { padding: 5px 8px; text-align: right;
+    border-bottom: 1px dashed var(--line-soft); font-size: 11.5px; }
+  .hr-tbl th:first-child, .hr-tbl td:first-child { text-align: left; }
+  .hr-tbl th { color: var(--tx3); font-weight: 400; font-size: 10.5px;
+    border-bottom: 1px solid var(--line); }
+  .hr-tbl td { color: var(--tx2); }
+  .hr-tbl tr:last-child td { border-bottom: none; }
+  .hr-tbl td b { color: var(--tx); font-weight: 700; }
+  .hr-tbl td .hr-sub { display: block; font-size: 10px; color: var(--tx3); font-weight: 400; }
+  .hr-tbl td .hr-hi { color: var(--tx); font-weight: 700; }
+  .hr-tbl th + th, .hr-tbl td + td { border-left: 1px dashed var(--line-soft); }
+  .hr-note { margin-top: 7px; font-size: 10.5px; color: var(--tx3);
+    line-height: 1.65; opacity: .9; }
+  @media (max-width: 430px) {
+    .hr-tbl th, .hr-tbl td { padding: 4px 5px; font-size: 11px; }
+    .hr-tbl td .hr-sub { font-size: 9.5px; }
+  }
   @media (max-width: 430px) {
     .hm-row { grid-template-columns: 2.4em 1fr 1fr; gap: 1px 6px; }
     .hm-diff { grid-column: 2 / -1; text-align: left; font-size: 10.5px; }
@@ -1389,13 +1402,29 @@ function renderHist(ndxDD) {
       const p2 = w.n ? Math.round(w.k / w.n * 100) : null;
       return "≤" + (w.days / 21).toFixed(0) + "月 <b>" + (p2 === null ? "—" : p2 + "%") + "</b>";
     }).join(" · ");
-    box.innerHTML = '<div class="hr-head">这波跌多久能修复 <i>同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次</i></div>'
-      + '<div class="hr-line">中位 <b>' + b.medianTotal + " 个交易日</b>（约 " + mo(b.medianTotal) + " 个月）"
-      + '　区间 <b>' + b.p25 + "~" + b.p75 + "</b> 日"
-      + (left === null ? "" : '　已过 <b>' + past + "</b> 日 → 还需约 <span class=\"hr-big\">" + left + " 日</span>（约 " + mo(left) + " 个月）")
-      + "</div>"
-      + '<div class="hr-pr">从高点起算，多久内收复：' + prs + "</div>"
-      + '<div class="hr-pr" style="color:var(--tx3);opacity:.85;">⚠ 样本只有 ' + b.n + " 次，25%~75% 落在 " + b.p25 + "~" + b.p75 + " 日、右尾更厚 → 中位只是「常见情况」，不是预测；「修复」指指数回前高，与账户回本不是一回事</div>";
+    /* ⚠ 2026-11-07 改表格（用户：「格式化一下 也用表格呈现」）——
+       原来是三行带 em-space 的散排文字，数字和标签混在一起 ✗
+       现在两张小表：上＝修复天数、下＝累计概率，与上面那张事件表的视觉语言一致 ✓ */
+    box.innerHTML = '<div class="hr-head">这波跌多久能修复'
+      + '<i>同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次已收复</i></div>'
+      + '<table class="hr-tbl">'
+      + '<tr><th>峰→收复 · 中位</th><th>25% ~ 75%</th><th>已过</th><th>还需约</th></tr>'
+      + '<tr>'
+      + '<td><b>' + b.medianTotal + '</b> 日<span class="hr-sub">约 ' + mo(b.medianTotal) + ' 个月</span></td>'
+      + '<td>' + b.p25 + ' ~ ' + b.p75 + ' 日<span class="hr-sub">样本 ' + b.n + ' 次</span></td>'
+      + '<td>' + (Number.isFinite(past) ? '<b>' + past + '</b> 日' : '—')
+      + '<span class="hr-sub">' + (og && /^\d{4}-\d{2}-\d{2}$/.test(og.peak) ? "自 " + og.peak.slice(5) + " 高点" : "") + '</span></td>'
+      + '<td>' + (left === null ? '—' : '<span class="hr-hi">' + left + '</span> 日') 
+      + '<span class="hr-sub">' + (left === null ? '' : '约 ' + mo(left) + ' 个月') + '</span></td>'
+      + '</tr></table>'
+      + '<table class="hr-tbl" style="margin-top:7px;">'
+      + '<tr><th>从高点起算，多久内收复</th>' + (b.within || []).map((w) => '<th>≤' + (w.days / 21).toFixed(0) + ' 月</th>').join('') + '</tr>'
+      + '<tr><td class="hr-sub" style="text-align:left;">命中笔数 / 样本</td>'
+      + (b.within || []).map((w) => '<td><b>' + (w.n ? Math.round(w.k / w.n * 100) + '%' : '—') + '</b>'
+        + '<span class="hr-sub">' + w.k + '/' + w.n + '</span></td>').join('')
+      + '</tr></table>'
+      + '<div class="hr-note">⚠ 样本只有 ' + b.n + ' 次，25%~75% 落在 ' + b.p25 + '~' + b.p75
+      + ' 日、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>';
   })();
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);

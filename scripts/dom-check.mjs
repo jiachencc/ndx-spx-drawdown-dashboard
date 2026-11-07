@@ -2897,13 +2897,20 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
          它整块是 JS 渲染的，数据缺了会静默变空 ✗ → 断言：有中位天数、有「还需约」、有概率三档 */
       {
         const rpTxt = (txtOf("hist-repair") || "").replace(/\s+/g, " ");
-        const hasMed = /中位\s*\d+\s*个交易日/.test(rpTxt);
-        const hasLeft = /还需约\s*\d+\s*日/.test(rpTxt);
-        const nPr = /≤1月/.test(rpTxt) && /≤3月/.test(rpTxt) && /≤6月/.test(rpTxt);
-        check("决策看板「这波跌多久能修复」：同档中位 ＋ 还需天数 ＋ 概率三档 都在",
-          hasMed && hasLeft && nPr,
-          "中位 " + (hasMed ? "有" : "无 ✗") + " · 还需 " + (hasLeft ? "有" : "无 ✗")
-            + " · 概率 " + (nPr ? "有" : "无 ✗") + " · 文本「" + rpTxt.slice(0, 70) + "」");
+        /* ⚠ 2026-11-07 改成表格后文本里没有「中位 53 个交易日」这种连续表述了 ✗
+           （表头「峰→收复 · 中位」和数值「53 日」被 th/td 分开）
+           → 按「表结构 + 关键数值存在」判：表格数 ≥2、有「日」为单位的量、有概率档头 */
+        const hasMed = /峰→收复/.test(rpTxt) && /\b\d+\s*日/.test(rpTxt);
+        const hasLeft = /还需约/.test(rpTxt) && /\d+\s*日/.test(rpTxt);
+        const nPr = /≤1\s*月/.test(rpTxt) && /≤3\s*月/.test(rpTxt) && /≤6\s*月/.test(rpTxt);
+        const nTbl = (() => {
+          const box = idoc.getElementById("hist-repair");   // index 段用 idoc（不是 positions 段的 gs）
+          return box ? box.querySelectorAll("table.hr-tbl").length : 0;
+        })();
+        check("决策看板「这波跌多久能修复」：两张表（修复天数 / 累计概率）都在且数值齐",
+          hasMed && hasLeft && nPr && nTbl === 2,
+          "表格 " + nTbl + "/2 · 中位 " + (hasMed ? "有" : "无 ✗") + " · 还需 " + (hasLeft ? "有" : "无 ✗")
+            + " · 概率 " + (nPr ? "有" : "无 ✗") + " · 文本「" + rpTxt.slice(0, 60) + "」");
       }
   }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
