@@ -495,15 +495,15 @@
   /* ===== History comparison ===== */
   .hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .hist-table th { font-size: 10.5px; color: var(--tx3); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); letter-spacing: .5px; }
-  .hist-table td { padding: 7px 10px; border-bottom: 1px dashed var(--line-soft); font-family: var(--mono); }
+  .hist-table td { padding: 7px 10px; border-bottom: 1px dashed var(--line-soft); font-family: var(--mono); white-space: nowrap; }
   .hist-table tr:last-child td { border-bottom: none; }
   .hist-table .h-desc { font-family: var(--sans); color: var(--tx2); font-size: 11.5px; }
   /* ── 「近10年中位数回撤」两行对比（2026-11-07 重做）
      原来是 8px 高的一条尺上塞三根标记，两个中位只差 1.87pp、靠颜色和方向硬区分 ✗
      → 去掉尺，改成「纳指 / 标普」各一行：中位 · 当前 · 差多少 ✓ */
   .hist-med { margin-top: 12px; }
-  .hm-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
-    font-size: 12px; color: var(--tx2); }
+  .hm-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px;
+    font-size: 10.5px; color: var(--tx3); }
   .hm-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
   .hm-row { display: grid; grid-template-columns: 2.8em 1fr 1fr auto;
     gap: 2px 8px; align-items: baseline; padding: 3px 0;
@@ -519,7 +519,25 @@
   .hm-diff.up { color: var(--green); }
   /* ── 「这波跌多久能修复」（2026-11-07 从 positions.html 搬来，再按用户要求改成表格）──
      与上面那张「事件 / 纳指 / 标普 / 耗时」用同一套视觉语言，不另造一套 ✓ */
-  .hist-repair { margin-top: 14px; padding-top: 11px; border-top: 1px dashed var(--line-soft); }
+  /* ── 分组标题 / 一句话结论 / 口径脚注（2026-11-07 加）── */
+  .hx-verdict { margin: 2px 0 14px; padding: 9px 11px; border-radius: 6px;
+    background: var(--surface-2, rgba(147,163,187,.06));
+    border-left: 2.5px solid var(--purple);
+    font-size: 11.5px; color: var(--tx2); line-height: 1.72; }
+  .hx-verdict b { color: var(--tx); font-family: var(--mono); font-feature-settings: "tnum"; }
+  .hx-verdict .hx-vd { color: var(--tx3); }
+  .hx-sub { margin: 16px 0 7px; font-size: 11px; color: var(--tx3);
+    display: flex; align-items: center; gap: 7px; letter-spacing: .02em; }
+  .hx-sub::after { content: ""; flex: 1; height: 0; border-top: 1px solid var(--line-soft); }
+  .hx-foot { margin-top: 7px; font-size: 10.5px; color: var(--tx3); line-height: 1.65; }
+  .hx-foot b { color: var(--tx2); }
+  .hx-th-note { display: block; font-size: 9px; color: var(--tx3); font-weight: 400; opacity: .8; }
+  .hx-cell-note { display: block; font-size: 9.5px; color: var(--tx3); font-weight: 400; }
+  .hx-live { margin-left: 5px; font-size: 9px; padding: 1px 5px; border-radius: 8px;
+    background: rgba(245,185,61,.16); color: var(--yellow); font-weight: 400;
+    font-family: var(--sans); vertical-align: 1px; }
+  .hist-table tr.hx-now td { border-top: 1px solid var(--line); }
+  .hist-repair { margin-top: 8px; padding-top: 0; border-top: none; }
   .hr-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     font-size: 12px; color: var(--tx2); margin-bottom: 7px; }
   .hr-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
@@ -959,8 +977,18 @@
             → 现在两列都用实测，耗时也改成实测天数（2008 原写 520、实为 495；2022 原写 253、实为 404）
          ③ 四行仍标 MANUAL：本仓库**没有**那段日线，是脚本一次性算出来写死的 ✗
             2025 与「当前」两行仍由 DDHIST 动态填 ✓ -->
+    <!-- ⚠ 2026-11-07 结构与可读性重做（用户要求「审查并优化这块的层级/可读性/一致性」）：
+         原问题：
+           ① 四种性质不同的内容（历史事件 / 统计中位 / 修复预测 / 长期收益）平铺，无分组 ✗
+           ② 标题叫「这次算什么水平」，而答案（深多少 pp）埋在第三块，没有一句话结论 ✗
+           ③ 「耗时」列口径不明 —— 是纳指的还是标普的？✗ 而且**当前行那 23 天是「已过」**，
+              与上面五行的「峰→谷」不同义，混在同一列 ✗
+         → 现在：顶部一句话结论 ＋ ①②③ 分组 ＋ 表头写明口径 ＋ 当前行标「进行中」 ✓ -->
+    <div class="hx-verdict" id="hx-verdict"></div>
+
+    <div class="hx-sub">① 历史上几次大回撤</div>
     <table class="hist-table">
-      <tr><th>事件</th><th>纳指</th><th>标普</th><th>耗时</th></tr>
+      <tr><th>事件</th><th>纳指</th><th>标普</th><th>峰→谷</th></tr>
       <tr title="纳指 2000-03-10 5048.62 → 2002-10-09 1114.11；标普 2000-03-24 1527.46 → 2002-10-09 776.76"><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">−77.93%</td><td style="color:var(--red)">−49.15%</td><td>~943 天</td></tr>
       <tr title="纳指 2007-10-31 2859.12 → 2009-03-09 1268.64；标普 2007-10-09 1565.15 → 2009-03-09 676.53"><td class="h-desc">2008 金融危机</td><td style="color:var(--red)">−55.63%</td><td style="color:var(--red)">−56.78%</td><td>~495 天</td></tr>
       <tr title="两边都是 2020-02-19 → 2020-03-23；纳指 9817.18 → 6860.67；标普 3386.15 → 2237.40"><td class="h-desc">2020 疫情</td><td style="color:var(--red)">−30.12%</td><td style="color:var(--red)">−33.92%</td><td>~33 天</td></tr>
@@ -970,8 +998,12 @@
            与 positions.html 的「今年这几次跌 · 历史坐标」读同一份数据 ✓。
            上面 2000 / 2008 / 2020 / 2022 四行仍为**人工维护**（本仓库没有那段日线，算不出来）。 -->
       <tr id="dd25-row"><td class="h-desc">2025 那次回调</td><td style="color:var(--yellow)"><b id="dd25-dd">--</b></td><td style="color:var(--yellow)"><b id="dd25-spx">--</b></td><td><b id="dd25-days">--</b></td></tr>
-      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td style="color:var(--yellow)"><b id="hist-cur-spx">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
+      <tr class="hx-now"><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b><span class="hx-live">进行中</span></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td style="color:var(--yellow)"><b id="hist-cur-spx">--</b></td><td><b id="hist-cur-days">--</b><span class="hx-cell-note">已过</span></td></tr>
     </table>
+    <div class="hx-foot">「峰→谷」＝ 该次回撤从高点到低点的交易日数（<b>纳指口径</b>）；当前行是<b>已过天数</b>，还在进行中 ✗
+      2000 / 2008 / 2020 / 2022 四行为人工核对值，2025 与当前两行由 DDHIST 动态填 ✓</div>
+
+    <div class="hx-sub">② 这次 vs 近 10 年典型回撤</div>
     <!-- ⚠ 2026-11-07 重做（用户：「或者改掉这个轴，用数据对比来做？」）：
          原来是一条 8px 高的尺上塞三根标记（黄粗/灰细上挑/蓝细下挑）——
          两个中位只差 1.87pp ≈ 4.7% 宽，靠颜色和方向硬区分，读起来很费劲 ✗
@@ -982,10 +1014,11 @@
          ⚠ 数据：data.js 的 NDX_DD（AUTO，scripts/build-ndx-dd.mjs 生成，纳指 1995 至今 8,000+ 个交易日）
            DDHIST 只有 5 个近期事件、样本太小 ✗ 所以走另一份数据 ✓
          ⚠ 放在「中位数」之后：先看这波比典型回撤深多少，再看历史上这种深度要修多久 ✓ -->
+    <div class="hx-sub">③ 这种深度历史上修多久</div>
     <div class="hist-repair" id="hist-repair"></div>
 
+    <div class="hx-sub">④ 长期年化基准 · 近 18 年 CAGR</div>
     <div class="hist-cagr">
-      <span class="hc-label"><span aria-hidden="true">📈</span> 长期年化基准（近18年 CAGR）</span>
       <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
       <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
     </div>
@@ -1352,11 +1385,37 @@ function renderHist(ndxDD) {
   /* 两行数字对比（替代原来的尺）：中位 / 当前 / 差多少
      ⚠ 标普的「当前」自己算（close ÷ ath），与纳指同一个口径 ✓
      差值一律写成「深 X pp」——两个都是负数，说"低"容易被读反 ✗ */
+  /* 标普当前回撤（与纳指同一口径：close ÷ ath）—— verdict 和对比表共用，提到外面 */
+  const spxDD = (D.spx && Number.isFinite(D.spx.close) && Number.isFinite(D.spx.ath) && D.spx.ath > 0)
+    ? (D.spx.close / D.spx.ath - 1) * 100 : null;
+
+  /* ── 一句话结论（2026-11-07 加）─────────────────────────────────
+     卡名叫「这次算什么水平」，而答案原来埋在第三块（深 6.71pp）✗
+     → 顶上直接给：两个指数各自比自己的典型深多少，并点出分化 ✓
+     ⚠ 措辞走中性（"压力主要落在纳指"），不加"超跌/便宜"之类判断 —— 那是用户自己的事 ✓ */
+  (function renderVerdict() {
+    const box = $("hx-verdict");
+    if (!box || !Number.isFinite(median)) return;
+    const gN = ndxDD - median;
+    const gS = (Number.isFinite(medSpx) && Number.isFinite(spxDD)) ? spxDD - medSpx : null;
+    const fmtG = (g) => (Math.abs(g) < 0.05 ? "基本持平"
+      : (g < 0 ? "深 <b>" + Math.abs(g).toFixed(2) + "</b>pp" : "浅 <b>" + g.toFixed(2) + "</b>pp"));
+    let t = "纳指 <b>" + neg(pct(ndxDD)) + "</b>，比近 10 年典型回撤（<b>" + neg(pct(median)) + "</b>）" + fmtG(gN);
+    if (gS !== null) {
+      t += "；标普 <b>" + neg(pct(spxDD)) + "</b>，比自己的典型（<b>" + neg(pct(medSpx)) + "</b>）" + fmtG(gS);
+      /* 分化判断：两者与典型之差 >2pp 才说"分化"，否则说"同步" —— 免得把 0.6pp 的差也说成分化 ✗ */
+      t += (Math.abs(gN - gS) >= 2)
+        ? '。<span class="hx-vd">→ 压力主要落在纳指（两者与典型的落差差 ' + Math.abs(gN - gS).toFixed(1) + "pp）</span>"
+        : '。<span class="hx-vd">→ 两个指数与典型的落差接近，属同步回调</span>';
+    } else {
+      t += "。";
+    }
+    box.innerHTML = t;
+  })();
+
   (function renderMedCmp() {
     const box = $("hist-med");
     if (!box) return;
-    const spxDD = (D.spx && Number.isFinite(D.spx.close) && Number.isFinite(D.spx.ath) && D.spx.ath > 0)
-      ? (D.spx.close / D.spx.ath - 1) * 100 : null;
     const row = (nm, mid, cur) => {
       if (!Number.isFinite(mid) || !Number.isFinite(cur)) {
         return '<div class="hm-row"><b class="hm-name">' + nm + '</b><span class="hm-mid">中位 --</span>'
@@ -1370,7 +1429,7 @@ function renderHist(ndxDD) {
         + '<span class="hm-cur">当前 ' + neg(pct(cur)) + '</span>'
         + '<span class="hm-diff ' + (Math.abs(gap) < 0.05 ? "" : (gap < 0 ? "down" : "up")) + '">' + txt + '</span></div>';
     };
-    box.innerHTML = '<div class="hm-head"><span>近10年中位数回撤 <i>≥' + Math.abs(DHIST_THR) + '% 的回撤段深度</i></span>'
+    box.innerHTML = '<div class="hm-head"><i>典型 ＝ 近 10 年 ≥' + Math.abs(DHIST_THR) + '% 的回撤段深度的中位（2016-08 → 2026-08）</i></span>'
       + '<button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></div>'
       + row("纳指", median, ndxDD)
       + (medSpx === null ? "" : row("标普", medSpx, spxDD));
