@@ -498,22 +498,29 @@
   .hist-table td { padding: 7px 10px; border-bottom: 1px dashed var(--line-soft); font-family: var(--mono); }
   .hist-table tr:last-child td { border-bottom: none; }
   .hist-table .h-desc { font-family: var(--sans); color: var(--tx2); font-size: 11.5px; }
-  .hist-med { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
-  .hist-med .med-bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--card2); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
-  .hist-med .med-bar i { position: absolute; top: -2px; height: 12px; width: 2.5px; background: var(--yellow); border-radius: 1px; }
-  /* ── 尺上三根标记（2026-11-07 重做，用户：「对应的轴没有更新？黄色指的是纳指还是标普？」）
-     原来只有「灰线＝中位（纳指）＋ 黄点＝当前」，文本改成两个指数后图上仍只有一根中位线 ✗
-     现在三根，靠**方向 + 颜色**双重区分（尺只有 8px 高，两个中位只差 1.87pp ≈ 4.7% 宽，并排必重叠 ✗）：
-       向上突 灰白细线 ＝ 纳指中位（−7.23%）
-       向下突 蓝色细线 ＝ 标普中位（−5.36%）
-       跨整条 黄色粗点 ＝ **当前纳指回撤**（这个一直是黄的，用户问的就是它 ✓）
-     ⚠ 用 #id 选择器而不是 .class —— 实测 `.med-bar i.spx { top: auto }` 被
-        `.med-bar i { top: -2px }` 压回去了（同一元素同时带 .med-mark 和 .spx，级联顺序不好控）✗ */
-  /* ⚠ 用**明确的 top 值**、不用 `bottom` —— 实测 `top:auto; bottom:-5px` 在
-     「同时设了 top 的父规则」下会算出跟另一根一样的值，上下区分失效 ✗
-     现在：纳指从尺上沿往上挑、标普从尺下沿往下挑，两根线在垂直方向错开 ✓ */
-  #med-mark { background: var(--tx2); top: -6px; height: 11px; width: 1.5px; }
-  #med-mark-spx { background: var(--blue); top: 3px; height: 11px; width: 1.5px; }
+  /* ── 「近10年中位数回撤」两行对比（2026-11-07 重做）
+     原来是 8px 高的一条尺上塞三根标记，两个中位只差 1.87pp、靠颜色和方向硬区分 ✗
+     → 去掉尺，改成「纳指 / 标普」各一行：中位 · 当前 · 差多少 ✓ */
+  .hist-med { margin-top: 12px; }
+  .hm-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+    font-size: 12px; color: var(--tx2); }
+  .hm-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
+  .hm-row { display: grid; grid-template-columns: 2.8em 1fr 1fr auto;
+    gap: 2px 8px; align-items: baseline; padding: 3px 0;
+    font-size: 11.5px; border-top: 1px dashed var(--line-soft); }
+  .hm-row:first-of-type { border-top: none; }
+  .hm-name { color: var(--tx); font-weight: 600; font-size: 11.5px; }
+  .hm-mid, .hm-cur { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .hm-mid { color: var(--tx3); }
+  .hm-cur { color: var(--tx2); }
+  .hm-diff { font-family: var(--mono); font-feature-settings: "tnum";
+    font-weight: 700; text-align: right; color: var(--tx3); white-space: nowrap; }
+  .hm-diff.down { color: var(--red); }
+  .hm-diff.up { color: var(--green); }
+  @media (max-width: 430px) {
+    .hm-row { grid-template-columns: 2.4em 1fr 1fr; gap: 1px 6px; }
+    .hm-diff { grid-column: 2 / -1; text-align: left; font-size: 10.5px; }
+  }
 
   .hist-cagr {
     display: flex; align-items: center; gap: 16px; margin-top: 12px;
@@ -947,15 +954,11 @@
       <tr id="dd25-row"><td class="h-desc">2025 那次回调</td><td style="color:var(--yellow)"><b id="dd25-dd">--</b></td><td style="color:var(--yellow)"><b id="dd25-spx">--</b></td><td><b id="dd25-days">--</b></td></tr>
       <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td style="color:var(--yellow)"><b id="hist-cur-spx">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
     </table>
-    <div class="hist-med">
-      <span>近10年中位数回撤 <b id="med-num" style="font-family:var(--mono);color:var(--tx2);margin-right:5px;">--</b><button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
-      <div class="med-bar" title="黄色上方游标＝纳指中位 · 蓝色下方游标＝标普中位 · 白点＝当前纳指回撤">
-        <i id="med-mark" class="med-mark" style="left:0%;"></i>
-        <i id="med-mark-spx" class="med-mark spx" style="left:0%;"></i>
-        <i id="med-dot" style="left:0%;"></i>
-      </div>
-      <span style="color:var(--yellow);font-family:var(--mono);" id="hist-rank">--</span>
-    </div>
+    <!-- ⚠ 2026-11-07 重做（用户：「或者改掉这个轴，用数据对比来做？」）：
+         原来是一条 8px 高的尺上塞三根标记（黄粗/灰细上挑/蓝细下挑）——
+         两个中位只差 1.87pp ≈ 4.7% 宽，靠颜色和方向硬区分，读起来很费劲 ✗
+         → 整条尺**去掉**，改成两行数字并列：中位 / 当前 / 差多少，一眼可比 ✓ -->
+    <div class="hist-med" id="hist-med"></div>
     <div class="hist-cagr">
       <span class="hc-label"><span aria-hidden="true">📈</span> 长期年化基准（近18年 CAGR）</span>
       <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
@@ -1311,24 +1314,43 @@ function renderHist(ndxDD) {
      「这波还没到中位数」的错误结论 ✗（标普同期中位只有 −5.36%）*/
   const medSpx = (typeof DDHIST !== "undefined" && DDHIST && DDHIST.median && Number.isFinite(DDHIST.median.medSpx))
     ? DDHIST.median.medSpx : null;
-  /* 减号用 −（U+2212）：pct() 输出的是 ASCII `-`，而同一行别处都是 − ✗ 统一一下 */
+  const DHIST_THR = (typeof DDHIST !== "undefined" && DDHIST && DDHIST.median && Number.isFinite(DDHIST.median.thr))
+    ? DDHIST.median.thr : -3;
+  /* 减号用 −（U+2212）：pct() 输出的是 ASCII `-`，同一卡别处都是 − ✗ 统一一下 */
   const neg = (t) => t.replace("-", "−");
-  $("med-num").textContent = median === null ? "--"
-    : ("纳指 " + neg(pct(median)) + (medSpx === null ? "" : " · 标普 " + neg(pct(medSpx))));
-  $("hist-rank").textContent = median === null ? ""
-    : (!deeper && !higher ? "当前 与中位基本持平" : (deeper ? "当前 低于中位" : "当前 高于中位"));
-  $("hist-rank").style.color = deeper ? "var(--red)" : (higher ? "var(--yellow)" : "var(--tx2)");
+  /* ⚠ 2026-11-07：`#hist-rank` 那句「当前 低于中位」已删 ——
+     两行对比表直接给出「深 X pp / 浅 X pp」，比一句模糊的"低于中位"精确 ✓
+     （`deeper` / `higher` 两个变量保留：下面 `hist-rank-txt` 那条 note 还在用）*/
   const posOf = v => Math.min(98, Math.max(2, (v - (-40)) / 40 * 100));
   /* ⚠ 2026-11-07：加**标普那条**（用户：「对应的轴没有更新？黄色指的是纳指还是标普？」）
      文本已经给了两个值，图上却只有一根黄线 → 读者不知道它代表谁 ✗
      现在：黄色向上突＝纳指、蓝色向下突＝标普（尺只有 8px 高，只能靠上下错开区分）*/
-  if (median !== null) $("med-mark").style.left = posOf(median) + "%";
-  const mspxEl = $("med-mark-spx");
-  if (mspxEl) {
-    if (medSpx === null) mspxEl.style.display = "none";
-    else { mspxEl.style.display = ""; mspxEl.style.left = posOf(medSpx) + "%"; }
-  }
-  $("med-dot").style.left = posOf(ndxDD) + "%";
+  /* 两行数字对比（替代原来的尺）：中位 / 当前 / 差多少
+     ⚠ 标普的「当前」自己算（close ÷ ath），与纳指同一个口径 ✓
+     差值一律写成「深 X pp」——两个都是负数，说"低"容易被读反 ✗ */
+  (function renderMedCmp() {
+    const box = $("hist-med");
+    if (!box) return;
+    const spxDD = (D.spx && Number.isFinite(D.spx.close) && Number.isFinite(D.spx.ath) && D.spx.ath > 0)
+      ? (D.spx.close / D.spx.ath - 1) * 100 : null;
+    const row = (nm, mid, cur) => {
+      if (!Number.isFinite(mid) || !Number.isFinite(cur)) {
+        return '<div class="hm-row"><b class="hm-name">' + nm + '</b><span class="hm-mid">中位 --</span>'
+          + '<span class="hm-cur">当前 --</span><span class="hm-diff">--</span></div>';
+      }
+      const gap = cur - mid;                         // 负 = 当前比中位更深
+      const txt = Math.abs(gap) < 0.05 ? "持平"
+        : (gap < 0 ? "深 " + Math.abs(gap).toFixed(2) + "pp" : "浅 " + gap.toFixed(2) + "pp");
+      return '<div class="hm-row"><b class="hm-name">' + nm + '</b>'
+        + '<span class="hm-mid">中位 ' + neg(pct(mid)) + '</span>'
+        + '<span class="hm-cur">当前 ' + neg(pct(cur)) + '</span>'
+        + '<span class="hm-diff ' + (Math.abs(gap) < 0.05 ? "" : (gap < 0 ? "down" : "up")) + '">' + txt + '</span></div>';
+    };
+    box.innerHTML = '<div class="hm-head"><span>近10年中位数回撤 <i>≥' + Math.abs(DHIST_THR) + '% 的回撤段深度</i></span>'
+      + '<button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></div>'
+      + row("纳指", median, ndxDD)
+      + (medSpx === null ? "" : row("标普", medSpx, spxDD));
+  })();
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";

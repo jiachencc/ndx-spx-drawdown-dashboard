@@ -2892,15 +2892,18 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
          原来的 parseFloat 会把整串读成 NaN（开头是中文）→ 必须按标签分别提取 ✓ */
       const wm = DH && DH.median ? DH.median.med : null;
       const wmSpx = DH && DH.median && Number.isFinite(DH.median.medSpx) ? DH.median.medSpx : null;
-      const medTxt = txtOf("med-num").replace(/−/g, "-");
+      /* ⚠ 2026-11-07：那块从「一条尺」改成「两行对比表」（中位 / 当前 / 差多少）✗
+         `#med-num` 已不存在 → 改从 `#hist-med` 整块文本里按「纳指 / 标普」行提取中位值 ✓
+         每行文本形如：纳指  中位 −7.23%  当前 −13.94%  深 6.71pp */
+      const medTxt = txtOf("hist-med").replace(/−/g, "-");
       const pickN = (re) => { const m = medTxt.match(re); return m ? parseFloat(m[1]) : NaN; };
-      const gotNdx = pickN(/纳指\s*(-?\d+\.\d+)/);
-      const gotSpx = pickN(/标普\s*(-?\d+\.\d+)/);
+      const gotNdx = pickN(/纳指\s*中位\s*(-?\d+\.\d+)/);
+      const gotSpx = pickN(/标普\s*中位\s*(-?\d+\.\d+)/);
       check("决策看板「中位数回撤」纳指/标普两值 ≡ DDHIST.median（不再写死 −7.5%）",
         Number.isFinite(wm) && Number.isFinite(gotNdx) && Math.abs(gotNdx - wm) < 0.011
           && (wmSpx === null || (Number.isFinite(gotSpx) && Math.abs(gotSpx - wmSpx) < 0.011)),
         wm === null ? "DDHIST.median 缺失 ✗"
-          : "页面 " + txtOf("med-num") + " · 数据 纳指 " + wm + "%（" + DH.median.n + " 段）"
+          : "页面 " + medTxt + " · 数据 纳指 " + wm + "%（" + DH.median.n + " 段）"
             + (wmSpx === null ? "" : " / 标普 " + wmSpx + "%（" + DH.median.nSpx + " 段）"));
       }
   }
