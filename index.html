@@ -501,9 +501,20 @@
   .hist-med { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--tx2); flex-wrap: wrap; }
   .hist-med .med-bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--card2); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
   .hist-med .med-bar i { position: absolute; top: -2px; height: 12px; width: 2.5px; background: var(--yellow); border-radius: 1px; }
-  /* 中位数刻度（2026-10-17 加）：灰、比当前值高一点 —— 与黄色的「当前」竖线区分开，
-     不再把当前值冒充成中位数（旧版 med-txt 就是拿 pct(ndxDD) 渲染的 ✗）。 */
-  .hist-med .med-bar .med-mark { background: var(--tx3); top: -4px; height: 16px; width: 1.5px; }
+  /* ── 尺上三根标记（2026-11-07 重做，用户：「对应的轴没有更新？黄色指的是纳指还是标普？」）
+     原来只有「灰线＝中位（纳指）＋ 黄点＝当前」，文本改成两个指数后图上仍只有一根中位线 ✗
+     现在三根，靠**方向 + 颜色**双重区分（尺只有 8px 高，两个中位只差 1.87pp ≈ 4.7% 宽，并排必重叠 ✗）：
+       向上突 灰白细线 ＝ 纳指中位（−7.23%）
+       向下突 蓝色细线 ＝ 标普中位（−5.36%）
+       跨整条 黄色粗点 ＝ **当前纳指回撤**（这个一直是黄的，用户问的就是它 ✓）
+     ⚠ 用 #id 选择器而不是 .class —— 实测 `.med-bar i.spx { top: auto }` 被
+        `.med-bar i { top: -2px }` 压回去了（同一元素同时带 .med-mark 和 .spx，级联顺序不好控）✗ */
+  /* ⚠ 用**明确的 top 值**、不用 `bottom` —— 实测 `top:auto; bottom:-5px` 在
+     「同时设了 top 的父规则」下会算出跟另一根一样的值，上下区分失效 ✗
+     现在：纳指从尺上沿往上挑、标普从尺下沿往下挑，两根线在垂直方向错开 ✓ */
+  #med-mark { background: var(--tx2); top: -6px; height: 11px; width: 1.5px; }
+  #med-mark-spx { background: var(--blue); top: 3px; height: 11px; width: 1.5px; }
+
   .hist-cagr {
     display: flex; align-items: center; gap: 16px; margin-top: 12px;
     padding: 10px 14px; border-radius: 10px; flex-wrap: wrap;
@@ -938,8 +949,9 @@
     </table>
     <div class="hist-med">
       <span>近10年中位数回撤 <b id="med-num" style="font-family:var(--mono);color:var(--tx2);margin-right:5px;">--</b><button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
-      <div class="med-bar">
+      <div class="med-bar" title="黄色上方游标＝纳指中位 · 蓝色下方游标＝标普中位 · 白点＝当前纳指回撤">
         <i id="med-mark" class="med-mark" style="left:0%;"></i>
+        <i id="med-mark-spx" class="med-mark spx" style="left:0%;"></i>
         <i id="med-dot" style="left:0%;"></i>
       </div>
       <span style="color:var(--yellow);font-family:var(--mono);" id="hist-rank">--</span>
@@ -1307,7 +1319,15 @@ function renderHist(ndxDD) {
     : (!deeper && !higher ? "当前 与中位基本持平" : (deeper ? "当前 低于中位" : "当前 高于中位"));
   $("hist-rank").style.color = deeper ? "var(--red)" : (higher ? "var(--yellow)" : "var(--tx2)");
   const posOf = v => Math.min(98, Math.max(2, (v - (-40)) / 40 * 100));
+  /* ⚠ 2026-11-07：加**标普那条**（用户：「对应的轴没有更新？黄色指的是纳指还是标普？」）
+     文本已经给了两个值，图上却只有一根黄线 → 读者不知道它代表谁 ✗
+     现在：黄色向上突＝纳指、蓝色向下突＝标普（尺只有 8px 高，只能靠上下错开区分）*/
   if (median !== null) $("med-mark").style.left = posOf(median) + "%";
+  const mspxEl = $("med-mark-spx");
+  if (mspxEl) {
+    if (medSpx === null) mspxEl.style.display = "none";
+    else { mspxEl.style.display = ""; mspxEl.style.left = posOf(medSpx) + "%"; }
+  }
   $("med-dot").style.left = posOf(ndxDD) + "%";
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
