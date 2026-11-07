@@ -1148,7 +1148,10 @@ function renderAll() {
   $("val-pe").textContent = D.peFwd.toFixed(1) + "x";
   $("val-pe-ttm").textContent = D.peTtm.toFixed(1) + "x";
   $("val-cape").textContent = D.cape.toFixed(1) + "x";
-  $("val-state").textContent = D.pePct > 80 ? "偏贵 🔴" : (D.pePct > 60 ? "中性 🟡" : "便宜 🟢");
+  /* ⚠ 2026-11-07：原来只有三档（>80 偏贵 / >60 中性 / 其余"便宜"）✗
+     分位 59% 落在"其余"→ 显示「便宜 🟢」，而下面那句结论说「中性偏低」→ 同一张卡自相矛盾 ✗
+     → 补一档 40~60 = 「中性偏低 🟡」，与注释句的 peVerdict 用**同一套阈值** ✓ */
+  $("val-state").textContent = D.pePct > 80 ? "偏贵 🔴" : (D.pePct > 60 ? "中性 🟡" : (D.pePct > 40 ? "中性偏低 🟡" : "便宜 🟢"));
   $("val-state").style.color = bandColor(D.pePct, RULES.pePct);
   $("val-zones").style.setProperty("--pos", Math.min(100, Math.max(0, D.pePct)) + "%");
   /* ERP = 盈利收益率 − 10Y 美债；Fwd 口径取自规则引擎，TTM 口径无对应规则 */
@@ -1166,11 +1169,21 @@ function renderAll() {
   $("val-epsb").style.width = Math.min(100, Math.max(4, (eps + 5) / 15 * 100)) + "%";
   $("val-epsb").style.background = eps < 0 ? "var(--red)" : "var(--green)";
   /* 估值注释（派生） */
+  /* ⚠ 2026-11-07 改：原来后半句「回撤提供的是『打折』而非『便宜』，加仓宜分批忌梭哈」是**写死的** ✗
+     它只在 PE 分位偏贵时成立；分位降到 59%（中性偏低）后这句话与前半句自相矛盾 ✗
+     → 跟着分位走：偏贵说"打折"、中性说"分批"、便宜说"才是真便宜"✓
+     （同样的坑：ERP 那句原本只看 erpF<1 判"极低"，+0.89% 也算"极低"太笼统 → 分三档）*/
+  var peVerdict = D.pePct > 80 ? "偏贵" : D.pePct > 60 ? "中性" : D.pePct > 40 ? "中性偏低" : "便宜";
+  var peAct = D.pePct > 80 ? "回撤提供的是「打折」而非「便宜」，加仓宜分批忌梭哈"
+    : D.pePct > 60 ? "回撤把估值拉回中性，可按档位分批，不必急"
+    : D.pePct > 40 ? "回撤把估值拉到中性偏低，分批的性价比开始出现"
+    : "估值已在历史偏低区，回撤是真便宜，可更主动";
+  var erpVerdict = erpF < 0 ? "股债性价比倒挂（股还不如债）" : erpF < 1 ? "股债性价比偏低，安全垫不厚" : erpF < 2.5 ? "股债性价比中性" : "股债性价比偏高，有安全垫";
   $("note-val").innerHTML =
-    "SPX Forward PE 分位 <b>" + D.pePct + "%</b>（" + (D.pePct > 80 ? "偏贵" : D.pePct > 60 ? "中性" : "便宜") +
+    "SPX Forward PE 分位 <b>" + D.pePct + "%</b>（" + peVerdict +
     "）、NDX 分位 <b>" + (D.ndxPePct !== undefined ? D.ndxPePct + "%（2001 年以来口径）" : "--") +
-    "</b> → 回撤提供的是「打折」而非「便宜」，加仓宜分批忌梭哈。Fwd ERP <b style=\"color:" + (erpF < 1 ? "var(--red)" : "var(--green)") + "\">" + pct(erpF) + "</b>、TTM ERP " + pct(erpT) +
-    " → " + (erpF < 1 ? "股债性价比极低，重手 DCA 的安全垫很薄" : "股债性价比尚可") +
+    "</b> → " + peAct + "。Fwd ERP <b style=\"color:" + (erpF < 1 ? "var(--red)" : "var(--green)") + "\">" + pct(erpF) + "</b>、TTM ERP " + pct(erpT) +
+    " → " + erpVerdict +
     "。EPS 增速 <b style=\"color:" + (eps > 0 ? "var(--green)" : "var(--red)") + "\">" + pct(eps) + "</b> → " + (eps > 0 ? "回调不改盈利基本面" : "盈利收缩期，慎用加仓档位") + "。";
 
   /* sentiment */

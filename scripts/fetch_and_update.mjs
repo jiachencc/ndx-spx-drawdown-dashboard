@@ -333,17 +333,31 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
   for (const [market, keys] of [["sp500", ["peFwd", "peTtm", "pePct"]], ["ndx", ["ndxPeFwd", "ndxPePct"]]]) {
     await attempt(keys, "History of Market " + market, async () => {
       const j = await json("https://historyofmarket.com/api/" + market + "/forward-pe.json");
-      const c = j.current, history = (j.forward || []).filter(p => Number.isFinite(p.value));
-      const last = history.at(-1);
-      // Use an explicitly dated current observation; only use historical last date if value matches.
-      const asOf = sourceDate(c?.date || c?.asOf) || (last?.value === c?.forward ? sourceDate(last?.date) : null);
-      const percentile = history.length ? Math.round(100 * history.filter(p => p.value <= c.forward).length / history.length) : NaN;
-      if (!isDate(asOf) || !Number.isFinite(c?.forward) || !Number.isFinite(percentile)) throw new Error("dated valuation observation missing");
+      /* ⚠ 2026-11-07 改口径（用户：数据停在 8-05，选 B「切到新序列」）：
+         源方 2026-07-28 起新增 **forwardOwn**（自己按成分股算的 FY1+FY2 混合），
+         而原来的 `forward`（第三方 12-month consensus）**从 2026-08-05 起不再更新** ✗
+         → 当前值优先取 forwardOwn；它没有时回退 forward（老数据仍能跑 ✓）
+         分位仍用 **forward 的长历史**（1,495 条、1990 起）——
+           forwardOwn 只有 61 条（3 个月）✗ 拿它算分位等于"只在最近 3 个月里排队"，
+           会算出 2%（因为一路在跌）→ 读起来像"史上最便宜"✗ 完全失真
+         混用是安全的：同期 2026-08-05 实测 forward 20.12 vs forwardOwn 19.99，**差 0.65%** ✓ */
+      const own = (j.forwardOwn || []).filter(p => Number.isFinite(p.value));
+      const history = (j.forward || []).filter(p => Number.isFinite(p.value));
+      const ownLast = own.at(-1);
+      const curVal = Number.isFinite(ownLast?.value) ? ownLast.value : j.current?.forward;
+      const asOf = sourceDate(ownLast?.date) || sourceDate(j.current?.date || j.current?.asOf);
+      const percentile = history.length ? Math.round(100 * history.filter(p => p.value <= curVal).length / history.length) : NaN;
+      if (!isDate(asOf) || !Number.isFinite(curVal) || !Number.isFinite(percentile)) throw new Error("dated valuation observation missing");
       if (history.some((p, i) => !sourceDate(p.date) || sourceDate(p.date) > asOf || (i && sourceDate(p.date) <= sourceDate(history[i - 1].date)))) throw new Error("valuation history dates invalid or beyond current observation");
       if (market === "sp500") {
-        if (!Number.isFinite(c.trailing)) throw new Error("trailing PE missing");
-        accept("peFwd", c.forward, asOf, "History of Market sp500"); accept("peTtm", c.trailing, asOf, "History of Market sp500"); accept("pePct", percentile, asOf, "History of Market sp500");
-      } else { accept("ndxPeFwd", c.forward, asOf, "History of Market ndx"); accept("ndxPePct", percentile, asOf, "History of Market ndx"); }
+        /* peTtm 也要换源：原来的 j.current.trailing 跟 forward 一起停更 ✗
+           `trailing` 序列（251 条、2016 起）**到 11-06 还在更新** ✓ 取它的最后一条 */
+        const tr = (j.trailing || []).filter(p => Number.isFinite(p.value)).at(-1);
+        const ttm = Number.isFinite(tr?.value) ? tr.value : j.current?.trailing;
+        const ttmDate = sourceDate(tr?.date) || asOf;
+        if (!Number.isFinite(ttm)) throw new Error("trailing PE missing");
+        accept("peFwd", curVal, asOf, "History of Market sp500 (forwardOwn 序列)"); accept("peTtm", ttm, ttmDate, "History of Market sp500 (trailing 序列)"); accept("pePct", percentile, asOf, "History of Market sp500");
+      } else { accept("ndxPeFwd", curVal, asOf, "History of Market ndx (forwardOwn 序列)"); accept("ndxPePct", percentile, asOf, "History of Market ndx"); }
     });
   }
   // /sp500/pe.json carries two monthly series: `pe` (trailing; its last point can lag months) and

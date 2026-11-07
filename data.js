@@ -52,11 +52,11 @@ const DEFAULT = {
      etfSpx 两边一致（1.982 / −0.80%）✓；peTtm 是 AUTO 源，**取远端**（26.51 → 26.55）✓ */
   etfNdx: { close: 1.582, chg: -3.07, low52: 1.244, ath: 1.795, athDate: "2026-10-12", prevYr: 1.413, priceDate: "2026-11-06" },  // etfNdx 持仓（场内价口径；**10-22 收盘手填**＝平安市值 182,160.60 ÷ 108,300 份 ✓）   /* ⚠ close 用 App 17:14 的 1.635（220,888.50 ÷ 135,100 自洽）；CI 抓的 1.640 会让总资产差 675 ✗ */
   etfSpx: { close: 1.934, chg: -3.06, low52: 1.61, ath: 2.071, athDate: "2026-09-22", prevYr: 1.808, priceDate: "2026-11-06" },  // etfSpx 持仓（场内价口径；10-22 收盘 1.982，与 CI 一致 ✓）
-  peFwd: 20.12, peTtm: 25.23, cape: 40.13, pePct: 74, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
+  peFwd: 17.38, peTtm: 25.23, cape: 40.13, pePct: 59, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
   // ⚠ 2026-09-29：本机这次抓到 peTtm 28.00，与 CI（同一天 asOf = 08-05）的 28.11 不同 —— 两处 asOf 相同、值却差 0.11，
   //   而 28.11 是从 09-27 起页面上显示的值（那次 27.82 → 28.11）。判为本机抓取的响应差异，**保留 28.11**，
   //   不把一个已发布的值悄悄回退（同 asOf → 不取本机值；asOf 更新的项才取本机，见下）。
-  ndxPeFwd: 22.37, ndxPePct: 59, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
+  ndxPeFwd: 17.34, ndxPePct: 23, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8, // MANUAL：盈利增速预期，无免费源，人工维护
   asOf: { us: "2026-11-06", et: "16:00 EST", local: "2026-11-07 09:15:23" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
@@ -14621,32 +14621,32 @@ const SOURCE_META = {
     "status": "ok"
   },
   "peFwd": {
-    "asOf": "2026-08-05",
-    "source": "History of Market sp500",
+    "asOf": "2026-11-05",
+    "source": "History of Market (forwardOwn 序列)",
     "fetchedAt": "2026-11-07T01:15:23.021Z",
     "status": "ok"
   },
   "peTtm": {
-    "asOf": "2026-08-05",
-    "source": "History of Market sp500",
+    "asOf": "2026-11-06",
+    "source": "History of Market (trailing 序列)",
     "fetchedAt": "2026-11-07T01:15:23.021Z",
     "status": "ok"
   },
   "pePct": {
-    "asOf": "2026-08-05",
-    "source": "History of Market sp500",
+    "asOf": "2026-11-05",
+    "source": "History of Market (forwardOwn 序列)",
     "fetchedAt": "2026-11-07T01:15:23.021Z",
     "status": "ok"
   },
   "ndxPeFwd": {
-    "asOf": "2026-08-05",
-    "source": "History of Market ndx",
+    "asOf": "2026-11-05",
+    "source": "History of Market (forwardOwn 序列)",
     "fetchedAt": "2026-11-07T01:15:23.021Z",
     "status": "ok"
   },
   "ndxPePct": {
-    "asOf": "2026-08-05",
-    "source": "History of Market ndx",
+    "asOf": "2026-11-05",
+    "source": "History of Market (forwardOwn 序列)",
     "fetchedAt": "2026-11-07T01:15:23.021Z",
     "status": "ok"
   },
