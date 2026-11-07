@@ -581,23 +581,39 @@
   .season-tip b { font-family: var(--mono); font-weight: 800; }
   /* ===== Monthly performance chart (tabbed) ===== */
   .mc-tabs { display: flex; gap: 8px; margin: 6px 0 2px; }
-  .mc-tab { flex: 1; padding: 10px 0; border: 1px solid var(--line); background: var(--card2); color: var(--tx2); border-radius: 10px; font-size: 13px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: all .18s ease; -webkit-tap-highlight-color: transparent; }
+  /* ⚠ 2026-11-07：Tab 从 40px 高的大色块缩到 30px —— 它只是切换器，不该比图表更抢眼 ✗ */
+  .mc-tab { flex: 1; padding: 6px 0; border: 1px solid var(--line); background: var(--card2); color: var(--tx2); border-radius: 8px; font-size: 12px; font-weight: 600; font-family: var(--mono); cursor: pointer; transition: .15s; }
   .mc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(74,158,255,.32); }
   .mc-tab:active { transform: scale(.98); }
   .mchart-wrap { display: flex; gap: 10px; margin-top: 8px; }
   .mchart-axis { width: 36px; flex-shrink: 0; height: 230px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--tx3); text-align: right; }
-  .mchart-axis span:nth-child(2) { color: var(--tx2); }
+  .mchart-axis span:nth-child(3) { color: var(--tx2); }
+  .mchart-axis span:nth-child(2), .mchart-axis span:nth-child(4) { opacity: .6; }
   .mchart { flex: 1; display: flex; gap: 8px; min-width: 0; }
   .mc-group { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .mc-plot { position: relative; height: 230px; }
   .mc-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(91,163,255,.12); pointer-events: none; }
   .mc-line.zero { border-top: 1px solid var(--line); }
+  /* 中间两条（±MC_MAX/2）比端点更淡 —— 端点是"满刻度"参照，中线只是读数辅助 ✓ */
+  .mc-line.mid { border-top-style: dotted; opacity: .55; }
   .mc-bar { position: absolute; left: 27%; width: 46%; max-width: 30px; border-radius: 4px; transition: height .35s ease; }
   .mc-bar.pos { bottom: 50%; border-radius: 4px 4px 0 0; }
   .mc-bar.neg { top: 50%; border-radius: 0 0 4px 4px; }
   .mc-val { position: absolute; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; white-space: nowrap; }
-  .mc-bar.pos .mc-val { top: -15px; }
-  .mc-bar.neg .mc-val { bottom: -15px; }
+  /* ── 最强 / 最弱月加描边 + 角标（2026-11-07 加，用户要求「突出异常波动月份」）──
+     ⚠ 只加描边不加底色：底色一变就看不出正负了 ✗
+       角标贴在柱子**外侧**（正值在柱顶上方、负值在柱底下方），不挡数值 ✓ */
+  /* 最强 / 最弱：**描边 + 月份着色 + 数值加粗**三处同时提示
+     ⚠ 不用角标（会和数值标签抢位置 ✗），也不换底色（换了就看不出正负 ✗）*/
+  .mc-bar.best { outline: 2px solid var(--green); outline-offset: 1px;
+    box-shadow: 0 0 12px rgba(38,201,158,.45); }
+  .mc-bar.worst { outline: 2px solid var(--red); outline-offset: 1px;
+    box-shadow: 0 0 12px rgba(240,97,109,.45); }
+  .mc-val.best, .mc-val.worst { font-weight: 700; font-size: 11.5px; }
+  .mc-group.best .mc-label { color: var(--green); font-weight: 700; }
+  .mc-group.worst .mc-label { color: var(--red); font-weight: 700; }
+  .mc-bar.pos .mc-val { top: -16px; }
+  .mc-bar.neg .mc-val { bottom: -16px; }
   .mc-label { text-align: center; font-size: 11px; color: var(--tx2); margin-top: 6px; font-family: var(--mono); }
   .mchart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 11.5px; color: var(--tx2); }
   .mchart-legend .li { display: inline-flex; align-items: center; gap: 6px; }
@@ -1056,7 +1072,9 @@
     <button class="mc-tab" data-idx="spx">标普500 SPX</button>
   </div>
   <div class="mchart-wrap">
-    <div class="mchart-axis"><span id="mc-axpos">+16%</span><span>0</span><span id="mc-axneg">-16%</span></div>
+    <!-- ⚠ 2026-11-07：轴从 3 档改 5 档 —— 图内已经画了 ±一半 的辅助虚线，
+         轴却只标 +16/0/−16，中间那两条线没有参照 ✗ -->
+    <div class="mchart-axis"><span id="mc-axpos">+16%</span><span id="mc-axmid"><!--±一半--></span><span>0</span><span id="mc-axmid2"><!--±一半--></span><span id="mc-axneg">-16%</span></div>
     <div class="mchart" id="mchart"></div>
   </div>
   <div class="mchart-legend">
@@ -1065,7 +1083,7 @@
   </div>
   <div class="mchart-summary" id="mchart-summary"></div>
   <div class="mchart-cross" id="mchart-cross"></div>
-  <div class="note">纵轴满刻度 <b>±<span id="mc-max">16</span>%</b>，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b id="mc-asof">--</b>，采用 <b>ETF 总回报口径（含分红，QQQ/SPY 代理）</b>，与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
+  <div class="note">纵轴满刻度 <b>±<span id="mc-max">16</span>%</b>，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b id="mc-asof">--</b>，采用 <b>ETF 总回报口径</b>（含分红，用 QQQ/SPY 代理），与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
 </div>
 
 <!-- ======= Indicator lexicon ======= -->
@@ -2249,22 +2267,39 @@ function renderMonthly() {
   /* 轴标签与说明随 MC_MAX 数据驱动，避免双源漂移 */
   $("mc-axpos").textContent = "+" + MC_MAX + "%";
   $("mc-axneg").textContent = "-" + MC_MAX + "%";
+  /* 中间两档（±MC_MAX/2）：有元素就填，没有就跳过（轴 HTML 可能被别处替换）*/
+  const halfLbl = (MC_MAX / 2) % 1 === 0 ? String(MC_MAX / 2) : (MC_MAX / 2).toFixed(1);
+  if ($("mc-axmid")) $("mc-axmid").textContent = "+" + halfLbl + "%";
+  if ($("mc-axmid2")) $("mc-axmid2").textContent = "-" + halfLbl + "%";
   $("mc-max").textContent = MC_MAX;
   const mh = sourceHealth("monthly");
-  $("mc-asof").textContent = (mh.asOf || "日期未核验") + " · " + mh.text + " · 价格涨跌口径";
+  $("mc-asof").textContent = (mh.asOf || "日期未核验") + " · " + mh.text;
   let html = "";
+  /* ⚠ 2026-11-07 优化（用户：「制作年度回顾图表并优化…突出异常波动月份」）：
+     ① 数值补上 % —— 原来只写 "+15.6"，读者得自己猜单位 ✗
+     ② 最强 / 最弱那两个月加描边 + 角标，扫一眼就能定位异常月 ✓
+     ③ Y 轴从 3 档改 5 档（±MC_MAX、±一半、0），中间两个网格线更淡 ✓
+     ④ 最小柱高 2px → 3px（6 月 −0.19% 原来只有 2px，几乎看不见）✓ */
+  const bestM = MONTHLY.reduce((b, d) => (d[idxKey] > b[idxKey] ? d : b), MONTHLY[0]);
+  const worstM = MONTHLY.reduce((b, d) => (d[idxKey] < b[idxKey] ? d : b), MONTHLY[0]);
   MONTHLY.forEach(d => {
     const v = d[idxKey];
-    const h = Math.max(2, Math.abs(v) * pxPer);
+    const h = Math.max(3, Math.abs(v) * pxPer);
     const dir = v >= 0 ? "pos" : "neg";
     const col = v >= 0 ? "var(--green)" : "var(--red)";
     const sign = v > 0 ? "+" : "";
-    html += `<div class="mc-group">
+    const isBest = d === bestM, isWorst = d === worstM;
+    const mark = isBest ? " best" : (isWorst ? " worst" : "");
+    /* ⚠ 角标方案试过：正值柱顶上方、负值柱底下方，但实测会和数值标签 / 轴端点挤在一起 ✗
+       → 改成「描边 + 月份标签着色 + 数值加粗」，三处同时提示，不占额外空间 ✓ */
+    html += `<div class="mc-group${mark}">
       <div class="mc-plot">
         <div class="mc-line" style="top:0"></div>
+        <div class="mc-line mid" style="top:25%"></div>
         <div class="mc-line zero" style="top:50%"></div>
+        <div class="mc-line mid" style="top:75%"></div>
         <div class="mc-line" style="bottom:0"></div>
-        <div class="mc-bar ${dir}" style="height:${h.toFixed(1)}px;background:${col}"><span class="mc-val" style="color:${col}">${sign}${v.toFixed(1)}</span></div>
+        <div class="mc-bar ${dir}${mark}" style="height:${h.toFixed(1)}px;background:${col}"><span class="mc-val${mark}" style="color:${col}">${sign}${v.toFixed(1)}%</span></div>
       </div>
       <div class="mc-label">${d.m}</div>
     </div>`;
@@ -2279,10 +2314,10 @@ function renderMonthly() {
   const worst = MONTHLY.reduce((b, d) => (d[idxKey] < b[idxKey] ? d : b), MONTHLY[0]);
   const upMonths = MONTHLY.filter(d => d[idxKey] >= 0).length;
   $("mchart-summary").innerHTML =
-    `年内累计(价格涨跌) <b class="up">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/${MONTHLY.length}</b>` +
+    `年内累计（总回报·复利） <b class="${cum >= 0 ? "up" : "down"}">${pct(cum*100)}</b> · 上涨月 <b>${upMonths}/${MONTHLY.length}</b>` +
     ` · 最强 <b>${best.m} ${pct(best[idxKey])}</b> · 最弱 <b>${worst.m} ${pct(worst[idxKey])}</b>`;
   $("mchart-cross").innerHTML =
-    `对比 ${otherName} 年内累计 <b class="up">${pct(otherCum*100)}</b>`;
+    `对比 ${otherName} 年内累计 <b class="${otherCum >= 0 ? "up" : "down"}">${pct(otherCum*100)}</b>`;
 }
 
 /* CALENDAR 数组在 data.js；本函数只负责渲染。
