@@ -517,6 +517,18 @@
     font-weight: 700; text-align: right; color: var(--tx3); white-space: nowrap; }
   .hm-diff.down { color: var(--red); }
   .hm-diff.up { color: var(--green); }
+  /* ── 「这波跌多久能修复」（2026-11-07 从 positions.html 搬来，精简成三行）── */
+  .hist-repair { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line-soft); }
+  .hr-head { font-size: 12px; color: var(--tx2); margin-bottom: 6px; }
+  .hr-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); margin-left: 6px; }
+  .hr-line { font-size: 11.5px; color: var(--tx3); line-height: 1.75;
+    font-feature-settings: "tnum"; }
+  .hr-line b { color: var(--tx2); font-family: var(--mono); }
+  .hr-line .hr-big { color: var(--tx); font-family: var(--mono); font-weight: 700; }
+  .hr-pr { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px;
+    font-size: 11px; color: var(--tx3); font-family: var(--mono); }
+  .hr-pr b { color: var(--tx2); }
+  @media (max-width: 430px) { .hr-pr { gap: 3px 9px; } }
   @media (max-width: 430px) {
     .hm-row { grid-template-columns: 2.4em 1fr 1fr; gap: 1px 6px; }
     .hm-diff { grid-column: 2 / -1; text-align: left; font-size: 10.5px; }
@@ -808,13 +820,6 @@
   </div>
 </div>
 
-<!-- ======= Take-profit matrix ======= -->
-<div class="card card-hi">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--green)"></span><span aria-hidden="true">🛑</span> 止盈触发矩阵 · 兑现分级<button class="hint-i" type="button" aria-label="查看释义" data-h="tp">?</button></div>
-  <div id="tp-matrix"></div>
-  <div class="note">与回撤矩阵对称的<b>卖出纪律</b>：涨的时候分批兑现，避免"坐电梯"。命中 ≥2 项条件才升级档位；兑现后再等回撤矩阵的档位重新接回。</div>
-</div>
-
 <!-- ======= Mid grid: trend / valuation / sentiment ======= -->
 <div class="grid g-mid" aria-label="市场分析">
   <div class="card">
@@ -959,6 +964,13 @@
          两个中位只差 1.87pp ≈ 4.7% 宽，靠颜色和方向硬区分，读起来很费劲 ✗
          → 整条尺**去掉**，改成两行数字并列：中位 / 当前 / 差多少，一眼可比 ✓ -->
     <div class="hist-med" id="hist-med"></div>
+
+    <!-- 这波跌多久能修复（2026-11-07 从 positions.html 搬来，用户：「之前算过的回撤修复时间也加上，放在历史回撤对照就可以」）
+         ⚠ 数据：data.js 的 NDX_DD（AUTO，scripts/build-ndx-dd.mjs 生成，纳指 1995 至今 8,000+ 个交易日）
+           DDHIST 只有 5 个近期事件、样本太小 ✗ 所以走另一份数据 ✓
+         ⚠ 放在「中位数」之后：先看这波比典型回撤深多少，再看历史上这种深度要修多久 ✓ -->
+    <div class="hist-repair" id="hist-repair"></div>
+
     <div class="hist-cagr">
       <span class="hc-label"><span aria-hidden="true">📈</span> 长期年化基准（近18年 CAGR）</span>
       <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
@@ -1135,7 +1147,6 @@ function renderAll() {
   renderConds();
 
   /* take-profit matrix */
-  renderTakeProfit();
 
   /* trend meters */
   const ndx50 = maDev(ndx,"ma50"), ndx200 = maDev(ndx,"ma200"), spx50 = maDev(spx,"ma50"), spx200 = maDev(spx,"ma200");
@@ -1351,6 +1362,41 @@ function renderHist(ndxDD) {
       + row("纳指", median, ndxDD)
       + (medSpx === null ? "" : row("标普", medSpx, spxDD));
   })();
+
+  /* 这波跌多久能修复（2026-11-07 从 positions.html 搬来）：
+     读 NDX_DD（纳指 1995 至今、回撤 ≥10% 的 20 次事件），按**当前跌幅**找同档，
+     给「峰→收复」的中位/区间/累计概率 ✓
+     ⚠ 三个前提必须写在卡面上，否则会被当成预测 ✗
+       ① 样本量小（−10~−15% 档只有 11 次）② 右尾厚（最快 39 / 最慢 265 日）③ 修复 ≠ 回本 */
+  (function renderHistRepair() {
+    const box = $("hist-repair");
+    if (!box) return;
+    const N = (typeof NDX_DD !== "undefined" && NDX_DD) ? NDX_DD : null;
+    if (!N || !Array.isArray(N.events) || !Array.isArray(N.stats)) { box.innerHTML = ""; return; }
+    const og = N.events.filter((e) => e.ongoing).sort((a, b) => (a.peak < b.peak ? 1 : -1))[0] || null;
+    const dd = og ? og.dd : ndxDD;
+    const past = og ? og.toTrough : (Number.isFinite(D.ndx.days) ? D.ndx.days : null);
+    const b = N.stats.find((x) => {
+      if (x.k === "d10") return dd > -15;
+      if (x.k === "d15") return dd <= -15 && dd > -20;
+      if (x.k === "d20") return dd <= -20 && dd > -30;
+      return dd <= -30;
+    }) || null;
+    if (!b || !b.n) { box.innerHTML = '<div class="hr-head">这波跌多久能修复</div><div class="hr-line">这一档没有已完成的历史样本（当前 ' + neg(pct(dd)) + '）</div>'; return; }
+    const left = Number.isFinite(past) && Number.isFinite(b.medianTotal) ? Math.max(0, b.medianTotal - past) : null;
+    const mo = (n) => (Math.round(n * 1.4) / 30.4).toFixed(1);
+    const prs = (b.within || []).map((w) => {
+      const p2 = w.n ? Math.round(w.k / w.n * 100) : null;
+      return "≤" + (w.days / 21).toFixed(0) + "月 <b>" + (p2 === null ? "—" : p2 + "%") + "</b>";
+    }).join(" · ");
+    box.innerHTML = '<div class="hr-head">这波跌多久能修复 <i>同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次</i></div>'
+      + '<div class="hr-line">中位 <b>' + b.medianTotal + " 个交易日</b>（约 " + mo(b.medianTotal) + " 个月）"
+      + '　区间 <b>' + b.p25 + "~" + b.p75 + "</b> 日"
+      + (left === null ? "" : '　已过 <b>' + past + "</b> 日 → 还需约 <span class=\"hr-big\">" + left + " 日</span>（约 " + mo(left) + " 个月）")
+      + "</div>"
+      + '<div class="hr-pr">从高点起算，多久内收复：' + prs + "</div>"
+      + '<div class="hr-pr" style="color:var(--tx3);opacity:.85;">⚠ 样本只有 ' + b.n + " 次，25%~75% 落在 " + b.p25 + "~" + b.p75 + " 日、右尾更厚 → 中位只是「常见情况」，不是预测；「修复」指指数回前高，与账户回本不是一回事</div>";
+  })();
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
@@ -1531,19 +1577,6 @@ function renderConds() {
   box.innerHTML = html;
 }
 
-/* ================= Take-profit matrix ================= */
-function renderTakeProfit() {
-  const state = evaluateDecision(D);
-  $("tp-matrix").innerHTML = state.exits.map(t => {
-    const active = state.healthy && t.hit;
-    const label = !state.healthy ? "数据受限" : t.hit ? "已触发" : "未触发";
-    return '<div class="trig-row"><div class="trig-band">' + t.band + '</div><div class="trig-info">' +
-      '<div class="t-title">' + t.id + ' · ' + t.title + '</div><div class="t-desc">' + t.detail + '</div></div>' +
-      '<div class="trig-right"><span class="trig-state ' + (active ? "tp-on" : "st-off") + '">' + label + '</span>' +
-      '<div class="trig-dist">' + (!state.healthy ? "仅展示规则，不生成动作结论" : t.hit ? "规则条件满足" : t.unmet) +
-      (t.warning ? ' <span class="stale-tag" title="输入不新鲜：' + esc(t.warning) + '">⚠ ' + esc(t.warningTag || t.warning) + '</span>' : '') + '</div></div></div>';
-  }).join("");
-}
 
 /* ================= Banner ================= */
 function renderBanner(ndxDD) {
@@ -2214,7 +2247,6 @@ const HINTS = {
   putcall:  { name: "Put/Call", plain: "看跌的人 vs 看涨的人谁更活跃。<b>＞1.1</b> 大众防御（逆向看机会）、<b>＜0.7</b> 大众贪婪（逆向要谨慎）。", pro: "看跌期权成交量 ÷ 看涨期权成交量。" },
   trig:     { name: "回撤触发矩阵", plain: "跌到不同深度做不同动作：<b>-5% 只观察、-15% 开始加仓、-25% 重仓、-35% 历史级机会</b>。缩写：DCA=定投、MA200=200日均线（长期趋势线）、VIX=恐慌指数、ERP=股票相对国债的收益差。每档的历史频率/胜率来自 10 年日K回测（口径见卡片底部）。", pro: "四级回撤阈值 T1–T4，配合确认条件（趋势/动能/情绪/估值）后执行。" },
   cond:     { name: "档位资格 × 确认条件", plain: "先看<b>资格条件</b>：回撤是否到达加仓档位；再看<b>确认条件</b>（4 条）：MA200=200日均线（趋势）、RSI=涨跌动能、VIX=恐慌指数、Forward PE 分位=估值贵便宜。从 -15% 起才具备加仓档位资格；确认≥2 且本档专属条件满足后才显示规则满足。确认不足不推导试探仓位；数据受限时暂停结论。", pro: "回撤档位为资格条件，MA200/RSI/VIX/估值分位为确认条件，避免单信号误判。" },
-  tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。缩写：YTD=年初至今涨幅、ATH=历史最高点、PE分位=估值百分位、RSI=涨跌动能、ERP=股票相对国债的收益差。档位动作：T+1 先停加码（YTD +18%）→ T+2 兑现部分（YTD +22%）→ T+3/T+4 降杠杆转防御。距高点>10% 时 T+1 规则暂停；本页没有跨日持久状态，不模拟滞回式恢复。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
   stress:   { name: "压力测试", plain: "提前算好<b>预案</b>：NDX 再跌 10%/15%/25%/35% 点位到哪、该做什么。跌到哪早有数，不慌。", pro: "由 ATH 按不同回撤幅度反推的目标点位。" },
   median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。只统计 <b>≥3%</b> 的回撤段（日常小波动不算，否则中位会掉到 −0.9% 那种没意义的值）—— 它就是“普通回撤”的典型深度，<b>−15% 以下才算少见</b>。", pro: "近 10 年「≥3% 的回撤段」深度的中位数，<b>纳指与标普分开算</b>（NDX 30 段 / SPX 23 段，由 scripts/build-ddhist.mjs 现算，不写死）。⚠ 2026-11-07 前只有纳指一个值，容易被误当成两者的中位 ✗ —— 标普的回撤系统性更浅，两列的“当前”要和各自的中位比 ✓" },
   dca:      { name: "定投回测指标", plain: "你每天投 1 元，<b>分批买入</b>至今总共赚/亏多少。它对比「定投」和「一次性全仓买入」两种玩法：上涨市里定投<b>跑输</b>一次性（越买越贵），下跌市里定投<b>跑赢</b>。它不是买卖信号，只是让你看清定投的真实体感。", pro: "定投收益率 = (P_end·Σ(1/P_t) − N)/N；与每日金额无关。对比同区间一次性买入的区间涨跌幅。" },

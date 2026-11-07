@@ -796,21 +796,7 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
   };
   const gotIn = gs.length > 0 ? gn(gs[0]) : null;
   const gotOt = gs.length > 1 ? gn(gs[1]) : null;
-  /* ── 「这波跌多久能修复」卡（2026-11-07 加）──
-     它整块是 JS 渲染的，数据缺了会静默变空 ✗ → 断言：有回撤数字、有中位天数、有概率四档 */
-  {
-    const box = gs[0] && gs[0].ownerDocument.getElementById("repair-card");
-    /* ⚠ jsdom 没有 innerText ✗ 用 textContent（本文件其它断言也是这么做的）*/
-    const txt = box ? (box.textContent || "").replace(/\s+/g, " ") : "";
-    const hasDd = /−\d+\.\d+%/.test(txt);
-    const hasMed = /\d+ 交易日/.test(txt);
-    const nPr = box ? box.querySelectorAll(".rp-pr").length : 0;
-    check("「这波跌多久能修复」卡：当前回撤 ＋ 同档中位 ＋ 概率四档 都在",
-      !!box && hasDd && hasMed && nPr === 4,
-      !box ? "页面上没有 #repair-card"
-        : "回撤 " + (hasDd ? "有" : "无 ✗") + " · 中位 " + (hasMed ? "有" : "无 ✗")
-          + " · 概率 " + nPr + "/4 · 文本「" + txt.slice(0, 60) + "」");
-  }
+
   check("快照对比「场内」分组小计 = 复算 " + money(sums.in) + "（不再把清仓浮亏消失当收益 ✗）",
     gotIn !== null && Math.abs(gotIn - sums.in) <= 1, "组小计 " + gotIn + " vs 复算 " + sums.in.toFixed(2));
   /* ⚠ 2026-10-29：组小计为 0 时页面改画「—」（场外净值没更新那几天本组合计恒 0，
@@ -2905,6 +2891,19 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
         wm === null ? "DDHIST.median 缺失 ✗"
           : "页面 " + medTxt + " · 数据 纳指 " + wm + "%（" + DH.median.n + " 段）"
             + (wmSpx === null ? "" : " / 标普 " + wmSpx + "%（" + DH.median.nSpx + " 段）"));
+      }
+
+      /* 「这波跌多久能修复」2026-11-07 从 positions.html 搬来这里（用户：「放在历史回撤对照就可以」）——
+         它整块是 JS 渲染的，数据缺了会静默变空 ✗ → 断言：有中位天数、有「还需约」、有概率三档 */
+      {
+        const rpTxt = (txtOf("hist-repair") || "").replace(/\s+/g, " ");
+        const hasMed = /中位\s*\d+\s*个交易日/.test(rpTxt);
+        const hasLeft = /还需约\s*\d+\s*日/.test(rpTxt);
+        const nPr = /≤1月/.test(rpTxt) && /≤3月/.test(rpTxt) && /≤6月/.test(rpTxt);
+        check("决策看板「这波跌多久能修复」：同档中位 ＋ 还需天数 ＋ 概率三档 都在",
+          hasMed && hasLeft && nPr,
+          "中位 " + (hasMed ? "有" : "无 ✗") + " · 还需 " + (hasLeft ? "有" : "无 ✗")
+            + " · 概率 " + (nPr ? "有" : "无 ✗") + " · 文本「" + rpTxt.slice(0, 70) + "」");
       }
   }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
