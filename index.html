@@ -913,18 +913,28 @@
 <!-- ======= History comparison ======= -->
 <div class="card">
     <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--purple)"></span><span aria-hidden="true">📉</span> 历史回撤对照 · 这次算什么水平</div>
+    <!-- ⚠ 2026-11-07 重做（用户：「历史回撤对照 没有标普的回撤对照」）：
+         ① **加「标普」列**；
+         ② 原来四行的数字**全是错的 / 混了口径** ✗ 实测（东财日线，峰→谷）：
+              2000  −49.1% 其实是**标普**的跌幅，纳指当年是 **−77.93%** ✗
+              2008  −52.6% 两边都不对（纳指 −55.63 / 标普 −56.78）
+              2020  −30.1% 只对了纳指（标普 −33.92）
+              2022  −35.7% 接近纳指 −36.40，标普只有 −25.43
+            → 现在两列都用实测，耗时也改成实测天数（2008 原写 520、实为 495；2022 原写 253、实为 404）
+         ③ 四行仍标 MANUAL：本仓库**没有**那段日线，是脚本一次性算出来写死的 ✗
+            2025 与「当前」两行仍由 DDHIST 动态填 ✓ -->
     <table class="hist-table">
-      <tr><th>事件</th><th>回撤</th><th>耗时</th></tr>
-      <tr><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">-49.1%</td><td>~950 天</td></tr>
-      <tr><td class="h-desc">2008 金融危机</td><td style="color:var(--red)">-52.6%</td><td>~520 天</td></tr>
-      <tr><td class="h-desc">2020 疫情</td><td style="color:var(--red)">-30.1%</td><td>~33 天</td></tr>
-      <tr><td class="h-desc">2022 加息熊市</td><td style="color:var(--red)">-35.7%</td><td>~253 天</td></tr>
+      <tr><th>事件</th><th>纳指</th><th>标普</th><th>耗时</th></tr>
+      <tr title="纳指 2000-03-10 5048.62 → 2002-10-09 1114.11；标普 2000-03-24 1527.46 → 2002-10-09 776.76"><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">−77.93%</td><td style="color:var(--red)">−49.15%</td><td>~943 天</td></tr>
+      <tr title="纳指 2007-10-31 2859.12 → 2009-03-09 1268.64；标普 2007-10-09 1565.15 → 2009-03-09 676.53"><td class="h-desc">2008 金融危机</td><td style="color:var(--red)">−55.63%</td><td style="color:var(--red)">−56.78%</td><td>~495 天</td></tr>
+      <tr title="两边都是 2020-02-19 → 2020-03-23；纳指 9817.18 → 6860.67；标普 3386.15 → 2237.40"><td class="h-desc">2020 疫情</td><td style="color:var(--red)">−30.12%</td><td style="color:var(--red)">−33.92%</td><td>~33 天</td></tr>
+      <tr title="纳指 2021-11-19 16057.44 → 2022-12-28 10213.29；标普 2022-01-03 4796.56 → 2022-10-12 3577.03"><td class="h-desc">2022 加息熊市</td><td style="color:var(--red)">−36.40%</td><td style="color:var(--red)">−25.43%</td><td>~404 天</td></tr>
       <!-- ⚠ 2025 那行原本写死「−13.7% / ~70 天」，与数据不符（实际 −22.93% / 34 个交易日）✗ ——
            手写数一过期就没人发现。现在改由 DDHIST（AUTO，scripts/build-ddhist.mjs）填，
            与 positions.html 的「今年这几次跌 · 历史坐标」读同一份数据 ✓。
            上面 2000 / 2008 / 2020 / 2022 四行仍为**人工维护**（本仓库没有那段日线，算不出来）。 -->
-      <tr id="dd25-row"><td class="h-desc">2025 那次回调</td><td style="color:var(--yellow)"><b id="dd25-dd">--</b></td><td><b id="dd25-days">--</b></td></tr>
-      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
+      <tr id="dd25-row"><td class="h-desc">2025 那次回调</td><td style="color:var(--yellow)"><b id="dd25-dd">--</b></td><td style="color:var(--yellow)"><b id="dd25-spx">--</b></td><td><b id="dd25-days">--</b></td></tr>
+      <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td style="color:var(--yellow)"><b id="hist-cur-spx">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
     </table>
     <div class="hist-med">
       <span>近10年中位数回撤 <b id="med-num" style="font-family:var(--mono);color:var(--tx2);">--</b><button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
@@ -1257,7 +1267,17 @@ function setMeter(prefix, val, min, max) {
 
 /* ================= History comparison ================= */
 function renderHist(ndxDD) {
-  $("hist-cur").textContent = pct(ndxDD);
+  /* ⚠ 减号用 −（U+2212）—— 表格里上面四行人工写的就是 −，
+     而 pct() 输出的是 ASCII `-` ✗ 同一列两种减号看着像两个来源 ✗
+     （不动 pct()：它全页都在用，改它波及其他地方）*/
+  $("hist-cur").textContent = pct(ndxDD).replace("-", "−");
+  /* 当前这行的标普同段（2026-11-07 加）：取 DDHIST 里 ongoing 那次事件的 spx ✓ */
+  (function () {
+    const og = (typeof DDHIST !== "undefined" && DDHIST && Array.isArray(DDHIST.events))
+      ? DDHIST.events.filter((e) => e.ongoing).at(-1) : null;
+    const el = $("hist-cur-spx");
+    if (el) el.textContent = (og && Number.isFinite(og.spx)) ? og.spx.toFixed(1).replace("-", "−") + "%" : "--";
+  })();
   $("hist-cur-days").textContent = D.ndx.days + " 天";
   /* 2026-10-17 修：原来中位数标签与游标都用**当前回撤**渲染 —— 等于把「当前值」冒充成
      「近10年中位数」✗（图上写 −6.93%，真实中位数是 −7.50%）。现在分开：
@@ -1290,7 +1310,9 @@ function renderHist(ndxDD) {
     ? DDHIST.events.filter((e) => e.y === 2025).sort((a, b) => a.dd - b.dd)[0] : null;
   if (e25) {
     /* 与上面四行的人工项同一写法（一位小数、ASCII 负号）—— 同一列里两种精度看着像两个来源 ✗ */
-    $("dd25-dd").textContent = e25.dd.toFixed(1) + "%";
+    $("dd25-dd").textContent = e25.dd.toFixed(1).replace("-", "−") + "%";
+    /* 标普同段（2026-11-07 加）：DDHIST 每个事件都有 spx 字段，之前页面完全没用 ✗ */
+    if (Number.isFinite(e25.spx)) $("dd25-spx").textContent = e25.spx.toFixed(1).replace("-", "−") + "%";
     $("dd25-days").textContent = "~" + e25.days + " 天";
     const row = $("dd25-row");
     if (row) row.title = e25.peak + " → " + e25.trough + "（" + e25.days + " 个交易日，收盘口径）";
