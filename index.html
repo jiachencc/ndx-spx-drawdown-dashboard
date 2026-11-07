@@ -937,7 +937,7 @@
       <tr><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td style="color:var(--yellow)"><b id="hist-cur-spx">--</b></td><td><b id="hist-cur-days">--</b></td></tr>
     </table>
     <div class="hist-med">
-      <span>近10年中位数回撤 <b id="med-num" style="font-family:var(--mono);color:var(--tx2);">--</b><button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
+      <span>近10年中位数回撤 <b id="med-num" style="font-family:var(--mono);color:var(--tx2);margin-right:5px;">--</b><button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></span>
       <div class="med-bar">
         <i id="med-mark" class="med-mark" style="left:0%;"></i>
         <i id="med-dot" style="left:0%;"></i>
@@ -1282,7 +1282,7 @@ function renderHist(ndxDD) {
   /* 2026-10-17 修：原来中位数标签与游标都用**当前回撤**渲染 —— 等于把「当前值」冒充成
      「近10年中位数」✗（图上写 −6.93%，真实中位数是 −7.50%）。现在分开：
        med-mark（灰竖线）= 中位数、med-dot（黄竖线）= 当前回撤。 */
-  /* 中位数游标的取值（2026-10-24 改）：原来写死 −7.5，谁也说不清那个数怎么来的 ✗。
+  /* 中位数游标的取值（2026-10-24 改，2026-11-07 加标普那套）：
      现在读 DDHIST.median —— 定义写死为「近 10 年 **≥3% 的回撤段** 深度的中位数」（n=30，≈−7.2%）：
      取 0% 会把日常噪音也average进来（中位只有 −0.85%，当不了"典型"），取 5% 又变成 −10.9%（那是"严重"那一档）✓。
      没有 DDHIST 时退回 --，不编数。 */
@@ -1293,7 +1293,16 @@ function renderHist(ndxDD) {
   const dMed = median === null ? null : ndxDD - median;
   const deeper = dMed !== null && dMed < -1;
   const higher = dMed !== null && dMed > 1;
-  $("med-num").textContent = median === null ? "--" : pct(median);
+  /* ⚠ 2026-11-07：改成**两个指数并列**（用户：「这个轴是纳指还是标普？」→ 选 B）
+     原来只显示纳指的 −7.23%，而同一张卡的表已经有「纳指 / 标普」两列 →
+     读者会以为这是两者的中位 ✗ 拿标普的 −6.0% 去比纳指的 −7.2% 更会得出
+     「这波还没到中位数」的错误结论 ✗（标普同期中位只有 −5.36%）*/
+  const medSpx = (typeof DDHIST !== "undefined" && DDHIST && DDHIST.median && Number.isFinite(DDHIST.median.medSpx))
+    ? DDHIST.median.medSpx : null;
+  /* 减号用 −（U+2212）：pct() 输出的是 ASCII `-`，而同一行别处都是 − ✗ 统一一下 */
+  const neg = (t) => t.replace("-", "−");
+  $("med-num").textContent = median === null ? "--"
+    : ("纳指 " + neg(pct(median)) + (medSpx === null ? "" : " · 标普 " + neg(pct(medSpx))));
   $("hist-rank").textContent = median === null ? ""
     : (!deeper && !higher ? "当前 与中位基本持平" : (deeper ? "当前 低于中位" : "当前 高于中位"));
   $("hist-rank").style.color = deeper ? "var(--red)" : (higher ? "var(--yellow)" : "var(--tx2)");
@@ -2165,7 +2174,7 @@ const HINTS = {
   cond:     { name: "档位资格 × 确认条件", plain: "先看<b>资格条件</b>：回撤是否到达加仓档位；再看<b>确认条件</b>（4 条）：MA200=200日均线（趋势）、RSI=涨跌动能、VIX=恐慌指数、Forward PE 分位=估值贵便宜。从 -15% 起才具备加仓档位资格；确认≥2 且本档专属条件满足后才显示规则满足。确认不足不推导试探仓位；数据受限时暂停结论。", pro: "回撤档位为资格条件，MA200/RSI/VIX/估值分位为确认条件，避免单信号误判。" },
   tp:       { name: "止盈矩阵", plain: "涨的时候<b>分批“下车”</b>，防止坐电梯。缩写：YTD=年初至今涨幅、ATH=历史最高点、PE分位=估值百分位、RSI=涨跌动能、ERP=股票相对国债的收益差。档位动作：T+1 先停加码（YTD +18%）→ T+2 兑现部分（YTD +22%）→ T+3/T+4 降杠杆转防御。距高点>10% 时 T+1 规则暂停；本页没有跨日持久状态，不模拟滞回式恢复。", pro: "四级止盈触发（T+1~T+4），与回撤矩阵对称的卖出纪律。" },
   stress:   { name: "压力测试", plain: "提前算好<b>预案</b>：NDX 再跌 10%/15%/25%/35% 点位到哪、该做什么。跌到哪早有数，不慌。", pro: "由 ATH 按不同回撤幅度反推的目标点位。" },
-  median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。只统计 <b>≥3%</b> 的回撤段（日常小波动不算，否则中位会掉到 −0.9% 那种没意义的值）—— 它就是“普通回撤”的典型深度，<b>−15% 以下才算少见</b>。", pro: "近 10 年「≥3% 的回撤段」深度的中位数（NDX 收盘口径，由 scripts/build-ddhist.mjs 现算，不写死）。" },
+  median:   { name: "中位数回撤", plain: "近 10 年<b>一半回撤比它浅、一半比它深</b>。只统计 <b>≥3%</b> 的回撤段（日常小波动不算，否则中位会掉到 −0.9% 那种没意义的值）—— 它就是“普通回撤”的典型深度，<b>−15% 以下才算少见</b>。", pro: "近 10 年「≥3% 的回撤段」深度的中位数，<b>纳指与标普分开算</b>（NDX 30 段 / SPX 23 段，由 scripts/build-ddhist.mjs 现算，不写死）。⚠ 2026-11-07 前只有纳指一个值，容易被误当成两者的中位 ✗ —— 标普的回撤系统性更浅，两列的“当前”要和各自的中位比 ✓" },
   dca:      { name: "定投回测指标", plain: "你每天投 1 元，<b>分批买入</b>至今总共赚/亏多少。它对比「定投」和「一次性全仓买入」两种玩法：上涨市里定投<b>跑输</b>一次性（越买越贵），下跌市里定投<b>跑赢</b>。它不是买卖信号，只是让你看清定投的真实体感。", pro: "定投收益率 = (P_end·Σ(1/P_t) − N)/N；与每日金额无关。对比同区间一次性买入的区间涨跌幅。" },
 };
 

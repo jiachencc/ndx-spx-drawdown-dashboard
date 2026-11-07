@@ -198,7 +198,15 @@ const DDHIST = {
      为什么取 3% 而不是 0%：把日常噪音也算进去时中位只有 −0.85%，当不了"典型"✗（153 段里一多半是噪声）。
      取 3% 后 n=30、中位 ≈ −7.2%，与页面原来手写的 −7.50 基本吻合 —— 那个数大概率就是这么来的，
      只是当时没写清阈值，也没人能复现 ✓。 */
-  median: { thr: -3, n: depths(DN, -3).length, med: +median(depths(DN, -3)).toFixed(2) },
+  /* ⚠ 2026-11-07 加标普那套（用户：「近10年中位数回撤 这个轴是纳指还是标普？」→ 选 B「两个都给」）：
+     原来只有 DN（纳指），而同一张卡现在有「纳指 / 标普」两列 → 
+     读者会以为那个 −7.2% 是两者的中位 ✗ 拿标普的 −6.0% 去比纳指的 −7.2% 更会得出
+     「这波还没到中位数」的错误结论 ✗ */
+  median: {
+    thr: -3,
+    n: depths(DN, -3).length, med: +median(depths(DN, -3)).toFixed(2),          // 纳指
+    nSpx: depths(DS, -3).length, medSpx: +median(depths(DS, -3)).toFixed(2),    // 标普
+  },
   cond: {
     thr: COND_THR,
     n: condRows.length,

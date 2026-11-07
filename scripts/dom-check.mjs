@@ -2888,11 +2888,20 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
         e25 ? "页面 " + txtOf("dd25-dd") + " · 数据 " + e25.dd + "%（" + e25.days + " 个交易日）" : "DDHIST 里没有 2025 的事件 ✗");
       /* 「近10年中位数回撤」游标（2026-10-24 加）：原来写死 −7.5%，谁也说不清口径 ✗。
          现在必须是 DDHIST.median.med（＝近 10 年 ≥3% 回撤段深度的中位数），页面显示两位小数。 */
+      /* ⚠ 2026-11-07：页面改成**两个指数并列**（「纳指 −7.23% · 标普 −5.36%」）✗
+         原来的 parseFloat 会把整串读成 NaN（开头是中文）→ 必须按标签分别提取 ✓ */
       const wm = DH && DH.median ? DH.median.med : null;
-      const shownMed = parseFloat(txtOf("med-num").replace("−", "-"));
-      check("决策看板「中位数回撤」≡ DDHIST.median（不再写死 −7.5%）",
-        Number.isFinite(wm) && Number.isFinite(shownMed) && Math.abs(shownMed - wm) < 0.011,
-        wm === null ? "DDHIST.median 缺失 ✗" : "页面 " + txtOf("med-num") + " · 数据 " + wm + "%（≥" + Math.abs(DH.median.thr) + "% 的 " + DH.median.n + " 段）");
+      const wmSpx = DH && DH.median && Number.isFinite(DH.median.medSpx) ? DH.median.medSpx : null;
+      const medTxt = txtOf("med-num").replace(/−/g, "-");
+      const pickN = (re) => { const m = medTxt.match(re); return m ? parseFloat(m[1]) : NaN; };
+      const gotNdx = pickN(/纳指\s*(-?\d+\.\d+)/);
+      const gotSpx = pickN(/标普\s*(-?\d+\.\d+)/);
+      check("决策看板「中位数回撤」纳指/标普两值 ≡ DDHIST.median（不再写死 −7.5%）",
+        Number.isFinite(wm) && Number.isFinite(gotNdx) && Math.abs(gotNdx - wm) < 0.011
+          && (wmSpx === null || (Number.isFinite(gotSpx) && Math.abs(gotSpx - wmSpx) < 0.011)),
+        wm === null ? "DDHIST.median 缺失 ✗"
+          : "页面 " + txtOf("med-num") + " · 数据 纳指 " + wm + "%（" + DH.median.n + " 段）"
+            + (wmSpx === null ? "" : " / 标普 " + wmSpx + "%（" + DH.median.nSpx + " 段）"));
       }
   }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));

@@ -9716,7 +9716,9 @@ const DDHIST = {
  "median": {
   "thr": -3,
   "n": 30,
-  "med": -7.23
+  "med": -7.23,
+  "nSpx": 23,
+  "medSpx": -5.36
  },
  "cond": {
   "thr": -7,
