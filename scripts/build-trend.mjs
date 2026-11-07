@@ -112,8 +112,11 @@ for (const it of items) {
     aboveMa50: ma50 === null ? null : last > ma50,
     aboveMa200: ma200 === null ? null : last > ma200,
     rsi14: rsiLast(cl) === null ? null : +rsiLast(cl).toFixed(0),
-    pos52: +((((last - (useCard ? dq.low52 : lo)) / ((useCard ? dq.ath : hi) - (useCard ? dq.low52 : lo))) * 100).toFixed(0)),
-    pos52c: +(((last - lo) / (hi - lo)) * 100).toFixed(0),          // 收盘口径（备查，不在卡面出现）
+    /* ⚠ 必须 clamp 到 [0,100]（2026-11-07 踩到）：收盘价跌破 52 周低点时算出来是 **−2** ✗
+       （160644 港美互联网LOF：现价 1.509 而它自己的 52 周低点 1.43 是「卡片尺」的、不是收盘口径的）
+       pos52 是「区间位置」，小于 0 或大于 100 都没有意义 ✓ */
+    pos52: Math.max(0, Math.min(100, +((((last - (useCard ? dq.low52 : lo)) / ((useCard ? dq.ath : hi) - (useCard ? dq.low52 : lo))) * 100).toFixed(0)))),
+    pos52c: Math.max(0, Math.min(100, +(((last - lo) / (hi - lo)) * 100).toFixed(0))),   // 收盘口径（备查，不在卡面出现）
     pos52Lo: +(useCard ? dq.low52 : lo).toFixed(3),
     pos52Hi: +(useCard ? dq.ath : hi).toFixed(3),
     hi52: +hi.toFixed(3),

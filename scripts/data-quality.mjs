@@ -256,7 +256,9 @@ export function validateModel(m) {
          卡面「成本位」与趋势行「现价分位」原来量在不同的区间上（盘中 vs 收盘），
          同一张卡两个分位对不上 ✗。这条守住"分位与尺子必须配套"。 */
       if (Number.isFinite(v.pos52Lo) && Number.isFinite(v.pos52Hi) && v.pos52Hi > v.pos52Lo) {
-        const want = Math.round(((v.px - v.pos52Lo) / (v.pos52Hi - v.pos52Lo)) * 100);
+        /* ⚠ 复算也要 clamp 到 [0,100]（2026-11-07）：现价跌破尺子下沿时原式算出 −2 ✗
+           而 build-trend 已按「区间位置」语义 clamp 到 0 → 两边不同步会互报 ✗ */
+        const want = Math.max(0, Math.min(100, Math.round(((v.px - v.pos52Lo) / (v.pos52Hi - v.pos52Lo)) * 100)));
         if (Math.abs(want - v.pos52) > 1) errors.push("TREND." + c + " pos52 " + v.pos52 + " ≠ 按尺子复算 " + want);
       }
       if (v.rsi14 !== null && !(Number.isFinite(v.rsi14) && v.rsi14 >= 0 && v.rsi14 <= 100))

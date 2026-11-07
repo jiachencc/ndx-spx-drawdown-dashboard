@@ -419,7 +419,10 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
     const heldTxt = (card.querySelector(".held") ? card.querySelector(".held").textContent : "").replace(/\s+/g, "");
     if (!/持有\d+天（首笔\d\d\.\d\d）/.test(heldTxt)) noFirstD.push(sym + "：" + heldTxt.slice(0, 40));
     /* ④ 溢价 ≥ 3%（PREM_WARN）时，悬停里要给出规模 */
-    const premChip = card.querySelector(".date-chip.prem-warn, .date-chip.prem-high, .date-chip.prem-disc");
+    /* ⚠ 2026-11-07：去掉 .prem-disc —— 折价**不是警示**，页面只在 |溢价| ≥ PREM_WARN(3%) 时给「规模」✓
+       而 `.prem-disc` 类在折价 1.7% 时就已经挂上了（如 513880 现价 1.893 vs 净值 1.9253 = −1.68%）✗
+       → 拿它当判据会把「设计上不该有规模」的情况误报成缺 ✓ */
+    const premChip = card.querySelector(".date-chip.prem-warn, .date-chip.prem-high");
     if (premChip && !/规模/.test(premChip.getAttribute("title") || "")) premGapMiss.push(sym);
   });
   check("场内卡「摊薄」那格带动词（省下 / 多花 / 成本未变）—— 不是光给一个符号 ✗", noVerb.length === 0, noVerb.join("；") || "全部带动词 ✓");
@@ -818,8 +821,15 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
         return (c2.H || []).length;
       } catch (e) { return 3; }
     })();
-    check("各标的累计盈亏：" + nLive + " 实线（＝在场只数）+ 2 清仓虚线 + 2 条「假设没卖」延续线 · 清仓图例印「已实现」",
-      solid.length === nLive && real.length === 2 && phantom.length === 2 && /已实现/.test(lg),
+    const nClosed = (() => {
+      try {
+        const c3 = vm.createContext({});
+        vm.runInContext(readFileSync(path.join(root, "data.js"), "utf8") + "\nthis.C=CLOSED_ETF;", c3, { timeout: 5000 });
+        return (c3.C && c3.C.count) || 2;
+      } catch (e) { return 2; }
+    })();
+    check("各标的累计盈亏：" + nLive + " 实线（＝在场只数）+ " + nClosed + " 清仓虚线（＝CLOSED_ETF.count）+ 2 条「假设没卖」延续线 · 清仓图例印「已实现」",
+      solid.length === nLive && real.length === nClosed && phantom.length === 2 && /已实现/.test(lg),
       "实线 " + solid.length + " / 清仓虚线 " + real.length + " / 延续线 " + phantom.length + " · 图例「" + lg.replace(/\s+/g, " ").slice(0, 40) + "」");
   }
 }
@@ -1270,10 +1280,21 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   const cost1 = pick(sub1, /持仓成本([\d,]+)/), cost2 = pick(sub2, /持仓成本([\d,]+)/);
   const shownCleared = pick(sub0, /已实现([+−][\d,]+)/);          // 页面自己那行「已实现 −23,922」
   const gapPrin = (prin0 !== null && cost1 !== null && cost2 !== null) ? prin0 - cost1 - cost2 : null;
-  check("总格「累计投入」− 两通道「持仓成本」之和 ＝ 已实现（" + (gapPrin === null ? "?" : gapPrin.toFixed(0)) +
-    " ↔ 已实现 " + shownCleared + " ✓ —— 本金含已清仓那部分，这就是两者必须分开写的原因）",
-    gapPrin !== null && shownCleared !== null && Math.abs(gapPrin + shownCleared) < 3,
-    "累计投入 " + prin0 + " − (成本 " + cost1 + " + " + cost2 + ") = " + (gapPrin === null ? "?" : gapPrin.toFixed(2)) + " / 已实现 " + shownCleared);
+  /* ⚠ 2026-11-07 加「现金」项：11-06 卖出科创后账户里躺着 5,071.30 可用，
+     它既不在持仓成本里、也不在已实现里 → 原等式差 5,072 ✗
+     完整恒等式：累计投入 − Σ持仓成本 ≡ |已实现亏损| ＋ 闲置现金 ✓ */
+  const cashNow = (() => {
+    /* ⚠ 不能用「updated 紧接 cash」那种死格式 —— OTC 头上还夹着注释行 ✗ → 整块取出来再找 cash */
+    const src2 = readFileSync(path.join(root, "positions-data.js"), "utf8");
+    const head2 = src2.slice(src2.indexOf("const OTC = {"), src2.indexOf("const OTC = {") + 2000);
+    const m2 = head2.match(/^\s*cash:\s*([\d.]+)/m);
+    return m2 ? Number(m2[1]) : 0;
+  })();
+  check("总格「累计投入」− 两通道「持仓成本」之和 ＝ 已实现 ＋ 现金（" + (gapPrin === null ? "?" : gapPrin.toFixed(0)) +
+    " ↔ 已实现 " + shownCleared + " ＋ 现金 " + cashNow + " ✓ —— 本金含已清仓那部分和闲置现金）",
+    gapPrin !== null && shownCleared !== null && Math.abs(gapPrin + shownCleared - cashNow) < 3,
+    "累计投入 " + prin0 + " − (成本 " + cost1 + " + " + cost2 + ") = " + (gapPrin === null ? "?" : gapPrin.toFixed(2))
+      + " / 已实现 " + shownCleared + " ＋ 现金 " + cashNow);
   const today = (function () { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-" + String(n.getDate()).padStart(2, "0"); })();
   const snapLast = ((S.filter((x) => x.items).slice(-1)[0] || {}).d) || null;
   const wantEst = snapLast !== today, lab0 = txt(cells[0].querySelector(".s-label"));
