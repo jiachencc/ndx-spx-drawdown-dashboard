@@ -469,13 +469,6 @@
     .lex-table td { padding: 6px 6px; font-size: 11px; }
     .lex-table .lx-plain { width: 40%; }
   }
-  .golden-line {
-    margin-top: 22px; padding: 14px 20px; border-radius: var(--radius); font-size: 13.5px;
-    background: linear-gradient(90deg, rgba(91,163,255,.12), rgba(177,149,251,.1));
-    border: 1px solid rgba(91,163,255,.4); color: var(--tx);
-    box-shadow: 0 4px 24px -12px rgba(91,163,255,.25);
-  }
-  .golden-line b { color: var(--blue); }
   /* ===== Footer ===== */
   .footer { margin-top: 24px; font-size: 11px; color: var(--tx3); text-align: center; line-height: 1.8; }
   .footer a { color: var(--tx3); text-decoration: none; }
@@ -567,12 +560,6 @@
   .hist-cagr .hc-label { font-size: 11.5px; color: var(--tx2); font-weight: 700; }
   .hist-cagr .hc-val { font-family: var(--mono); font-size: 13px; color: var(--tx2); }
   .hist-cagr .hc-val b { color: var(--green); font-size: 15px; }
-  /* ===== Seasonality tip ===== */
-  .season-tip {
-    margin-bottom: 12px; padding: 9px 13px; border-radius: 10px; font-size: 12px; line-height: 1.7;
-    background: rgba(247,193,78,.07); border: 1px solid rgba(247,193,78,.28); color: var(--yellow);
-  }
-  .season-tip b { font-family: var(--mono); font-weight: 800; }
   /* ===== Monthly performance chart (tabbed) ===== */
   .mc-tabs { display: flex; gap: 8px; margin: 6px 0 2px; }
   /* ⚠ 2026-11-07：Tab 从 40px 高的大色块缩到 30px —— 它只是切换器，不该比图表更抢眼 ✗ */
@@ -1078,21 +1065,11 @@
 <div class="card">
   <div class="card-title" style="justify-content:space-between;margin-bottom:0;">
     <span style="display:flex;align-items:center;gap:8px;"><span class="bar" aria-hidden="true" style="background:var(--blue)"></span><span aria-hidden="true">📖</span> 指标小词典 · 看不懂随时查</span>
-    <span class="lex-toggle open" id="lex-toggle">收起 <span class="arr">▶</span></span>
+    <!-- 2026-11-07：**默认折叠**（用户要求）—— 词典是查阅工具，不该一进来就铺满一屏 ✗
+         初始状态：toggle 无 .open（箭头朝右＝收起）、body 带 .hidden、按钮文字「展开」✓ -->
+    <span class="lex-toggle" id="lex-toggle">展开 <span class="arr">▶</span></span>
   </div>
-  <div class="lex-body" id="lex-body"></div>
-</div>
-
-<!-- ======= Future events ======= -->
-<div class="card card-lo">
-  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--red)"></span><span aria-hidden="true">📅</span> 未来事件日历<span class="src-tag manual">MANUAL</span></div>
-  <div class="season-tip"><span aria-hidden="true">⚠️</span> <b>9 月季节性逆风</b>：标普 1970 以来 9 月均值 <b>-0.7%</b>（全年最弱月）。当前已进入 9 月窗口期，<b>建议</b>：原计划加仓额度下调 20%、避免 9 月初追涨。</div>
-  <div id="calendar"></div>
-</div>
-
-<!-- ======= Golden line ======= -->
-<div class="golden-line" id="golden-line">
-  <span aria-hidden="true">🎙️</span> <b>一句话总结</b>：<span id="golden-text">--</span>
+  <div class="lex-body hidden" id="lex-body"></div>
 </div>
 
 </main>
@@ -2209,7 +2186,7 @@ function renderSourceHealth() {
 
 /* ================= Golden line ================= */
 function renderGolden(ndxDD, spxDD) {
-  $("golden-text").textContent = evaluateDecision(D).status + "。规则辅助记录，不代替风险判断；历史统计待可复现回测验证。";
+  /* ⚠ 2026-11-07：「一句话总结」整块已删（用户要求），这行赋值随之去掉 ✓ */
 }
 
 /* ================= Monthly performance ================= */
@@ -2284,29 +2261,6 @@ function renderMonthly() {
     `对比 ${otherName} 年内累计 <b class="${otherCum >= 0 ? "up" : "down"}">${pct(otherCum*100)}</b>`;
 }
 
-/* CALENDAR 数组在 data.js；本函数只负责渲染。
- * 过期不显示（2026-09-21 起）：此前只靠人工注释里的「去过期事件」，结果 09-21 这天
- * 4 条已过期事件仍列在「未来事件日历」下 —— 名字说未来、内容全是过去。
- * 判过期用「本机当天」，不用 DEFAULT.asOf.us：后者是行情日（周末/节假日会滞后），
- * 会把昨天的事件继续留在「未来」里。条目漏填 iso 的按「未排期」照常显示（不静默吞掉）。 */
-function renderCalendar() {
-  const box = $("calendar");
-  if (!box) return;
-  const now = new Date();
-  const today = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
-  const all = Array.isArray(CALENDAR) ? CALENDAR : [];
-  const upcoming = all.filter(c => !c.iso || String(c.iso) >= today);
-  const expired = all.length - upcoming.length;
-  box.innerHTML = upcoming.length ? upcoming.map(c => `
-    <div class="cal-item">
-      <div class="cal-date"><div class="d">${c.d}</div><div class="m">${c.m}<br>${c.day}</div></div>
-      <div class="cal-info">
-        <div class="e-name">${c.name}</div>
-        <div class="e-desc">${c.desc || ""}</div>
-      </div>
-      <span class="cal-pri pri-${c.pri==="高"?"high":(c.pri==="中"?"mid":"low")}">${c.pri}</span>
-    </div>`).join("") : `<div class="cal-empty">近期无登记事件${expired ? `（另有 <b>${expired}</b> 条已过期，不再显示）` : ""}。</div>`;
-}
 
 
 /* ================= Indicator hints & lexicon ================= */
@@ -2465,7 +2419,6 @@ document.querySelectorAll(".mc-tab").forEach(btn => {
     renderMonthly();
   });
 });
-renderCalendar();
 renderMonthly();
 renderLexicon();
 /* 定投回测指标 交互 */
