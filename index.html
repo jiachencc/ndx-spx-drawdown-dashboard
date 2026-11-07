@@ -235,6 +235,22 @@
     .hint-i { width: 22px; height: 22px; font-size: 12px; }
   }
   /* Very small phones (≤380) */
+  /* 414 及以下：两张卡共用的降档（2026-11-07）
+     · `idx-change` 那行「今日(x) +1.35% · 今年 +6.89% · 年内最大回撤 −14.70%」
+       在 414 下会把最后一项折到第二行、行首孤零零一个 −14.70% ✗
+     · `k-label` 的「历史高点 ATH」也会折成两行（ATH 单独一行）✗
+     → 都降一档字号，尽量保持单行；实在折了也不影响数字对齐（k-val 已贴底 ✓）*/
+  @media (max-width: 430px) {
+    /* ⚠ 3 列在 414px 下每格只有 ~110px —— 「历史高点 ATH」「52周位置 ?」必然折行 ✗
+       （实测：emoji 被挤到单独一行、? 掉到第二行、ATH 独占一行）
+       → **改 2 列**，每格 ~170px，6 个 KPI 三行排完 → 全部单行 ✓
+         代价是卡片高 ~55px，但两张卡同步变高、依然严格对齐 ✓ */
+    /* ⚠ 必须带父级 id：基础 `.kpis` 规则写在**这个 media 之后**（第 288 行），
+       同优先级下后写的赢 → 只写 `.kpis` 会被覆盖掉、2 列根本不生效 ✗（踩过一次）*/
+    #card-ndx .kpis, #card-spx .kpis { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .idx-change { font-size: 11px; }
+    .kpi .k-label { font-size: 10.5px; letter-spacing: .2px; }
+  }
   @media (max-width: 380px) {
     .header h1 { font-size: 18px; }
     .idx-close { font-size: 20px; }
@@ -286,13 +302,24 @@
   .drawdown-num { font-family: var(--mono); font-size: 46px; font-weight: 700; line-height: 1; }
   .drawdown-label { font-size: 12px; color: var(--tx2); border-top: 1px solid var(--line-soft); padding-top: 12px; }
   .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
+  /* ⚠ 2026-11-07：改成 **flex column ＋ 数值贴底**（用户：「两张卡的数据区域视觉上保持一致」）
+     问题：k-label 在窄格里可能折成两行（「历史高点 ATH」放不下），
+           而「涨回新高需」一行 —— 同一行里两个格子的 k-val 会差 **15px** ✗
+           实测 414px：NDX/SPX 的 ath 都在 top 261，而 toath/days 在 246 ✗
+     → 用 `justify-content: space-between` ＋ k-val `margin-top: auto`
+       让**数值永远贴在格子底部**，标签几行都不影响 ✓
+       两张卡结构同构，所以彼此也自然对齐 ✓ */
   .kpi {
     background: var(--card2); border: 1px solid var(--line-soft); border-radius: 10px;
     padding: 9px 12px; line-height: 1.4; transition: border-color .2s;
+    display: flex; flex-direction: column; justify-content: space-between;
   }
-  .kpi .k-label { font-size: 11px; color: var(--tx3); letter-spacing: .3px; }
+  /* ⚠ 2026-11-07：k-label 改 flex —— 「52周位置 ?」原来在窄格里会把 ? 挤到单独一行 ✗
+     现在标点和按钮都跟着文字流，折行时也只在语义断点处折 ✓ */
+  .kpi .k-label { font-size: 11px; color: var(--tx3); letter-spacing: .3px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0 3px; }
   /* 字号随视口自适应：窄屏降档避免 ATH/涨回新高 等长数字被 ellipsis 截断（clamp 下限 11px 保证可读） */
-  .kpi .k-val { font-size: clamp(11px, 2.5vw, 15.5px); font-family: var(--mono); font-weight: 800; margin-top: 3px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .kpi .k-val { font-size: clamp(11px, 2.5vw, 15.5px); font-family: var(--mono); font-weight: 800; margin-top: auto; padding-top: 3px; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .kpi .k-val.small { font-size: clamp(10.5px, 2.2vw, 13.5px); }
   .up { color: var(--green); } .down { color: var(--red); } .flat { color: var(--tx2); }
   /* ===== Scale / gauge ===== */
