@@ -483,6 +483,21 @@
   .hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .hist-table th { font-size: 10.5px; color: var(--tx3); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); letter-spacing: .5px; }
   .hist-table td { padding: 7px 10px; border-bottom: 1px dashed var(--line-soft); font-family: var(--mono); white-space: nowrap; }
+  /* ⚠ 2026-11-07：窄屏溢出修复（用户：「历史上几次大回撤 在手机上溢出了」）
+     380px 实测：卡片内宽 352、表格 363 → **整页横向溢出 11px** ✗
+     根因是上面那条 `white-space: nowrap` 对所有 td 都生效，
+       「2000 互联网泡沫」这一列被撑到 154px、加上三列数字就超了 ✗
+     → 只让**数值列**保持 nowrap（数字不许折），**事件列允许折行** ✓
+       再给窄屏降一档字号 + 收紧内边距，380 也能放下 ✓ */
+  .hist-table td.h-desc { white-space: normal; overflow-wrap: anywhere; }
+  @media (max-width: 430px) {
+    .hist-table { font-size: 11px; }
+    .hist-table th, .hist-table td { padding: 5px 6px; }
+    .hist-table th { font-size: 9.5px; letter-spacing: .2px; }
+    .hist-table .h-desc { font-size: 10.5px; }
+    /* 事件列给固定上限，超出就折行 —— 不让它把整张表撑爆 */
+    .hist-table td.h-desc { max-width: 8.5em; }
+  }
   .hist-table tr:last-child td { border-bottom: none; }
   .hist-table .h-desc { font-family: var(--sans); color: var(--tx2); font-size: 11.5px; }
   /* ── 「近10年中位数回撤」两行对比（2026-11-07 重做）
