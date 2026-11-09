@@ -8517,7 +8517,7 @@ function renderSellAfter() {
   const syms = Object.keys(closed).filter((sym) => SA[closed[sym].code]);
   const cnt = $("sellafter-cnt");
   if (cnt) cnt.textContent = "（" + syms.length + " 只 · 现价至 " + ((typeof TREND !== "undefined" && TREND.asOf) || "—").slice(5).replace("-", ".") + "）";
-  if (!syms.length) { card.innerHTML = '<div class="bp-note">没有已清仓的场内标的。</div>'; return; }
+  if (!syms.length) { card.innerHTML = '<div class="mini-note">没有已清仓的场内标的。</div>'; return; }
 
   const rows = syms.map((sym) => {
     const h = closed[sym], sa = SA[h.code];
@@ -8558,7 +8558,7 @@ function renderSellAfter() {
       + '<div class="sa-macd">' + esc(macdTxt(r.sa)) + "</div>"
       + "</div>";
   }).join("") + "</div>"
-    + '<div class="bp-note">「卖出」取该标的<b>最后一笔</b>（清仓那笔）的价格与份数；「现在」＝最新收盘（东财日线）。'
+    + '<div class="mini-note">「卖出」取该标的<b>最后一笔</b>（清仓那笔）的价格与份数；「现在」＝最新收盘（东财日线）。'
     + "「比现在多拿 X」＝ 卖出回款 − 若按现价卖出的金额 —— 正数说明清仓躲过了下跌 ✓，负数说明卖早了。"
     + " MACD 只作观察：实测三只持仓 ETF 的金叉胜率与「随便哪天买」持平，<b>不据此操作</b> ✗</div>";
 }

@@ -2409,6 +2409,21 @@
 .closed-small > summary::before { content: "▸ "; font-family: var(--mono); }
 .closed-small[open] > summary::before { content: "▾ "; }
 
+/* ══ 通用脚注（2026-11-09 加）══════════════════════════════════════════
+   ⚠ 起因：「已清仓标的后市」底部那段说明写的是 `class="bp-note"` ✗
+     而 `.bp-note` 的样式在 2026-11-02 删「买入坐标」模块时**一起被删了** ✗
+     全站还剩 **2 处**在用这个已死的类 → 渲染成裸 <div>，字号与正文同级、没有弱化
+     → 看起来像正文而不像脚注 ✓（用户：「下面的说明字段 好像没有加上 css」）
+   ⚠ 不恢复 `.bp-note`：那个模块已不存在，留个死类名只会再被误用 ✗
+     改用语义中性的 `.mini-note`，将来任何卡片的脚注都能用它 ✓ */
+.mini-note {
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px dashed var(--line-soft);
+  font-size: 10.5px; line-height: 1.75;
+  color: var(--tx3);
+}
+.mini-note b { color: var(--tx2); font-weight: 600; }
+
 /* ===== 清仓历史 · 两列紧凑版（2026-10-20） =====
    标签左、数值右，场外/场内用缩进表达「是总盈亏的拆分」；注释全部进 title。 */
 .closed-brief { display: flex; flex-direction: column; gap: 1px; margin: 6px 0 2px; }
