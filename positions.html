@@ -3172,6 +3172,10 @@ function renderHoldHist() {
   }
 
   const items = H.items;
+  /* ⚠ 2026-11-09 修：读数格原来硬编码读 HOLD_HIST ✗ 切到「场外」后它仍显示**场内**的浮盈，
+     还带上了场内才有的「已清仓 *」标记（用户实测：华安A 显示 −28,032，实际 −392）✗
+     → 把当前数据源挂到 box 上，readout 用它 ✓（也避免每次 pointermove 重建场外数据）*/
+  box._items = items;
   hhHidden = hhHidden || new Set();
   /* 横轴日期并集（2026-10-18）：要把 phantom（假设没卖的延续段）也含进去，
      否则清仓后的几天不会出现在 x 轴上，延续线会被压在最后一格里 */
@@ -3286,7 +3290,9 @@ function renderHoldHist() {
 function renderHoldHistReadout(ev) {
   const box = $("hh-box"), ro = $("hh-readout");
   if (!box || !ro || !box._geo) return;
-  const g = box._geo, H = (typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null;
+  const g = box._geo;
+  /* 用渲染时挂上的数据源（场内 HOLD_HIST / 场外 buildOtcHist）✓ */
+  const H = box._items ? { items: box._items } : null;
   if (!H) return;
   let i = g.n - 1, xRaw = null;
   if (ev) {
