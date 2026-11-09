@@ -7360,7 +7360,11 @@ function holdCardHtml(row, i, ctx) {
   const seg = (m.close && p.idxAtCost && segWv > 0.01)
     ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + '" style="left:' + Math.min(segC, segN)
       + "%;width:" + segWv + '%">'
-      + (segWv >= 7 ? '<em class="seg-d">' + fmtPct(r, 1) + "</em>" : "")   /* 太窄就不放，会糊成一团 ✗ */
+      /* ⚠ 2026-11-09：阈值 7 → 5（用户：「标普500ETF南方 下跌轴上没有标数据」）
+         实测标普现价距成本 −1.4% → segWv = 5.9% ✗ 被 7 挡掉，区间带上什么都不显示 ✓
+         降到 5 之后：5.9% × 条宽 ≈ 32px，`−1.4%` 约 26px，放得下 ✓
+         ⚠ 仍保留一个下限：<5% 时那条区间太窄（<28px），字会溢出到区间外 ✗ 宁可不放 ✓ */
+      + (segWv >= 5 ? '<em class="seg-d">' + fmtPct(r, 1) + "</em>" : "")
       + "</span>"
     : "";
   const prem = (POSITIONS.premiums || {})[p.code];

@@ -929,15 +929,27 @@
                 0 0 8px -2px var(--up-fill); }
   .bar-track .seg.loss { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent),
                 0 0 8px -2px var(--down-fill); }
-  .bar-track .seg.gain { background: linear-gradient(90deg, color-mix(in srgb, var(--up) 22%, transparent),
-                                              color-mix(in srgb, var(--up) 72%, transparent)); }
-  .bar-track .seg.loss { background: linear-gradient(90deg, color-mix(in srgb, var(--down) 22%, transparent),
-                                              color-mix(in srgb, var(--down) 72%, transparent)); }
+  /* ⚠ 2026-11-09 改（用户：「日经225ETF华安 那个 −8.3% 看不清楚 配色优化下」）：
+     原来三处叠加导致完全读不出 ——
+       ① 底色只有 22%→72% 不透明度 → 区间本身很淡 ✗
+       ② 字色 `var(--card)`：深色主题下是 **#121826（深蓝黑）** → **红底黑字** ✗
+       ③ 字号 8px，比页面最小的 9.5px 还小一档 ✗
+     → 底色提到 45%→95%（区间看得见）、字号 8→9.5px、字色按主题分开取：
+         深色主题：红/绿底都比较亮 → 用**深字**（#0b0e14）
+         浅色主题：红/绿底偏中调   → 用**白字**（#fff）+ 深描边
+     ⚠ 为什么不统一用白字：深色主题的 --down 是 #f26d7d（亮红），白字只有 ~2.5:1 ✗
+       统一用深字：浅色主题的 --down 是 #e23b53（中红），深字只有 ~2.8:1 ✗
+       只能按主题分开 ✓ */
+  .bar-track .seg.gain { background: linear-gradient(90deg, color-mix(in srgb, var(--up) 45%, transparent),
+                                              color-mix(in srgb, var(--up) 95%, transparent)); }
+  .bar-track .seg.loss { background: linear-gradient(90deg, color-mix(in srgb, var(--down) 45%, transparent),
+                                              color-mix(in srgb, var(--down) 95%, transparent)); }
   /* 带中央的涨跌幅（宽度 ≥7% 才有位置放；太窄会糊成一团 ✗）*/
   .bar-track .seg-d { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    font-style: normal; font-size: 8px; font-weight: 700; font-family: var(--mono);
-    font-feature-settings: "tnum"; color: var(--card); white-space: nowrap;
-    text-shadow: 0 0 3px rgba(0, 0, 0, .45); pointer-events: none; }
+    font-style: normal; font-size: 9.5px; font-weight: 800; font-family: var(--mono);
+    font-feature-settings: "tnum"; white-space: nowrap; pointer-events: none;
+    color: #0b0e14; text-shadow: 0 1px 1px rgba(255, 255, 255, .35); }
+  body.light .bar-track .seg-d { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
   /* 游标形态（替代细竖线）：成本=青圆、现价=白圆（略大，代表"当下"），都带描边+光晕 */
   .bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: none; padding: 0; margin: 0; cursor: pointer; }
   .bar-marker.cost { width: 10px; height: 10px; background: var(--cyan);
