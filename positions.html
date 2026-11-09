@@ -6700,11 +6700,19 @@ function renderAcctStats() {
       const mo = (typeof MONTHLY !== "undefined" && MONTHLY[k]) ? MONTHLY[k] : null;
       const ixTxt = mo ? fmtPct(mo.ndx / 100, 2) : "—";
       const mine = typeof r.pct === "number" ? fmtPct(r.pct / 100, 2) : "—";
-      const d = (typeof r.pct === "number" && typeof r.bench === "number") ? r.pct - r.bench : null;
-      const dTxt = d === null ? "—" : fmtPp(d / 100);
+      /* ⚠ 2026-11-09 改（用户要求）：第 4 列原来是「我的 − 上证」✗
+         而左边那列就是**纳指** → 读者必然读成「我 vs 纳指」✗
+         实测 6 月显示 −5.20pp，而相对纳指其实是 −4.38pp，差 0.82pp ✓
+         → 改成**相对纳指**（与左列同基准），上证仍留在 title 里可查 ✓
+         理由：场内 6 只里 4 只是美股/日经系，上证做基准参考性弱 ✓ */
+      const d = (typeof r.pct === "number" && mo) ? r.pct - mo.ndx : null;
+      const dVsBench = (typeof r.pct === "number" && typeof r.bench === "number") ? r.pct - r.bench : null;
+      const dTxt = d === null ? "—" : fmtPp(d / 100);   // 现在是「相对纳指」
       const layers = layersOf(ym, mo);
       const tr = tradeOf(ym);
-      const tip = r.m + "：纳指 " + ixTxt + " · 我的 " + mine + "（App 券商口径）" + (d === null ? "" : " · 相对上证 " + dTxt)
+      const tip = r.m + "：纳指 " + ixTxt + " · 我的账户 " + mine + "（App 券商口径）"
+        + (d === null ? "" : " · 相对纳指 " + fmtPp(d / 100))
+        + (dVsBench === null ? "" : " · 相对上证 " + fmtPp(dVsBench / 100))
         + " · 当月盈亏 " + fmtAmt(r.pnl) + (layers.length ? "　（点开看当月明细）" : "");
       /* 明细块：三层配对（同期 → 我的 → 差）＋ 交易 */
       /* 2026-11-02 二改（用户：「一眼很难看懂」）：原来是「纳指 −6.61% → −4.49% +2.12pp」——
@@ -6716,7 +6724,10 @@ function renderAcctStats() {
         + '<div class="mcd-h">' + esc(r.m) + " · <b class=\"" + cls(r.pnl) + "\">" + fmtAmt(r.pnl) + "</b>"
         + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "，券商口径）" : "") + "</div>"
         + (layers.length ? '<div class="mcd-line mcd-head"><span class="mcd-k"></span>'
-          + '<b class="mcd-ix">指数</b><b class="mcd-me">我的</b><em class="mcd-gap">对比</em></div>' : "")
+          /* ⚠ 2026-11-09 改名：这里的三行「我的」是**分层假设值**
+             （全持纳指 / 全持标普 / 实际组合），不是账户在三个时点的真实收益 ✗
+             而月表第 3 列的「我的账户」是券商口径的真实收益 —— 同名不同义会误读 ✓ */
+          + '<b class="mcd-ix">指数</b><b class="mcd-me">同期我的</b><em class="mcd-gap">对比</em></div>' : "")
         + layers.map((L) => {
           const gap = L.mine - L.ix;
           const win = gap >= 0;
@@ -6780,12 +6791,12 @@ function renderAcctStats() {
       })()
       + (rows ? '<div class="mc-tbl">'
         + '<div class="mc-row mc-head"><span class="mc-m">月份</span><b class="mc-ix">纳指</b>'
-        + '<b class="mc-me">我</b><b class="mc-pp">相对上证</b></div>'
+        + '<b class="mc-me">我的账户</b><b class="mc-pp">相对纳指</b></div>'
         + rows + "</div>"
         + '<div class="mc-note"><b>点任意月份可展开当月明细</b>（指数 / 我的 / 跑赢几点）。'
-        + "纳指当月取自 data.js 的 MONTHLY（标普在悬停里）；「我」是券商 App 的月度收益率"
+        + "纳指当月取自 data.js 的 MONTHLY（标普在悬停里）；「我的账户」是券商 App 的月度收益率"
         + "（<b>资金加权</b>口径 —— 7 月显示 −13.73%，而当时持有的 ETF 当月只跌 4.43%，因为你在月中加过仓）。"
-        + "两列并排是让你看<b>关系</b>（同向？放大几倍？），<b>不要相减当超额收益</b> ✗</div>" : "");
+        + "两列并排是让你看<b>关系</b>（同向？放大几倍？），<b>不要相减当超额收益</b>（两列基准不同，减出来没有意义）</div>" : "");
   }
   const W = el.clientWidth || 360, H = 128, mT = 16, mB = 18, mL = 10, mR = 10;
   const maxAbs = Math.max.apply(null, S.monthly.map((r) => Math.abs(r.pnl)).concat([1]));
