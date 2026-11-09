@@ -109,6 +109,13 @@ try {
     <div class="trend-sum" id="hh-sum"></div>
     <!-- 筛选（2026-10-18 加）：时间档位 + 金额/收益率口径。
          收益率是刚需：5 只本金差 4 倍（纳指 16 万 / 日经 4.8 万），金额图看不出谁表现好。 -->
+    <!-- 场内 / 场外切换（2026-11-09 加，用户要求）：
+         场外用 SNAPSHOTS 构建（每期 6 只都有 val/pl），不是 HOLD_HIST —— 后者需要逐笔成交，
+         场外没有那个记录 ✗ 代价是点数少（38 vs 93 个）且不均匀，见下方口径注 ✓ -->
+    <div class="trend-chips" id="hh-src" style="margin-bottom:8px;">
+      <button class="tchip on" type="button" data-s="etf">场内 · 6 只</button>
+      <button class="tchip" type="button" data-s="otc">场外 · 6 只</button>
+    </div>
     <div class="trend-bar">
       <div class="trend-chips" id="hh-range">
         <button class="tchip on" type="button" data-r="all">全部</button>
@@ -123,6 +130,7 @@ try {
     <div class="trend-readout" id="hh-readout">移动或滑动查看各标的当日浮盈 · 点击图例可隐藏某只</div>
     <div id="hh-box"></div>
     <div class="trend-legend" id="hh-legend"></div>
+    <div id="hh-note" style="display:none;margin-top:8px;font-size:10.5px;color:var(--tx3);line-height:1.65;"></div>
   </div>
 
   <h2 class="sec-title" id="sec-snap"><span aria-hidden="true">🗂</span> 快照对比 <span class="cnt" id="snap-cnt"></span></h2>
@@ -3093,6 +3101,39 @@ const HH_COLORS = ["var(--cyan)", "var(--blue)", "var(--green)", "var(--yellow)"
 let hhHidden = null;      // Set<code>：被图例关掉的标的
 let hhHover = null;       // 当前读数索引
 let hhRange = "all";      // all / 3m / 1m —— 按最后 N 个交易日截取（与主看板走势口径一致）
+/* 数据源（2026-11-09 加）：etf = HOLD_HIST（场内有逐笔成交，可逐日重建）
+   otc = 从 SNAPSHOTS 现构（场外没有成交明细，只能靠每次截图的那一期）*/
+let hhSource = "etf";
+
+/* 场外 6 只的历史曲线 —— 从 SNAPSHOTS 构建，格式对齐 HOLD_HIST.items：
+   pts 每点 = [日期, 浮盈, 份额, 摊薄成本, 成本基数]（hhRate 用 p[4] 算收益率 ✓）
+   ⚠ 快照不是每天都有（用户发图才有），缺口处折线是**直线连接**，不是真实走势 ✗
+     这一点必须写在图上（#hh-note），否则会被当成逐日曲线 ✓ */
+function buildOtcHist() {
+  const CODES = ["007280", "021778", "021000", "018738", "040046", "014978"];
+  if (typeof SNAPSHOTS === "undefined" || !Array.isArray(SNAPSHOTS)) return null;
+  const withOtc = SNAPSHOTS.filter((x) => x && x.items && CODES.some((c) => x.items[c]));
+  if (withOtc.length < 2) return null;
+  /* ⚠ 短名（2026-11-09）：顶部读数格用 `name.slice(0,2)` —— 场内够用 ✗
+     但场外有两只「华安纳斯达克100…A」和「…C」，前两字都是「华安」，读数格分不清 ✗
+     → 场外显式给 short，读数格优先用它 ✓ */
+  const SHORT = { "007280": "摩根", "021778": "广发", "021000": "南方",
+                  "018738": "博时", "040046": "华安A", "014978": "华安C" };
+  const items = CODES.map((code) => {
+    const pts = [];
+    let name = code;
+    withOtc.forEach((x) => {
+      const it = x.items[code];
+      if (!it || !Number.isFinite(it.pl)) return;
+      if (it.name) name = it.name;
+      const qty = Number.isFinite(it.qty) ? it.qty : 0;
+      const cost = Number.isFinite(it.cost) ? it.cost : 0;
+      pts.push([x.d, it.pl, qty, qty > 0 ? cost / qty : 0, cost]);
+    });
+    return pts.length ? { code, name, short: SHORT[code] || name.slice(0, 2), pts, phantom: [] } : null;
+  }).filter(Boolean);
+  return items.length ? { asOf: withOtc.at(-1).d, items, nSnap: withOtc.length } : null;
+}
 let hhMode = "amount";    // amount = 浮盈金额 / rate = 相对成本的收益率
 
 function hhFmt(v) { return (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)).toLocaleString("en-US"); }
@@ -3106,14 +3147,29 @@ function hhV(v) {
 }
 
 function renderHoldHist() {
-  const H = (typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null;
+  const isOtc = hhSource === "otc";
+  const H = isOtc ? buildOtcHist() : ((typeof HOLD_HIST !== "undefined") ? HOLD_HIST : null);
   const box = $("hh-box"), card = $("hh-card"), secTitle = $("sec-holdhist");
   if (!box || !card) return;
   if (!H || !Array.isArray(H.items) || !H.items.length) {
+    /* ⚠ 场外缺数据时**不要隐藏整张卡**（场内还有），只把图区清空并说明 */
+    if (isOtc) { box.innerHTML = '<div class="note" style="padding:16px 0;">场外历史快照不足，暂时画不出曲线</div>'; return; }
     card.style.display = "none"; if (secTitle) secTitle.style.display = "none"; return;
   }
   card.style.display = ""; if (secTitle) secTitle.style.display = "";
   $("hh-cnt").textContent = H.asOf ? "截至 " + H.asOf.slice(5) : "";
+  /* 口径注：只在场外显示（场内是逐日真实数据，不需要这句）*/
+  const noteEl = $("hh-note");
+  if (noteEl) {
+    if (isOtc) {
+      noteEl.style.display = "";
+      noteEl.innerHTML = "⚠ 场外曲线基于 <b>" + (H.nSnap || H.items[0].pts.length) + " 次快照</b>"
+        + "（发截图的日期才有数据点），缺口处为<b>直线连接</b>、非逐日真实走势 ✗；"
+        + "场外无逐笔成交记录，无法像场内那样逐日重建 ✓";
+    } else {
+      noteEl.style.display = "none";
+    }
+  }
 
   const items = H.items;
   hhHidden = hhHidden || new Set();
@@ -3217,7 +3273,7 @@ function renderHoldHist() {
      绝不重建 innerHTML —— 与资产走势同一条铁律（那边 2222 行写着「会闪、会冲掉滚动位置」）。 */
   $("hh-readout").innerHTML = '<span class="hh-date">--</span>' + H.items.map((it, i) => {
     const col = HH_COLORS[i % HH_COLORS.length];
-    return '<span class="hh-cell"><i>' + esc(it.name.slice(0, 2)) + '</i><b style="color:' + col + '">—</b></span>';
+    return '<span class="hh-cell"><i>' + esc(it.short || it.name.slice(0, 2)) + '</i><b style="color:' + col + '">—</b></span>';
   }).join("");
   const ro = $("hh-readout");
   box._cells = Array.prototype.slice.call(ro.querySelectorAll(".hh-cell"));
@@ -3295,6 +3351,25 @@ function renderHoldHistReadout(ev) {
     raf = requestAnimationFrame(() => { raf = 0; if (last) renderHoldHistReadout(last); });
   }, { passive: true });
 })();
+/* 场内 / 场外切换（2026-11-09 加）：
+   ⚠ 切换时必须**清空 hhHidden** —— 两个数据源的 code 完全不重叠
+     （场内 159941/513650/513880/160644/513310/588170，场外 007280/021778/…），
+     不清的话在新源里会残留一堆"隐藏了但不存在"的 code ✗ 图例会显示错 */
+(function bindHhSource() {
+  const el = $("hh-src");
+  if (!el) return;
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest(".tchip"); if (!b || !b.dataset.s) return;
+    if (b.dataset.s === hhSource) return;
+    hhSource = b.dataset.s;
+    hhHidden = new Set();
+    hhHover = null;
+    Array.prototype.forEach.call(el.children, (x) => x.classList.toggle("on", x === b));
+    /* 场外只有 2 个月数据，选了「近3月」也只会画满现有范围 —— 保持用户选择不重置 ✓ */
+    renderHoldHist();
+  });
+})();
+
 /* 筛选事件（2026-10-18）：时间档位 / 金额·收益率 —— 切换后整图重绘（y 轴跟着范围走） */
 (function bindHhChips() {
   const r = $("hh-range"), m = $("hh-mode");
