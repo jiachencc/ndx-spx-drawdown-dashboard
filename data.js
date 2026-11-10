@@ -8,7 +8,7 @@
 /* ================= 数据模型 ================= */
 const DEFAULT = {
   date: "2026-11-09",
-  intraday: false, // AUTO：美股 2026-11-09 收盘（2026-11-10T03:49Z 抓取）
+  intraday: false, // AUTO：美股 2026-11-09 收盘（2026-11-10T08:53Z 抓取）
   ndx:   { close: 27907.63, ath: 31361.37, athDate: "2026-10-06", days: 24, chg: 3.4, ma50: 29602.18, ma200: 27995.4, rsi: 39.3, low52: 22841.42, high52: 31361.37, prevYr: 25249.849609375, ddYtd: -14.7 },
   spx:   { close: 7549.94, ath: 7844.52, athDate: "2026-10-06", days: 24, chg: 2.35, ma50: 7676.21, ma200: 7328.22, rsi: 43.1, low52: 6316.91, high52: 7844.52, prevYr: 6845.5, ddYtd: -9.1 },
   /* ⚠ 2026-09-29 合并说明：vix / tnx 取的是 **CI（05:47 定时任务）用 Yahoo 抓到的 09-28 值**，
@@ -30,8 +30,8 @@ const DEFAULT = {
   /* ⚠ 2026-10-22 合并冲突的解法：kr / hkus 是**已清仓**的键（apply-screenshot 刻意不写它们 ✗）→
      只 CI 的定时任务在刷 → 一律**取远端**（10-22 收盘）；n225 两边**完全一致**（2.056 / −1.96% @10-22 ✓✓
      本机券商收盘与 CI 的腾讯日K 互证）。 */
-  kr:   { close: 3.592, chg: 2.39, low52: 2.275, ath: 7.12, athDate: "2026-07-02", prevYr: 2.577, priceDate: "2026-11-10" },   // kr 持仓（场内价口径；已清仓 → 只有 CI 在刷，取远端 ✓）
-  n225:   { close: 1.951, chg: 2.09, low52: 1.63, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-11-10" },   // n225 持仓（场内价口径；**10-22 收盘手填**＝平安市值 51,400 ÷ 25,000 份 ✓，与 CI 的腾讯日K 完全一致 ✓✓）
+  kr:   { close: 3.575, chg: 1.91, low52: 2.275, ath: 7.12, athDate: "2026-07-02", prevYr: 2.577, priceDate: "2026-11-10" },   // kr 持仓（场内价口径；已清仓 → 只有 CI 在刷，取远端 ✓）
+  n225:   { close: 1.957, chg: 2.41, low52: 1.63, ath: 2.425, athDate: "2026-06-25", prevYr: 1.679, priceDate: "2026-11-10" },   // n225 持仓（场内价口径；**10-22 收盘手填**＝平安市值 51,400 ÷ 25,000 份 ✓，与 CI 的腾讯日K 完全一致 ✓✓）
   hkus:   { close: 1.43, chg: 2.8, low52: 1.39, ath: 2.508, athDate: "2026-05-27", prevYr: 1.492, priceDate: "2026-11-10" },   // hkus 持仓（场内价口径；已清仓 → 只有 CI 在刷，取远端 ✓）
   /* 2026-11-05 新增：科创半导体ETF华夏 588170（A 股科创板）
      ⚠ close 是**手工价**（App 17:14），CI 不抓；low52 / ath 取自 build-trend 算出的真实 52 周区间
@@ -50,15 +50,15 @@ const DEFAULT = {
      CI 1.680 = 腾讯前复权收盘 —— 那个 0.1% 级前复权伪差的老问题）。按「收盘价 × 份额 必须等于当期
      快照 items[].val」这条硬约束 **取本机**（否则 cross-check ④ 会红 ✗），chg 相应为 −1.75%；
      etfSpx 两边一致（1.982 / −0.80%）✓；peTtm 是 AUTO 源，**取远端**（26.51 → 26.55）✓ */
-  etfNdx: { close: 1.62, chg: 3.05, low52: 1.244, ath: 1.795, athDate: "2026-10-12", prevYr: 1.413, priceDate: "2026-11-10" },  // etfNdx 持仓（场内价口径；**10-22 收盘手填**＝平安市值 182,160.60 ÷ 108,300 份 ✓）   /* ⚠ close 用 App 17:14 的 1.635（220,888.50 ÷ 135,100 自洽）；CI 抓的 1.640 会让总资产差 675 ✗ */
-  etfSpx: { close: 1.977, chg: 1.7, low52: 1.61, ath: 2.071, athDate: "2026-09-22", prevYr: 1.808, priceDate: "2026-11-10" },  // etfSpx 持仓（场内价口径；10-22 收盘 1.982，与 CI 一致 ✓）
+  etfNdx: { close: 1.63, chg: 3.69, low52: 1.244, ath: 1.795, athDate: "2026-10-12", prevYr: 1.413, priceDate: "2026-11-10" },  // etfNdx 持仓（场内价口径；**10-22 收盘手填**＝平安市值 182,160.60 ÷ 108,300 份 ✓）   /* ⚠ close 用 App 17:14 的 1.635（220,888.50 ÷ 135,100 自洽）；CI 抓的 1.640 会让总资产差 675 ✗ */
+  etfSpx: { close: 1.985, chg: 2.11, low52: 1.61, ath: 2.071, athDate: "2026-09-22", prevYr: 1.808, priceDate: "2026-11-10" },  // etfSpx 持仓（场内价口径；10-22 收盘 1.982，与 CI 一致 ✓）
   peFwd: 17.99, peTtm: 24.95, cape: 38.91, pePct: 65, // AUTO：S&P500 估值（historyofmarket.com, CC BY 4.0）；cape 取该 JSON 的 cape 序列（席勒），曾误取 pe 序列
   // ⚠ 2026-09-29：本机这次抓到 peTtm 28.00，与 CI（同一天 asOf = 08-05）的 28.11 不同 —— 两处 asOf 相同、值却差 0.11，
   //   而 28.11 是从 09-27 起页面上显示的值（那次 27.82 → 28.11）。判为本机抓取的响应差异，**保留 28.11**，
   //   不把一个已发布的值悄悄回退（同 asOf → 不取本机值；asOf 更新的项才取本机，见下）。
   ndxPeFwd: 19.01, ndxPePct: 40, // AUTO：NDX 远期PE 及其 2001 年以来周度分位（historyofmarket.com, CC BY 4.0）
   epsGrowth: 8, // MANUAL：盈利增速预期，无免费源，人工维护
-  asOf: { us: "2026-11-09", et: "16:00 EST", local: "2026-11-10 11:49:21" },
+  asOf: { us: "2026-11-09", et: "16:00 EST", local: "2026-11-10 16:53:51" },
   macroAsOf: null, // AUTO：宏观随当日收盘已同步
   thresholds: { t1: -5, t2: -15, t3: -25, t4: -35 }
 };
@@ -117,7 +117,7 @@ const MONTHLY = [
   },
   {
     "m": "11月",
-    "ndx": -1.6813,
+    "ndx": -1.6812,
     "spx": -0.3975
   }
 ];
@@ -1951,7 +1951,7 @@ const RECENT = {
       },
       {
         "d": "2026-11-09",
-        "c": 27907.625
+        "c": 27907.630859375
       }
     ]
   },
@@ -5577,7 +5577,7 @@ const RECENT = {
       },
       {
         "d": "2026-11-10",
-        "c": 59965.89
+        "c": 60459.58
       }
     ]
   }
@@ -5613,11 +5613,11 @@ const POSITIONS = {
   // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）＝ ETF 场内买入价相对基金实际价值的偏离；
   // 由脚本从天天基金净值接口自动计算。QDII 净值滞后 1-2 个交易日，溢价为近似值。折价为负。
   premiums: { // AUTO：场内溢价率%（收盘价 ÷ 最新单位净值 − 1）；QDII 净值滞后 1-2 个交易日
-    "159941": { pct: 20, nav: 1.3499, navDate: "2026-11-06", priceDate: "2026-11-10" },
+    "159941": { pct: 20.7, nav: 1.3499, navDate: "2026-11-06", priceDate: "2026-11-10" },
     "160644": { pct: 1.4, nav: 1.4105, navDate: "2026-11-06", priceDate: "2026-11-10" },
-    "513310": { pct: 11.3, nav: 3.2284, navDate: "2026-11-09", priceDate: "2026-11-10" },
-    "513650": { pct: 10.8, nav: 1.7848, navDate: "2026-11-06", priceDate: "2026-11-10" },
-    "513880": { pct: 7.3, nav: 1.8188, navDate: "2026-11-09", priceDate: "2026-11-10" },
+    "513310": { pct: 10.7, nav: 3.2284, navDate: "2026-11-09", priceDate: "2026-11-10" },
+    "513650": { pct: 11.2, nav: 1.7848, navDate: "2026-11-06", priceDate: "2026-11-10" },
+    "513880": { pct: 7.6, nav: 1.8188, navDate: "2026-11-09", priceDate: "2026-11-10" },
   },
   /* ⚠ 09-23 这五条是**手填**（脚本只在定时跑、push 不触发行情抓取 → 见 handoff.md §3.3 SOP 第 6 步）：
      按脚本同一算法「当日收盘价 ÷ 天天基金最新已公布净值」手算，价格日 = 2026-09-23，净值日见各条。
@@ -9756,7 +9756,7 @@ const HOLD_HIST = {
    "ifHeld": null,
    "qty": 146900,
    "avg": 1.6133,
-   "pl": 984,
+   "pl": 2453,
    "pts": [
     [
      "2026-06-23",
@@ -10418,7 +10418,7 @@ const HOLD_HIST = {
     ],
     [
      "2026-11-10",
-     984,
+     2453,
      146900,
      1.6133,
      236994
@@ -10439,7 +10439,7 @@ const HOLD_HIST = {
    "ifHeld": null,
    "qty": 112500,
    "avg": 1.9705,
-   "pl": 729,
+   "pl": 1629,
    "pts": [
     [
      "2026-06-24",
@@ -11094,7 +11094,7 @@ const HOLD_HIST = {
     ],
     [
      "2026-11-10",
-     729,
+     1629,
      112500,
      1.9705,
      221684
@@ -11115,7 +11115,7 @@ const HOLD_HIST = {
    "ifHeld": null,
    "qty": 35500,
    "avg": 2.0826,
-   "pl": -4671,
+   "pl": -4458,
    "pts": [
     [
      "2026-06-23",
@@ -11777,7 +11777,7 @@ const HOLD_HIST = {
     ],
     [
      "2026-11-10",
-     -4671,
+     -4458,
      35500,
      2.0826,
      73932
@@ -12584,7 +12584,7 @@ const HOLD_HIST = {
    "closedDate": "2026-10-09",
    "realized": -13217,
    "invested": 85674,
-   "ifHeld": -14562,
+   "ifHeld": -14820,
    "qty": 0,
    "avg": 5.3852,
    "pl": -12772,
@@ -13251,7 +13251,7 @@ const HOLD_HIST = {
     ],
     [
      "2026-11-10",
-     -27257,
+     -27516,
      15200,
      5.3852,
      81856
@@ -13989,29 +13989,39 @@ const ALT_BACKTEST = {
         added: 195.9,
         nFlows: 4,
         first: "2026-09-07",
-        to: "2026-11-09",
+        to: "2026-11-10",
         base: 13741.98,
         baseRet: -0.011368,
         mineCode: "513650",
         mineName: "标普500ETF南方",
-        mineFinal: 14450.75,
-        mineDiff: 708.78,
-        mineDiffPp: 0.050991,
+        mineFinal: 14755.53,
+        mineDiff: 1013.55,
+        mineDiffPp: 0.072917,
         rows: [
+          {
+            code: "159655",
+            name: "标普500ETF华夏",
+            rate: 0.75,
+            mine: false,
+            final: 14790.9,
+            ret: 0.064094,
+            diff: 1048.92,
+            diffPp: 0.075462
+          },
           {
             code: "513650",
             name: "标普500ETF南方",
             rate: 0.75,
             mine: true,
-            final: 14450.75,
-            ret: 0.039623,
-            diff: 708.78,
-            diffPp: 0.050991
+            final: 14755.53,
+            ret: 0.061549,
+            diff: 1013.55,
+            diffPp: 0.072917
           }
         ],
         allBest: {
-          code: "513650",
-          name: "标普500ETF南方"
+          code: "159655",
+          name: "标普500ETF华夏"
         }
       }
     ],
@@ -14019,9 +14029,9 @@ const ALT_BACKTEST = {
       n: 5,
       cost: 73810,
       base: 67928.55,
-      mineFinal: 71957.48,
-      diff: 4028.93,
-      diffPp: 0.054585
+      mineFinal: 72262.26,
+      diff: 4333.71,
+      diffPp: 0.058714
     }
   },
   groups: [
@@ -14251,59 +14261,29 @@ const ALT_BACKTEST = {
       label: "标普500",
       mine: "513650",
       first: "2026-06-24",
-      to: "2026-11-09",
+      to: "2026-11-10",
       trades: 23,
       sells: 0,
       total: 221683.5,
       real: {
         units: 112500,
-        final: 218700,
-        ret: -0.013458
+        final: 223312.5,
+        ret: 0.007348
       },
       rows: [
         {
-          code: "513500",
-          name: "标普500ETF博时",
-          rate: 0.8,
-          size: 240.2,
-          final: 219471.91,
-          ret: -0.009976,
-          retFlat: -0.009749,
-          navRet: -0.013014,
-          premStart: 0.062629,
-          premEnd: 0.111206,
-          diff: 725.24,
-          diffPp: 0.003272,
-          mine: false
-        },
-        {
-          code: "159612",
-          name: "标普500ETF国泰",
+          code: "159655",
+          name: "标普500ETF华夏",
           rate: 0.75,
-          size: 8.4,
-          final: 218955.07,
-          ret: -0.012308,
-          retFlat: -0.012747,
-          navRet: -0.013577,
-          premStart: 0.053931,
-          premEnd: 0.095637,
-          diff: 208.4,
-          diffPp: 0.00094,
-          mine: false
-        },
-        {
-          code: "161125",
-          name: "易方达标普500LOF",
-          rate: 1,
-          size: null,
-          final: 218931.02,
-          ret: -0.012416,
-          retFlat: -0.013188,
-          navRet: -0.012214,
-          premStart: 0.02735,
-          premEnd: 0.059332,
-          diff: 184.34,
-          diffPp: 0.000832,
+          size: 39.4,
+          final: 223544.4,
+          ret: 0.008394,
+          retFlat: 0.008578,
+          navRet: -0.017167,
+          premStart: 0.037679,
+          premEnd: 0.113281,
+          diff: 184.25,
+          diffPp: 0.000831,
           mine: false
         },
         {
@@ -14311,29 +14291,44 @@ const ALT_BACKTEST = {
           name: "标普500ETF南方",
           rate: 0.75,
           size: 77.2,
-          final: 218746.67,
-          ret: -0.013248,
-          retFlat: -0.013103,
+          final: 223360.16,
+          ret: 0.007563,
+          retFlat: 0.007711,
           navRet: -0.012613,
           premStart: 0.041713,
-          premEnd: 0.089198,
+          premEnd: 0.112169,
           diff: 0,
           diffPp: 0,
           mine: true
         },
         {
-          code: "159655",
-          name: "标普500ETF华夏",
+          code: "159612",
+          name: "标普500ETF国泰",
           rate: 0.75,
-          size: 39.4,
-          final: 218390,
-          ret: -0.014857,
-          retFlat: -0.014677,
-          navRet: -0.017167,
-          premStart: 0.037679,
-          premEnd: 0.087612,
-          diff: -356.67,
-          diffPp: -0.001609,
+          size: 8.4,
+          final: 223086.3,
+          ret: 0.006328,
+          retFlat: 0.00588,
+          navRet: -0.013577,
+          premStart: 0.053931,
+          premEnd: 0.116309,
+          diff: -273.86,
+          diffPp: -0.001235,
+          mine: false
+        },
+        {
+          code: "161125",
+          name: "易方达标普500LOF",
+          rate: 1,
+          size: null,
+          final: 222159.68,
+          ret: 0.002148,
+          retFlat: 0.001365,
+          navRet: 0.009948,
+          premStart: 0.02735,
+          premEnd: 0.051365,
+          diff: -1200.47,
+          diffPp: -0.005415,
           mine: false
         }
       ],
@@ -14346,8 +14341,8 @@ const ALT_BACKTEST = {
           ret: -0.03305,
           retFlat: -0.033161,
           navRet: -0.010444,
-          diff: -4389.85,
-          diffPp: -0.019802
+          diff: -9003.34,
+          diffPp: -0.040613
         }
       ]
     }
@@ -14677,99 +14672,99 @@ const SOURCE_META = {
   "ndx": {
     "asOf": "2026-11-09",
     "source": "Yahoo ^NDX",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "methodology": "10y available high; 52w intraday range; simple-window RSI14"
   },
   "spx": {
     "asOf": "2026-11-09",
     "source": "Yahoo ^GSPC",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "methodology": "10y available high; 52w intraday range; simple-window RSI14"
   },
   "monthly": {
     "asOf": "2026-11-09",
     "source": "NDX/SPX close-to-close aggregation",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "vix": {
     "asOf": "2026-11-09",
     "source": "CBOE VIX_History.csv (official)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "tnx": {
     "asOf": "2026-11-09",
     "source": "Yahoo ^TNX",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "fx": {
     "asOf": "2026-11-09",
     "source": "Frankfurter",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "tnx2": {
     "asOf": "2026-11-09",
     "source": "US Treasury par yield curve (US government work)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "peFwd": {
     "asOf": "2026-11-09",
     "source": "History of Market sp500 (forwardOwn 序列)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "peTtm": {
     "asOf": "2026-11-10",
     "source": "History of Market sp500 (trailing 序列)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "pePct": {
     "asOf": "2026-11-09",
     "source": "History of Market sp500",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "ndxPeFwd": {
     "asOf": "2026-11-09",
     "source": "History of Market ndx (forwardOwn 序列)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "ndxPePct": {
     "asOf": "2026-11-09",
     "source": "History of Market ndx",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "cape": {
     "asOf": "2026-11-06",
     "source": "History of Market sp500 (CAPE series, CC BY 4.0)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "putcall": {
     "asOf": "2026-11-09",
     "source": "CBOE total put/call",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "etfNdx": {
     "asOf": "2026-11-10",
     "source": "Tencent sz159941 qfq (latest price)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "premium:159941": {
     "asOf": "2026-11-06",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "priceDate": "2026-11-10",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -14777,13 +14772,13 @@ const SOURCE_META = {
   "hkus": {
     "asOf": "2026-11-10",
     "source": "Tencent sz160644 qfq (latest price)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "premium:160644": {
     "asOf": "2026-11-06",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "priceDate": "2026-11-10",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -14791,13 +14786,13 @@ const SOURCE_META = {
   "kr": {
     "asOf": "2026-11-10",
     "source": "Tencent sh513310 qfq (latest price)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "premium:513310": {
     "asOf": "2026-11-09",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "priceDate": "2026-11-10",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -14805,13 +14800,13 @@ const SOURCE_META = {
   "etfSpx": {
     "asOf": "2026-11-10",
     "source": "Tencent sh513650 qfq (latest price)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "premium:513650": {
     "asOf": "2026-11-06",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "priceDate": "2026-11-10",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -14819,13 +14814,13 @@ const SOURCE_META = {
   "n225": {
     "asOf": "2026-11-10",
     "source": "Tencent sh513880 qfq (latest price)",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   },
   "premium:513880": {
     "asOf": "2026-11-09",
     "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "priceDate": "2026-11-10",
     "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
@@ -14833,7 +14828,7 @@ const SOURCE_META = {
   "crosscheck": {
     "asOf": "2026-11-09",
     "source": "Sina gb_$ndx / gb_$inx + CBOE SPX_History.csv",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok",
     "deltaPct": 0,
     "compared": "NDX(Sina) 0.00%, SPX(Sina) 0.00%, SPX(CBOE) 0.00%"
@@ -14846,7 +14841,7 @@ const SOURCE_META = {
   "nikkei": {
     "asOf": "2026-11-10",
     "source": "Eastmoney 100.N225",
-    "fetchedAt": "2026-11-10T03:49:21.206Z",
+    "fetchedAt": "2026-11-10T08:53:51.678Z",
     "status": "ok"
   }
 };
