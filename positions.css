@@ -1695,6 +1695,18 @@
      一行一个月，四列：月份 / 纳指 / 我 / 相对上证。四列都用 tnum 右对齐 → 跨行同一条竖线 ✓
      ⚠ 四列内容都短（6~7 字符），手机上 356px 完全放得下，不需要折行或横滚 ✓ */
   .mc-tbl { margin-top: 10px; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
+  /* 亏损归因（2026-11-11 加）：与月表同族但更「实」—— 它给的是结论性的数字 */
+  .mc-attr {
+    margin: 8px 0 10px; padding: 9px 11px; border-radius: 8px;
+    background: rgba(240, 97, 109, .07);
+    border-left: 3px solid var(--red);
+    font-size: 11px; line-height: 1.7; color: var(--tx2);
+  }
+  .mc-attr .mca-t { display: block; color: var(--tx); font-size: 11.5px; margin-bottom: 2px; font-family: var(--sans); }
+  .mc-attr .mca-b { display: block; }
+  .mc-attr .mca-s { display: block; margin-top: 3px; color: var(--tx3); font-size: 10.5px; }
+  .mc-attr b { font-family: var(--mono); font-feature-settings: "tnum"; }
+
   .mc-row { display: grid; grid-template-columns: 2.6em 1fr 1fr 1fr; gap: 2px 10px;
     align-items: baseline; padding: 4px 0; font-size: var(--fs-xs); }
   .mc-row > b { font-family: var(--mono); font-weight: 400; text-align: right;

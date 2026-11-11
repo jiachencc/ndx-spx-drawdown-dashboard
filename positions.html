@@ -6789,6 +6789,31 @@ function renderAcctStats() {
         return '<div class="mc-sum"><b>完整 ' + full.length + " 个月里 " + same + " 个月与纳指同向</b> · "
           + part.join(" · ") + "</div>";
       })()
+      /* ── 亏损归因（2026-11-11 加，用户要求）──────────────────────────
+         把「累计亏损里有多少来自已清仓标的」摆出来 —— 这是回答「为什么跑输」最关键的一句 ✓
+         ⚠ **只陈述事实**（哪几只、各亏多少、占多少），不推断因果 ✗
+           数据全部取自现成字段：CLOSED_ETF.total/.items ＋ ACCT_STATS.pnl，无新口径
+         ⚠ 两道前置：两者都存在、且**都亏**时才显示 ——
+           若某天账户转正或已清仓标的翻红，这句话就不成立，不能硬留着 ✗ */
+      + (() => {
+        const CZ = (typeof CLOSED_ETF !== "undefined" && CLOSED_ETF) ? CLOSED_ETF : null;
+        if (!CZ || !Array.isArray(CZ.items) || !CZ.items.length) return "";
+        if (!(CZ.total < 0) || !(S.pnl < 0)) return "";
+        const share = CZ.total / S.pnl * 100;
+        const SHORT_C = { "中韩半导体ETF华泰": "中韩", "港美互联网LOF": "港美",
+                          "科创半导体ETF华夏": "科创" };
+        const items = CZ.items.slice().sort((a, b) => a.pnl - b.pnl);
+        const list = items.map((x) =>
+          '<b class="down">' + esc(SHORT_C[x.name] || x.name.replace(/ETF.*$/, "")) + " " + fmtAmt(x.pnl) + "</b>"
+          + (typeof x.rate === "number" ? "（" + fmtPct(x.rate / 100, 1) + "）" : "")
+        ).join(" · ");
+        return '<div class="mc-attr">'
+          + '<b class="mca-t">💡 亏损归因</b>'
+          + '<span class="mca-b">' + items.length + " 只<b>已清仓</b>标的合计 "
+          + '<b class="down">' + fmtAmt(CZ.total) + "</b>，占累计亏损 <b>" + share.toFixed(0) + "%</b>　" + list + "</span>"
+          + '<span class="mca-s">这三只<b>都不是</b>纳指 / 标普 / 日经 —— 美日三只目前接近打平（见「账户累计盈亏」）</span>'
+          + "</div>";
+      })()
       + (rows ? '<div class="mc-tbl">'
         + '<div class="mc-row mc-head"><span class="mc-m">月份</span><b class="mc-ix">纳指</b>'
         + '<b class="mc-me">我的账户</b><b class="mc-pp">相对纳指</b></div>'
