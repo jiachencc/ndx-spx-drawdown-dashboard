@@ -1696,6 +1696,11 @@
      ⚠ 四列内容都短（6~7 字符），手机上 356px 完全放得下，不需要折行或横滚 ✓ */
   .mc-tbl { margin-top: 10px; border-top: 1px dashed var(--line-soft); padding-top: 6px; }
   /* 亏损归因（2026-11-11 加）：与月表同族但更「实」—— 它给的是结论性的数字 */
+  /* 明细块的数据截止日（2026-11-11 加）：正常态很淡；两套数据不同日时转黄告警 */
+  .mcd-asof { display: block; margin-top: 2px; font-style: normal;
+    font-size: 9.5px; color: var(--tx3); font-family: var(--sans); }
+  .mcd-asof.warn { color: var(--yellow); }
+
   .mc-attr {
     margin: 8px 0 10px; padding: 9px 11px; border-radius: 8px;
     background: rgba(240, 97, 109, .07);

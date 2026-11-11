@@ -6699,6 +6699,19 @@ function renderAcctStats() {
     const wan = (v) => (v >= 10000 ? (v / 10000).toFixed(1) + " 万" : Math.round(v).toLocaleString("en-US"));
     const SHORT_SYM = { "纳指ETF广发": "纳指", "标普500ETF南方": "标普", "日经225ETF华安": "日经",
       "港美互联网LOF": "港美", "中韩半导体ETF华泰": "中韩" };
+    /* ── 两个数据源的截止日（2026-11-11 加，用户质疑「日经跑输这么多吗」引出的 bug）──
+       ⚠ 明细层把「指数月涨跌」和「ETF 月涨跌」并排相减 ✗
+         而两者**可能不同日**：
+           · 指数 ← MONTHLY（CI 的 build-* 每天刷）
+           · ETF  ← TREND.mo（build-trend.mjs 刷，可能落后 1~2 天）
+         实测 11-11 那次：ETF 只到 **11-06**、指数到 **11-11** →
+         日经算出「−7.97% vs −3.67%，跑输 4.31 点」，而真实是
+         「−3.50% vs −3.67%，**跑赢 0.17 点**」——**结论完全反了** ✗
+       → 在明细块头标出两个日期；不同日时高亮告警 ✓ */
+    const etfAsOf = (typeof TREND !== "undefined" && TREND.asOf) ? TREND.asOf : "";
+    const idxAsOf = (typeof RECENT !== "undefined" && RECENT.nikkei && RECENT.nikkei.pts
+      && RECENT.nikkei.pts.length) ? RECENT.nikkei.pts[RECENT.nikkei.pts.length - 1].d : "";
+    const asOfMixed = !!(etfAsOf && idxAsOf && etfAsOf !== idxAsOf);
 
     const rows = (S.monthly || []).map((r) => {
       const ym = ymOf(r);
@@ -6728,7 +6741,15 @@ function renderAcctStats() {
       const LAB = { "纳指": "纳指", "标普": "标普", "日经": "日经", "综合": "组合" };
       const detail = '<div class="mc-detail" data-layers="' + layers.length + '" hidden>'
         + '<div class="mcd-h">' + esc(r.m) + " · <b class=\"" + cls(r.pnl) + "\">" + fmtAmt(r.pnl) + "</b>"
-        + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "，券商口径）" : "") + "</div>"
+        + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "，券商口径）" : "")
+        + (etfAsOf || idxAsOf
+          ? '<i class="mcd-asof' + (asOfMixed ? " warn" : "") + '">'
+            + (asOfMixed
+              ? "⚠ ETF 价至 " + mdOf(etfAsOf) + "、指数至 " + mdOf(idxAsOf) + " —— 两者不同日，本块对比仅供参考"
+              : "ETF 价与指数均至 " + mdOf(etfAsOf || idxAsOf))
+            + "</i>"
+          : "")
+        + "</div>"
         + (layers.length ? '<div class="mcd-line mcd-head"><span class="mcd-k"></span>'
           /* ⚠ 2026-11-09 改名：这里的三行「我的」是**分层假设值**
              （全持纳指 / 全持标普 / 实际组合），不是账户在三个时点的真实收益 ✗
