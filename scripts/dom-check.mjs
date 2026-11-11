@@ -813,8 +813,11 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
     const real = doc ? doc.querySelectorAll('#hh-box polyline[stroke-dasharray="4 3"]') : [];
     const phantom = doc ? doc.querySelectorAll('#hh-box polyline[stroke-dasharray="2 3"]') : [];
     const lg = doc && doc.getElementById("hh-legend") ? doc.getElementById("hh-legend").textContent : "";
-    /* ⚠ 实线条数**跟着持仓走**（2026-11-05：588170 建仓后从 3 变 4，写死就误报 ✗）
-       清仓虚线 / 延续线仍是 2（中韩、港美两只已清仓的），这个数没变 ✓ */
+    /* ⚠ 三条线都**跟着数据走**，不许写死：
+       2026-11-05：588170 建仓 → 实线 3→4，写死 3 就误报 ✗
+       2026-11-11：588170 清仓 → 清仓只数 2→3、延续线 2→3，写死 2 就误报 ✗（刚踩）
+       ★ 规律：**延续线（phantom）每只清仓标的各一条** → 期望值就是 nClosed ✓
+         不需要单独再算一个数 ✗ */
     const nLive = (() => {
       try {
         const c2 = vm.createContext({});
@@ -829,8 +832,8 @@ check("配置图现金 = 最新快照 " + money(snapCash), near(allocText, snapC
         return (c3.C && c3.C.count) || 2;
       } catch (e) { return 2; }
     })();
-    check("各标的累计盈亏：" + nLive + " 实线（＝在场只数）+ " + nClosed + " 清仓虚线（＝CLOSED_ETF.count）+ 2 条「假设没卖」延续线 · 清仓图例印「已实现」",
-      solid.length === nLive && real.length === nClosed && phantom.length === 2 && /已实现/.test(lg),
+    check("各标的累计盈亏：" + nLive + " 实线（＝在场只数）+ " + nClosed + " 清仓虚线（＝CLOSED_ETF.count）+ " + nClosed + " 条「假设没卖」延续线（每只清仓各一条）· 清仓图例印「已实现」",
+      solid.length === nLive && real.length === nClosed && phantom.length === nClosed && /已实现/.test(lg),
       "实线 " + solid.length + " / 清仓虚线 " + real.length + " / 延续线 " + phantom.length + " · 图例「" + lg.replace(/\s+/g, " ").slice(0, 40) + "」");
   }
 }
