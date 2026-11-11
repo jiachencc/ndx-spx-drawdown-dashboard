@@ -2112,6 +2112,10 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       [["159941"], ["513650"], ["513880"]].forEach(([c]) => { const px = etfMo(c)[p2]; val[c] = px > 0 ? qtyAt(c, p2) * px : 0; });
       const tot = (val["159941"] || 0) + (val["513650"] || 0) + (val["513880"] || 0);
       const ixj = nkRet(ym), rj = etfRet("513880", ym);
+      /* ⚠ 2026-11-11 加：页面在「标普」与「综合」之间多了一层「日经」
+         （用户要求「11月我还想看到日经的同期对比」）→ 这里同步 ✓
+         数据用的是**同一组** ixj / rj（页面 push 的也是这两个值，不是另算一套）*/
+      if (ixj !== null && rj !== null) want.push({ k: "日经", ix: ixj, mine: rj });
       if (tot > 0 && ixj !== null && rj !== null) {
         const wn = val["159941"] / tot, ws = val["513650"] / tot, wj = val["513880"] / tot;
         want.push({ k: "综合", ix: wn * mo.ndx + ws * mo.spx + wj * ixj, mine: wn * rn + ws * rs + wj * rj });

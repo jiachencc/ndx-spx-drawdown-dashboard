@@ -6659,6 +6659,12 @@ function renderAcctStats() {
         if (rn !== null) out2.push({ label: "纳指", ix: mo.ndx, mine: rn });
         const rs = etfRet("513650", ym);
         if (rs !== null) out2.push({ label: "标普", ix: mo.spx, mine: rs });
+        /* ── 日经层（2026-11-11 加，用户要求「11月我还想看到日经的同期对比」）
+           ⚠ 数据**早就有了** —— `nkRet()` 从 RECENT.nikkei 算指数月度涨跌、
+             `etfRet("513880")` 算 ETF 月涨跌，两者下面「综合」层一直在用 ✓
+             只是从没 push 出来给读者看 ✗ 加一行即可，无新口径 ✓ */
+        const ixJ = nkRet(ym), rJ = etfRet("513880", ym);
+        if (ixJ !== null && rJ !== null) out2.push({ label: "日经", ix: ixJ, mine: rJ });
         /* 综合：三只按「上月末市值」加权 */
         const p = prevYm(ym), w = {}, val = {};
         [["159941", "ndx"], ["513650", "spx"], ["513880", "n225"]].forEach(([c]) => {
@@ -6719,7 +6725,7 @@ function renderAcctStats() {
          三个百分数并排、没有表头标明谁是市场谁是自己的、`→` 与 `pp` 又都是抽象符号 ✗
          现在：① 加**表头**（指数 / 我的 / 对比）② 差那列写成「跑赢 2.12 点」大白话
          ③ 去掉箭头（表头已经说明左右关系）④ 综合层改叫「组合」（"我的综合"读着别扭）*/
-      const LAB = { "纳指": "纳指", "标普": "标普", "综合": "组合" };
+      const LAB = { "纳指": "纳指", "标普": "标普", "日经": "日经", "综合": "组合" };
       const detail = '<div class="mc-detail" data-layers="' + layers.length + '" hidden>'
         + '<div class="mcd-h">' + esc(r.m) + " · <b class=\"" + cls(r.pnl) + "\">" + fmtAmt(r.pnl) + "</b>"
         + (typeof r.pct === "number" ? "（" + fmtPct(r.pct / 100, 2) + "，券商口径）" : "") + "</div>"
@@ -6808,10 +6814,19 @@ function renderAcctStats() {
           + (typeof x.rate === "number" ? "（" + fmtPct(x.rate / 100, 1) + "）" : "")
         ).join(" · ");
         return '<div class="mc-attr">'
-          + '<b class="mca-t">💡 亏损归因</b>'
+          + '<b class="mca-t">💡 亏损归因<i class="mca-q" title="为什么只给金额、不给「剔除后的收益率」：App 的累计收益率是资金加权口径，自行反算出的分母与「累计投入」不是一回事（券商内部算法未公开）→ 硬推「剔除后收益率」会误导；金额是逐分对的、可以直接减 ✓">?</i></b>'
           + '<span class="mca-b">' + items.length + " 只<b>已清仓</b>标的合计 "
           + '<b class="down">' + fmtAmt(CZ.total) + "</b>，占累计亏损 <b>" + share.toFixed(0) + "%</b>　" + list + "</span>"
           + '<span class="mca-s">这三只<b>都不是</b>纳指 / 标普 / 日经 —— 美日三只目前接近打平（见「账户累计盈亏」）</span>'
+          /* ── 剔除口径（2026-11-11 加，用户要求「想知道如果去掉那三个亏损的对比」）
+             ⚠ **只给绝对金额，不给百分比** ✗
+               App 那个 −17.85% 的反算分母只有 20.5 万，与「累计投入 64.3 万」不是一回事
+               （券商口径不明）→ 拿它去推「剔除后的收益率」必然错 ✗
+             金额是逐分对的：−36,555.40 + 21,078.10 = −15,477.30 ✓ 这个可以放心给 */
+          + '<span class="mca-s"><b>剔除这 ' + items.length + " 只</b>：累计亏损从 "
+          + '<b class="down">' + fmtAmt(S.pnl) + "</b> 降到 <b class=\"down\">"
+          + fmtAmt(S.pnl - CZ.total) + "</b>（少亏 <b>" + fmtAbs2(-CZ.total) + "</b>）"  /* 少亏是绝对额，不带 + 号 ✗ */
+          + "</span>"
           + "</div>";
       })()
       + (rows ? '<div class="mc-tbl">'
