@@ -9364,9 +9364,20 @@ function ladderHtml() {
         + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\">或 "
           + (due.slice(0, 4) === TODAY.slice(0, 4) ? due.slice(5) : due) + " 兜底</b>" : "");
 
+    /* ⚠ 2026-11-12 给这个数字加标签（用户原话：「−6.3% 是什么意思？」）——
+       原来它是**裸奔**的：一行里只有「名称 · −6.3% · 已投 73%」，读者只能猜这是跌幅、
+       收益率还是回撤 ✗；而且同页「距高点」用的是**盘中**最高（pos52Hi 1.795），
+       这里用的是**收盘**最高（hi52 1.769）→ 两个数差 1pp 左右，不加限定词一定被追问 ✗。
+       → 标签「距52周高点」＋ title 里给出完整算式与两个口径的差 ✓ */
+    const ddTitle = (Number.isFinite(it.px) && Number.isFinite(it.hi52))
+      ? "现价 " + it.px + " ÷ 52 周最高收盘 " + it.hi52 + " − 1 = " + neg1(dd)
+        + "　（收盘口径，不含盘中上影线；盘中最高 " + it.pos52Hi + "，按它算是 "
+        + neg1(Number.isFinite(it.pos52Hi) ? (it.px / it.pos52Hi - 1) * 100 : dd) + "）"
+      : "现价 ÷ 52 周最高收盘价 − 1";
     return '<div class="ldb-row">'
       + '<div class="ldb-head">'
       + '<span class="ldb-nm">' + NAME[c] + "</span>"
+      + '<span class="ldb-dd-lb" title="' + ddTitle + '">距52周高点</span>'
       + '<b class="ldb-dd">' + neg1(dd) + "</b>"
       + '<span class="ldb-cum">已投 <b>' + cum + "%</b></span>"
       + "</div>"
@@ -9376,14 +9387,80 @@ function ladderHtml() {
       + "</div></div>";
   }).join("");
 
+  /* ── 回到前高（2026-11-12 加，用户：「想有一个大概的心理预期」）────────────
+     口径与上面那个「距52周高点 −7.4%」**完全同源**（52 周最高收盘价 hi52），
+     只是把「还差多远」换算成「真到了值多少」：市值 = 当前份数 × hi52、浮盈 = 市值 − 成本额。
+     ⚠ 三个前高**不是同一天**（10-12 / 09-22 / 06-25）→ 这是「各自回到自己的前高」的合并情景，
+       不是某个真实历史时刻；不含现金、不扣卖出费用；份数/成本取当前，后续加仓这个数会跟着变 ✓
+     ⚠ 只在该三只都拿得到 hi52 时才算 —— 缺一只却不提示，合计会静默低估 ✗ */
+  const holdOf = (code) => (typeof POSITIONS !== "undefined" ? (POSITIONS.hold || []).find((h) => h.code === code) : null);
+  let pjCost = 0, pjVal = 0, nowVal = 0;
+  const pjRows = [];
+  CODES.forEach((c) => {
+    const h = holdOf(c), it = T[c] || {};
+    if (!h || !Number.isFinite(it.hi52) || !Number.isFinite(it.px)) return;
+    const cost = h.qty * h.cost, val = h.qty * it.hi52;
+    pjCost += cost; pjVal += val; nowVal += h.qty * it.px;
+    pjRows.push({ name: NAME[c], hi: it.hi52, val, pl: val - cost });
+  });
+  const signed = (v) => (v >= 0 ? "+" : "−") + fmtAbs2(v);
+  /* ⚠ 百分比不能复用 signed：fmtAbs2 是「截断到元」（Math.trunc）→ +8.45% 会变成 +8 ✗ */
+  const signedPct = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
+  const pjPl = pjVal - pjCost;
+  const pjPct = pjCost ? (pjPl / pjCost) * 100 : 0;
+  /* ── 历史修复速度（第三行，2026-11-12 加）────────────────────────────────
+     数据取 NDX_DD.stats 的 d10 档（−10 ~ −15%，n=11，峰→收复中位 53 个交易日）。
+     ⚠ 它与上面两行**不同源**：那是纳指指数 1995 年以来的统计，不是这三只 ETF 的价格 ——
+       所以文案必须写「同档历史」，不能写成「你大约 N 周回本」（ETF 还有溢价波动）✗
+     ⚠ 顺带说明一个已知的口径差：NDX_DD 里本次是 −11.9%（东财前复权纳指），
+       「今年这几次跌」卡显示 −14.71%（Yahoo 原始收盘）——差 2.8pp 是复权口径差，
+       两者都落在 −10~−15% 档，不改变档位判断 ✓ */
+  const st = (typeof NDX_DD !== "undefined" && NDX_DD.stats) ? NDX_DD.stats.find((s) => s.k === "d10") : null;
+  const ptsR = (typeof RECENT !== "undefined" && RECENT.ndx && Array.isArray(RECENT.ndx.pts)) ? RECENT.ndx.pts : null;
+  const og = (typeof DDHIST !== "undefined" && DDHIST.events) ? DDHIST.events.filter((e) => e.ongoing).at(-1) : null;
+  /* 峰之后已经过了几个交易日（含端点相减）：用 RECENT 的真实收盘数，不手填 */
+  const elapsed = (og && ptsR) ? ptsR.filter((p) => p.d >= og.peak).length - 1 : null;
+  const etaLeft = (st && Number.isFinite(elapsed)) ? st.medianTotal - elapsed : null;
+  const wk = (d) => (d / 5).toFixed(1).replace(/\.0$/, "");
+  const etaTxt = (st && Number.isFinite(elapsed))
+    ? "同档历史（" + st.label + "，" + st.n + " 次）峰→收复中位 <b>" + st.medianTotal + "</b> 个交易日 ≈ "
+      + wk(st.medianTotal) + " 周 · 本次已过 <b>" + elapsed + "</b> 日"
+      + (etaLeft > 0
+        ? "，按中位约还差 <b>" + etaLeft + "</b> 日（≈ " + wk(etaLeft) + " 周）"
+        : "（已超中位）")
+    : "";
+  const pjTip = pjRows.map((r) => r.name + "：前高 " + r.hi + " → 市值 " + fmtAbs2(r.val) + "、浮盈 " + signed(r.pl)).join("\n")
+    + "\n\n口径：三只各自回到自己的 52 周最高收盘价（不是同一天见顶：10-12 / 09-22 / 06-25），"
+    + "所以这是「合并情景」，不是某个真实历史时刻。不含现金、不扣卖出佣金。\n"
+    + "份数与成本取当前持仓 —— 后续再加仓，这个数会跟着变（批次越多，回前高的绝对收益越大）。\n"
+    + "\n「同档历史」那行来自 NDX_DD（纳指指数 1995 以来 · 东财前复权），不是这三只 ETF 的价格统计："
+    + "它只回答「这个跌幅档历史上一般多久收复」，不是对你的预测 —— ETF 还有自身的溢价波动，可能更快也可能更慢。\n"
+    + (st
+      ? "\n⚠ 中位数不等于「大多数都能这么快」：这 " + st.n + " 次里 " + (st.within || []).filter((w) => w.days <= 63).reduce((a, w) => Math.max(a, w.k), 0)
+        + " 次在 63 个交易日内收复，75% 分位是 " + st.p75 + " 个交易日（≈ " + wk(st.p75) + " 周）。"
+        + "样本只有 " + st.n + " 次，且都是纳指本身的历史，别当承诺。"
+      : "");
+  const proj = pjRows.length === CODES.length
+    ? '<div class="ldb-proj">'
+      + '<div class="ldb-proj-h"><span class="ldb-proj-lb">三只都回到 52 周前高</span>'
+      + '<b class="ldb-proj-v">' + fmtAbs2(pjVal) + "</b>"
+      + '<span class="ldb-proj-pl ' + (pjPl >= 0 ? "up" : "down") + '">' + signed(pjPl)
+      + "（" + signedPct(pjPct) + "）</span></div>"
+      + '<div class="ldb-proj-sub">比现在多 <b>' + signed(pjVal - nowVal) + "</b>"
+      + tipBtn(pjTip, "回到前高：口径与逐只明细") + "</div>"
+      + (etaTxt ? '<div class="ldb-proj-eta">' + etaTxt + "</div>" : "")
+      + "</div>"
+    : "";
   const card = document.getElementById("ladder-card");
   if (!card) return;
   card.innerHTML = '<div class="ld">'
     + rows
     + '<div class="ld-legend2"><i class="lg-done"></i>已触发 <i class="lg-next"></i>下一档 <i class="lg-todo"></i>未触发'
     + '<span class="ld-legend2-note">条长比例＝投入占比：底仓 ' + LADDER.base + "% ＋ 5 批 × " + LADDER.stepW + "%</span></div>"
+    + proj
     + '<div class="ld-note">'
-    + "<b>档位按各自波动定</b>：纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，设那么深等于永远不投 ✗；"
+    + "<b>「距52周高点」</b>＝现价 ÷ 52 周最高<b>收盘</b>价 − 1；别处的「距高点」用盘中最高，差约 1pp —— 刻意避开上影线，不是数据打架"
+    + "<br><b>档位按各自波动定</b>：纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，设那么深等于永远不投 ✗；"
     + "而等不到时标的平均涨了 <b>+33~38%</b>，所以底仓给到 " + LADDER.base + "% ✓"
     + "<br><b>时间兜底</b>：距上次买入满 <b>" + LADDER.months + " 个月</b>，不管跌没跌都投下一批 —— 防「牛市整年等不到」✓"
     + "<br><b>⚠ 前提</b>：场内可用现金 <b>0</b>，第一档就执行不了 ✗ 弹药从「新转进来的钱」留出，或从超配的那只匀"
