@@ -9429,24 +9429,59 @@ function ladderHtml() {
         ? "，按中位约还差 <b>" + etaLeft + "</b> 日（≈ " + wk(etaLeft) + " 周）"
         : "（已超中位）")
     : "";
-  const pjTip = pjRows.map((r) => r.name + "：前高 " + r.hi + " → 市值 " + fmtAbs2(r.val) + "、浮盈 " + signed(r.pl)).join("\n")
-    + "\n\n口径：三只各自回到自己的 52 周最高收盘价（不是同一天见顶：10-12 / 09-22 / 06-25），"
-    + "所以这是「合并情景」，不是某个真实历史时刻。不含现金、不扣卖出佣金。\n"
+  /* ── 场外也回到前高（2026-11-12 加，用户：「场外的也写进来，可以对比」）─────
+     份额/成本取 SNAPSHOTS **最新一期的 items**（那是唯一存 qty 的地方；OTC.funds 只有金额）——
+     ⚠ 021000 有 400 在途：qty 不含在途份额 → 它的前高市值少算约 400 元（占比 0.5%），
+       ⓘ 里写明，免得有人拿它与 App 的「基金资产」对不上 ✗。
+     前高取 OTC.funds[].nav.hi（52 周最高**单位净值**），与场内 hi52 同性质（都是净值/收盘，
+     不是盘中价），可直接并排比较 ✓ */
+  const lastSnap = (typeof SNAPSHOTS !== "undefined" && Array.isArray(SNAPSHOTS))
+    ? SNAPSHOTS.filter((s) => s.items).at(-1) : null;
+  const otcFunds = (typeof OTC !== "undefined" && Array.isArray(OTC.funds)) ? OTC.funds : [];
+  let oCost = 0, oVal = 0, oNow = 0;
+  const oRows = [];
+  otcFunds.forEach((f) => {
+    const it = (lastSnap && lastSnap.items) ? lastSnap.items[f.code] : null;
+    const hi = f.nav && f.nav.hi;
+    if (!it || !Number.isFinite(hi) || !Number.isFinite(it.qty)) return;
+    const cost = Number.isFinite(it.cost) ? it.cost : (it.val - it.pl);
+    const val = it.qty * hi;
+    oCost += cost; oVal += val; oNow += (it.val || 0);
+    oRows.push({ name: f.name, hi, val, pl: val - cost });
+  });
+  const allVal = pjVal + oVal, allCost = pjCost + oCost, allNow = nowVal + oNow;
+  const pjTip = "【场内 " + pjRows.length + " 只】\n"
+    + pjRows.map((r) => r.name + "：前高 " + r.hi + " → 市值 " + fmtAbs2(r.val) + "、浮盈 " + signed(r.pl)).join("\n")
+    + (oRows.length
+      ? "\n\n【场外 " + oRows.length + " 只】\n"
+        + oRows.map((r) => r.name + "：前高净值 " + r.hi + " → 市值 " + fmtAbs2(r.val) + "、浮盈 " + signed(r.pl)).join("\n")
+      : "")
+    + "\n\n口径：两边都是「各自回到自己的 52 周最高价」的**合并情景**，不是某个真实历史时刻"
+    + "（场内三个前高分别在 10-12 / 09-22 / 06-25，场外各只也不同）。不含现金、不扣卖出佣金。\n"
+    + "场内用收盘价（hi52），场外用单位净值（nav.hi）—— 都取收盘/净值口径，不用盘中价，两边可并排比 ✓\n"
     + "份数与成本取当前持仓 —— 后续再加仓，这个数会跟着变（批次越多，回前高的绝对收益越大）。\n"
-    + "\n「同档历史」那行来自 NDX_DD（纳指指数 1995 以来 · 东财前复权），不是这三只 ETF 的价格统计："
-    + "它只回答「这个跌幅档历史上一般多久收复」，不是对你的预测 —— ETF 还有自身的溢价波动，可能更快也可能更慢。\n"
+    + "⚠ 场外份额取快照 items 的 qty，021000 的 400 在途不含在内 → 它那一格少算约 400 元。\n"
+    + "\n「同档历史」那行来自 NDX_DD（纳指指数 1995 以来 · 东财前复权），不是这些 ETF / 基金的价格统计："
+    + "它只回答「这个跌幅档历史上一般多久收复」，不是对你的预测 —— 溢价与跟踪误差会让实际更快或更慢。\n"
     + (st
       ? "\n⚠ 中位数不等于「大多数都能这么快」：这 " + st.n + " 次里 " + (st.within || []).filter((w) => w.days <= 63).reduce((a, w) => Math.max(a, w.k), 0)
         + " 次在 63 个交易日内收复，75% 分位是 " + st.p75 + " 个交易日（≈ " + wk(st.p75) + " 周）。"
         + "样本只有 " + st.n + " 次，且都是纳指本身的历史，别当承诺。"
       : "");
+  /* 一行 = 标签 / 前高市值 / 浮盈（含收益率）；三行并排才好比「场内 vs 场外」 */
+  const pjRow = (label, val, pl, cost, sum) =>
+    '<div class="ldb-proj-r' + (sum ? " sum" : "") + '">'
+    + '<span class="ldb-proj-n">' + label + "</span>"
+    + '<b class="ldb-proj-v">' + fmtAbs2(val) + "</b>"
+    + '<span class="ldb-proj-pl ' + (pl >= 0 ? "up" : "down") + '">' + signed(pl)
+    + (cost ? "（" + signedPct((pl / cost) * 100) + "）" : "") + "</span></div>";
   const proj = pjRows.length === CODES.length
     ? '<div class="ldb-proj">'
-      + '<div class="ldb-proj-h"><span class="ldb-proj-lb">三只都回到 52 周前高</span>'
-      + '<b class="ldb-proj-v">' + fmtAbs2(pjVal) + "</b>"
-      + '<span class="ldb-proj-pl ' + (pjPl >= 0 ? "up" : "down") + '">' + signed(pjPl)
-      + "（" + signedPct(pjPct) + "）</span></div>"
-      + '<div class="ldb-proj-sub">比现在多 <b>' + signed(pjVal - nowVal) + "</b>"
+      + '<div class="ldb-proj-h"><span class="ldb-proj-lb">回到 52 周前高（估 · 市值 / 浮盈）</span></div>'
+      + pjRow("场内 " + CODES.length + " 只", pjVal, pjPl, pjCost, false)
+      + (oRows.length ? pjRow("场外 " + oRows.length + " 只", oVal, oVal - oCost, oCost, false) : "")
+      + (oRows.length ? pjRow("合计", allVal, allVal - allCost, allCost, true) : "")
+      + '<div class="ldb-proj-sub">都回去 ≈ 比现在多 <b>' + signed(allVal - allNow) + "</b>"
       + tipBtn(pjTip, "回到前高：口径与逐只明细") + "</div>"
       + (etaTxt ? '<div class="ldb-proj-eta">' + etaTxt + "</div>" : "")
       + "</div>"

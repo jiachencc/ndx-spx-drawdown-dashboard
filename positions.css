@@ -2537,6 +2537,15 @@
   background: rgba(90, 169, 255, .07); border: 1px solid rgba(90, 169, 255, .20); }
 .ldb-proj-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .ldb-proj-lb { font-size: var(--fs-xxs); color: var(--tx3); }
+/* 场内 / 场外 / 合计 三行（2026-11-12 加）：同一套三列，才比得出「哪边离前高更远」
+   —— 标签灰、市值中性、浮盈上色；合计行用虚线分隔 + 标签提亮，不与前两行平权 ✓ */
+.ldb-proj-r { display: grid; grid-template-columns: 1fr auto auto; gap: 1px 10px;
+  align-items: baseline; margin-top: 4px; font-size: var(--fs-xxs); }
+.ldb-proj-n { color: var(--tx3); white-space: nowrap; }
+.ldb-proj-r .ldb-proj-v { font-size: var(--fs-xs); }
+.ldb-proj-r.sum { margin-top: 5px; padding-top: 5px;
+  border-top: 1px dashed rgba(90, 169, 255, .22); }
+.ldb-proj-r.sum .ldb-proj-n { color: var(--tx2); }
 .ldb-proj-v { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700; color: var(--tx2);
   font-feature-settings: "tnum"; }
 .ldb-proj-pl { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700;
