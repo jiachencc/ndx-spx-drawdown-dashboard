@@ -101,6 +101,21 @@ jobs:
       - name: Fill missing benchmark levels (BENCH)
         continue-on-error: true
         run: node scripts/sync-bench.mjs
+
+      # ── 派生块（2026-11-12 加）──────────────────────────────────────────────
+      # 起因（用户问「今年这几次跌的数据需要更新吗」）：这几块**一直只在本地**由
+      # `node scripts/daily.mjs` 刷新，CI 里一步都没有 → 只要不开电脑跑一次，页面上
+      # 「今年这几次跌」（DDHIST）就停在最后一次本地运行那天，实测 11-12 时仍停在 11-06，
+      # 卡片还写着「反弹 +1.35%」而真实已反弹 6.55% ✗ —— 这是「看着有数据、其实是旧的」
+      # 那类最难受的失效（比缺数据更难发现）。
+      # 用 --only 而不是全量：hold（HOLD_HIST）与 prem（PREM_LOG）上面两步已经跑过，
+      # 重复跑既浪费时间又可能两边写同一块；dca（场外定投补记）**刻意不跑** —— 它写的是
+      # positions-data.js，而下面「Commit」那步只 git add data.js，跑了也不会被提交 ✗。
+      # continue-on-error：这几块都不影响「行情本身是否可用」，某一步失败（腾讯日K 限流、
+      # 东财净值未公布等）不该阻断日更；各脚本都是「校验后才原子写」，失败即保留旧值 ✓。
+      - name: Derived blocks (TREND / RANGE_LOG / DDHIST / NDX_DD / PREM_SCAN)
+        continue-on-error: true
+        run: node scripts/daily.mjs --only=trend,rng,dd,ndxdd,scan
       # 2026-10-16 删：原第 ⑥ 步「OTC nowcast inputs (NOWCAST)」—— 页面上的「场外当日预估」模块整体下线、
       # 数据侧已无消费者，故 fetch-nowcast.mjs 与 NOWCAST / NOWCAST_LOG 两块一并移除 ✓（连这一步一起拔掉）。
       - name: Final audit
