@@ -2368,7 +2368,21 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
     ddChip.click();
     const r5b = [...win.document.querySelectorAll("#trend-chips .tchip")].find((b) => b.getAttribute("data-r") === "5");
     if (r5b) r5b.click();                           // 本块后续无别的断言依赖走势视图状态 ✓
-    const seg = snapsR.slice(-5);
+    /* ⚠ 2026-11-12 修（CI 把 TREND 推到 11-12 后这条红了）：
+       页面会**多补一期「今日估」**（`buildTrendPts` 在 TREND.asOf 领先最新快照时补一点）
+       → 页面的「近5次」＝ 4 期快照 ＋ 今日估；而这里原来写 `snapsR.slice(-5)` ＝ 5 期快照
+       两个窗口**错位一期** ✗：多出来的那期（11-05）让 11-06 的 −3.85% 变成「区间内回撤」，
+       而页面从 11-06 归一化（nav[0]＝1），那段本来就不算 → 页面「无回撤」是**对的** ✓
+       → 窗口跟页面走：取 `trendPts` 的**日期序列**（只读日期，不读 val/flow），
+         再回 SNAPSHOTS 取同日期的点独立复算 ✓ 窗口对齐、数值仍独立 ✓ */
+    /* 页面的「今日估」补点条件（`buildTrendPts`）：今天 ≠ 最新快照日 且 todayVal 有效
+       → 此时它的「近5次」＝ **4 期快照 ＋ 1 期今日估**，而这里若仍 `slice(-5)` 会多出最早那期 ✗
+       判据改用**图上 x 轴是否印「今日」**：
+       ⚠ 不能用 `win.trendPts` —— 它是 `let` 声明的模块级变量，不挂 window ✗
+       ⚠ 也不能用 `#trend-cnt` —— 切到 dd 视图后它被改写成「快照 N 期 · 区间内无回撤」✗ */
+    const svgTxtEarly = [...win.document.querySelectorAll("#trend-box svg text")].map((t) => t.textContent).join(" ");
+    const hasToday = /今日/.test(svgTxtEarly);
+    const seg = snapsR.slice(hasToday ? -4 : -5);
     let nav = 1, peak = 1, deep = 0;
     for (let i = 1; i < seg.length; i++) {
       const p = seg[i - 1], x = seg[i];
