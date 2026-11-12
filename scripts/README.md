@@ -45,13 +45,19 @@ node scripts/check-data.mjs            # ⑦ 最终审计
 ## 四、常用命令
 
 ```sh
-node scripts/verify-all.mjs          # 一条命令跑全部门禁（钩子与 CI 都调它＝单一真源）
+node scripts/verify-all.mjs          # 一条命令跑全部门禁（钩子与 CI 都调它＝单一真源）· ≈4.7s
+node scripts/verify-all.mjs --data   # 只跑数据类（≈0.6s）：改 data.js / positions-data.js 时自检
+node scripts/verify-all.mjs --ui     # 只跑浏览器类（dom-check ＋ layout-check 深浅各一遍）
 node scripts/verify-all.mjs --deep   # 追加 typecheck
 node scripts/check-fed.mjs           # 只跑某一个门禁
 
 # 安装提交前钩子（文件在仓库里，但 git 不会自动启用）
 cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 ```
+
+> **钩子会按暂存区改动自动分流（2026-11-12 加）**：只暂存 `data.js` / `positions-data.js` → 走 `--data`（0.6s，dom-check 已由 `apply-screenshot --write` 跑过、CI 全量兜底）；动了 HTML/CSS/scripts → 全量（4.7s）；只有 `*.md` → 跳过。
+> 实测提醒：`verify-all` 是**并行**跑各项的，所以「跳过 layout-check」只省 0.5s（3.8s 的 dom-check 才是瓶颈）—— 别在这种折中上花时间。
+
 
 ## 五、新增东西怎么加
 

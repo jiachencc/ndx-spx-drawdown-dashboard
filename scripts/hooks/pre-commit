@@ -5,6 +5,29 @@
 #   报 `$log<乱码>: unbound variable`，且只在失败分支触发。变量紧邻非 ASCII 时一律写 ${log}。
 # 安装（文件在仓库里，但 git 不会自动启用）：
 #   cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# ── 2026-11-12 按暂存区改动分流 ────────────────────────────────────────────────
+# 起因（用户问「更新时哪里耗时」）实测本机：
+#   全量 verify-all 4.7s ｜ --data 0.57s ｜ dom-check 单跑 3.8s ｜ layout-check ×2 各 3.3s（**并行**跑）
+#   ⚠ 两个反直觉的实测结论（都推翻了我一开始的估算）：
+#     ① 全量不是 10s 而是 **4.7s** —— verify-all 是**并行**执行各项的，不是累加；
+#     ② 「跳过 layout-check、保留 dom-check」只省 **0.5s**（3.8s 的 dom-check 才是瓶颈）✗
+#        → 这个折中看着聪明、其实没收益，不做。
+#   → 于是分流成两档：**只动数据文件 = --data（0.57s）**；其余全量（4.7s）。
+#
+# 只动 data.js / positions-data.js 时为什么敢用 --data（它不含 dom-check）：
+#   ① 数据改动的主路径是 `apply-screenshot --write`，它落盘后**已经跑过** check-data + dom-check
+#      （同一套断言，见 scripts/apply-screenshot.mjs 末尾），提交时再跑一遍是重复 ✗；
+#   ② `--data` 里的 check-data（schema ＋ 全部历史快照）与 cross-check（快照场外 ↔ OTC.funds、
+#      flow ↔ Δ成本＋Δ现金、场内快照 ↔ 报价×份数、场外市值 ↔ nav.close）已覆盖数据契约的主要不变量；
+#   ③ CI 的 validate job 跑的是**全量** `node scripts/verify-all.mjs`（.github/workflows/update-data.yml），
+#      push 后兜底一遍 ✓。
+#   ⚠ 残余风险（知道即可）：手改数据**且**没走过录入器时，本地少一次 dom-check；
+#     要补就手动 `node scripts/dom-check.mjs`（3.8s），或直接跑全量。
+#
+# 其余情形：动了 HTML / CSS / scripts / 配置 → 全量（版面与数据都验）；
+#          只有 *.md → 直接跳过（文档影响不到任何门禁）。
+# ⚠ 判据取**暂存区**（--cached），不是工作区：钩子检查的就是「这次要提交的内容」✓
 set -u
 
 # node 可能不在默认 PATH（本机装在 .workbuddy 下）；找不到就跳过，别挡提交。
@@ -15,7 +38,39 @@ fi
 
 root="$(git rev-parse --show-toplevel)" && cd "$root" || exit 1
 
-if ! node scripts/verify-all.mjs; then
+has_data=0
+has_other=0
+has_any=0
+# 逐行读暂存区改动（本仓库文件名不含换行；不加 -z 是为了兼容 macOS 自带 sh）
+while IFS= read -r f; do
+  [ -z "${f}" ] && continue
+  has_any=1
+  case "${f}" in
+    *.md) ;;                                        # 文档：不参与判定
+    data.js|positions-data.js) has_data=1 ;;        # 纯数据：走 --data
+    *) has_other=1 ;;                               # 其余（html/css/scripts/配置）：全量
+  esac
+done <<EOF
+$(git diff --cached --name-only --diff-filter=ACMRD)
+EOF
+
+if [ "${has_any}" -eq 0 ]; then
+  # 空 diff（--amend 未改内容、或 --allow-empty）：保持旧行为，跑全量最保守
+  echo "pre-commit: 暂存区无文件差异 → 按全量校验"
+  args=""
+elif [ "${has_other}" -eq 1 ]; then
+  args=""
+elif [ "${has_data}" -eq 1 ]; then
+  args="--data"
+  echo "pre-commit: 只动了数据文件（data.js / positions-data.js）→ 数据类门禁（≈0.6s）✓"
+  echo "  （dom-check 已由 apply-screenshot --write 跑过；CI validate 会再跑全量兜底）"
+else
+  echo "pre-commit: 只有文档改动 → 跳过门禁 ✓"
+  exit 0
+fi
+
+# shellcheck disable=SC2086  # ${args} 要么为空、要么是单个已知开关，不做分词风险
+if ! node scripts/verify-all.mjs ${args}; then
   echo "pre-commit: 门禁未通过 → 已阻止提交（确认无误可用 git commit --no-verify 跳过）"
   exit 1
 fi
