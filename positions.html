@@ -6343,29 +6343,54 @@ function renderSnapLog() {
      但那三个数在别处都读得到 ——「本金与收益」给存量口径、最新一期逐期卡给本期变化、
      走势图给整段曲线；单独一张累计卡反而与它们重复（同一个数出现两次）。
      现在这一节只由逐期卡构成（每期一张，最新一期默认展开，更早期数进下面的折叠）。 */
+  /* 「收起」按钮（2026-11-13 加，用户：展开后「划到一半想折叠有点麻烦」）——
+     `<details>` 只允许一个 summary 且必须在**顶部** → 展开一大段之后想就地收起，只能滚回顶端 ✗。
+     这里在每组内容末尾放一枚，点击由下面的 JS 关掉外层 details 并滚回它的 summary ✓ */
+  const COLLAPSE = '<button type="button" class="snap-collapse">收起 ▴</button>';
+  const md = (d) => String(d).slice(5).replace("-", ".");
   const pairs = [];
-  for (let i = snaps.length - 1; i >= 1; i--) pairs.push(snapPairHtml(snaps[i - 1], snaps[i]));   // 新在上
+  for (let i = snaps.length - 1; i >= 1; i--) pairs.push({ d: snaps[i].d, html: snapPairHtml(snaps[i - 1], snaps[i]) });   // 新在上
   const base = snaps[0];
-  const baseHtml = '<article class="snap-item"><h3 class="snap-head"><time class="snap-date" datetime="' + base.d + '">' + base.d.slice(5).replace("-", ".") + "</time>" +
+  const baseHtml = '<article class="snap-item"><h3 class="snap-head"><time class="snap-date" datetime="' + base.d + '">' + md(base.d) + "</time>" +
     '<span class="snap-vs">基线快照 · ' + (base.items ? Object.keys(base.items).length + " 项明细 · " : "简快照 · ") + "总资产 " + fmtYuan(snapTotal(base)) +
     (typeof base.pl === "number" ? " · 累计收益 " + fmtAmt2(snapPl(base)) : "") + "</span></h3>" +
     '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">之后的快照将与它自动对比</span></div></article>';
   /* 只摊开最新 N 期，其余折进折叠区——逐期卡每张都很长，全铺开会把页面顶到看不完。
    * 区间累计卡（上方总结）始终保留，所以折叠不会遮住"整体怎么样了"。 */
   const KEEP = CONFIG.SNAP_KEEP;
-  html.push(pairs.slice(0, KEEP).join(""));
+  html.push(pairs.slice(0, KEEP).map((p) => p.html).join(""));
   if (pairs.length > KEEP) {
-    /* 上一版只写“展开更早 N 期”，不给时间跨度与累计变化，用户无法判断“隐藏了多大一段”
-     * 要不要展开。现在补上首末期日期与区间浮盈亏变化——两者均从 pairs 里可直接取到 */
     const rest = pairs.slice(KEEP);
+    /* ⚠ 2026-11-13 按月分组（与上面同一个诉求）：原先 40+ 期平铺在一个 details 里，
+       展开就是一条几千像素的长列表（实测 45 份快照 → 44 期），想收起只能滚回最顶端 ✗。
+       现在**每月一组、默认全部收起** → 想回看某个月只展开那一组；
+       月内仍按期次倒序，与「操作日志」的月小计同一口径 ✓（不新造时间维度） */
+    const groups = new Map();
+    for (const p of rest) {
+      const ym = p.d.slice(0, 7);
+      if (!groups.has(ym)) groups.set(ym, []);
+      groups.get(ym).push(p);
+    }
+    const monthBlocks = [...groups.entries()].map(([ym, list]) => {
+      const firstD = list[list.length - 1].d, lastD = list[0].d;
+      const span = firstD === lastD ? md(firstD) : md(firstD) + " → " + md(lastD);
+      return '<details class="snap-month"><summary><b>' + ym.slice(0, 4) + " 年 " + Number(ym.slice(5)) + " 月</b>"
+        + '<span class="snap-month-cnt">' + list.length + " 期 · " + span + "</span></summary>"
+        + list.map((p) => p.html).join("") + COLLAPSE + "</details>";
+    }).join("");
+    /* 上一版只写“展开更早 N 期”，不给时间跨度，用户无法判断“隐藏了多大一段”。
+       现在补上首末期日期（仍保留，外层收起时也能看到跨度） */
     const firstOld = snaps.length - 1 - KEEP;      // rest[0] 对应 snaps[idx] vs snaps[idx+1]，取较早一期
     const earliestD = snaps[Math.max(0, firstOld - rest.length + 1)]?.d;
     const latestOldD = snaps[Math.max(0, firstOld)]?.d;
     const spanTxt = earliestD && latestOldD
-      ? '<span class="snap-more-range">' + earliestD.slice(5).replace("-", ".") + " → " + latestOldD.slice(5).replace("-", ".") + "</span>"
+      ? '<span class="snap-more-range">' + md(earliestD) + " → " + md(latestOldD) + "</span>"
       : "";
-    html.push('<details class="snap-more"><summary>展开更早 <b>' + rest.length + '</b> 期 + 基线快照 ' + spanTxt + '</summary>' +
-      rest.join("") + baseHtml + "</details>");
+    /* ⚠ 外层**不放**「收起」：它和每月那枚都会 `sticky bottom` 钉在视口底部 → 同时展开时两枚重叠 ✗。
+       外层收起时内容只有 4 个月份行 + 基线卡（约 280px），滚回去点 summary 并不费劲；
+       真正长的是月内那 17 期，那才需要 sticky 的收起 ✓ */
+    html.push('<details class="snap-more"><summary>展开更早 <b>' + rest.length + '</b> 期 + 基线快照 ' + spanTxt + '</summary>'
+      + monthBlocks + baseHtml + "</details>");
   } else {
     html.push(baseHtml);
   }
@@ -6996,6 +7021,23 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTipPop(); });
 window.addEventListener("resize", closeTipPop);   /* 位置是算出来的：窗口一变就可能落到屏幕外，直接关掉 */
+
+/* 快照对比的「收起 ▴」（2026-11-13 加，用户：「展开以后很长，划到一半想折叠有点麻烦」）——
+   `<details>` 只有一个 summary 且在顶部，展开 40+ 期之后想就地收起必须滚回顶端 ✗。
+   这里关掉最近的 details 并把它的 summary 滚进视口中央，滚回去的那一下也有落点（不会"刷"地跳回页首）。
+   ⚠ 用 closest 做事件委托、不记任何状态：重渲染后照样生效（与 .tip 同一套做法）✓ */
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest(".snap-collapse") : null;
+  if (!btn) return;
+  const box = btn.closest("details");
+  if (!box) return;
+  box.open = false;
+  const sum = box.firstElementChild;                       // summary 一定是第一个子元素
+  if (sum && sum.scrollIntoView) {
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    sum.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }
+});
 
 /* ================= 费率体检（FEES，由 scripts/fetch-fees.mjs 抓东财基金档案写入） =================
  * 它回答的是「确定性成本」这一半：费率不影响今天赚多少，只决定长期少赚多少 —— 而它是唯一

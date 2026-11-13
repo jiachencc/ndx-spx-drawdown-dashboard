@@ -431,6 +431,25 @@
   /* 折叠区 summary 里的首末期日期区间。原误用 .snap-note-meta（期次解读折叠行的元信息列），
      同名不同义：那个选择器被收窄到 .snap-note-wrap 后，这里的 span 就成了无样式、又随时可能被误改 */
   .snap-more > summary .snap-more-range { font-family: var(--mono); font-feature-settings: "tnum"; color: var(--tx3); }
+  /* 每月一组（2026-11-13 加）：外层「展开更早期数」之下再按月折叠一次 —— 40+ 期平铺成一条长列表，
+     展开后想收起只能滚回最顶端 ✗。层级按 §4.6 用「缩进 + 左 2px 竖线」表达，不新增横线 ✓ */
+  .snap-month { margin: 5px 0 3px; padding-left: 9px; border-left: 2px solid var(--line-soft); }
+  .snap-month > summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer;
+    list-style: none; padding: 7px 2px; font-size: var(--fs-xs); color: var(--tx2); }
+  .snap-month > summary::-webkit-details-marker { display: none; }
+  .snap-month > summary::after { content: "▾"; margin-left: auto; color: var(--tx3); font-size: var(--fs-xxs); }
+  .snap-month[open] > summary::after { content: "▴"; }
+  .snap-month-cnt { font-size: var(--fs-xxs); color: var(--tx3); font-family: var(--mono); font-feature-settings: "tnum"; }
+
+  /* 「收起 ▴」：每组内容末尾一枚 —— details 只有顶部 summary，展开一大段后想就地收起只能滚回顶端 ✗
+     ⚠ 关键在 `position: sticky; bottom` —— 单纯放在末尾没用：展开 17 期后它离视口底 4000+px，
+       用户滚到一半照样够不着（2026-11-13 实测：10 月那组展开后 5,723px，按钮在最低端）。
+       sticky 之后按钮**在整个展开区内钉在视口底部**，滚到哪都能一键收起 ✓ 背景不透明以免文字透出 */
+  .snap-collapse { position: sticky; bottom: 8px; z-index: 3; display: block; width: 100%;
+    margin: 8px 0 4px; padding: 7px 4px; font-size: var(--fs-xxs); color: var(--tx3);
+    background: var(--card2); cursor: pointer; border: 1px dashed var(--line-soft);
+    border-radius: 6px; font-family: inherit; box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
+  .snap-collapse:hover, .snap-collapse:focus-visible { color: var(--tx2); border-color: var(--line); }
   .snap-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; font-size: var(--fs-sm); font-weight: 400; }   /* 后两项重置 h3 默认字重/字号 */
   .snap-head .snap-tag { margin-left: auto; }   /* 事件标签推到行尾：卡头左侧固定是「日期 + vs」，右侧固定是标签 */
   /* 卡头关键数（2026-09-24 加，用户建议）：把「本期盈亏 / 总盈亏」从卡内两整行提到卡头这一行 ——
