@@ -46,7 +46,7 @@ ndx_spx_dashboard_handoff/
 ├── positions.css   ← 持仓页的样式表（2026-09-27 从 positions.html 的内联 <style> 抽出，1,126 行）
 ├── positions-data.js ← 持仓页的 MANUAL 数据层：OTC / OTC_LOG / SNAPSHOTS（2026-09-27 从 positions.html 抽出，~780 行）
 ├── font.css        ← JetBrains Mono @font-face（base64 内嵌），index/positions 两页共享
-├── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / CALENDAR / POSITIONS，每日更新只改此文件
+├── data.js         ← 数据层：DEFAULT / MONTHLY / DCA_NDX / DCA_SPX / POSITIONS，每日更新只改此文件
 ├── scripts/
 │   ├── fetch_and_update.mjs   ← AUTO 区抓数脚本（见 §3.3）
 │   ├── alt-etf-backtest.mjs   ← 标的替换回测：抓同批行情 → 写 data.js:ALT_BACKTEST + outputs/ 报告（见 §4.7）
@@ -63,7 +63,7 @@ ndx_spx_dashboard_handoff/
 - **NDX / SPX**：脚本直接抓 Yahoo **^NDX / ^GSPC 官方指数**日线（不再用 QQQ/SPY 代理推导），自动重算 MA50/MA200/RSI/52周低/ATH（含 `athDate` 历史高点日期）。**二级降级链（2026-10-17 删掉 stooq）**：Yahoo（10y，单 host 单次尝试）→ **腾讯 `usfqkline`（`usNDX` / `usINX`，≈1000 根 / 4 年）**。腾讯这条与项目里场内 ETF 日K 用**同一个接口**，已逐点核对与 Yahoo 完全一致（2026-09-22 高 30770.63 = `ath`、09-25 收 30608.13 = `close`；新浪 `gb_$ndx` 30608.1343 第三方互证）。⚠ 但它只给 ≈4 年 → `ath` / `athDate` / `days` 会退化成「4 年最高」，因此脚本把 `Tencent usNDX qfq (≈4y window, not 10y)` 写进 `SOURCE_META.source`、`methodology` 同步改写 → **「数据有效性」面板会直接显示这条降级原因**（不允许静默降级）。VIX / TNX **刻意不接腾讯**：实测 `usVIX` 停在 2026-04-15 的 21.67（与现值差很远）、`usTNX` 不存在 → 接了反而把好数据换成过期值。**2026-10-17 起换源**：VIX 主源 = **CBOE 官方 `VIX_History.csv`**（1990 至今、当天收盘即更新、不吃 429），Yahoo 仅兜底；TNX = Yahoo ^TNX，兜底 **FRED `DGS10`**（T+1）；TNX2 = 财政部曲线，兜底 **FRED `DGS2`**。三者都拿不到时照旧 `retained`，并在引用它的规则旁标注。
 - **年内最大回撤 `ddYtd`**：脚本从 10 年日 K 取当年收盘序列，按运行高点算最大跌幅（收盘口径，与 prevYr/月度涨跌幅一致），随行情每日自动更新。
 - **宏观指标**：VIX / 恐贪 FG / 美债 TNX·TNX2 / 人民币 FX 由 Actions 每日自动更新。**估值（peFwd/peTtm/cape/pePct + NDX 的 ndxPeFwd/ndxPePct）与 putcall 也已自动化**（2026-08 起）：估值取自 historyofmarket.com 开放 JSON（CC BY 4.0，`/api/sp500/forward-pe.json` + `/api/sp500/pe.json` + `/api/ndx/forward-pe.json`）；Put/Call 抓取 CBOE 公开每日统计页的 TOTAL PUT/CALL RATIO。`pePct` 口径 = 当前远期 PE 在 1990 年以来全部周度读数中的百分位；`ndxPePct` 口径同法但样本自 2001 年起（NDX 远期PE 数据起点）。CAPE 源为周频，日更时数值不变属正常。抓取失败时脚本自动保留旧值，不报错。
-- **仍需人工维护**：`epsGrowth`（无免费源）与 `CALENDAR`（编辑性内容）。
+- **仍需人工维护**：只剩 `epsGrowth`（无免费源，数日一更）。~~`CALENDAR`~~ 已于 2026-11-14 删除（见下）。
 - **定投回测**：`DCA_NDX` / `DCA_SPX` 各 **2517 点**（2016–2026 每日定投 1 元），仅展示累计收益率与一次性买入对比，不产生买卖信号。区间表含近1月/3月/半年/1年/全周期五档（窗口按交易日 21/63/126/252 近似切片）。
 - **决策矩阵口径（2026-08-28 校准，基于 10 年日K回测）**：回撤矩阵的历史频率/胜率 = NDX 2016-2026 独立下跌段、触发后 60 个交易日窗口（-5% 约5次/年·胜率82%；-15% 4段；-25% 2段全胜；-35% 1次）。止盈阈值依据：T+1 用 YTD +18%（NDX 年均涨幅约 18%，15% 会常年触发停大额；YTD+15~20% 后 60 日胜率 89% 故只停加码不卖出）；T+2 用 YTD +22%（YTD 首破 +20% 后 20 日胜率仅 38%，是全矩阵唯一有本数据回测支撑的减仓信号）；决策依据确认条件 VIX 阈值用 25（20 在正常波动区间、常年命中无区分度）。卡片上的历史统计是固定文案（历史分布不随每日行情变化），状态联动由 JS 实时计算。
 
@@ -75,10 +75,9 @@ ndx_spx_dashboard_handoff/
 ### 3.3 数据更新（2026-08-27 起自动化）
 **AUTO 区**由 GitHub Actions 自动刷新：[scripts/fetch_and_update.mjs](scripts/fetch_and_update.mjs) 抓 Yahoo/Frankfurter/CNN/CBOE/historyofmarket，每个交易日收盘后跑两次 [.github/workflows/update-data.yml](.github/workflows/update-data.yml)——主跑 `47 21 * * 1-5`（UTC 21:47 = 北京次日 05:47）、补跑 `0 2 * * 2-6`（UTC 02:00 = 北京 10:00），自动重算 MA50/MA200/RSI/52周低/ATH 并提交。GitHub 定时任务可能延迟数小时，脚本有 `intraday` 判断兜底，晚跑数据仍正确。失败保留旧值；`if: failure()` 会写 error annotation + Summary（2026-10-17 加，起因是一次漏跑静默一整天）。盘中手动触发会如实标 `intraday: true`。宏观已随行情同步时 `macroAsOf` 自动置 null。
 
-**人工只需维护 MANUAL 区三件事**：
+**人工只需维护 MANUAL 区两件事**：
 1. `epsGrowth`（盈利增速预期）——无免费 API，按你的信息源数日一更。
-2. `CALENDAR`（事件日历）——删除已过期事件、补充未来 1-2 周关键事件（名称可标"预计"，写一句决策向解读）。
-3. `POSITIONS`（持仓）——买卖后更新 `hold` 的 qty/cost（`idxAtCost` = cost，口径统一为 ETF 自身场内价），并在 `log` 顶部加一条流水（`cost` = 当日成交价，供买入位置分布图用）；只记份数与成本价，不记金额/账户（隐私模糊化）。`strategy` 的 dip/rally 日内操作线（%）一般不动，调整属策略变更。展示由 positions.html 自动计算。
+2. `POSITIONS`（持仓）——买卖后更新 `hold` 的 qty/cost（`idxAtCost` = cost，口径统一为 ETF 自身场内价），并在 `log` 顶部加一条流水（`cost` = 当日成交价，供买入位置分布图用）；只记份数与成本价，不记金额/账户（隐私模糊化）。`strategy` 的 dip/rally 日内操作线（%）一般不动，调整属策略变更。展示由 positions.html 自动计算。
 
 ~~每月月初补 MONTHLY~~ 已自动化：月度涨跌幅由脚本按日 K 聚合（月末收盘环比，当月为至今），无需手改。
 
@@ -182,7 +181,7 @@ ndx_spx_dashboard_handoff/
 - **改色只需动 `:root` 与 `body.light` 两组变量**，别在组件里硬编码（少数 SVG/标题渐变/hint-pop 气泡有专门覆盖规则，搜索 `body.light` 即可定位）。
 
 ### 4.2 视觉层级与布局规则
-- **视觉层级** `.card-hi` / `.card-lo`：决策级卡（触发矩阵、决策依据、止盈、DCA 回测）用 `.card-hi` 强化边框阴影引导优先阅读；背景级卡（事件日历）用 `.card-lo` 降饱和缩小。加在 `<div class="card">` 上即可，无 JS 依赖。
+- **视觉层级** `.card-hi` / `.card-lo`：决策级卡（触发矩阵、决策依据、止盈、DCA 回测）用 `.card-hi` 强化边框阴影引导优先阅读；次要信息卡用 `.card-lo` 降饱和缩小（原举例是「事件日历」，该模块 2026-11-14 已连数据一并删除）。加在 `<div class="card">` 上即可，无 JS 依赖。
 - **布局对齐铁律**：`.grid > .card + .card { margin-top: 0 }` —— grid 内卡片间距一律由 `gap: 18px` 控制，不要给 grid 直接子卡片加 margin（会破坏同行 stretch 等高对齐）；纵向堆叠区块间分隔仍走 `.card + .card` 的 margin-top。
 - **数字排版**：数字统一 JetBrains Mono（可变字重 woff2 以 base64 内嵌于共享 `font.css`，latin 子集约 40KB，index/positions 两页共用浏览器缓存，零外链；大号展示数字与数据小字同源，仅字号/字重分层）。body 已启用 `font-feature-settings: "tnum"`，多列数据自动对齐。新组件数字直接用 `var(--mono)` 即可，勿再新增字体栈。
 - **grid 溢出防御**：`.grid > .card { min-width: 0 }` —— grid item 默认 `min-width: auto` 会被内容 min-content 撑破列宽，导致窄屏（≤440px 手机）横向溢出。新增 grid 容器时沿用此规则。

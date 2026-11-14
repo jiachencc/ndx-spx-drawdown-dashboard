@@ -227,7 +227,6 @@
     .trig-dist { text-align: left; overflow-wrap: anywhere; }
     .scale-stats { flex-wrap: wrap; gap: 10px; }
     .scale-stats .ss { min-width: 90px; }
-    .cal-pri { font-size: 9.5px; padding: 2px 6px; }
     .kpi .k-val { font-size: 14px; }
     .card { padding: 16px; }
     .idx-close { font-size: 24px; }
@@ -404,23 +403,9 @@
     content: ""; position: absolute; left: var(--pos, 50%); top: -3px; width: 2.5px; height: 14px;
     background: var(--cursor, #fff); border-radius: 2px; transform: translateX(-50%);
   }
-  /* ===== Calendar ===== */
-  .cal-item { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line-soft); }
-  .cal-item:last-child { border-bottom: none; }
-  .cal-date { flex-shrink: 0; width: 46px; text-align: center; }
-  .cal-date .d { font-family: var(--mono); font-size: 18px; font-weight: 800; line-height: 1; }
-  .cal-date .m { font-size: 10.5px; color: var(--tx3); margin-top: 2px; }
-  .cal-info { flex: 1; }
-  .cal-info .e-name { font-size: 12.5px; font-weight: 600; }
-  .cal-info .e-desc { font-size: 11px; color: var(--tx2); }
-  .cal-pri { flex-shrink: 0; font-size: 10.5px; padding: 2px 9px; border-radius: 10px; height: fit-content; font-weight: 700; }
-  /* 日历空态：全部事件都已过期（或还没登记）时的占位行 —— 比空卡片更像「正常的空」，
-     并说明有几条过期没显示，免得被当成数据没加载出来 */
-  .cal-empty { padding: 12px 0 10px; font-size: 11.5px; color: var(--tx3); }
-  .cal-empty b { color: var(--tx2); font-weight: 600; }
-  .pri-high { background: rgba(242,109,125,.14); color: var(--red); }
-  .pri-mid { background: rgba(247,193,78,.13); color: var(--yellow); }
-  .pri-low { background: rgba(143,160,186,.12); color: var(--tx2); }
+  /* ⚠ 2026-11-14 删掉「未来事件日历」的第一版样式（.cal-item / .cal-date / .cal-info / .cal-pri /
+     .cal-empty ＋ 优先级徽章 .pri-high/mid/low，共 16 条）—— 该模块在 4d97207 就从页面删了，
+     这些类在 HTML 里一次都没再出现（逐条 grep 过），是纯遗留 ✓（与 positions.css 的 .ld-* 同一类清理） */
   /* ===== FX / misc ===== */
   .fx-num { font-family: var(--mono); font-size: 38px; font-weight: 700; letter-spacing: .3px; }
   .note { font-size: 11.5px; color: var(--tx2); margin-top: 12px; line-height: 1.75; }
@@ -694,7 +679,6 @@
        .source-health-note      来源日期（"NDX 10-08"）
        .trig-row .t-desc        VIX 读数（"VIX 15.41"）
        .dca-sum .pos            定投收益百分比（"+181.9%"）
-       .cal-empty b             日历空档计数
        .footer b                版本号（"v6.9"）
        td.h-desc b              事件日期（"当前 (2026-09)"）
        .recent-spans .rtab      周期档（1M/6M/12M/3M —— 纯周期代码，不是名称 ✓）
@@ -710,7 +694,6 @@
   .source-health-note,
   .trig-row .t-desc,
   .dca-sum .pos,
-  .cal-empty b,
   .footer b,
   td.h-desc b,
   .recent-spans .rtab { font-family: var(--mono); font-feature-settings: "tnum"; }
