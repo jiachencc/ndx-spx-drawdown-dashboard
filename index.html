@@ -485,25 +485,12 @@
   }
   .hist-table tr:last-child td { border-bottom: none; }
   .hist-table .h-desc { font-family: var(--sans); color: var(--tx2); font-size: 11.5px; }
-  /* ── 「近10年中位数回撤」两行对比（2026-11-07 重做）
-     原来是 8px 高的一条尺上塞三根标记，两个中位只差 1.87pp、靠颜色和方向硬区分 ✗
-     → 去掉尺，改成「纳指 / 标普」各一行：中位 · 当前 · 差多少 ✓ */
-  .hist-med { margin-top: 12px; }
-  .hm-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px;
-    font-size: 10.5px; color: var(--tx3); }
-  .hm-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
-  .hm-row { display: grid; grid-template-columns: 2.8em 1fr 1fr auto;
-    gap: 2px 8px; align-items: baseline; padding: 3px 0;
-    font-size: 11.5px; border-top: 1px dashed var(--line-soft); }
-  .hm-row:first-of-type { border-top: none; }
-  .hm-name { color: var(--tx); font-weight: 600; font-size: 11.5px; }
-  .hm-mid, .hm-cur { font-family: var(--mono); font-feature-settings: "tnum"; }
-  .hm-mid { color: var(--tx3); }
-  .hm-cur { color: var(--tx2); }
-  .hm-diff { font-family: var(--mono); font-feature-settings: "tnum";
-    font-weight: 700; text-align: right; color: var(--tx3); white-space: nowrap; }
-  .hm-diff.down { color: var(--red); }
-  .hm-diff.up { color: var(--green); }
+  /* ⚠ 2026-11-14 删掉「近10年中位数回撤」那套 .hm-* 独立版式（.hist-med / .hm-head / .hm-row /
+     .hm-name / .hm-mid / .hm-cur / .hm-diff，共 12 条）—— 那块已并进主表成为「近 10 年典型」一行，
+     自建一套网格只会让同一份数据有两种长相 ✗ */
+  /* 「近 10 年典型」行的数值：参照物，用中性色（--tx2）—— 比历史事件的实色弱、
+     比当前行的黄字更弱，一眼分得出「这是基线，不是我的处境」✓ */
+  #hx-med-row td b { color: var(--tx2); }
   /* ── 「这波跌多久能修复」（2026-11-07 从 positions.html 搬来，再按用户要求改成表格）──
      与上面那张「事件 / 纳指 / 标普 / 耗时」用同一套视觉语言，不另造一套 ✓ */
   /* ── 分组标题 / 一句话结论 / 口径脚注（2026-11-07 加）── */
@@ -513,9 +500,18 @@
     font-size: 11.5px; color: var(--tx2); line-height: 1.72; }
   .hx-verdict b { color: var(--tx); font-family: var(--mono); font-feature-settings: "tnum"; }
   .hx-verdict .hx-vd { color: var(--tx3); }
-  .hx-sub { margin: 16px 0 7px; font-size: 11px; color: var(--tx3);
-    display: flex; align-items: center; gap: 7px; letter-spacing: .02em; }
-  .hx-sub::after { content: ""; flex: 1; height: 0; border-top: 1px solid var(--line-soft); }
+  /* ⚠ 2026-11-14 删掉 `.hx-sub`（①②③④ 四个平级分组标题）—— 改完后卡里只剩一张主表 +
+     两个折叠件，不再需要「分组小标题 + 西文分隔线」这套；折叠件的 summary 自己就是标题 ✓ */
+  /* 折叠件（③ 修复时间 / ④ 长期基准）：默认收起，summary 右侧给关键数 —— 不展开也知道结论 */
+  .hx-fold { margin-top: 14px; border-top: 1px dashed var(--line-soft); }
+  .hx-fold > summary { display: flex; align-items: baseline; gap: 7px; cursor: pointer;
+    list-style: none; padding: 10px 2px 9px; font-size: 11.5px; color: var(--tx2); }
+  .hx-fold > summary::-webkit-details-marker { display: none; }
+  .hx-fold > summary::after { content: "▾"; margin-left: 6px; color: var(--tx3); font-size: 10px; }
+  .hx-fold[open] > summary::after { content: "▴"; }
+  .hx-fold .hx-fd-n { font-family: var(--mono); font-size: 10px; color: var(--tx3); }
+  .hx-fold-k { margin-left: auto; font-family: var(--mono); font-size: 10.5px;
+    color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; }
   .hx-foot { margin-top: 7px; font-size: 10.5px; color: var(--tx3); line-height: 1.65; }
   .hx-foot b { color: var(--tx2); }
   .hx-th-note { display: block; font-size: 9px; color: var(--tx3); font-weight: 400; opacity: .8; }
@@ -524,6 +520,8 @@
     background: rgba(245,185,61,.16); color: var(--yellow); font-weight: 400;
     font-family: var(--sans); vertical-align: 1px; }
   .hist-table tr.hx-now td { border-top: 1px solid var(--line); }
+  /* 当前行日期不许在「(2026-」处断行（2026-11-14 手机截图实测：380px 下断成「当前 (2026-」/「11)」）*/
+  .hist-table tr.hx-now .h-desc > b { white-space: nowrap; }
   .hist-repair { margin-top: 8px; padding-top: 0; border-top: none; }
   .hr-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     font-size: 12px; color: var(--tx2); margin-bottom: 7px; }
@@ -547,10 +545,7 @@
     .hr-tbl th, .hr-tbl td { padding: 4px 5px; font-size: 11px; }
     .hr-tbl td .hr-sub { font-size: 9.5px; }
   }
-  @media (max-width: 430px) {
-    .hm-row { grid-template-columns: 2.4em 1fr 1fr; gap: 1px 6px; }
-    .hm-diff { grid-column: 2 / -1; text-align: left; font-size: 10.5px; }
-  }
+  /* （原 .hm-row 的窄屏媒体查询 2026-11-14 随 .hm-* 一并删除 —— 那块已并进主表） */
 
   .hist-cagr {
     display: flex; align-items: center; gap: 16px; margin-top: 12px;
@@ -975,7 +970,13 @@
          → 现在：顶部一句话结论 ＋ ①②③ 分组 ＋ 表头写明口径 ＋ 当前行标「进行中」 ✓ -->
     <div class="hx-verdict" id="hx-verdict"></div>
 
-    <div class="hx-sub">① 历史上几次大回撤</div>
+    <!-- ⚠ 2026-11-14 布局重排（用户：「4 个模块、4 个表格排布混乱」）——
+       原结构是 ①②③④ 四个平级分组，其中 ①③ 是表格（③ 里还有两张 4 列表）、②④ 是数字行，
+       表格与数字行交替出现，节奏碎；而且 ②（这次 vs 近 10 年典型）与 ① 讲的是**同一件事**
+       （这次在历史里算什么水平），拆成两块反而要来回对照 ✗
+       → 现在：**一张主表**承载 ①+②（典型行直接插在当前行的上一行），
+         ③④ 收进折叠件（summary 里给关键数，不展开也知道结论）✓
+       功能一个没少：原 ② 的「深/浅 X pp」挪到当前行的数字下面，③④ 只是默认收起。 -->
     <table class="hist-table">
       <tr><th>事件</th><th>纳指</th><th>标普</th><th>峰→谷</th></tr>
       <tr title="纳指 2000-03-10 5048.62 → 2002-10-09 1114.11；标普 2000-03-24 1527.46 → 2002-10-09 776.76"><td class="h-desc">2000 互联网泡沫</td><td style="color:var(--red)">−77.93%</td><td style="color:var(--red)">−49.15%</td><td>~943 天</td></tr>
@@ -987,32 +988,42 @@
            与 positions.html 的「今年这几次跌 · 历史坐标」读同一份数据 ✓。
            上面 2000 / 2008 / 2020 / 2022 四行仍为**人工维护**（本仓库没有那段日线，算不出来）。 -->
       <tr id="dd25-row"><td class="h-desc">2025 那次回调</td><td style="color:var(--yellow)"><b id="dd25-dd">--</b></td><td style="color:var(--yellow)"><b id="dd25-spx">--</b></td><td><b id="dd25-days">--</b></td></tr>
-      <tr class="hx-now"><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b><span class="hx-live">进行中</span></td><td style="color:var(--yellow)"><b id="hist-cur">--</b></td><td style="color:var(--yellow)"><b id="hist-cur-spx">--</b></td><td><b id="hist-cur-days">--</b><span class="hx-cell-note">已过</span></td></tr>
+      <!-- 「近 10 年典型」＝ 原 ② 那块（两行数字对比）的中位值，现在直接作为表格一行蹲在当前行上方 ——
+           读者不用在两张表之间来回找「典型是多少、当前比它深多少」✓
+           峰→谷 列给「—」：中位是**深度**统计，没有对应的时长口径（原卡片也没给过） -->
+      <tr id="hx-med-row" title="近 10 年 ≥3% 回撤段深度的中位数（2016-08 → 2026-08，由 scripts/build-ddhist.mjs 现算）">
+        <td class="h-desc">近 10 年典型<span class="hx-cell-note">回撤段中位</span></td>
+        <td><b id="hm-ndx">--</b></td><td><b id="hm-spx">--</b></td><td>—</td></tr>
+      <tr class="hx-now"><td class="h-desc"><b style="color:var(--tx)">当前 (<span id="hist-cur-month">--</span>)</b><span class="hx-live">进行中</span></td>
+        <td style="color:var(--yellow)"><b id="hist-cur">--</b><span class="hx-cell-note" id="hist-cur-gap"></span></td>
+        <td style="color:var(--yellow)"><b id="hist-cur-spx">--</b><span class="hx-cell-note" id="hist-cur-gap-spx"></span></td>
+        <td><b id="hist-cur-days">--</b><span class="hx-cell-note">已过</span></td></tr>
     </table>
     <div class="hx-foot">「峰→谷」＝ 该次回撤从高点到低点的交易日数（<b>纳指口径</b>）；当前行是<b>已过天数</b>，还在进行中 ✗
-      2000 / 2008 / 2020 / 2022 四行为人工核对值，2025 与当前两行由 DDHIST 动态填 ✓</div>
+      2000 / 2008 / 2020 / 2022 四行为人工核对值；2025、近 10 年典型、当前三行由 DDHIST 动态填 ✓
+      「深/浅 X pp」＝ 当前回撤与该指数自己的中位之差。</div>
 
-    <div class="hx-sub">② 这次 vs 近 10 年典型回撤</div>
-    <!-- ⚠ 2026-11-07 重做（用户：「或者改掉这个轴，用数据对比来做？」）：
-         原来是一条 8px 高的尺上塞三根标记（黄粗/灰细上挑/蓝细下挑）——
-         两个中位只差 1.87pp ≈ 4.7% 宽，靠颜色和方向硬区分，读起来很费劲 ✗
-         → 整条尺**去掉**，改成两行数字并列：中位 / 当前 / 差多少，一眼可比 ✓ -->
-    <div class="hist-med" id="hist-med"></div>
-
-    <!-- 这波跌多久能修复（2026-11-07 从 positions.html 搬来，用户：「之前算过的回撤修复时间也加上，放在历史回撤对照就可以」）
+    <!-- 这波跌多久能修复（2026-11-07 从 positions.html 搬来；2026-11-14 收进折叠件）
          ⚠ 数据：data.js 的 NDX_DD（AUTO，scripts/build-ndx-dd.mjs 生成，纳指 1995 至今 8,000+ 个交易日）
            DDHIST 只有 5 个近期事件、样本太小 ✗ 所以走另一份数据 ✓
-         ⚠ 放在「中位数」之后：先看这波比典型回撤深多少，再看历史上这种深度要修多久 ✓ -->
-    <div class="hx-sub">③ 这种深度历史上修多久</div>
-    <div class="hist-repair" id="hist-repair"></div>
+         ⚠ 为什么折叠：它回答的是「还要等多久」，与主表的「这次算多深」是两个问题，
+           平铺会让两者抢同一视线；summary 里已给「中位 N 日 · 还需约 M 日」，不展开也知道结论 ✓ -->
+    <details class="hx-fold">
+      <summary><span class="hx-fd-n">③</span>这种深度历史上修多久<span class="hx-fold-k" id="hx-repair-k">--</span></summary>
+      <div class="hist-repair" id="hist-repair"></div>
+    </details>
 
-    <div class="hx-sub">④ 长期年化基准 · 近 18 年 CAGR</div>
-    <div class="hist-cagr">
-      <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
-      <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
-    </div>
-    <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> 标普500 自 1928 年以来<b>年内平均最大回撤 -16.2%</b>，多数年份年末仍收正 —— 当前 NDX 年内回撤 <b id="hist-ddytd">--</b> 属寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
-    <div class="note">当前 <b id="hist-rank-txt">--</b> 属<b>普通技术性回调</b>；真正的加仓窗口（-15% 以下）约 12% 的交易日出现，需耐心等。</div>
+    <!-- 长期年化基准 + 两条背景 note（2026-11-14 一并收进折叠件）——
+         它们回答的是「长期该不该怕跌」，属背景信息，不该和「当前处于什么位置」平权 ✗ -->
+    <details class="hx-fold">
+      <summary><span class="hx-fd-n">④</span>长期年化基准 · 近 18 年 CAGR<span class="hx-fold-k" id="hx-cagr-k">--</span></summary>
+      <div class="hist-cagr">
+        <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
+        <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
+      </div>
+      <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> 标普500 自 1928 年以来<b>年内平均最大回撤 -16.2%</b>，多数年份年末仍收正 —— 当前 NDX 年内回撤 <b id="hist-ddytd">--</b> 属寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
+      <div class="note">当前 <b id="hist-rank-txt">--</b> 属<b>普通技术性回调</b>；真正的加仓窗口（-15% 以下）约 12% 的交易日出现，需耐心等。</div>
+    </details>
   </div>
 
 <!-- ======= DCA zero indicator ======= -->
@@ -1394,25 +1405,22 @@ function renderHist(ndxDD) {
   })();
 
   (function renderMedCmp() {
-    const box = $("hist-med");
-    if (!box) return;
-    const row = (nm, mid, cur) => {
-      if (!Number.isFinite(mid) || !Number.isFinite(cur)) {
-        return '<div class="hm-row"><b class="hm-name">' + nm + '</b><span class="hm-mid">中位 --</span>'
-          + '<span class="hm-cur">当前 --</span><span class="hm-diff">--</span></div>';
-      }
-      const gap = cur - mid;                         // 负 = 当前比中位更深
-      const txt = Math.abs(gap) < 0.05 ? "持平"
-        : (gap < 0 ? "深 " + Math.abs(gap).toFixed(2) + "pp" : "浅 " + gap.toFixed(2) + "pp");
-      return '<div class="hm-row"><b class="hm-name">' + nm + '</b>'
-        + '<span class="hm-mid">中位 ' + neg(pct(mid)) + '</span>'
-        + '<span class="hm-cur">当前 ' + neg(pct(cur)) + '</span>'
-        + '<span class="hm-diff ' + (Math.abs(gap) < 0.05 ? "" : (gap < 0 ? "down" : "up")) + '">' + txt + '</span></div>';
+    /* ⚠ 2026-11-14：原来是独立的两行对比块（`#hist-med`，自己一套 .hm-* 网格）——
+       它与上面那张事件表讲的是**同一件事**（这次在历史里算什么水平），
+       却各用一套版式，读者要在两块之间来回找「典型多少 / 我比它深多少」✗
+       → 现在并进主表：中位填「近 10 年典型」那一行、差值挂到「当前」行的数字下面 ✓
+       （`#hist-med` 已删，dom-check 的取值锚点同步改成 `#hm-ndx` / `#hm-spx`） */
+    const put = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    const gapTxt = (cur, mid) => {
+      if (!Number.isFinite(cur) || !Number.isFinite(mid)) return "";
+      const g = cur - mid;                           // 负 = 当前比中位更深
+      return Math.abs(g) < 0.05 ? "与典型持平"
+        : (g < 0 ? "比典型深 " + Math.abs(g).toFixed(2) + "pp" : "比典型浅 " + g.toFixed(2) + "pp");
     };
-    box.innerHTML = '<div class="hm-head"><i>典型 ＝ 近 10 年 ≥' + Math.abs(DHIST_THR) + '% 的回撤段深度的中位（2016-08 → 2026-08）</i></span>'
-      + '<button class="hint-i" type="button" aria-label="查看释义" data-h="median">?</button></div>'
-      + row("纳指", median, ndxDD)
-      + (medSpx === null ? "" : row("标普", medSpx, spxDD));
+    put("hm-ndx", Number.isFinite(median) ? neg(pct(median)) : "--");
+    put("hm-spx", Number.isFinite(medSpx) ? neg(pct(medSpx)) : "--");
+    put("hist-cur-gap", gapTxt(ndxDD, median));
+    put("hist-cur-gap-spx", gapTxt(spxDD, medSpx));
   })();
 
   /* 这波跌多久能修复（2026-11-07 从 positions.html 搬来）：
@@ -1427,7 +1435,13 @@ function renderHist(ndxDD) {
     if (!N || !Array.isArray(N.events) || !Array.isArray(N.stats)) { box.innerHTML = ""; return; }
     const og = N.events.filter((e) => e.ongoing).sort((a, b) => (a.peak < b.peak ? 1 : -1))[0] || null;
     const dd = og ? og.dd : ndxDD;
-    const past = og ? og.toTrough : (Number.isFinite(D.ndx.days) ? D.ndx.days : null);
+    /* ⚠ 2026-11-14 修一处口径自相矛盾（排布局时发现的）：
+       原来 `past` 取 `og.toTrough`（峰→**谷**，22 日），而「峰→收复·中位 53 日」是**从高点**算起 ——
+       22 + 31 = 53 看似自洽，但主表「当前」行的「已过」用的是 `D.ndx.days`（峰→**今天**，28 日），
+       于是同一张卡里「已过 28 天」＋「还需约 31 日」＝ 59 ≠ 53 ✗；
+       positions 页那句「回到前高约还差 N 周」也是按「今天」算的 → 三处会各说各话。
+       → 统一成「峰→今天」：28 + 25 = 53 ✓（已经反弹了一段，剩余天数理应比「假设今天还在谷底」少） */
+    const past = Number.isFinite(D.ndx.days) ? D.ndx.days : (og ? og.toTrough : null);
     const b = N.stats.find((x) => {
       if (x.k === "d10") return dd > -15;
       if (x.k === "d15") return dd <= -15 && dd > -20;
@@ -1441,33 +1455,42 @@ function renderHist(ndxDD) {
       const p2 = w.n ? Math.round(w.k / w.n * 100) : null;
       return "≤" + (w.days / 21).toFixed(0) + "月 <b>" + (p2 === null ? "—" : p2 + "%") + "</b>";
     }).join(" · ");
-    /* ⚠ 2026-11-07 改表格（用户：「格式化一下 也用表格呈现」）——
-       原来是三行带 em-space 的散排文字，数字和标签混在一起 ✗
-       现在两张小表：上＝修复天数、下＝累计概率，与上面那张事件表的视觉语言一致 ✓ */
+    /* ⚠ 2026-11-14 从**两张 4 列表**改成**一张 2 列表**（用户：「4 个模块、4 个表格排布混乱」）——
+       原结构：表 A（峰→收复中位 / 25~75% / 已过 / 还需约）＋ 表 B（≤1/2/3/6 月 × 命中笔数），
+       手机 356px 下每列只剩 80px，「1 个月」「4/11」全在折行，扫读成本极高 ✗
+       → 现在一张「指标 | 值」纵表：上面 4 行是**时间**、下面 N 行是**概率**，
+         一列标签一列数值，手机上不再挤成一团 ✓（信息一条没少）
+       ⚠ summary 里也塞了关键数（中位 N 日 · 还需约 M 日）—— 折叠状态下也能读到结论 ✓ */
+    const prRows = (b.within || []).map((w) => {
+      const p2 = w.n ? Math.round(w.k / w.n * 100) + "%" : "—";
+      return '<tr><td>≤<b>' + (w.days / 21).toFixed(0) + '</b> 个月内收复</td>'
+        + '<td><b>' + w.k + "/" + w.n + '</b><span class="hr-sub">' + p2 + "</span></td></tr>";
+    }).join("");
     box.innerHTML = '<div class="hr-head">这波跌多久能修复'
       + '<i>同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次已收复</i></div>'
       + '<table class="hr-tbl">'
-      + '<tr><th>峰→收复 · 中位</th><th>25% ~ 75%</th><th>已过</th><th>还需约</th></tr>'
-      + '<tr>'
-      + '<td><b>' + b.medianTotal + '</b> 日<span class="hr-sub">约 ' + mo(b.medianTotal) + ' 个月</span></td>'
-      + '<td>' + b.p25 + ' ~ ' + b.p75 + ' 日<span class="hr-sub">样本 ' + b.n + ' 次</span></td>'
-      + '<td>' + (Number.isFinite(past) ? '<b>' + past + '</b> 日' : '—')
-      + '<span class="hr-sub">' + (og && /^\d{4}-\d{2}-\d{2}$/.test(og.peak) ? "自 " + og.peak.slice(5) + " 高点" : "") + '</span></td>'
-      + '<td>' + (left === null ? '—' : '<span class="hr-hi">' + left + '</span> 日') 
-      + '<span class="hr-sub">' + (left === null ? '' : '约 ' + mo(left) + ' 个月') + '</span></td>'
-      + '</tr></table>'
-      + '<table class="hr-tbl" style="margin-top:7px;">'
-      + '<tr><th>从高点起算，多久内收复</th>' + (b.within || []).map((w) => '<th>≤' + (w.days / 21).toFixed(0) + ' 月</th>').join('') + '</tr>'
-      + '<tr><td class="hr-sub" style="text-align:left;">命中笔数 / 样本</td>'
-      + (b.within || []).map((w) => '<td><b>' + (w.n ? Math.round(w.k / w.n * 100) + '%' : '—') + '</b>'
-        + '<span class="hr-sub">' + w.k + '/' + w.n + '</span></td>').join('')
-      + '</tr></table>'
+      + '<tr><th>指标</th><th>值</th></tr>'
+      + '<tr><td>峰→收复 · 中位</td><td><b>' + b.medianTotal + '</b> 日<span class="hr-sub">约 ' + mo(b.medianTotal) + ' 个月</span></td></tr>'
+      + '<tr><td>25% ~ 75% 分位</td><td><b>' + b.p25 + ' ~ ' + b.p75 + '</b> 日<span class="hr-sub">样本 ' + b.n + ' 次</span></td></tr>'
+      + '<tr><td>已过<span class="hr-sub">' + (og && /^\d{4}-\d{2}-\d{2}$/.test(og.peak) ? "自 " + og.peak.slice(5) + " 高点" : "自本波高点") + '</span></td>'
+      + '<td>' + (Number.isFinite(past) ? '<b>' + past + '</b> 日' : '—') + '</td></tr>'
+      + '<tr><td>还需约</td>'
+      + '<td>' + (left === null ? '—' : '<b class="hr-hi">' + left + '</b> 日<span class="hr-sub">约 ' + mo(left) + ' 个月</span>') + '</td></tr>'
+      + prRows
+      + '</table>'
       + '<div class="hr-note">⚠ 样本只有 ' + b.n + ' 次，25%~75% 落在 ' + b.p25 + '~' + b.p75
       + ' 日、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>';
+    /* 折叠条上的关键数：不展开也能判断「要不要展开看分布」 */
+    const kEl = $("hx-repair-k");
+    if (kEl) kEl.textContent = "中位 " + b.medianTotal + " 日" + (left === null ? "" : " · 还需约 " + left + " 日");
   })();
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
+  /* ④ 折叠条上的关键数（2026-11-14）：CAGR 两个值是 HTML 里写死的常量，这里直接读 DOM 再拼，
+     免得同一个数在两处各写一份、改一处漏一处 ✗ */
+  const ckEl = $("hx-cagr-k"), cnEl = $("hc-ndx"), csEl = $("hc-spx");
+  if (ckEl && cnEl && csEl) ckEl.textContent = cnEl.textContent.trim() + " · " + csEl.textContent.trim();
   $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd) : "--";   // 年内回撤基准对照（数据驱动）
   /* 2025 那行改成数据驱动（2026-10-24）：取 DDHIST 里 2025 年最深的一段。
      没有 DDHIST 就退回「--」，不编数 ✓ */

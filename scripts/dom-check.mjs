@@ -2900,18 +2900,17 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
          原来的 parseFloat 会把整串读成 NaN（开头是中文）→ 必须按标签分别提取 ✓ */
       const wm = DH && DH.median ? DH.median.med : null;
       const wmSpx = DH && DH.median && Number.isFinite(DH.median.medSpx) ? DH.median.medSpx : null;
-      /* ⚠ 2026-11-07：那块从「一条尺」改成「两行对比表」（中位 / 当前 / 差多少）✗
-         `#med-num` 已不存在 → 改从 `#hist-med` 整块文本里按「纳指 / 标普」行提取中位值 ✓
-         每行文本形如：纳指  中位 −7.23%  当前 −13.94%  深 6.71pp */
-      const medTxt = txtOf("hist-med").replace(/−/g, "-");
-      const pickN = (re) => { const m = medTxt.match(re); return m ? parseFloat(m[1]) : NaN; };
-      const gotNdx = pickN(/纳指\s*中位\s*(-?\d+\.\d+)/);
-      const gotSpx = pickN(/标普\s*中位\s*(-?\d+\.\d+)/);
+      /* ⚠ 2026-11-14：那块（原 `#hist-med` 的两行对比表）已**并进主表**成为「近 10 年典型」一行
+         （用户：「4 个模块、4 个表格排布混乱」）→ 中位值现在在 `#hm-ndx` / `#hm-spx` 两个单元格里，
+         取值锚点同步换掉；「深/浅 X pp」挪到当前行的 `#hist-cur-gap*`，不再在这里判 ✓ */
+      const pickedNdx = parseFloat((txtOf("hm-ndx") || "").replace("−", "-"));
+      const pickedSpx = parseFloat((txtOf("hm-spx") || "").replace("−", "-"));
       check("决策看板「中位数回撤」纳指/标普两值 ≡ DDHIST.median（不再写死 −7.5%）",
-        Number.isFinite(wm) && Number.isFinite(gotNdx) && Math.abs(gotNdx - wm) < 0.011
-          && (wmSpx === null || (Number.isFinite(gotSpx) && Math.abs(gotSpx - wmSpx) < 0.011)),
+        Number.isFinite(wm) && Number.isFinite(pickedNdx) && Math.abs(pickedNdx - wm) < 0.011
+          && (wmSpx === null || (Number.isFinite(pickedSpx) && Math.abs(pickedSpx - wmSpx) < 0.011)),
         wm === null ? "DDHIST.median 缺失 ✗"
-          : "页面 " + medTxt + " · 数据 纳指 " + wm + "%（" + DH.median.n + " 段）"
+          : "页面 纳指 " + (txtOf("hm-ndx") || "—") + " / 标普 " + (txtOf("hm-spx") || "—")
+            + " · 数据 纳指 " + wm + "%（" + DH.median.n + " 段）"
             + (wmSpx === null ? "" : " / 标普 " + wmSpx + "%（" + DH.median.nSpx + " 段）"));
       }
 
@@ -2919,20 +2918,22 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
          它整块是 JS 渲染的，数据缺了会静默变空 ✗ → 断言：有中位天数、有「还需约」、有概率三档 */
       {
         const rpTxt = (txtOf("hist-repair") || "").replace(/\s+/g, " ");
-        /* ⚠ 2026-11-07 改成表格后文本里没有「中位 53 个交易日」这种连续表述了 ✗
-           （表头「峰→收复 · 中位」和数值「53 日」被 th/td 分开）
-           → 按「表结构 + 关键数值存在」判：表格数 ≥2、有「日」为单位的量、有概率档头 */
+        /* ⚠ 2026-11-14：从**两张 4 列表**合成**一张 2 列纵表**（用户：「4 个模块、4 个表格排布混乱」）——
+           上 4 行是时间口径（中位 / 分位 / 已过 / 还需约），下面 N 行是各期限的累计概率。
+           断言的判据随之改：**表格数 = 1**（原为 2），概率档位文本变成「≤N 个月内收复」 ✓ */
         const hasMed = /峰→收复/.test(rpTxt) && /\b\d+\s*日/.test(rpTxt);
         const hasLeft = /还需约/.test(rpTxt) && /\d+\s*日/.test(rpTxt);
-        const nPr = /≤1\s*月/.test(rpTxt) && /≤3\s*月/.test(rpTxt) && /≤6\s*月/.test(rpTxt);
+        const nPr = /≤1\s*个月内收复/.test(rpTxt) && /≤3\s*个月内收复/.test(rpTxt) && /≤6\s*个月内收复/.test(rpTxt);
         const nTbl = (() => {
           const box = idoc.getElementById("hist-repair");   // index 段用 idoc（不是 positions 段的 gs）
           return box ? box.querySelectorAll("table.hr-tbl").length : 0;
         })();
-        check("决策看板「这波跌多久能修复」：两张表（修复天数 / 累计概率）都在且数值齐",
-          hasMed && hasLeft && nPr && nTbl === 2,
-          "表格 " + nTbl + "/2 · 中位 " + (hasMed ? "有" : "无 ✗") + " · 还需 " + (hasLeft ? "有" : "无 ✗")
-            + " · 概率 " + (nPr ? "有" : "无 ✗") + " · 文本「" + rpTxt.slice(0, 60) + "」");
+        /* 折叠条上的关键数（2026-11-14 加）：折叠状态下也要能读到「中位 N 日 · 还需约 M 日」 */
+        const kTxt = (txtOf("hx-repair-k") || "").replace(/\s+/g, " ");
+        check("决策看板「这波跌多久能修复」：一张纵表（时间 4 行 ＋ 概率 N 行）且数值齐",
+          hasMed && hasLeft && nPr && nTbl === 1 && /中位\s*\d+\s*日/.test(kTxt),
+          "表格 " + nTbl + "/1 · 中位 " + (hasMed ? "有" : "无 ✗") + " · 还需 " + (hasLeft ? "有" : "无 ✗")
+            + " · 概率 " + (nPr ? "有" : "无 ✗") + " · 折叠条「" + kTxt + "」");
       }
   }
   check("决策看板无 JS 报错", ierr.length === 0, ierr.slice(0, 3).join(" | "));
