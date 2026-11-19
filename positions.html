@@ -3430,7 +3430,7 @@ function renderTrendLegend() {
     ;
   } else if (trendView === "rate") {
     html = item("", "组合（TWR）", "蓝色实线＝资金流调整后的组合累计收益率（逐期剔除转入/转出），与基准同口径、同起点") +
-      item("base", "同期纳指" + (benchIsBehind() ? "（截至 " + mdOf(benchLastDay()) + "）" : ""),
+      item("base", "同期纳指" + (benchIsBehind() ? "（截至 " + mdOf(benchDrawLastDay()) + "）" : ""),
         "灰色虚线＝同期纳指涨跌，已归一到与组合同一起点；两线间距即超额收益。" +
         "⚠ 纳指当日收盘要等美东收盘后才有 ✓，所以基准末点常比组合晚一期（末点日期就标在这个标签上 ✓）；" +
         "超额也在**基准末点那一天**算 ✓ —— 不跨日相减 ✗（补上后两者同日 ✓）。");
@@ -3439,7 +3439,7 @@ function renderTrendLegend() {
   } else {
     html = item("", "总资产", "蓝色实线＝总资产；空心圆点＝今日估算（盘中读数，尚未收盘）") +
       '<button type="button" class="lg-toggle on" id="lg-cost" aria-pressed="true" title="青色虚线＝累计投入＝外部净转入（含全额清仓加回）。两条线之间的竖直间距就是**累计收益（含已实现）**：资产线在上＝赚（绿色填充）；在下＝亏（不铺色，「水下」由两线相对位置表达，铺满红底会被误读成图表背景）。点本文可开关这条线"><i class="cost"></i>累计投入（可点开关）</button>' +
-      item("base", "同节奏纳指" + (benchIsBehind() ? "（截至 " + mdOf(benchLastDay()) + "）" : ""),
+      item("base", "同节奏纳指" + (benchIsBehind() ? "（截至 " + mdOf(benchDrawLastDay()) + "）" : ""),
         "灰色密虚线＝同节奏基准：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌。回答「同样的钱、同样的日期，全买纳指今天是多少」。末点＝最近一个有纳指收盘的日期（基准点位缺当日时自动停在前一天，不猜 ✓；该日期已标在标签上 ✓）。" +
         "（基准点位由 CI 每晚跑 scripts/sync-bench.mjs 自动补 ✓、只补不覆盖 ✓。）");
   }
@@ -3640,6 +3640,20 @@ function benchLastDay() {
 function benchIsBehind() {
   const b = benchLastDay(), s = snapAsOf();
   return !!(b && s && b < s);
+}
+/* 基准线**实际画到哪天**（2026-11-19 加）—— 与 `benchLastDay()`（BENCH 自己的末点）不是一回事：
+   快照跳期时（这次 11-13 直接跳到 11-19，中间 4 个交易日没录），`trendBenchPts` 只遍历**组合点**，
+   走到 `p.d > lastKey` 就 break → 线的最后一点是 11-13，而 BENCH 里有 11-16/17/18。
+   图例若报 BENCH 末点，就成了「说截至 11.18、线却停在 11.13」✗（用户会以为线画漏了）。
+   → 图例/图注一律用这里，取「组合日期里 ≤ 基准末日的最后一个」，与线的实际终点一致 ✓ */
+function benchDrawLastDay() {
+  if (typeof BENCH === "undefined" || !BENCH) return null;
+  const keys = Object.keys(BENCH).sort();
+  if (!keys.length) return null;
+  const last = keys[keys.length - 1];
+  const dates = (typeof SNAPSHOTS !== "undefined" && Array.isArray(SNAPSHOTS) ? SNAPSHOTS : [])
+    .map((s) => s && s.d).filter((d) => d && d <= last).sort();
+  return dates.length ? dates[dates.length - 1] : last;
 }
 /* ---- 同节奏基准（借鉴 Portfolio Performance 的"同现金流基准组合"）------------------
  * 把组合每一期的「外部净流入」在当天按纳指点位买入，其余时间随纳指涨跌，得到一条市值链。

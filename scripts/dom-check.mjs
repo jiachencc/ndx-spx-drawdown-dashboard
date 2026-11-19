@@ -1107,7 +1107,16 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   const bk = Object.keys(B).sort();
   const firstSnap = snaps.length ? snaps[0].d : null;
   const bFirst = bk.find((d) => d >= firstSnap);
-  const bLast = bk[bk.length - 1];
+  /* ⚠ 2026-11-19 修口径：原来取 `bk.at(-1)`（基准自己的末点），隐含假设「最新快照日必有基准点位」——
+     这次快照从 11-13 一次跳到 11-19（中间 4 个交易日没录），而 BENCH 有 11-16/17/18 →
+     页面按**组合点**裁基准（trendBenchPts 只走组合存在的日期），末点落在 **11-13**；
+     门禁却拿 11-18 复算 → 「卡上 −5.06% vs 复算 −7.87%」整批误报 ✗。
+     → 改成「组合日期里 ≤ 基准末日的最后一个」，与页面同口径 ✓。
+     `behind` 判断照旧有效：11-13 < 11-19 → 仍要求页面标出「均截至 11.13」✓ */
+  const bLast = (() => {
+    const dates = snaps.map((s) => s.d).filter((d) => d <= bk[bk.length - 1]);
+    return dates.length ? dates[dates.length - 1] : bk[bk.length - 1];
+  })();
   const behind = !!(bLast && snaps.length && bLast < snaps[snaps.length - 1].d);
   const md = (d) => d && d.slice(5).replace("-", ".");
   /* 页面用 Unicode 负号「−」(U+2212) 而非连字符「-」✗ —— 正则必须两者都认，否则负的百分数匹配不到 ✗ */
