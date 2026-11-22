@@ -545,6 +545,16 @@
   .hr-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     font-size: 12px; color: var(--tx2); margin-bottom: 7px; }
   .hr-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
+  /* 时间进度条（2026-11-22）：轨道 = 0 → 中位，填充 = 已走 —— 右侧留白即「还得等」*/
+  .hr-prog-row td { padding-top: 2px; padding-bottom: 6px; }
+  .hr-bar { display: block; height: 4px; border-radius: 2px; overflow: hidden;
+    background: rgba(147,163,187,.16); }
+  .hr-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--blue); }
+  .hr-bar.done > i { background: var(--yellow); }
+  .hr-bar.over > i { background: var(--warn, #d8a13a); }
+  .hr-bar-lb { display: block; margin-top: 3px; font-size: 10px; color: var(--tx3);
+    font-family: var(--mono); font-feature-settings: "tnum"; }
+  .hr-bar-lb b { color: var(--tx2); }
   .hr-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono);
     font-feature-settings: "tnum"; }
   .hr-tbl th, .hr-tbl td { padding: 5px 8px; text-align: right;
@@ -1571,6 +1581,11 @@ function renderHist(ndxDD) {
        → 现在一张「指标 | 值」纵表：上面 4 行是**时间**、下面 N 行是**概率**，
          一列标签一列数值，手机上不再挤成一团 ✓（信息一条没少）
        ⚠ summary 里也塞了关键数（中位 N 日 · 还需约 M 日）—— 折叠状态下也能读到结论 ✓ */
+    /* 进度条：已走 / 中位（0~100，超过中位就钉在 100 并换色）*/
+    const prog = (b && Number.isFinite(b.medianTotal) && b.medianTotal > 0 && Number.isFinite(past))
+      ? Math.max(0, Math.min(100, past / b.medianTotal * 100)) : null;
+    const tone = (prog === null) ? ""
+      : (past >= b.p75 ? " over" : (past >= b.medianTotal ? " done" : ""));
     const prRows = (b.within || []).map((w) => {
       const p2 = w.n ? Math.round(w.k / w.n * 100) + "%" : "—";
       return '<tr><td>≤<b>' + (w.days / 21).toFixed(0) + '</b> 个月内收复</td>'
@@ -1589,6 +1604,16 @@ function renderHist(ndxDD) {
       + '<td>' + (Number.isFinite(past) ? '<b>' + past + '</b> 日' : '—') + '</td></tr>'
       + '<tr><td>还需约</td>'
       + '<td>' + (left === null ? '—' : '<b class="hr-hi">' + left + '</b> 日<span class="hr-sub">约 ' + mo(left) + ' 个月</span>') + '</td></tr>'
+      /* ⚠ 2026-11-22 加时间进度条（用户：「数据上加一些颜色，能凸显在什么位置」）——
+         上面两行「已过 33 日 / 还需约 48 日」是两个孤立数字，读者得自己算 33÷81 才知道走了多少 ✗
+         → 一条 0 → 中位 的轨道：已走部分填色，右侧留白就是「还得等」，一眼看出进度 ✓
+         宽度基准是**中位**（不是 p75）：中位是「一半情况比这快」的界标，拿它当 100% 才有意义；
+         超过 p75 时整条转橙 —— 说明这次等待已经进入「较慢的那四分之一」⚠ */
+      + (prog === null ? "" : '<tr class="hr-prog-row"><td colspan="2">'
+        + '<span class="hr-bar ' + tone + '"><i style="width:' + prog.toFixed(1) + '%"></i></span>'
+        + '<span class="hr-bar-lb">已走 <b>' + past + '</b> / 中位 <b>' + b.medianTotal + '</b> 日 · '
+        + prog.toFixed(0) + '%' + (tone === "over" ? " · 已超 75% 分位（" + b.p75 + " 日），这次偏慢" : (tone === "done" ? " · 已过中位，属于较慢的那一半" : ""))
+        + '</span></td></tr>')
       + prRows
       + '</table>'
       + '<div class="hr-note">⚠ 样本只有 ' + b.n + ' 次，25%~75% 落在 ' + b.p25 + '~' + b.p75
