@@ -9853,7 +9853,9 @@ function addDistMiniHtml(code) {
     + ' —— 颜色越深＝档位越深；条长与占比都按<b>买入金额</b>（非笔数）；点档位胶囊看这一档的逐笔">'
     + '<span class="ad-mini-k">加仓分布' + (addDistBasis() === "now" ? '<i class="ad-mini-tag">当前</i>' : "") + '</span>'
     + '<i class="ad-mini-bar">' + segs + "</i>"
-    + '<span class="ad-mini-n">' + d.n + " 笔</span>"
+    /* 2026-11-22：补总金额（用户：「也希望有一个总金额的汇总」）——
+       原来只有「37 笔」，看不出这只在加仓上投了多少钱（笔数多不等于钱多）✓ */
+    + '<span class="ad-mini-n">' + d.n + " 笔 · " + (d.amt / 10000).toFixed(1) + " 万</span>"
     + '<span class="ad-mini-d">' + chips + "</span>"
     + dHtml + "</div>";
 }
