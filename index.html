@@ -522,8 +522,12 @@
      两个折叠件，不再需要「分组小标题 + 西文分隔线」这套；折叠件的 summary 自己就是标题 ✓ */
   /* 折叠件（③ 修复时间 / ④ 长期基准）：默认收起，summary 右侧给关键数 —— 不展开也知道结论 */
   .hx-fold { margin-top: 14px; border-top: 1px dashed var(--line-soft); }
-  .hx-fold > summary { display: flex; align-items: baseline; gap: 7px; cursor: pointer;
+  /* ⚠ 2026-11-22 修竖排（用户截图：375px 下「这种深度历史上修多久」一个字一行，折叠条被撑到 93px）——
+     summary 是 flex 且没有 wrap，里面的**文本节点**会变成一个可被压到极窄的匿名 flex item ✗
+     → 加 flex-wrap，并把那串文字包进 .hx-fold-t（nowrap），保证它整体换行而不是逐字换行 ✓ */
+  .hx-fold > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; cursor: pointer;
     list-style: none; padding: 10px 2px 9px; font-size: 11.5px; color: var(--tx2); }
+  .hx-fold-t { white-space: nowrap; }
   .hx-fold > summary::-webkit-details-marker { display: none; }
   .hx-fold > summary::after { content: "▾"; margin-left: 6px; color: var(--tx3); font-size: 10px; }
   .hx-fold[open] > summary::after { content: "▴"; }
@@ -531,10 +535,17 @@
   .hx-fold-q { font-weight: 400; color: var(--tx3); font-size: var(--fs-xxs); margin-left: 3px; }
   .hx-fold-k { margin-left: auto; font-family: var(--mono); font-size: 10.5px;
     color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; }
+  /* 窄屏：关键数换到第二行时左对齐（auto 会把它推到最右、还可能被 pad 推出可视区） */
+  @media (max-width: 430px) { .hx-fold-k { margin-left: 0; } }
   .hx-foot { margin-top: 7px; font-size: 10.5px; color: var(--tx3); line-height: 1.65; }
   .hx-foot b { color: var(--tx2); }
   .hx-th-note { display: block; font-size: 9px; color: var(--tx3); font-weight: 400; opacity: .8; }
-  .hx-cell-note { display: block; font-size: 9.5px; color: var(--tx3); font-weight: 400; }
+  /* ⚠ 2026-11-22 窄屏溢出修复（用户：「手机页面超出去了」，375px 实测表格超卡片 13px）——
+     这个「比典型深 12.96pp」小字是 block，会继承 td 的 `white-space: nowrap` →
+     列的最小宽度被它撑到 86px，两个数值列加起来就顶破了卡片 ✗
+     → 显式 normal，窄屏折成两行；数字列本身仍由 nowrap 保护不折 ✓ */
+  .hx-cell-note { display: block; font-size: 9.5px; color: var(--tx3); font-weight: 400;
+    white-space: normal; overflow-wrap: anywhere; }
   .hx-live { margin-left: 5px; font-size: 9px; padding: 1px 5px; border-radius: 8px;
     background: rgba(245,185,61,.16); color: var(--yellow); font-weight: 400;
     font-family: var(--sans); vertical-align: 1px; }
@@ -1092,14 +1103,14 @@
       <!-- ⚠ 2026-11-22 标题补主语（用户问：「是回到当前点位吗？」）——
            「修多久」的「修」指**回到那次回撤的峰**（即前高），不是回到当前点位；
            原来只在展开后的 note 里写了这句，折叠状态下看不到 ✗ → 标题直接写「才回前高」 -->
-      <summary><span class="hx-fd-n">③</span>这种深度历史上修多久<b class="hx-fold-q">才回前高</b><span class="hx-fold-k" id="hx-repair-k">--</span></summary>
+      <summary><span class="hx-fd-n">③</span><span class="hx-fold-t">这种深度历史上修多久</span><b class="hx-fold-q">才回前高</b><span class="hx-fold-k" id="hx-repair-k">--</span></summary>
       <div class="hist-repair" id="hist-repair"></div>
     </details>
 
     <!-- 长期年化基准 + 两条背景 note（2026-11-14 一并收进折叠件）——
          它们回答的是「长期该不该怕跌」，属背景信息，不该和「当前处于什么位置」平权 ✗ -->
     <details class="hx-fold">
-      <summary><span class="hx-fd-n">④</span>长期年化基准 · 近 18 年 CAGR<span class="hx-fold-k" id="hx-cagr-k">--</span></summary>
+      <summary><span class="hx-fd-n">④</span><span class="hx-fold-t">长期年化基准 · 近 18 年 CAGR</span><span class="hx-fold-k" id="hx-cagr-k">--</span></summary>
       <div class="hist-cagr">
         <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
         <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>

@@ -194,7 +194,9 @@ for (const w of [1440, 760, 414, 380]) {
    → 这里按**卡内**量：网格自身不溢出 + 每格数字没被 ellipsis 截断。
    档位刻意含 **1080 / 1200**：那是页面切成 3 栏、指数卡被压到 296~332px 的「窄卡」区间，
    正是这次出事的宽度；1380/1440 反而正常 ✓ */
-for (const w of [1440, 1200, 1080, 380]) {
+/* ⚠ 2026-11-22 补 375（用户报「手机页面超出去了」，实机是 375px —— 比 380 还窄 5px，
+   恰好跨过一个断点：380 时表格 310 < 卡 352 刚好放得下，375 时卡只有 347 就开始裁右列 ✗）*/
+for (const w of [1440, 1200, 1080, 414, 375]) {
   const p = await browser.newPage({ viewport: { width: w, height: 1000 }, colorScheme: dark ? "dark" : "light" });
   p.on("pageerror", (e) => errs.push("index " + w + "px " + e.message));
   await p.goto(pathToFileURL(path.join(root, "index.html")).href, { waitUntil: "load" });
