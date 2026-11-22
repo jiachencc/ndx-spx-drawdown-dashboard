@@ -678,20 +678,51 @@
      ⚠ 列宽用 `minmax(0, 1fr)` 而不是 `1fr` —— 后者最小尺寸是 min-content，
        某个数值一长就把列撑破、顶出卡片（与 .kpis 同一类陷阱，2026-11-22 刚踩过 ✓） */
   .recent-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 18px; margin-top: 12px; padding-top: 11px;
+    gap: 8px; margin-top: 12px; padding-top: 11px;
     border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--tx2); }
   @media (min-width: 761px) { .recent-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  /* ⚠ 2026-11-22 加「细纹格子」（用户：「加上细纹格子吧，这些数据看起来没什么体感」）——
+     原来六项是**裸文字**并排，数值之间只有间距没有边界，扫一眼分不清哪行属于哪个标签，
+     而且「−20.19%」「26.3%」这种数没有刻度参照，读完没有画面 ✗。
+     → 每项独立成格：1px 细边框 ＋ 极淡的渐变底（比卡片底色亮一档，靠层次区分而非重色块），
+       内部仍是「标签 | 数值 | 备注」三行，中间插一条 mini 量程条（见 .bw）✓ */
   .recent-stats .st { display: grid; grid-template-columns: auto minmax(0, 1fr);
-    gap: 1px 8px; align-items: baseline; min-width: 0; }
+    gap: 1px 8px; align-items: baseline; min-width: 0;
+    padding: 7px 9px 6px; border: 1px solid var(--line-soft); border-radius: 8px;
+    background: linear-gradient(180deg, rgba(147,163,187,.055), rgba(147,163,187,.015)); }
   .recent-stats .st > i { font-style: normal; color: var(--tx3); white-space: nowrap; font-size: 11px; }
+  /* ⚠ 2026-11-22：把 nowrap 放开 —— 「最大单日」的值是「+3.40% / −6.36%」，nowrap 下被 ellipsis
+     截成「+3.40% / −6.…」✗；而那个「一天跌 6.36%」正是最该看见的数。
+     改成 normal + anywhere：**有空格才折行**（25,028.98 / −20.19% 这类无空格值照旧单行），
+     折行后同一行的两格由 grid 的 stretch 自动等高 ✓ */
   .recent-stats .st > b { font-family: var(--mono); font-weight: 700; color: var(--tx);
-    font-feature-settings: "tnum"; text-align: right; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; }
+    font-feature-settings: "tnum"; text-align: right; white-space: normal;
+    overflow-wrap: anywhere; }
   .recent-stats .st b.up { color: var(--green); }
   .recent-stats .st b.down { color: var(--red); }
+  /* 一格内同时有涨和跌时（最大单日），用内层 span 分别上色 */
+  .recent-stats .st b .up { color: var(--green); }
+  .recent-stats .st b .down { color: var(--red); }
+  /* ── mini 量程条：把数值换算成一截长度，给「深/浅」一个可比的视觉刻度 ──
+     轨道 3px、圆角、低对比；填充色跟数值同色（红=跌幅、绿=涨、灰=中性）。
+     每项的**量程写死在 JS 里并写进 title**（0→−35% / 0→100% / 0→50%），不做自适应
+     —— 自适应会让「今天 42% 长」和「昨天 42% 长」代表不同的跌幅，反而失去可比性 ✗ */
+  .recent-stats .st > .bw { grid-column: 1 / -1; display: block; height: 3px; margin-top: 4px;
+    border-radius: 2px; background: rgba(147,163,187,.16); overflow: hidden; }
+  .recent-stats .st > .bw > .bf { display: block; height: 100%; border-radius: 2px; background: var(--tx3);
+    min-width: 3px; }   /* 0% 也留一小块：否则空轨道看起来像「没数据」，而不是「贴着最低端」✓ */
+  .recent-stats .st > .bw.down > .bf { background: var(--red); }
+  .recent-stats .st > .bw.up > .bf { background: var(--green); }
+  /* 双向条（单日极值专用）：中线为 0，绿往右、红往左 —— 涨跌不对称时一眼看得出 */
+  .recent-stats .st > .bw.bi { position: relative; }
+  .recent-stats .st > .bw.bi::after { content: ""; position: absolute; left: 50%; top: -1px; bottom: -1px;
+    width: 1px; background: var(--line); }
+  .recent-stats .st > .bw.bi > .bf { position: absolute; top: 0; }
+  .recent-stats .st > .bw.bi > .bf.pos { left: 50%; background: var(--green); }
+  .recent-stats .st > .bw.bi > .bf.neg { right: 50%; background: var(--red); }
   /* 备注跨整项、超长省略 —— 它是解释不是结论，宁可截断也不能撑破格子 */
   .recent-stats .st > .an { grid-column: 1 / -1; font-family: var(--mono); font-size: 10px;
-    color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
   .recent-stats .st > .an:empty { display: none; }
   /* ── 数字字体统一（2026-10-09，用户：「其他 html 都用 JetBrains」）━━━━━━━━━━━━━━━━━━━━━━
      做法与 positions.html 同日那次一致：playwright 遍历全页，挑出「文本以数字为主、字体却是 sans」
@@ -1995,9 +2026,21 @@ function renderRecentStats() {
   const iUp = rets.indexOf(Math.max(...rets)), iDn = rets.indexOf(Math.min(...rets));
   /* 窗口名（给「窗口内位置」用）*/
   const SPAN_LABEL = { 22: "1M", 65: "3M", 130: "6M", 252: "12M" };
-  const item = (label, val, vCls, note, tip) =>
+  /* ⚠ 2026-11-22 加第 6 参 barHtml（用户：「这些数据看起来没什么体感」）——
+     纯数字并排读不出「跌得有多深」，于是在标签/数值下方插一条 mini 量程条。
+     量程**按项写死**（见各调用处的注释），不做自适应：自适应会让「今天 42% 长」和
+     「昨天 42% 长」代表不同的跌幅，反而失去可比性 ✗ */
+  const item = (label, val, vCls, note, tip, barHtml) =>
     '<span class="st" title="' + tip + '"><i>' + label + "</i><b" + (vCls ? ' class="' + vCls + '"' : "") + ">" +
-      val + '</b><span class="an">' + note + "</span></span>";
+      val + "</b>" + (barHtml || "") + '<span class="an">' + note + "</span></span>";
+  /* 单向条：ratio 已按该项量程归一化到 0~1（越界自动夹住） */
+  const bar = (ratio, dir) =>
+    '<span class="bw ' + (dir || "") + '"><span class="bf" style="width:' +
+      (Math.max(0, Math.min(1, ratio)) * 100).toFixed(1) + '%"></span></span>';
+  /* 双向条（单日极值专用）：中线 0，涨向右、跌向左，满量程各 ±10% */
+  const barBi = (up, dn) =>
+    '<span class="bw bi"><span class="bf pos" style="width:' + (Math.min(1, Math.abs(up) / 10) * 50).toFixed(1) +
+      '%"></span><span class="bf neg" style="width:' + (Math.min(1, Math.abs(dn) / 10) * 50).toFixed(1) + '%"></span></span>';
   /* 距历史高点（2026-10-24 加）：本卡叫「日线与回撤参考」，但下面几项全是**窗口内**口径 ✗ ——
      没有一项是相对**历史高点**的回撤，跟图上那几条按 ATH 算的档位线接不上 ✓。阈值取 DEFAULT.thresholds.t2，不写死。 */
   const dq = (typeof D !== "undefined" && D) ? D[recentKey] : null;
@@ -2010,7 +2053,8 @@ function renderRecentStats() {
         : "还差 " + Math.abs(th2 - ddAth).toFixed(2) + "pp 到 " + String(th2).replace("-", "−") + "% 档"),
       "最新收盘相对**历史最高收盘** " + f2(dq.ath) + "（" + md(dq.athDate) + "）；" +
       String(th2).replace("-", "−") + "% 档 ＝ ATH × " + (1 + th2 / 100).toFixed(2) + " ＝ " +
-      f2(dq.ath * (1 + th2 / 100)) + "（阈值取 DEFAULT.thresholds.t2）")) +
+      f2(dq.ath * (1 + th2 / 100)) + "（阈值取 DEFAULT.thresholds.t2）",
+      bar(Math.abs(ddAth) / 35, "down")) +
     /* ⚠ 2026-11-07：**区间最高**这行删掉（用户：「六行里有三行在说同一件事」）
        —— 当 ATH 就落在当前窗口内时（10-06 在 3M/6M/12M 里），
           「区间最高 31,224.47 · 距现价 −13.56%」与上一行「距历史高点 −13.94%」是**同一个点** ✗
@@ -2018,10 +2062,13 @@ function renderRecentStats() {
     ((dq && md(pts[iHi].d) === md(dq.athDate))
       ? "" : item("区间最高", f2(hi), "", md(pts[iHi].d) + " · 距现价 " + sg((last / hi - 1) * 100),
         "区间内最高收盘 " + f2(hi) + "（" + md(pts[iHi].d) + "）；距现价 = 最新收盘相对它差多少（负 = 还在高点下方）。"
-        + "区间最高点与历史高点（" + (dq ? md(dq.athDate) : "—") + "）不是同一天，故单列 ✓")) +
+        + "区间最高点与历史高点（" + (dq ? md(dq.athDate) : "—") + "）不是同一天，故单列 ✓",
+        bar(Math.abs((last / hi - 1) * 100) / 35, "down"))) +
     item("最大回撤", sg(mdd * 100), "down", md(pts[iPeak].d) + " → " + md(pts[iTrough].d) + " · " + (last >= cs[iPeak] ? "已收复" : "未收复"),
       "区间内「峰 → 之后谷」的最大跌幅：峰 " + f2(cs[iPeak]) + "（" + md(pts[iPeak].d) + "）→ 谷 " + f2(cs[iTrough]) +
-      "（" + md(pts[iTrough].d) + "）；" + (last >= cs[iPeak] ? "最新收盘已回到峰之上" : "最新收盘仍低于峰 " + sg((last / cs[iPeak] - 1) * 100))) +
+      "（" + md(pts[iTrough].d) + "）；" + (last >= cs[iPeak] ? "最新收盘已回到峰之上" : "最新收盘仍低于峰 " + sg((last / cs[iPeak] - 1) * 100))
+      + "；量程 0 → −35%（同上一项，对应 −35% 历史级档）",
+      bar(Math.abs(mdd * 100) / 35, "down"))) +
     item("区间最低", f2(lo), "", md(pts[iLo].d) + (iLo === n - 1 ? " · 就是今天" : " · 距现价 " + sg((last / lo - 1) * 100)),
       "区间内最低收盘 " + f2(lo) + "（" + md(pts[iLo].d) + "）；距现价 = 最新收盘相对它高出多少") +
     /* ⚠ 2026-11-07：「区间位置」→「窗口内位置」并带上窗口名
@@ -2029,11 +2076,18 @@ function renderRecentStats() {
        同一屏两个"位置"、口径完全不同（一个 52 周、一个当前窗口），看着像有一个错了 ✗ */
     item("窗口内位置", pos.toFixed(0) + "%", "", (SPAN_LABEL[recentSpan] || "") + " 窗口",
       "最新收盘在本**窗口**（" + (SPAN_LABEL[recentSpan] || recentSpan + " 日") + "）区间 [最低 " + f2(lo) + ", 最高 " + f2(hi)
-      + "] 里的分位；越接近 100 = 越贴近窗口高位。⚠ 与指数卡的「52 周位置」不是一个口径 ✗") +
+      + "] 里的分位；越接近 100 = 越贴近窗口高位。⚠ 与指数卡的「52 周位置」不是一个口径 ✗；条长 = 该分位（0% = 空条 = 贴着窗口最低）",
+      bar(pos / 100, "")) +
     item("年化波动", vol.toFixed(1) + "%", "", "日均 ±" + (sd * 100).toFixed(2) + "%",
-      "日收益的样本标准差 × √252；样本只有 " + rets.length + " 个交易日，只是近月尺度的粗估，不代表长期波动率") +
-    item("最大单日", sg(rets[iUp] * 100), "up", md(pts[iUp + 1].d) + " · 最差 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）",
-      "区间内单日涨幅最大 " + sg(rets[iUp] * 100) + "（" + md(pts[iUp + 1].d) + "）、跌幅最大 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）");
+      "日收益的样本标准差 × √252；样本只有 " + rets.length + " 个交易日，只是近月尺度的粗估，不代表长期波动率。"
+      + "条长按 0 → 50% 量程（纳指常态约 15~20%，50% 已是极端）",
+      bar(vol / 50, "")) +
+    /* ⚠ 2026-11-22：原来值只给涨幅、跌幅塞在备注里 → 备注「11-09 · 最差 −6.36%（11-05）」在 173px 格子里被 ellipsis 截成「−6.36%（11-」✗
+       而「一天跌 6.36%」恰恰是这张卡最该被看见的数 ✓ → 值改成「涨 / 跌」并列，备注只留两个日期 */
+    item("最大单日", '<span class="up">' + sg(rets[iUp] * 100) + '</span> / <span class="down">' + sg(rets[iDn] * 100) + "</span>", "", md(pts[iUp + 1].d) + " / " + md(pts[iDn + 1].d),
+      "区间内单日涨幅最大 " + sg(rets[iUp] * 100) + "（" + md(pts[iUp + 1].d) + "）、跌幅最大 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）；"
+      + "条为双向（中线 0，满量程各 ±10%）",
+      barBi(rets[iUp] * 100, rets[iDn] * 100));
 }
 /* 交互：事件委托挂在卡片上（SVG 每次重画都会换 innerHTML，直接挂到 svg 上会丢监听） */
 (function bindRecent() {
