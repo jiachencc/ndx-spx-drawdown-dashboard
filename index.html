@@ -1084,8 +1084,12 @@
         <span class="hc-val" id="hc-ndx">NDX <b>+16.0%</b></span>
         <span class="hc-val" id="hc-spx">SPX <b>+11.1%</b></span>
       </div>
-      <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> 标普500 自 1928 年以来<b>年内平均最大回撤 -16.2%</b>，多数年份年末仍收正 —— 当前 NDX 年内回撤 <b id="hist-ddytd">--</b> 属寻常波动，<b style="color:var(--green)">恐慌卖出往往卖在均值回归之前</b>。</div>
-      <div class="note">当前 <b id="hist-rank-txt">--</b> 属<b>普通技术性回调</b>；真正的加仓窗口（-15% 以下）约 12% 的交易日出现，需耐心等。</div>
+      <!-- ⚠ 2026-11-22 这两句原来是**写死**的（「属普通技术性回调」「需耐心等」），
+           跌破 −20% 后就自相矛盾了 ✗ —— 用户实测指出：「已经 −20.19% 了，还在说属普通回调、还需耐心等 −15% 以下」。
+           现在整句由 renderHist 按**当前回撤分档**生成（见 #hist-note-a / #hist-note-b）；
+           下面这段静态文本只是无 JS 时的兜底，取值尽量中性 ✓ -->
+      <div class="note" style="margin-top:10px;"><span aria-hidden="true">📏</span> <span id="hist-note-a">标普500 自 1928 年以来<b>年内平均最大回撤 −16.2%</b>，多数年份年末仍收正；当前 NDX 年内回撤 <b id="hist-ddytd">--</b>。</span></div>
+      <div class="note"><span id="hist-note-b">当前 <b id="hist-rank-txt">--</b>（按 −15% / −20% / −25% 分档给出状态描述）。</span></div>
     </details>
   </div>
 
@@ -1580,11 +1584,50 @@ function renderHist(ndxDD) {
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
   $("hist-rank-txt").textContent = pct(ndxDD) + "（" + D.ndx.days + " 天）";
+  /* ⚠ 2026-11-22 修两条「写死」的结论句（用户：「已经 −20% 了，这个是不是有问题」）——
+     原来 HTML 里印死「属**普通技术性回调**；真正的加仓窗口（−15% 以下）…**需耐心等**」，
+     跌到 −20.19% 后两句全错 ✗：
+       ① −20% 是「技术性熊市」的通用分界线，不能叫「普通回调」；
+       ② 已经 −20%，比 −15% 更深，却还在劝人「等 −15% 以下」。
+     → 现在按**当前回撤分档**生成；已进入 −15% 以下时，把「等」换成「就在区间内，按既定档位执行」✓
+     ⚠ 措辞保持中性：只描述「现在处于哪一档」，不预测后市、不给买卖建议
+       （原文那句「恐慌卖出往往卖在均值回归之前」属于劝诫性表述，一并去掉 ✗） */
+  const ddAbs = Math.abs(ndxDD);
+  const ddState = ndxDD > -5 ? "仍在正常波动区间"
+    : ndxDD > -10 ? "属<b>普通回调</b>（−5% ~ −10%）"
+    : ndxDD > -15 ? "属<b>深度回调</b>（−10% ~ −15%）"
+    : ndxDD > -20 ? "处在 <b>−15% ~ −20%</b> 的熊市边缘（已进入你自己的 −15% 加仓档）"
+    : "已越过 <b>−20%</b> —— 这通常被称作「技术性熊市」，是比「普通回调」严重一档的表述";
+  const noteA = $("hist-note-a");
+  if (noteA) {
+    const ytd = D.ndx.ddYtd;
+    /* ⚠ 必须**保留 `id="hist-ddytd"`**：函数末尾（$("hist-ddytd").textContent = …）还要写它，
+       第一次改时把 id 写丢了 → 那里 null.textContent 抛错 → renderHist 后半段（含 2025 那次回调、
+       统计条）全被中断，而页面又不报 JS 错（try/catch 之外无 window.onerror），极难查 ✗ */
+    noteA.innerHTML = "标普500 自 1928 年以来<b>年内平均最大回撤 −16.2%</b>、多数年份年末仍收正 —— "
+      + "当前 NDX 年内回撤 <b id=\"hist-ddytd\">" + (Number.isFinite(ytd) ? pct(ytd).replace("-", "−") : "—") + "</b>"
+      + (Number.isFinite(ytd) && Math.abs(ytd) > 16.2
+        ? "，<b>已经超过</b>那个历史平均（即：今年跌得比「平常年份」更深，但「年内有两位数回撤」本身并不罕见）"
+        : "，仍在历史常见范围内")
+      + "。";
+  }
+  const noteB = $("hist-note-b");
+  if (noteB) {
+    /* 已到 −15% 以下就别再说「等」了 —— 这正是用户指出的那处矛盾 */
+    const tail = ndxDD <= -15
+      ? "而 <b>−15% 以下正是你说的加仓窗口</b>，现在就在区间内 —— 按事先定好的档位规则执行即可，"
+        + "不必再等「更低的点」；真正该盯的是下一档（−25%）还差 " + Math.abs(ndxDD + 25).toFixed(2) + "pp。"
+      : "真正的加仓窗口（−15% 以下）历史上只出现在少数交易日 —— 没到之前不必硬等，但要清楚它不常来。";
+    noteB.innerHTML = "当前 <b>" + pct(ndxDD).replace("-", "−") + "（" + D.ndx.days + " 天）</b> "
+      + ddState + "；" + tail;
+  }
   /* ④ 折叠条上的关键数（2026-11-14）：CAGR 两个值是 HTML 里写死的常量，这里直接读 DOM 再拼，
      免得同一个数在两处各写一份、改一处漏一处 ✗ */
   const ckEl = $("hx-cagr-k"), cnEl = $("hc-ndx"), csEl = $("hc-spx");
   if (ckEl && cnEl && csEl) ckEl.textContent = cnEl.textContent.trim() + " · " + csEl.textContent.trim();
-  $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd) : "--";   // 年内回撤基准对照（数据驱动）
+  /* 年内回撤基准对照（数据驱动）—— ⚠ 2026-11-22：noteA 里已写过一次，这行会**覆盖**它，
+     所以负号必须也用 −（U+2212），否则同一句里会混进 ASCII 连字符 ✗ */
+  $("hist-ddytd").textContent = D.ndx.ddYtd !== undefined ? pct(D.ndx.ddYtd).replace("-", "−") : "--";
   /* 2025 那行改成数据驱动（2026-10-24）：取 DDHIST 里 2025 年最深的一段。
      没有 DDHIST 就退回「--」，不编数 ✓ */
   const e25 = (typeof DDHIST !== "undefined" && DDHIST && Array.isArray(DDHIST.events))
