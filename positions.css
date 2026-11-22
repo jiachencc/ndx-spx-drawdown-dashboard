@@ -2616,6 +2616,27 @@
 /* 「填平浮亏 ＋ 转为浮盈」的拆解行（2026-11-22）：换行显示，别和「市值 +X」挤在同一行导致误读 */
 .ldb-proj-brk { display: block; margin-top: 1px; color: var(--tx3); font-size: var(--fs-xxs); }
 .ldb-proj-brk b { color: var(--tx2); font-weight: 600; }
+/* 加仓分布（2026-11-22）：每档 = 标签 / 条形 / 占比 ＋ 第二行小字（笔数·金额）
+   条形长度按**金额**归一（不是笔数）—— 决定仓位轻重的是钱，不是次数 ✓ */
+.ad-wrap { padding: 2px 0; }
+.ad-row { display: grid; grid-template-columns: 5.2em minmax(0, 1fr) 2.8em;
+  gap: 1px 8px; align-items: center; padding: 5px 0 3px; }
+.ad-lb { font-size: var(--fs-xxs); color: var(--tx2); white-space: nowrap;
+  font-family: var(--mono); }
+.ad-bar { display: block; height: 8px; border-radius: 2px; overflow: hidden;
+  background: rgba(147,163,187,.13); }
+.ad-bar > b { display: block; height: 100%; border-radius: 2px; background: var(--blue); }
+.ad-p { font-size: var(--fs-xxs); color: var(--tx); font-weight: 700; text-align: right;
+  font-family: var(--mono); font-feature-settings: "tnum"; }
+.ad-sub { grid-column: 2 / -1; font-size: 9.5px; color: var(--tx3);
+  font-family: var(--mono); margin-top: -1px; }
+.ad-zero { opacity: .45; }
+.ad-zero .ad-bar > b { background: var(--tx3); }
+.ad-note { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft);
+  font-size: var(--fs-xxs); color: var(--tx2); line-height: 1.6; }
+.ad-note b { color: var(--tx); font-weight: 700; font-family: var(--mono); }
+.ad-foot { margin-top: 4px; font-size: 9.5px; color: var(--tx3); line-height: 1.55; }
+.ad-foot b { color: var(--tx2); font-weight: 600; }
 /* 「已越出阶梯设计」（2026-11-22 加）：跌幅穿过最后一档后，阶梯不再给任何动作 —— 这个事实
    比「5 批已全部触发」重要得多，用琥珀色单独标出来 ✓ */
 .ldb-over { color: var(--warn, #d8a13a); font-weight: 600; margin-left: 8px; }

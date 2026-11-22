@@ -184,6 +184,17 @@ try {
   <h2 class="sec-title" id="sec-ladder"><span aria-hidden="true">🪜</span> 加仓阶梯 · 跌多少加多少 <span class="cnt" id="ladder-cnt"></span></h2>
   <div class="card tight" id="ladder-card"></div>
 
+  <!-- 加仓分布（2026-11-22 加，用户：「做一个 −5/−10/−15/−20 加仓的阶梯汇总，每个档位有个分布」）
+       ⚠ 位置：紧跟「加仓阶梯」—— 阶梯是**规则**（该在哪个档加多少），这张是**复盘**（实际加在了哪），
+         规则 → 执行，连着读才对 ✓；中间隔一张持仓卡就会打断这条线 ✗
+       ⚠ 数据：POSITIONS.log 的逐笔成交价 + TREND.items[].mo（月度收盘）
+         · 回撤分母不能取**当前** 52 周最高 —— 那些高点是 9~10 月才创的，
+           用它算 6 月的买入会高估 5~8pp（实测：按当前 hi52 算，45 笔会变成 38 笔落在 −5~−10%，整体右移一档 ✗）
+         · 改用「该月及之前 12 个月的月末收盘最高」近似当日 52 周高 —— 与「加仓阶梯」同口径（都用 ETF 价）✓
+         · 局限：月末收盘取不到月中高点，分母偏小 → 回撤会略偏浅（保守方向，可接受） -->
+  <h2 class="sec-title" id="sec-adddist"><span aria-hidden="true">📊</span> 加仓分布 · 钱加在了哪一档 <span class="cnt" id="add-dist-cnt"></span></h2>
+  <div class="card tight" id="add-dist-card"></div>
+
   <!-- 今年这几次跌 · 历史坐标（2026-10-24 加，用户要求「把当年几次大的回撤做一个历史对照的结论」）
        ⚠ 位置：刻意放在「操作体检」**之前** —— 先看**外部跌到什么程度**，再看**我在这个环境里的操作**
          （体检卡讲溢价/追高/成交位置），顺序才对 ✓；再往前放就会打断 ①~⑧ 那条对账链 ✗。
@@ -9726,6 +9737,65 @@ function ladderHtml() {
 }
 renderLadderSafe();
 function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("ladder:", e.message); } }
+
+/* 加仓分布（2026-11-22，用户：「做一个 −5/−10/−15/−20 加仓的阶梯汇总，每个档位有个分布」）——
+   把逐笔买入按「买入时该标的距 52 周高的回撤」归档，回答「我的钱到底加在了哪一档」——
+   与上面「加仓阶梯」（规则：该在哪档加多少）形成对照，规则 → 复盘 ✓
+   ⚠ 分母不能取**当前** 52 周高：那些高点是 9~10 月才创的，用它算 6 月的买入会整体右移一档
+     （实测 45 笔「≥−5%」会变成 38 笔落在「−5~−10%」✗）→ 用「该月及之前 12 个月的月末收盘最高」近似 ✓
+   ⚠ 局限：月末收盘取不到月中高点，分母偏小 → 回撤略偏浅（保守方向，可接受，卡面已注明）*/
+function renderAddDist() {
+  const box = $("add-dist-card");
+  if (!box) return;
+  const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
+  const bucketOf = (dd) => (dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4);
+  const agg = ORD.map(() => ({ n: 0, amt: 0 }));
+  let tot = 0, totAmt = 0, miss = 0;
+  const CODES = ["159941", "513650", "513880"];
+  const T = (typeof TREND !== "undefined" && TREND.items) || {};
+  const HOLD = (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) ? POSITIONS.hold : [];
+  const LOG = (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.log)) ? POSITIONS.log : [];
+  const cur = [];
+  CODES.forEach((c) => {
+    const it = T[c] || {}, mo = it.mo || {}, keys = Object.keys(mo).sort();
+    const h = HOLD.find((x) => x.code === c);
+    if (Number.isFinite(it.distHi)) cur.push(it.name.replace(/ETF.*$/, "") + " " + it.distHi.toFixed(1).replace("-", "−") + "%");
+    if (!h || keys.length < 2) return;
+    LOG.filter((e) => e.sym === h.sym && !/卖/.test(String(e.act))).forEach((e) => {
+      const idx = keys.indexOf(String(e.d).slice(0, 7));
+      if (idx < 0) { miss++; return; }
+      const win = keys.slice(Math.max(0, idx - 11), idx + 1);
+      const hi = Math.max.apply(null, win.map((k) => mo[k]));
+      if (!(hi > 0) || !(e.cost > 0)) { miss++; return; }
+      const i = bucketOf((e.cost / hi - 1) * 100);
+      const amt = (e.qty || 0) * e.cost;
+      agg[i].n++; agg[i].amt += amt; tot++; totAmt += amt;
+    });
+  });
+  const cnt = $("add-dist-cnt");
+  if (cnt) cnt.textContent = tot ? "（" + tot + " 笔 · " + (totAmt / 10000).toFixed(1) + " 万 · 按买入时该标的距 52 周高的回撤归档）" : "（暂无逐笔买入）";
+  if (!tot) { box.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无逐笔买入记录</span></div>'; return; }
+  const maxAmt = Math.max.apply(null, agg.map((a) => a.amt));
+  const rows = ORD.map((lb, i) => {
+    const a = agg[i];
+    const w = maxAmt > 0 ? (a.amt / maxAmt * 100) : 0;
+    const pct = totAmt > 0 ? (a.amt / totAmt * 100) : 0;
+    return '<div class="ad-row' + (a.n ? "" : " ad-zero") + '">'
+      + '<span class="ad-lb">' + lb + "</span>"
+      + '<i class="ad-bar"><b style="width:' + w.toFixed(1) + '%"></b></i>'
+      + '<span class="ad-p">' + pct.toFixed(0) + "%</span>"
+      + '<span class="ad-sub">' + a.n + " 笔 · " + (a.amt / 10000).toFixed(1) + " 万</span></div>";
+  }).join("");
+  const shallow = totAmt > 0 ? agg[0].amt / totAmt * 100 : 0;
+  const deep = totAmt > 0 ? (agg[3].amt + agg[4].amt) / totAmt * 100 : 0;
+  box.innerHTML = '<div class="ad-wrap">' + rows
+    + '<div class="ad-note">浅档（≥ −5%）占 <b>' + shallow.toFixed(0) + "%</b> 的钱、深档（≤ −15%）只占 <b>"
+    + deep.toFixed(0) + "%</b>" + (cur.length ? " —— 当前三只在 " + cur.join(" / ") : "") + "</div>"
+    + '<div class="ad-foot">分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓'
+    + (miss ? " · " + miss + " 笔缺月度行情未计入" : "") + "</div></div>";
+}
+function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
+renderAddDistSafe();
 
 renderPremScan();                        // 溢价扫描（2026-10-28 加，紧跟场内持仓之后）
 renderDdRef();
