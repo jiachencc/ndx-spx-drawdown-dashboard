@@ -9772,9 +9772,10 @@ function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("la
 function addDistBasis() {
   return (typeof window !== "undefined" && window.__addDistBasis === "now") ? "now" : "then";
 }
-function addDistOf(code) {
+function addDistOf(code, basisArg) {
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
-  const basis = addDistBasis();
+  /* basisArg 用于「两套口径对比」：不传就走全局（用户当前选的那个） */
+  const basis = (basisArg === "now" || basisArg === "then") ? basisArg : addDistBasis();
   /* 2026-11-22：每档额外收一份 items 明细（用户：「点击不同颜色的进度条有一个对应的数据呈现」）——
      点开某档能看到「具体是哪几笔、哪天、什么价、当时跌了多少 ✓」 */
   const out = ORD.map(() => ({ n: 0, amt: 0, items: [] }));
@@ -9842,7 +9843,7 @@ function addDistMiniHtml(code) {
       + "</div>" : "")).join("");
   return '<div class="ad-mini" title="按买入时该标的距 52 周高的回撤归档（分母取该月及之前 12 个月的月末收盘最高）'
     + ' —— 颜色越深＝档位越深；条长与占比都按<b>买入金额</b>（非笔数）；点档位胶囊看这一档的逐笔">'
-    + '<span class="ad-mini-k">加仓分布</span>'
+    + '<span class="ad-mini-k">加仓分布' + (addDistBasis() === "now" ? '<i class="ad-mini-tag">当前</i>' : "") + '</span>'
     + '<i class="ad-mini-bar">' + segs + "</i>"
     + '<span class="ad-mini-n">' + d.n + " 笔</span>"
     + '<span class="ad-mini-d">' + chips + "</span>"
@@ -9863,6 +9864,10 @@ function renderAddDist() {
   const CODES = ["159941", "513650", "513880"];
   const T = (typeof TREND !== "undefined" && TREND.items) || {};
   const cur = [];
+  /* 两套口径各算一份（2026-11-22，用户：「加一个两者的对比结论」）——
+     对比块不依赖当前选中的模式：无论切到哪边，都能看到「换成另一套会差多少」✓ */
+  const aggThen = ORD.map(() => ({ amt: 0, n: 0 }));
+  const aggNow = ORD.map(() => ({ amt: 0, n: 0 }));
   CODES.forEach((c) => {
     const it = T[c] || {};
     if (Number.isFinite(it.distHi)) cur.push(it.name.replace(/ETF.*$/, "") + " " + it.distHi.toFixed(1).replace("-", "−") + "%");
@@ -9872,7 +9877,18 @@ function renderAddDist() {
       if (r.items) r.items.forEach((x) => agg[i].items.push(x));
     });
     tot += d.n; totAmt += d.amt; miss += d.miss;
+    ["then", "now"].forEach((b) => {
+      const dd = addDistOf(c, b);
+      const box = (b === "then") ? aggThen : aggNow;
+      dd.rows.forEach((r, i) => { box[i].amt += r.amt; box[i].n += r.n; });
+    });
   });
+  const sumOf = (box) => box.reduce((a, x) => a + x.amt, 0) || 1;
+  const totThen = sumOf(aggThen), totNow = sumOf(aggNow);
+  const pctOf = (box, tot2, idxs) => idxs.reduce((a, i) => a + box[i].amt, 0) / tot2 * 100;
+  const nOf = (box, idxs) => idxs.reduce((a, i) => a + box[i].n, 0);
+  const shallowThen = pctOf(aggThen, totThen, [0]), shallowNow = pctOf(aggNow, totNow, [0]);
+  const deepThen = pctOf(aggThen, totThen, [3, 4]), deepNow = pctOf(aggNow, totNow, [3, 4]);
   const cnt = $("add-dist-cnt");
   if (cnt) cnt.textContent = tot ? "（" + tot + " 笔 · " + (totAmt / 10000).toFixed(1) + " 万 · 按买入时该标的距 52 周高的回撤归档）" : "（暂无逐笔买入）";
   if (!tot) { box.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无逐笔买入记录</span></div>'; return; }
@@ -9904,6 +9920,26 @@ function renderAddDist() {
   const shallow = totAmt > 0 ? agg[0].amt / totAmt * 100 : 0;
   const deep = totAmt > 0 ? (agg[3].amt + agg[4].amt) / totAmt * 100 : 0;
   const basisNow = addDistBasis() === "now";
+  /* 两套口径的对比结论（2026-11-22，用户：「加一个两者的对比结论」）——
+     只讲「差异有多大 + 差异从哪来」，不评价好坏 ✓ */
+  const dShallow = shallowNow - shallowThen;      // 负 = 现在口径下浅档变少
+  const dDeep = deepNow - deepThen;
+  const cmpBlock = (totAmt <= 0) ? "" : '<div class="ad-cmp">'
+    + '<div class="ad-cmp-h">两种口径差多少</div>'
+    + '<div class="ad-cmp-row"><span>浅档 ≥ −5%</span>'
+    + '<b>' + shallowThen.toFixed(0) + '%</b><i>→</i><b>' + shallowNow.toFixed(0) + '%</b>'
+    + '<em class="' + (dShallow < 0 ? "dn" : "up") + '">' + (dShallow >= 0 ? "+" : "−") + Math.abs(dShallow).toFixed(0) + 'pp</em></div>'
+    + '<div class="ad-cmp-row"><span>深档 ≤ −15%</span>'
+    + '<b>' + deepThen.toFixed(0) + '%</b><i>→</i><b>' + deepNow.toFixed(0) + '%</b>'
+    + '<em class="' + (dDeep > 0 ? "up2" : "dn") + '">' + (dDeep >= 0 ? "+" : "−") + Math.abs(dDeep).toFixed(0) + 'pp</em>'
+    + '<u>' + nOf(aggThen, [3, 4]) + ' → ' + nOf(aggNow, [3, 4]) + ' 笔</u></div>'
+    + '<div class="ad-cmp-x">左＝<b>买入当时</b>、右＝<b>当前高点</b>。'
+    + (Math.abs(dShallow) < 3
+      ? '两者几乎一致 —— 说明这段时间 52 周高基本没变，早期买入的水位放到今天看也一样。'
+      : '换成当前高点后，有 <b>' + Math.abs(dShallow).toFixed(0) + 'pp</b> 的钱从浅档挪进了更深档'
+        + ' —— 因为高点被后来的行情抬上去了，当时「看着浅」的买入放到今天看其实不浅 ✓')
+    + '</div></div>';
+
   box.innerHTML = '<div class="ad-switch" role="group" aria-label="回撤分母口径">'
     + '<button type="button" class="ad-sw' + (basisNow ? "" : " on") + '" data-basis="then"'
     + ' title="每笔回撤 = 成交价 ÷ **买入当时**的 52 周最高收盘 − 1（回答「你当时跌了多少才加」）">按买入当时</button>'
@@ -9915,6 +9951,7 @@ function renderAddDist() {
         + " / 日经 " + (T["513880"] || {}).hi52 + "）—— 会随行情变，不是历史事实"
       : "分母＝<b>买入当时</b>的 52 周高（该月及之前 12 个月月末最高）") + "</span></div>"
     + '<div class="ad-wrap">' + rows
+    + cmpBlock
     + '<div class="ad-note">浅档（≥ −5%）占 <b>' + shallow.toFixed(0) + "%</b> 的钱、深档（≤ −15%）只占 <b>"
     + deep.toFixed(0) + "%</b>" + (cur.length ? " —— 当前三只在 " + cur.join(" / ") : "") + "</div>"
     + '<div class="ad-foot"><b>条形长度与百分比都按「买入金额」</b>（每笔 份数 × 成交价 累加），不是笔数 ——'

@@ -2629,6 +2629,27 @@
 /* 加仓分布（2026-11-22）：每档 = 标签 / 条形 / 占比 ＋ 第二行小字（笔数·金额）
    条形长度按**金额**归一（不是笔数）—— 决定仓位轻重的是钱，不是次数 ✓ */
 /* 口径切换（2026-11-22）：两个小分段按钮 + 右侧一句「当前用的是什么分母」 */
+/* 两种口径的对比块（2026-11-22）：不依赖当前选中的模式 —— 无论切到哪边都能看到「换一套会差多少」 */
+.ad-cmp { margin: 10px 0 2px; padding: 8px 11px 7px; border-radius: 8px;
+  background: rgba(147,163,187,.055); border-left: 3px solid rgba(147,163,187,.32); }
+.ad-cmp-h { font-size: 9.5px; color: var(--tx3); margin-bottom: 3px; letter-spacing: .02em; }
+.ad-cmp-row { display: grid; grid-template-columns: auto 1fr auto 1.4em auto auto;
+  gap: 5px; align-items: baseline; font-size: 10.5px;
+  font-family: var(--mono); font-feature-settings: "tnum"; padding: 1.5px 0; }
+.ad-cmp-row > span { font-family: var(--sans); color: var(--tx3); }
+.ad-cmp-row > b { color: var(--tx2); font-weight: 700; text-align: right; }
+.ad-cmp-row > i { font-style: normal; color: var(--tx3); text-align: center; font-size: 9px; }
+.ad-cmp-row > em { font-style: normal; font-weight: 700; font-size: 9.5px; }
+/* ⚠ 差异值**不用涨跌色**（2026-11-22）：这里说的是「换一套口径后分布变了多少」，
+   不是盈亏 —— 用红/绿会让人以为「浅档减少＝变差了」✗ 统一用中性色 + 箭头方向表意 ✓ */
+.ad-cmp-row > em.dn, .ad-cmp-row > em.up, .ad-cmp-row > em.up2 { color: var(--tx2); }
+.ad-cmp-row > u { text-decoration: none; color: var(--tx3); font-size: 9px; white-space: nowrap; }
+.ad-cmp-x { margin-top: 5px; font-size: 9.5px; color: var(--tx3); line-height: 1.62; }
+.ad-cmp-x b { color: var(--tx2); font-weight: 600; }
+/* 持仓卡迷你条的口径标记：默认（当时）不显示，切到「当前」才挂一个小标签 —— 默认态保持干净 */
+.ad-mini-tag { display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 3px;
+  font-style: normal; font-size: 8.5px; font-weight: 600; letter-spacing: .02em;
+  background: rgba(216,161,58,.18); color: var(--warn, #d8a13a); vertical-align: 1px; }
 .ad-switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0 8px; }
 .ad-sw { appearance: none; border: 1px solid var(--line-soft); background: rgba(147,163,187,.07);
   border-radius: 999px; padding: 2px 9px; font-size: 10px; color: var(--tx3);
