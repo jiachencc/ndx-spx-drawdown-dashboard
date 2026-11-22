@@ -7679,7 +7679,12 @@ function holdCardHtml(row, i, ctx) {
       /* 副行只说单位成本价，不再重复「需涨 X% 回本」—— 那与本格主数是同一句话（同一句不说两遍）。
          2026-09-30：把「摊薄成本变化」那格的数并到这里（全程成本价变化 ＋ 成本总额变动），
          原来它独占第三格、且把同一个成本价又写了一遍。 */
-      '<div class="kpi"><div class="k-label">距成本位</div><div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div>' +
+      /* ⚠ 2026-11-22 加 title（用户 review「场内持仓与操作记录」时提出）——
+         左边「浮盈（估）−5.5%」与本格「距成本位 +5.8%」看起来矛盾，其实是同一件事的两面：
+         亏 5.46% ↔ 要涨 5.78% 才回本（(1+x)(1+y)=1），数字不同是因为分母不同 ✗ 不加说明一定被问 */
+      '<div class="kpi"><div class="k-label" title="从当前价涨回成本价需要多少 —— 与左边「浮盈（估）」是同一件事的两面：'
+      + '亏损按成本算（−5.5%），回本按当前价算（+5.8%），所以两个数的分母不同、数值不相等 ✓">距成本位</div>'
+      + '<div class="k-val ' + (backToCost >= 0 ? "warn" : "info") + '">' + fmtPct(backToCost) + '</div>' +
         '<div class="k-sub" style="color:var(--tx3)">成本价 ' + p.cost.toFixed(4) + ' 元' +
         /* ⚠ 2026-10-16 改（用户点单 ①）：原写法「首笔 1.6294 → 今（−2,320 元）」**符号与语义都反了** ✗ ——
            成本**下降**（摊薄的功劳）显示成负数、读作"亏了 2,320"；成本**上升**又显示成 +X、读作"赚了"✗；
@@ -8959,6 +8964,9 @@ function opCheckupHtml(p) {
 function posLogHtml(p, r, pl) {
   const entries = (POSITIONS.log || []).filter((e) => e.sym === p.sym);
   if (!entries.length) return "";
+  /* ⚠ 2026-11-22：首次买入在流水里的 act 记为「建仓」而不是「买入」—— */
+  /* 于是「历次买入 36 笔」与「逐笔流水 37 笔」差 1，并列时会被当成数据打架 ✗ → summary 里标出建仓笔数 */
+  const nInit = entries.filter((e) => /建仓/.test(String(e.act))).length;
   /* 用全站统一编号的回路事件（与持仓卡内的波段回路同一套号；已按新在上排好序） */
   const rounds = swingData().bySym[p.sym] || [];
   const kindOf = (k) => rounds.filter((x) => x.kind === k);
@@ -9083,7 +9091,9 @@ function posLogHtml(p, r, pl) {
     }
   }
   out += '<details class="pos-log">' +
-    '<summary title="买卖额为累计成交金额（含已卖出部分），逐笔明细见展开；全程成本价变化见卡面「距成本位」的副标">逐笔流水 <b>' + entries.length + '</b> 笔 · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
+    '<summary title="买卖额为累计成交金额（含已卖出部分），逐笔明细见展开；全程成本价变化见卡面「距成本位」的副标。'
+      + '⚠ 笔数比上方「历次买入」多 ' + nInit + ' 笔：首次买入在流水里的动作记为「建仓」，不计入「买入」✓">逐笔流水 <b>'
+      + entries.length + '</b> 笔' + (nInit ? "（含建仓 " + nInit + "）" : "") + ' · 买 <b>' + fmtAbs2(bAmt) + '</b>' +
       (sells.length ? ' · 卖 <b>' + fmtAbs2(sAmt) + '</b>' : "") +
     '</summary>' +
     '<div class="log-list">' + html + '</div>' +
