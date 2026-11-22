@@ -2761,6 +2761,13 @@
 .ad-mini-detail::-webkit-scrollbar { width: 4px; }
 .ad-mini-detail::-webkit-scrollbar-thumb { background: rgba(147,163,187,.28); border-radius: 2px; }
 .ad-mini-detail .ad-di { grid-template-columns: 3.4em 4.6em 1fr 3.6em; }
+/* 该档合计行（2026-11-22）：明细虽是逐笔，但「这一档整体投了多少」才是先要看的 ——
+   做成一条淡底小条，与下面的逐笔区分开（逐笔是证据、合计是结论）✓ */
+.ad-mini-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px;
+  padding: 3px 6px; margin-bottom: 4px; border-radius: 5px;
+  background: rgba(147,163,187,.10); font-size: 9.5px; color: var(--tx3);
+  font-family: var(--mono); font-feature-settings: "tnum"; }
+.ad-mini-sum b { color: var(--tx); font-weight: 700; }
 .ad-mini-d b { color: var(--tx2); font-weight: 700; }
 /* 「已越出阶梯设计」（2026-11-22 加）：跌幅穿过最后一档后，阶梯不再给任何动作 —— 这个事实
    比「5 批已全部触发」重要得多，用琥珀色单独标出来 ✓ */

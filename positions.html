@@ -9836,8 +9836,13 @@ function addDistMiniHtml(code) {
   const chips = d.rows.map((r, i) => (r.n
     ? '<button type="button" class="ad-chip" data-b="' + i + '" aria-expanded="false">'
       + ORD[i].replace(/ /g, "") + " <b>" + r.n + "</b></button>" : "")).join("");
+  /* 每档展开时先给一行**该档合计**（2026-11-22，用户：「点击 −5% 的时候现在只有明细，
+     最上面可以加一个汇总」）—— 明细是逐笔、汇总才有「这一档整体投了多少、占这只几成」✓ */
   const dHtml = d.rows.map((r, i) => (r.n
     ? '<div class="ad-mini-detail" data-d="' + i + '" hidden>'
+      + '<div class="ad-mini-sum"><b>' + ORD[i].replace(/ /g, "") + '</b> 档 · '
+      + r.n + ' 笔 · <b>' + (r.amt / 10000).toFixed(2) + ' 万</b> · 占这只 <b>'
+      + (r.amt / d.amt * 100).toFixed(0) + '%</b></div>'
       + r.items.slice().sort((x, y) => (x.d < y.d ? -1 : 1)).map((x) =>
         /* ⚠ 这段 title 里含 HTML 的 `"`，**必须全程用单引号**拼 —— 用双引号会提前把字符串截断 ✗
            （这个坑今天第 4 次了：凡往 HTML 属性里拼值，片段一律单引号） */
