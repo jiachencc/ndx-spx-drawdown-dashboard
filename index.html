@@ -668,17 +668,31 @@
   /* 图下「常用数据」统计条（2026-09-27 用户要求「下面还有一些空位，根据数据给一些算好的常用的数据」）——
      范式照本页既有的 .mchart-summary（月图那块）：无底色块、一条上边线分隔、数值走等宽字体、flex 折行。
      每项 = 标签（弱色 i）+ 数值（b）+ 注解（.an 小一号弱色）；项与项 nowrap，断行只发生在项之间。 */
-  .recent-stats { display: flex; flex-wrap: wrap; gap: 7px 18px; margin-top: 12px; padding-top: 11px;
+  /* ⚠ 2026-11-22 改成**固定网格**（用户：「下面的解释格式优化一下」）——
+     原来是 flex 自由换行：手机上「窗口内位置 0% 3M」与「年化波动 26.3% 日 σ 1.66%」被挤进同一行、
+     其余三项各占一整行 → 5 行长短参差，读起来像 5 句独立的话，而不是「一组指标」✗。
+     现在固定列数（手机 2 列 / 桌面 3 列），每项占到**两行**：
+       第一行 = 标签（左）＋ 数值（右对齐）
+       第二行 = 备注（跨列，10px 灰字）
+     六项刚好排成 3 行（手机）/ 2 行（桌面），左侧标签对齐、右侧数值对齐，能当表扫读 ✓
+     ⚠ 列宽用 `minmax(0, 1fr)` 而不是 `1fr` —— 后者最小尺寸是 min-content，
+       某个数值一长就把列撑破、顶出卡片（与 .kpis 同一类陷阱，2026-11-22 刚踩过 ✓） */
+  .recent-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 18px; margin-top: 12px; padding-top: 11px;
     border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--tx2); }
-  /* ⚠ 项内**每个原子**各自 nowrap、项本身可折行：手机上「最大单日 +2.83% 09-21 / 09-01 · 最差 −1.29%」
-     这类长项若整项 nowrap，会把卡片撑出横向溢出（2026-09-27 实测 390px 溢出 241px 后改成这样）。 */
-  .recent-stats .st { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; max-width: 100%; }
-  .recent-stats .st > i, .recent-stats .st > b, .recent-stats .st > .an { white-space: nowrap; }
-  .recent-stats .st i { font-style: normal; color: var(--tx3); }
-  .recent-stats .st b { font-family: var(--mono); font-weight: 700; color: var(--tx); font-feature-settings: "tnum"; }
+  @media (min-width: 761px) { .recent-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .recent-stats .st { display: grid; grid-template-columns: auto minmax(0, 1fr);
+    gap: 1px 8px; align-items: baseline; min-width: 0; }
+  .recent-stats .st > i { font-style: normal; color: var(--tx3); white-space: nowrap; font-size: 11px; }
+  .recent-stats .st > b { font-family: var(--mono); font-weight: 700; color: var(--tx);
+    font-feature-settings: "tnum"; text-align: right; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
   .recent-stats .st b.up { color: var(--green); }
   .recent-stats .st b.down { color: var(--red); }
-  .recent-stats .st .an { font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+  /* 备注跨整项、超长省略 —— 它是解释不是结论，宁可截断也不能撑破格子 */
+  .recent-stats .st > .an { grid-column: 1 / -1; font-family: var(--mono); font-size: 10px;
+    color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent-stats .st > .an:empty { display: none; }
   /* ── 数字字体统一（2026-10-09，用户：「其他 html 都用 JetBrains」）━━━━━━━━━━━━━━━━━━━━━━
      做法与 positions.html 同日那次一致：playwright 遍历全页，挑出「文本以数字为主、字体却是 sans」
      的叶子元素，按容器归类后逐类处置 ✓ 本页改前 31 个 / 17 种签名。
@@ -2008,15 +2022,15 @@ function renderRecentStats() {
     item("最大回撤", sg(mdd * 100), "down", md(pts[iPeak].d) + " → " + md(pts[iTrough].d) + " · " + (last >= cs[iPeak] ? "已收复" : "未收复"),
       "区间内「峰 → 之后谷」的最大跌幅：峰 " + f2(cs[iPeak]) + "（" + md(pts[iPeak].d) + "）→ 谷 " + f2(cs[iTrough]) +
       "（" + md(pts[iTrough].d) + "）；" + (last >= cs[iPeak] ? "最新收盘已回到峰之上" : "最新收盘仍低于峰 " + sg((last / cs[iPeak] - 1) * 100))) +
-    item("区间最低", f2(lo), "", md(pts[iLo].d) + " · 距现价 " + sg((last / lo - 1) * 100),
+    item("区间最低", f2(lo), "", md(pts[iLo].d) + (iLo === n - 1 ? " · 就是今天" : " · 距现价 " + sg((last / lo - 1) * 100)),
       "区间内最低收盘 " + f2(lo) + "（" + md(pts[iLo].d) + "）；距现价 = 最新收盘相对它高出多少") +
     /* ⚠ 2026-11-07：「区间位置」→「窗口内位置」并带上窗口名
        原名叫「区间位置」，而上面指数卡有一个「52 周位置 49%」——
        同一屏两个"位置"、口径完全不同（一个 52 周、一个当前窗口），看着像有一个错了 ✗ */
-    item("窗口内位置", pos.toFixed(0) + "%", "", SPAN_LABEL[recentSpan] || "",
+    item("窗口内位置", pos.toFixed(0) + "%", "", (SPAN_LABEL[recentSpan] || "") + " 窗口",
       "最新收盘在本**窗口**（" + (SPAN_LABEL[recentSpan] || recentSpan + " 日") + "）区间 [最低 " + f2(lo) + ", 最高 " + f2(hi)
       + "] 里的分位；越接近 100 = 越贴近窗口高位。⚠ 与指数卡的「52 周位置」不是一个口径 ✗") +
-    item("年化波动", vol.toFixed(1) + "%", "", "日 σ " + (sd * 100).toFixed(2) + "%",
+    item("年化波动", vol.toFixed(1) + "%", "", "日均 ±" + (sd * 100).toFixed(2) + "%",
       "日收益的样本标准差 × √252；样本只有 " + rets.length + " 个交易日，只是近月尺度的粗估，不代表长期波动率") +
     item("最大单日", sg(rets[iUp] * 100), "up", md(pts[iUp + 1].d) + " · 最差 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）",
       "区间内单日涨幅最大 " + sg(rets[iUp] * 100) + "（" + md(pts[iUp + 1].d) + "）、跌幅最大 " + sg(rets[iDn] * 100) + "（" + md(pts[iDn + 1].d) + "）");
