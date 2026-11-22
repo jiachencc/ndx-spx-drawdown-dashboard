@@ -246,7 +246,7 @@
          代价是卡片高 ~55px，但两张卡同步变高、依然严格对齐 ✓ */
     /* ⚠ 必须带父级 id：基础 `.kpis` 规则写在**这个 media 之后**（第 288 行），
        同优先级下后写的赢 → 只写 `.kpis` 会被覆盖掉、2 列根本不生效 ✗（踩过一次）*/
-    #card-ndx .kpis, #card-spx .kpis { grid-template-columns: 1fr 1fr; gap: 8px; }
+    #card-ndx .kpis, #card-spx .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .idx-change { font-size: 11px; }
     .kpi .k-label { font-size: 10.5px; letter-spacing: .2px; }
   }
@@ -254,7 +254,7 @@
     .header h1 { font-size: 18px; }
     .idx-close { font-size: 20px; }
     .drawdown-num { font-size: 34px; }
-    .kpis { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: minmax(0, 1fr); }
     .dca-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .dca-tbl-wrap table { min-width: 280px; }
   }
@@ -300,7 +300,25 @@
   .drawdown-box { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
   .drawdown-num { font-family: var(--mono); font-size: 46px; font-weight: 700; line-height: 1; }
   .drawdown-label { font-size: 12px; color: var(--tx2); border-top: 1px solid var(--line-soft); padding-top: 12px; }
-  .kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
+  /* ⚠ 2026-11-22 修卡内溢出（用户：「纳斯达克100这里有遮挡」）：`1fr` 的**最小尺寸是 min-content**，
+     而 .k-val 是 nowrap —— 只要有一格文案变长（如「已到档 · 距 -25% 差 4.81pp」），
+     整列就被撑到文本宽度、顶出卡片右边界，压在右边那张卡上 ✗（实测 1080px 溢出 135px、1440 也溢出 76px）。
+     `minmax(0, 1fr)` 把最小尺寸压回 0，让 ellipsis 真正生效 ✓；同时把那种长文案挪去 title（见 renderKpis） */
+  .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; margin-top: 12px; flex: 1; min-height: 0; }
+  /* ⚠ 2026-11-22「窄卡降列」：桌面中段（1080~1279）页面切成 3 栏，指数卡被压到 296~332px，
+     3 列每格只剩 **78~90px** → 「31,361」「+25.30%」被 ellipsis 截成「31,3...」「+25....」✗
+     （实测格宽 ≥98px 才放得下；1280 起才达标）
+     判断依据必须是**卡片自身宽度**而不是视口 —— 同一视口下卡宽由布局栏数决定，media query 抓不准 ✗。
+     故用容器查询（它按**内容盒**判，即 .kpis 的宽度）：< 330px 降到 2 列（每格 ~123~153px），6 个 KPI 三行排完、两卡同步变高 ✓
+     实测边界：1080px → 254、1200px → 290、1280/1440px → 313（**全部 < 330 → 2 列**）；
+     900/1000px → 389/431（≥ 330 → 3 列，格宽 120/137，放得下「还差 3.09pp」✓）
+     ⚠ 为什么连 1280/1440 也走 2 列：3 列时格宽 98px，装不下 SPX 的「还差 3.09pp」（实测被截成「还差 3...」✗），
+       只差 3px 的临界值 —— 与其为了迁就网格去压精度（3.09 → 3.1），不如给足空间，以后 KPI 文案再变也不会重演 ✓
+     ⚠ 老浏览器不支持 @container 时保持 3 列（回到截断，但不会破版）—— 可接受的降级 ✓ */
+  #card-ndx, #card-spx { container-type: inline-size; }
+  @container (max-width: 330px) {
+    #card-ndx .kpis, #card-spx .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  }
   /* ⚠ 2026-11-07：改成 **flex column ＋ 数值贴底**（用户：「两张卡的数据区域视觉上保持一致」）
      问题：k-label 在窄格里可能折成两行（「历史高点 ATH」放不下），
            而「涨回新高需」一行 —— 同一行里两个格子的 k-val 会差 **15px** ✗
@@ -1149,9 +1167,19 @@ function renderIndexCard(p, idx, th) {
      → 到档后给出「距下一档」；已到最深一档（−35%）时直接说「已到历史级」✓ */
   const to15 = dd - th.t2;
   const nextTh = dd <= th.t3 ? th.t4 : th.t3;
+  /* ⚠ 2026-11-22：到档后**不再**把「距下一档 X pp」塞进值里 —— 3 列时每格只有 ~118px，
+     nowrap 的长文案会把整列撑破、溢出到旁边那张卡上（用户报「纳斯达克100这里有遮挡」，
+     实测 1080px 溢出 135px、1440 也溢出 76px ✗，详见 .kpis 的 minmax(0,1fr) 注释）。
+     → 值只留「已到档」，明细放 title（桌面悬停可见）；触发矩阵那行本来就写着「还差 4.81pp」，
+       信息没有丢，只是不在 KPI 格重复 ✓ */
   $(p + "-to15").textContent = to15 > 1e-9
     ? "还差 " + to15.toFixed(2) + "pp"
-    : (dd <= th.t4 ? "已到历史级" : "已到档 · 距 " + nextTh + "% 差 " + (dd - nextTh).toFixed(2) + "pp");
+    : (dd <= th.t4 ? "已到历史级" : "已到档");
+  $(p + "-to15").title = to15 > 1e-9
+    ? "距 " + th.t2 + "% 档还差 " + to15.toFixed(2) + "pp（现 " + pct(dd) + "）"
+    : (dd <= th.t4
+      ? "已到 " + th.t4 + "% 历史级档（现 " + pct(dd) + "）"
+      : "已到 " + th.t2 + "% 档（现 " + pct(dd) + "）；距 " + nextTh + "% 档还差 " + (dd - nextTh).toFixed(2) + "pp");
   $(p + "-to15").className = "k-val small " + (to15 > -3 ? "down" : "flat");
   $(p + "-rsi").textContent = idx.rsi.toFixed(1);
   $(p + "-rsi").style.color = idx.rsi >= 70 ? "var(--red)" : (idx.rsi <= 30 ? "var(--green)" : "var(--tx)");

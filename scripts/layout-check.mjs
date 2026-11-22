@@ -186,6 +186,45 @@ for (const w of [1440, 760, 414, 380]) {
   check("380 → 1440 拖回后：页面无横向溢出", c2.ov <= 0, c2.ov > 0 ? "溢出 " + c2.ov + "px" : "溢出 0px ✓");
   await p.close();
 }
+/* ⑥ index.html 的指数卡 KPI 网格（2026-11-22 加，用户报「纳斯达克100这里有遮挡」）——
+   ⚠ 起因：本脚本此前**只测 positions.html**，index 页的版面从来没被自动化覆盖过 ✗。
+   那个 bug 是 `.kpis` 用 `1fr`（最小尺寸 = min-content）＋ `.k-val` nowrap，
+   只要某格文案变长就把整列撑破、顶到右边那张卡上（实测 1080px 溢出 135px、1440 也溢出 76px），
+   而整页**没有横向滚动** → ①③④ 那些 `document.scrollWidth` 断言一个都抓不到 ✗。
+   → 这里按**卡内**量：网格自身不溢出 + 每格数字没被 ellipsis 截断。
+   档位刻意含 **1080 / 1200**：那是页面切成 3 栏、指数卡被压到 296~332px 的「窄卡」区间，
+   正是这次出事的宽度；1380/1440 反而正常 ✓ */
+for (const w of [1440, 1200, 1080, 380]) {
+  const p = await browser.newPage({ viewport: { width: w, height: 1000 }, colorScheme: dark ? "dark" : "light" });
+  p.on("pageerror", (e) => errs.push("index " + w + "px " + e.message));
+  await p.goto(pathToFileURL(path.join(root, "index.html")).href, { waitUntil: "load" });
+  await p.waitForTimeout(400);
+  const r = await p.evaluate(() => {
+    const res = [];
+    for (const id of ["card-ndx", "card-spx"]) {
+      const card = document.getElementById(id);
+      if (!card) { res.push({ id, miss: true }); continue; }
+      const g = card.querySelector(".kpis");
+      const cr = card.getBoundingClientRect();
+      const gridOver = g ? g.scrollWidth - g.clientWidth : 0;
+      const vals = [...card.querySelectorAll(".kpi .k-val")];
+      const clipped = vals.filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent.trim());
+      const outOfCard = vals.filter((x) => x.getBoundingClientRect().right > cr.right + 1).length;
+      res.push({ id, cols: g ? getComputedStyle(g).gridTemplateColumns.split(" ").length : 0, gridOver, clipped, outOfCard });
+    }
+    return { res, docOver: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  const bad = r.res.filter((x) => x.miss || x.gridOver > 1 || x.clipped.length || x.outOfCard > 0);
+  check("index " + w + "px：指数卡 KPI 网格不溢出、数字不截断（"
+    + r.res.map((x) => x.id.replace("card-", "") + (x.miss ? "缺卡" : " " + x.cols + "列")).join(" · ") + "）",
+    r.res.length === 2 && bad.length === 0,
+    bad.length ? bad.map((x) => x.id + (x.miss ? " 卡片缺失" : "") + (x.gridOver > 1 ? " 网格溢出 " + x.gridOver + "px" : "")
+      + (x.clipped.length ? " 截断「" + x.clipped.join("」「") + "」" : "") + (x.outOfCard ? " 越出卡片 " + x.outOfCard + " 格" : "")).join(" · ")
+      : "溢出 0px · 全部完整");
+  check("index " + w + "px：页面无横向溢出", r.docOver <= 0, r.docOver > 0 ? "溢出 " + r.docOver + "px" : "溢出 0px ✓");
+  await p.close();
+}
+
 await browser.close();
 check("版面检查过程无 JS 报错", errs.length === 0, errs.slice(0, 2).join(" | "));
 
@@ -194,5 +233,5 @@ for (const c of checks) {
   if (!c.ok) failed++;
   console.log((c.ok ? "  ✓ " : "  ✗ ") + (dark ? "深色 · " : "") + c.name + (c.detail && !c.ok ? "   ← " + c.detail : ""));
 }
-console.log("\n版面校验：" + (checks.length - failed) + "/" + checks.length + " 通过（真实浏览器 · " + (dark ? "深色" : "浅色") + " · 1440/760/414/380 四档 ＋ 拖动缩放）");
+console.log("\n版面校验：" + (checks.length - failed) + "/" + checks.length + " 通过（真实浏览器 · " + (dark ? "深色" : "浅色") + " · positions 1440/760/414/380 ＋ index 1440/1200/1080/380 ＋ 拖动缩放）");
 process.exit(failed ? 1 : 0);
