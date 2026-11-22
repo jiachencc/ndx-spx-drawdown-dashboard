@@ -9801,7 +9801,7 @@ function addDistMiniHtml(code) {
   const detail = d.rows.map((r, i) => (r.n ? ORD[i].replace(/ /g, "") + " <b>" + r.n + "</b>" : ""))
     .filter(Boolean).join(" · ");
   return '<div class="ad-mini" title="按买入时该标的距 52 周高的回撤归档（分母取该月及之前 12 个月的月末收盘最高）'
-    + ' —— 颜色越深＝档位越深；本行只列有成交的档位">'
+    + ' —— 颜色越深＝档位越深；本行只列有成交的档位；条长与占比都按<b>买入金额</b>（非笔数）">'
     + '<span class="ad-mini-k">加仓分布</span>'
     + '<i class="ad-mini-bar">' + segs + "</i>"
     + '<span class="ad-mini-n">' + d.n + " 笔</span>"
@@ -9848,7 +9848,10 @@ function renderAddDist() {
   box.innerHTML = '<div class="ad-wrap">' + rows
     + '<div class="ad-note">浅档（≥ −5%）占 <b>' + shallow.toFixed(0) + "%</b> 的钱、深档（≤ −15%）只占 <b>"
     + deep.toFixed(0) + "%</b>" + (cur.length ? " —— 当前三只在 " + cur.join(" / ") : "") + "</div>"
-    + '<div class="ad-foot">分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓'
+    + '<div class="ad-foot"><b>条形长度与百分比都按「买入金额」</b>（每笔 份数 × 成交价 累加），不是笔数 ——'
+    + ' 决定仓位轻重的是钱不是次数（本次浅档 45 笔占 51.7%、但金额占 53.3%）；'
+    + '只含当前持有的 3 只（不含已清仓的中概/港美/科创），含已减仓那部分的买入额、不扣卖出。<br>'
+    + '分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓'
     + (miss ? " · " + miss + " 笔缺月度行情未计入" : "") + "</div></div>";
 }
 function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
