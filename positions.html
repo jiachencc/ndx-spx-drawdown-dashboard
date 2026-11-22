@@ -6194,14 +6194,26 @@ function prPerFund(C) {
          每行只出「3 枚灯的结论」，具体数字都在上面的逐只表里、也在本行 title 里（避免重复占屏）。 */
       /* rf 与 winDays 都已提到本块开头（评级与表尾图例要用），此处不再重复声明 */
       const IC = { ok: "", watch: "⚠", bad: "", na: "⏳" };
+      /* ⚠ 2026-11-22 加「未到窗口时不出空表」（用户：「逐只体检是不是没用，可以删了」）——
+         该项要求**同窗口 ≥90 天**，而账户 08-28 建仓、11-20 只有 84 天 → 9 只全是 ⏳「暂不出结论」，
+         一张 9 行 × 5 列的表里一条结论都没有，纯占位 ✗。
+         但**不删功能**：判据全是现算的，满 90 天会自动点亮。
+         → 未到 90 天时折叠条直接写「还差 N 天」，展开也只给一行解释，不再摊一张空表 ✓ */
+      const bDaysAll = (bStart && bEnd) ? Math.round((Date.parse(bEnd) - Date.parse(bStart)) / 86400000) : 0;
+      const canCheck = winDays >= 90 && bDaysAll >= 90;
       perFundSec += '<details class="pf-fold"><summary class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 时点＝同窗口 XIRR − TWR ③ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
-        '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
-        " · 骨架版 · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜「你的钱」是否达标＝上一张表的评级（同口径，不重复给灯）" +
-        "｜①② 需同窗口 ≥90 天）</span></summary>" +
+        '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length + " · " +
+        (canCheck
+          ? "✓达标 ⚠观察 ✗需处理 ⏳样本不足｜「你的钱」是否达标＝上一张表的评级（同口径，不重复给灯）"
+          : "⏳ 未到体检窗口 —— 需同窗口 ≥90 天，现 " + winDays + " 天（还差 " + (90 - winDays) + " 天），满 90 天后自动点亮") +
+        "</span></summary>" +
+        (canCheck ? "" : '<div class="chk-hold">⏳ 三项体检都还没到能出结论的时候：① 标的要拿 TWR 与同类指数比、② 时点要把 XIRR 和 TWR 拆开比，两者都要求**同窗口 ≥90 天**；'
+          + "现窗口 " + winDays + " 天，短窗口下 QDII 净值滞后 1~2 天就足以造出 2~3pp 的假差距，硬给结论反而误导 ✗。<br>"
+          + "满 90 天后这三项会自动点亮，不用手工改数据。</div>") +
+        '<table class="chk-tbl xr-tbl"><thead><tr><th class="c-nm">标的</th>' +
         /* 与上一张表同一套表格语言（真 <table> + 分节行 + 手机端三列分项）：
            三枚灯各占一列 —— 这样「哪一项不达标」可以竖着扫，而不是每行一段自由文本。 */
-        '<table class="chk-tbl xr-tbl"><thead><tr><th class="c-nm">标的</th>' +
-          '<th title="① 标的：该只的 TWR vs 同类指数（BENCH 只有纳指，故仅纳指类可比；取交集窗口）">① 标的</th>' +
+          (canCheck ? '<th title="① 标的：该只的 TWR vs 同类指数（BENCH 只有纳指，故仅纳指类可比；取交集窗口）">① 标的</th>' +
           '<th title="② 时点：同窗口 XIRR − TWR，两者都年化 —— 衡量「何时加减仓」的贡献">② 时点</th>' +
           '<th title="③ 数据：流水齐全，且 Σ 与快照成本对平（在途是正常口径，不计入问题）">③ 数据</th>' +
           '<th title="这一只的体检结论（每句一行）；悬停数字区可看完整推导">结论</th>' +
@@ -6244,7 +6256,7 @@ function prPerFund(C) {
             /* 结论分条：与操作体检的「说明」列同一落法（把「；」换成换行），一句一行 */
             '<td class="c-note">' + esc(concl).split("；").join("<br>") + "</td>" +
             "</tr>";
-        }).join("")).join("") + "</tbody></table></details>";
+        }).join("")).join("") + "</tbody></table>" : "") + "</details>";
     }
   }
   return perFundSec;
@@ -6259,7 +6271,7 @@ function prKpisHtml(C) {
        ⚠ 小注一律短（窄屏格宽 ~106px 会截断）：完整口径在紧随其后的 ? 浮层（prin-q）里，不丢信息。 */
     '<div class="prin-kpis">' +
       '<div class="pk"><div class="pk-k">本金</div><div class="pk-v">' + fmtYuan(C.principal) + "</div>" +
-        '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(C.cash) + '。">外部净转入</div></div>' +
+        '<div class="pk-n" title="外部净转入：真从银行 / 支付宝转进账户的钱，含尚未买成持仓的现金 ' + fmtYuan(C.cash) + '。">即外部净转入</div></div>' +
       '<div class="pk-op" aria-hidden="true">＋</div>' +
       '<div class="pk"><div class="pk-k" title="快照口径：＝ 总资产 − 外部净转入（本金），含已实现（已卖出兑现）。与「账户累计盈亏」（券商 / 月度账单口径）不是同一个数">累计收益（快照口径）</div><div class="pk-v ' + cls(C.pnl) + '">' + fmtAmt2(C.pnl) + "</div>" +
         '<div class="pk-n">' + fmtPct(C.rate / 100, 2) + C.qBtn + "</div></div>" +
