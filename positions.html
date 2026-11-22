@@ -7752,6 +7752,9 @@ function holdCardHtml(row, i, ctx) {
        （第一版插在 bar-wrap **内部** —— 它把「绿点层 / 分位条 / 两端价 / 图例」这条完整的图劈成两半 ✗
          第二版挪到卡末尾 —— 中间隔着"今日提醒 + 建仓区间 + 趋势"，入口离图太远 ✗）*/
     costScatterHtml(i) +
+    /* 迷你加仓分布（2026-11-22，用户：「也想看到每个 ETF 对应的加仓分布」）——
+       紧跟「成本 × 时间」散点：散点看**什么时候买的**，这条看**买在哪个回撤档**，两维互补 ✓ */
+    addDistMiniHtml(p.code) +
     '<div class="strat-row">' + strat + chipDip +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
       '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>' +
@@ -9738,6 +9741,58 @@ function ladderHtml() {
 renderLadderSafe();
 function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("ladder:", e.message); } }
 
+/* 加仓分布的**计算内核**（2026-11-22，抽出来给「总分布卡」与「每只持仓卡」共用同一套口径）——
+   返回 { rows:[{n,amt} × 5], n, amt, miss }，档位 = ≥−5 / −5~−10 / −10~−15 / −15~−20 / ≤−20；
+   分母用「该月及之前 12 个月的月末收盘最高」（不能用当前 52 周高，见下面块注释） */
+/* ⚠ 2026-11-22：档位名内联在每个函数里，**不要提到模块级 const** ——
+   持仓卡（posCardHtml）在文件前部就调用了 addDistMiniHtml，而模块级 const 在这一行才初始化
+   → 会撞 TDZ：「Cannot access 'ADD_DIST_ORD' before initialization」，整页变「数据加载异常」✗
+   （5 个字符串每次重建，开销可忽略，换来零顺序依赖 ✓） */
+function addDistOf(code) {
+  const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
+  const out = ORD.map(() => ({ n: 0, amt: 0 }));
+  const it = (typeof TREND !== "undefined" && TREND.items && TREND.items[code]) || {};
+  const mo = it.mo || {};
+  const keys = Object.keys(mo).sort();
+  const HOLD = (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) ? POSITIONS.hold : [];
+  const LOG = (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.log)) ? POSITIONS.log : [];
+  const h = HOLD.find((x) => x.code === code);
+  if (!h || keys.length < 2) return { rows: out, miss: 0, n: 0, amt: 0 };
+  let miss = 0;
+  LOG.filter((e) => e.sym === h.sym && !/卖/.test(String(e.act))).forEach((e) => {
+    const idx = keys.indexOf(String(e.d).slice(0, 7));
+    if (idx < 0) { miss++; return; }
+    const win = keys.slice(Math.max(0, idx - 11), idx + 1);
+    const hi = Math.max.apply(null, win.map((k) => mo[k]));
+    if (!(hi > 0) || !(e.cost > 0)) { miss++; return; }
+    const dd = (e.cost / hi - 1) * 100;
+    const i = dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4;
+    const amt = (e.qty || 0) * e.cost;
+    out[i].n++; out[i].amt += amt;
+  });
+  const n = out.reduce((a, x) => a + x.n, 0);
+  const amt = out.reduce((a, x) => a + x.amt, 0);
+  return { rows: out, miss: miss, n: n, amt: amt };
+}
+/* 每只持仓卡里的**迷你版**（2026-11-22，用户：「我其实也想看到每个 ETF 对应的加仓分布」）——
+   只占两行：一条堆叠条（按金额占比）＋ 一行非零档位明细；
+   不铺 5 行是因为持仓卡本身已有 12 行，再 ×5 会把「一屏看一只」彻底挤没 ✗ */
+function addDistMiniHtml(code) {
+  const d = addDistOf(code);
+  if (!d.n) return "";
+  const col = ["d0", "d1", "d2", "d3", "d4"];
+  const segs = d.rows.map((r, i) => (r.amt > 0
+    ? '<b class="' + col[i] + '" style="width:' + (r.amt / d.amt * 100).toFixed(1) + '%"></b>' : "")).join("");
+  const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
+  const detail = d.rows.map((r, i) => (r.n ? ORD[i] + " <b>" + r.n + "</b> 笔" : ""))
+    .filter(Boolean).join(" · ");
+  return '<div class="ad-mini" title="按买入时该标的距 52 周高的回撤归档（分母取该月及之前 12 个月的月末收盘最高）'
+    + ' —— 颜色越深＝档位越深；本行只列有成交的档位">'
+    + '<span class="ad-mini-k">加仓分布</span>'
+    + '<i class="ad-mini-bar">' + segs + "</i>"
+    + '<span class="ad-mini-n">' + d.n + " 笔</span>"
+    + '<span class="ad-mini-d">' + detail + "</span></div>";
+}
 /* 加仓分布（2026-11-22，用户：「做一个 −5/−10/−15/−20 加仓的阶梯汇总，每个档位有个分布」）——
    把逐笔买入按「买入时该标的距 52 周高的回撤」归档，回答「我的钱到底加在了哪一档」——
    与上面「加仓阶梯」（规则：该在哪档加多少）形成对照，规则 → 复盘 ✓
@@ -9748,29 +9803,17 @@ function renderAddDist() {
   const box = $("add-dist-card");
   if (!box) return;
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
-  const bucketOf = (dd) => (dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4);
   const agg = ORD.map(() => ({ n: 0, amt: 0 }));
   let tot = 0, totAmt = 0, miss = 0;
   const CODES = ["159941", "513650", "513880"];
   const T = (typeof TREND !== "undefined" && TREND.items) || {};
-  const HOLD = (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.hold)) ? POSITIONS.hold : [];
-  const LOG = (typeof POSITIONS !== "undefined" && Array.isArray(POSITIONS.log)) ? POSITIONS.log : [];
   const cur = [];
   CODES.forEach((c) => {
-    const it = T[c] || {}, mo = it.mo || {}, keys = Object.keys(mo).sort();
-    const h = HOLD.find((x) => x.code === c);
+    const it = T[c] || {};
     if (Number.isFinite(it.distHi)) cur.push(it.name.replace(/ETF.*$/, "") + " " + it.distHi.toFixed(1).replace("-", "−") + "%");
-    if (!h || keys.length < 2) return;
-    LOG.filter((e) => e.sym === h.sym && !/卖/.test(String(e.act))).forEach((e) => {
-      const idx = keys.indexOf(String(e.d).slice(0, 7));
-      if (idx < 0) { miss++; return; }
-      const win = keys.slice(Math.max(0, idx - 11), idx + 1);
-      const hi = Math.max.apply(null, win.map((k) => mo[k]));
-      if (!(hi > 0) || !(e.cost > 0)) { miss++; return; }
-      const i = bucketOf((e.cost / hi - 1) * 100);
-      const amt = (e.qty || 0) * e.cost;
-      agg[i].n++; agg[i].amt += amt; tot++; totAmt += amt;
-    });
+    const d = addDistOf(c);
+    d.rows.forEach((r, i) => { agg[i].n += r.n; agg[i].amt += r.amt; });
+    tot += d.n; totAmt += d.amt; miss += d.miss;
   });
   const cnt = $("add-dist-cnt");
   if (cnt) cnt.textContent = tot ? "（" + tot + " 笔 · " + (totAmt / 10000).toFixed(1) + " 万 · 按买入时该标的距 52 周高的回撤归档）" : "（暂无逐笔买入）";

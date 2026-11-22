@@ -2637,6 +2637,24 @@
 .ad-note b { color: var(--tx); font-weight: 700; font-family: var(--mono); }
 .ad-foot { margin-top: 4px; font-size: 9.5px; color: var(--tx3); line-height: 1.55; }
 .ad-foot b { color: var(--tx2); font-weight: 600; }
+/* 持仓卡里的迷你分布（2026-11-22）：一条堆叠条 ＋ 一行明细，只占两行 ——
+   颜色由浅到深对应档位由浅到深，一眼看出「这只的加仓集中在浅档还是深档」✓ */
+.ad-mini { display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 2px 8px; align-items: center; margin: 9px 0 4px; }   /* 与上方「成本×时间」折叠条拉开，免得被当成它的展开内容 */
+.ad-mini-k { font-size: 9.5px; color: var(--tx3); white-space: nowrap; }
+.ad-mini-bar { display: flex; height: 6px; border-radius: 2px; overflow: hidden;
+  background: rgba(147,163,187,.13); }
+.ad-mini-bar > b { display: block; height: 100%; }
+.ad-mini-bar .d0 { background: var(--blue); }
+.ad-mini-bar .d1 { background: #4a7fd4; }
+.ad-mini-bar .d2 { background: #6b6fd0; }
+.ad-mini-bar .d3 { background: #8a5fc0; }
+.ad-mini-bar .d4 { background: #a5529f; }
+.ad-mini-n { font-size: 9.5px; color: var(--tx2); white-space: nowrap;
+  font-family: var(--mono); }
+.ad-mini-d { grid-column: 2 / -1; font-size: 9px; color: var(--tx3); line-height: 1.5;
+  font-family: var(--mono); }
+.ad-mini-d b { color: var(--tx2); font-weight: 700; }
 /* 「已越出阶梯设计」（2026-11-22 加）：跌幅穿过最后一档后，阶梯不再给任何动作 —— 这个事实
    比「5 批已全部触发」重要得多，用琥珀色单独标出来 ✓ */
 .ldb-over { color: var(--warn, #d8a13a); font-weight: 600; margin-left: 8px; }
