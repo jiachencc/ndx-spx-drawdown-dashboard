@@ -1144,8 +1144,14 @@ function renderIndexCard(p, idx, th) {
   $(p + "-ath").textContent = fmt0(idx.ath);
   $(p + "-toath").textContent = pct(toAthOf(idx));
   $(p + "-days").textContent = idx.days + " 天";
+  /* ⚠ 2026-11-22 改：原来到档后只印「已到档」—— 跌到 −20% 时读者看不出「下一档 −25% 还差 4.81pp」，
+     而这正是当下最想知道的（还有没有子弹、下一档在哪）✗
+     → 到档后给出「距下一档」；已到最深一档（−35%）时直接说「已到历史级」✓ */
   const to15 = dd - th.t2;
-  $(p + "-to15").textContent = to15 <= 1e-9 ? "已到档" : "还差 " + to15.toFixed(2) + "pp";
+  const nextTh = dd <= th.t3 ? th.t4 : th.t3;
+  $(p + "-to15").textContent = to15 > 1e-9
+    ? "还差 " + to15.toFixed(2) + "pp"
+    : (dd <= th.t4 ? "已到历史级" : "已到档 · 距 " + nextTh + "% 差 " + (dd - nextTh).toFixed(2) + "pp");
   $(p + "-to15").className = "k-val small " + (to15 > -3 ? "down" : "flat");
   $(p + "-rsi").textContent = idx.rsi.toFixed(1);
   $(p + "-rsi").style.color = idx.rsi >= 70 ? "var(--red)" : (idx.rsi <= 30 ? "var(--green)" : "var(--tx)");
@@ -1205,11 +1211,18 @@ function renderAll() {
   /* 趋势注释（数字全部派生，避免文案与数据漂移） */
   const maTxt = v => v > 0.5 ? "MA50 上方" : (v < -0.5 ? "MA50 下方" : "MA50 纠缠");
   const bothUp = ndx50 > 0.5 && spx50 > 0.5, bothDn = ndx50 < -0.5 && spx50 < -0.5;
+  /* ⚠ 2026-11-22 修一处自相矛盾：原来只要「两个指数都在 MA50 下方」就印「典型回调而非转熊」，
+     而同一句的前半段已经说了「中期趋势承压」—— MA200 破掉恰恰是「转熊」的常用判据，
+     于是出现「双破 MA200 ＋ 典型回调而非转熊」这种自打脸的组合 ✗（实测 11-20：NDX/SPX 双双跌破 MA50 与 MA200）。
+     → 把后半句与 MA200 状态绑定：双破 → 说「趋势性下跌」；只有 MA50 破、MA200 未破 → 才叫「回调而非转熊」✓ */
+  const ma200BothDn = ndx200 < 0 && spx200 < 0;
   $("note-trend").innerHTML =
     "NDX 现于 " + maTxt(ndx50) + "、MA200 " + (ndx200 > 0 ? "上方" : "下方") +
     "；SPX 现于 " + maTxt(spx50) + "、MA200 " + (spx200 > 0 ? "上方" : "下方") +
-    " → <b>" + (ndx200 > 0 && spx200 > 0 ? "中期趋势完好" : "中期趋势承压") + "</b>，" +
-    (bothDn ? "短期动能减弱，典型回调而非转熊" : (bothUp ? "短期动能仍强" : "短期结构分化")) +
+    " → <b>" + (ndx200 > 0 && spx200 > 0 ? "中期趋势完好" : (ma200BothDn ? "中期趋势已转弱（双破 MA200）" : "中期趋势承压")) + "</b>，" +
+    (bothDn
+      ? (ma200BothDn ? "短期动能减弱，属<b>趋势性下跌</b>而非普通回调 —— 定投节奏可继续，但别把「跌了就加倍」当默认动作" : "短期动能减弱，但 MA200 未破，属回调而非转熊")
+      : (bothUp ? "短期动能仍强" : "短期结构分化")) +
     "。广度结论见上方仪表盘。";
 
   /* valuation */
@@ -1334,12 +1347,17 @@ function renderHist(ndxDD) {
      而 pct() 输出的是 ASCII `-` ✗ 同一列两种减号看着像两个来源 ✗
      （不动 pct()：它全页都在用，改它波及其他地方）*/
   $("hist-cur").textContent = pct(ndxDD).replace("-", "−");
-  /* 当前这行的标普同段（2026-11-07 加）：取 DDHIST 里 ongoing 那次事件的 spx ✓ */
+  /* 当前这行的标普同段（2026-11-07 加；2026-11-22 修口径）
+     ⚠ 原来取 DDHIST 那次事件的 `og.spx`（−11.6%，东财「峰→谷」口径），而**左边纳指那格**用的是
+     `ndxDD`（close ÷ ATH − 1，−20.19%）→ 同一行两个口径 ✗；连带下面「比典型深 X pp」也对不上
+     （按本格的 −11.6 算应是 −6.24，页面却按 −11.91 印 −6.55）✗。
+     实测差 0.31pp：标普「这次回撤的高点」（10-06 附近）与「历史最高 7,845」不是同一个点。
+     → 统一成 close ÷ ATH：与纳指那列、与卡片顶部结论句三处同源 ✓（表格语义＝「各自距自己的 ATH」） */
   (function () {
-    const og = (typeof DDHIST !== "undefined" && DDHIST && Array.isArray(DDHIST.events))
-      ? DDHIST.events.filter((e) => e.ongoing).at(-1) : null;
+    const spxDD = (D.spx && Number.isFinite(D.spx.close) && Number.isFinite(D.spx.ath) && D.spx.ath > 0)
+      ? (D.spx.close / D.spx.ath - 1) * 100 : null;
     const el = $("hist-cur-spx");
-    if (el) el.textContent = (og && Number.isFinite(og.spx)) ? og.spx.toFixed(1).replace("-", "−") + "%" : "--";
+    if (el) el.textContent = spxDD === null ? "--" : pct(spxDD).replace("-", "−");
   })();
   $("hist-cur-days").textContent = D.ndx.days + " 天";
   /* 2026-10-17 修：原来中位数标签与游标都用**当前回撤**渲染 —— 等于把「当前值」冒充成
@@ -1482,7 +1500,9 @@ function renderHist(ndxDD) {
       + ' 日、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>';
     /* 折叠条上的关键数：不展开也能判断「要不要展开看分布」 */
     const kEl = $("hx-repair-k");
-    if (kEl) kEl.textContent = "中位 " + b.medianTotal + " 日" + (left === null ? "" : " · 还需约 " + left + " 日");
+    /* ⚠ 2026-11-22 加样本量：−15~−20% 这一档只有 2 个历史样本，而「中位 176 日」看上去像个确定结论 ✗ ——
+       把 n 印在折叠条上，读者一眼知道该把这句信几分 ✓ */
+    if (kEl) kEl.textContent = "中位 " + b.medianTotal + " 日（n=" + b.n + "）" + (left === null ? "" : " · 还需约 " + left + " 日");
   })();
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);
@@ -1618,7 +1638,10 @@ function renderConds() {
   const th = D.thresholds;
   /* 资格条件：回撤档位（与触发矩阵联动） */
   /* 图标与文字解耦：图标 aria-hidden（纯装饰），文字带语义，避免读屏朗读 emoji 名 */
-  const ddIcon = dd <= th.t4 ? "⚫" : dd <= th.t3 ? "🔴" : dd <= th.t2 ? "🟠" : dd <= th.t1 ? "🟡" : "🟢";
+  /* ⚠ 2026-11-22 修档位图标错位：原来 `dd <= t2`（进 −15% 档）给的是 🟠 —— 而「回撤触发矩阵」
+     里 −15% 档是 🟡、−25% 档才是 🟠 → 于是同一页出现「🟠 已达 −15% 加仓档」这种自相矛盾的组合 ✗
+     （实测 −20.19% 时触发）。现在严格按矩阵的四档配色对齐：−5 🟢 / −15 🟡 / −25 🟠 / −35 🔴 ✓ */
+  const ddIcon = dd <= th.t4 ? "🔴" : dd <= th.t3 ? "🟠" : dd <= th.t2 ? "🟡" : dd <= th.t1 ? "🟢" : "⚪";
   /* 2026-10-17 改：原来写「当前 ⚠ -5%（关注 -6.93%）」—— 读者会把 -5% 当成当前回撤 ✗。
      现在先给回撤数值，再用一句人话说明它越过了哪条线。 */
   const ddWord = dd <= th.t4 ? "已达 " + th.t4 + "% 历史级" : dd <= th.t3 ? "已达 " + th.t3 + "% 重仓档" : dd <= th.t2 ? "已达 " + th.t2 + "% 加仓档" : dd <= th.t1 ? "已越过 " + th.t1 + "% 关注线" : "仍在 " + th.t1 + "% 以内";
