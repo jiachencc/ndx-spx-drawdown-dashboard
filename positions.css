@@ -840,6 +840,18 @@
   .tip-pop .tip-dl dt { color: var(--tx3); font-size: 10.5px; white-space: nowrap;
     padding-left: 6px; border-left: 2px solid var(--line); line-height: 1.5; }
   .tip-pop .tip-dl dd { margin: 0; color: var(--tx2); line-height: 1.55; }
+  /* 表格模式（2026-11-22）：分组小标题 + 三列表格 —— 名称 / 前高→市值 / 浮盈，
+     同列右对齐、等宽，一眼横向比得出谁赚得多 ✓ */
+  .tip-pop .tip-sec { margin-top: 7px; }
+  .tip-pop .tip-sec:first-child { margin-top: 0; }
+  .tip-pop .tip-sec-t { font-size: 9.5px; color: var(--tx3); margin-bottom: 2px; letter-spacing: .02em; }
+  .tip-pop .tip-tbl { width: 100%; border-collapse: collapse; font-size: 10px;
+    font-family: var(--mono); font-feature-settings: "tnum"; }
+  .tip-pop .tip-tbl td { padding: 1.5px 0; line-height: 1.5; }
+  .tip-pop .tip-tbl .tip-td0 { color: var(--tx2); max-width: 118px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; }
+  .tip-pop .tip-tbl .tip-td1 { color: var(--tx3); text-align: right; white-space: nowrap; padding-right: 7px; }
+  .tip-pop .tip-tbl .tip-td2 { color: var(--tx); text-align: right; white-space: nowrap; font-weight: 700; }
   /* 徽标：一个词说明一档事实（假设 / 已是最低 / 你持有），比整句说明省 80% 宽度 */
   .pill { display: inline-block; padding: 0 5px; margin-left: 4px; border: 1px solid var(--line); background: var(--card2);
     border-radius: 999px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx2); white-space: nowrap; }
