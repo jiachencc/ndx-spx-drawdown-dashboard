@@ -520,6 +520,21 @@
   .pf-concl { margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: var(--card2); border: 1px solid var(--line-soft);
     font-size: var(--fs-xs); color: var(--tx2); line-height: 1.7; }
   .pf-concl b { font-family: var(--mono); font-feature-settings: "tnum"; }
+  .pf-concl b.up { color: var(--up); } .pf-concl b.down { color: var(--down); }
+  /* 对比条（2026-11-22 加）：你 vs 纳指 两条 mini bar —— 「跑赢/落后」这个结论从一行小字
+     升级成一张能扫读的图。grid 三列：标签 / 数值 / bar；bar 量程取 max(|你|,|纳指|)×1.1，
+     两条共用一把尺才可比 ✓ */
+  .pf-cmp-row { display: grid; grid-template-columns: 2.6em 4.4em minmax(0, 1fr);
+    gap: 8px; align-items: center; padding: 2px 0; }
+  .pf-cmp-lb { color: var(--tx3); font-size: var(--fs-xxs); }
+  .pf-cmp-row > b { font-weight: 700; text-align: right; }
+  .pf-cmp-bar { display: block; height: 6px; border-radius: 3px;
+    background: rgba(147,163,187,.14); overflow: hidden; }
+  .pf-cmp-bar > i { display: block; height: 100%; border-radius: 3px; }
+  .pf-cmp-bar.you > i { background: var(--blue); }
+  .pf-cmp-bar.bench > i { background: var(--tx3); }
+  .pf-cmp-foot { margin-top: 5px; font-size: var(--fs-xxs); color: var(--tx3); }
+  .pf-cmp-foot b { font-weight: 700; }
   /* 折叠块：summary 直接复用 .snap-sec 的小节题样式，展开才铺出明细（全页一个版式） */
   /* 折叠 summary（2026-09-23 修）：原来 ▾ 是 flex 子项，总结文字一长就被挤到**单独一行**
      （「本金与收益」卡里三处折叠全如此，看着像坏掉的列表项 ✗）。

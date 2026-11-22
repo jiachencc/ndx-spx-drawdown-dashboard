@@ -5739,29 +5739,36 @@ function prRateSec() {
       /* 措辞按 TWR 口径说：这里比的是「时间加权」——指数没有资金流，它的 TWR 就是指数涨跌本身，
          所以「同期纳指」与「同节奏纳指（同样的钱同样的日期）」在 TWR 口径下是同一个数，不必分开说。
          只有金额 / 资金加权口径下两者才会分叉（见「资产走势」的说明）。 */
-      conclLine = '<div class="pf-concl">同期纳指 <b>' + pc(annTS(bTwr)) + "</b>，你是 <b class=\"" + cls(twrSame) + "\">" + pc(annTS(twrSame)) +
-        "</b>（同为时间加权口径" + (benchBehind ? "，均截至 " + mdOf(bLast) : "") + "）→ <b class=\"" + cls(beat) + "\">" +
-        (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>" +
-        (annSame ? "" : " · 跨 " + Math.round(daysSame) + " 天，样本太短不年化") + "</div>";
+      /* ⚠ 2026-11-22 一句话结论升级成对比条（用户：「本金与收益 这几个折叠的模块有什么值得优化」）——
+         原来「同期纳指 −14.96%，你是 −11.45% → 跑赢 3.52pp」是一行小字，是整张卡最该被看见的结论，
+         却放在最不起眼的位置 ✗ → 现在两条 mini bar 上下并排：你的跌幅 vs 纳指跌幅，一眼看出谁跌得少；
+         跑赢绿 / 落后红；量程取 max(|你|, |纳指|) × 1.1 —— 两条 bar 共用一把尺才可比 ✓ */
+      const qBtn2 = '<button type="button" class="strat-hint" data-note="pf-cmp-q" aria-label="收益率口径" aria-expanded="false">?</button>';
+      const cmpAxis = Math.max(Math.abs(twrSame), Math.abs(bTwr)) * 1.1 || 1;
+      const cmpBar = (v, c2) => '<span class="pf-cmp-bar ' + c2 + '"><i style="width:'
+        + Math.max(0, Math.min(100, Math.abs(v) / cmpAxis * 100)).toFixed(1) + '%"></i></span>';
+      conclLine = '<div class="pf-concl">'
+        + '<div class="pf-cmp-row"><span class="pf-cmp-lb">你</span><b class="' + cls(twrSame) + '">' + pc(annTS(twrSame)) + '</b>' + cmpBar(twrSame, "you") + '</div>'
+        + '<div class="pf-cmp-row"><span class="pf-cmp-lb">纳指</span><b>' + pc(annTS(bTwr)) + '</b>' + cmpBar(bTwr, "bench") + '</div>'
+        + '<div class="pf-cmp-foot"><b class="' + cls(beat) + '">' + (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>"
+        + (benchBehind ? " · 均截至 " + mdOf(bLast) : "")
+        + (annSame ? "" : " · 跨 " + Math.round(daysSame) + " 天，样本太短不年化")
+        + qBtn2 + "</div></div>";
     }
     /* summary 精简（2026-10-20）：原来「XIRR 暂不年化 · 跨 52 天，样本太短」把同一件事说了两遍；
        现在只留「区间 · 天数 · TWR」，XIRR 的数值在下一行自己会说。 */
-    rateSec = '<details class="pf-fold"><summary class="snap-sec">收益率口径 <span class="snap-cnt">（' + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) +
-        " · " + Math.round(days) + " 天 · TWR " + pc(annT(twr)) + "）</span></summary>" +
-      '<div class="snap-tbl">' +
-      '<div class="snap-part"><span class="pn">TWR</span><span class="pv"><b class="' + cls(twr) + '">' + pc(annT(twr)) + '</b>' +
-        '<span class="snap-sub" title="时间加权收益率：按快照末端资金流逐期剔除转入/转出，衡量标的与持有本身 —— 不含你「何时加减仓」的影响">时间加权 · 剔除出入金时点</span></span></div>' +
-      '<div class="snap-part"><span class="pn">XIRR</span><span class="pv"><b>' + xCell + '</b>' +
-        '<span class="snap-sub" title="资金加权年化：用每一笔出入金的日期与金额解 IRR，衡量你的钱实际赚了多少。跨度过短（<90 天）不做年化，与走势图同一规则。">' +
-        /* 2026-10-20：不年化时 xCell 本身已写「52 天 · 暂不年化」，说明不再复述（实测出现过「52 天 · 暂不年化  样本 52 天，暂不年化」✗） */
-        (ann ? "资金加权 · 含出入金时点" + (gap !== null ? "，与 TWR 差 " + fmtPp(gap) : "") : "") + "</span></span></div>" +
-      /* 标签列窄屏只有 58px，「同节奏纳指」5 字（≈60px）会被省略成「同节奏纳…」→ 缩成「同节奏」，
-         完整名字与口径挂 title（2026-09-23 移动端审查）。 */
-      (bTwr !== null ? '<div class="snap-part"><span class="pn" title="同节奏纳指：把每一期的外部净流入在当天按纳指收盘买入，其余时间随纳指涨跌，回答「同样的钱、同样的日期全买纳指今天是多少」">同节奏</span><span class="pv"><b class="' + cls(bTwr) + '">' + pc(annT(bTwr)) + '</b>' +
-        '<span class="snap-sub" title="把每一期的外部净流入在当天按纳指收盘买入（现金流与组合完全相同），回答「同样的钱全买纳指今天是多少」' +
-          (bLast && bLast !== rPts[rPts.length - 1].d ? '。纳指点位至 ' + mdOf(bLast) : '') + '">' +
-        "同样的钱全买纳指 → " + (twrSame >= bTwr ? "跑赢 " : "落后 ") + Math.abs((twrSame - bTwr) * 100).toFixed(2) + "pp</span></span></div>" : "") +
-      "</div></details>";
+    /* ⚠ 2026-11-22 收益率口径从**折叠件**降级成 **? 浮层**（同上，用户 review 本金与收益卡）——
+       TWR / XIRR / 同节奏 是三个指标的**定义**，不是结论；占一个折叠件与「收益构成」平权太重 ✗
+       → 定义收进对比条旁的 ? 浮层（与本金那格的 ? 同款），要看才点，不占屏。数值（TWR 你 / 纳指）
+         已经画在对比条上，这里只留口径解释。 */
+    rateSec = '<div class="strat-note" id="pf-cmp-q">'
+      + "<b>TWR</b>（时间加权）＝按快照末端资金流逐期剔除转入/转出，衡量「标的与持有本身」—— 不含你「何时加减仓」的影响；"
+      + "区间 " + mdOf(rPts[0].d) + " → " + mdOf(rPts[rPts.length - 1].d) + "，TWR " + pc(annT(twr)) + "。<br>"
+      + "<b>XIRR</b>（资金加权）＝用每一笔出入金的日期与金额解 IRR，衡量「你的钱实际赚了多少」；"
+      + "跨度过短（<90 天）不做年化（现 " + Math.round(days) + " 天）" + (ann && gap !== null ? "，与 TWR 差 " + fmtPp(gap) : "") + "。<br>"
+      + "<b>同节奏纳指</b>（基准）＝把每一期的外部净流入在当天按纳指收盘买入、其余时间随纳指涨跌，"
+      + "回答「同样的钱、同样的日期全买纳指，今天是多少」—— 两条 bar 比的就是你与它的跌幅"
+      + (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") + "。</div>";
   }
   return { sec: rateSec, concl: conclLine };
 }
@@ -6053,16 +6060,15 @@ function prPerFund(C) {
         if (x.nSell) bits.push("已实现单笔最好 " + fmtAmt2(x.best) + " / 最差 " + fmtAmt2(x.worst) + "（" + x.nSell + " 笔卖出）");
         return "极值：" + bits.join("；");
       };
-      perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实成交 / 申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只 XIRR 与 TWR' +
-        '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length +
-        " · " + (allRows.length - miss) + " 只已录流水" +
+      /* ⚠ 2026-11-22 summary 精简 + 改名（用户：「本金与收益 这几个折叠的模块有什么值得优化」）——
+         原来的折叠条把「9 只 / 已录流水 / 最差 / 最好 / 在途 / 对平」全堆上去，读起来比展开还累 ✗
+         → 标题「逐只 XIRR 与 TWR」→「逐只明细」（读者不必先懂两个收益率术语），
+           summary 只留「几只 · 最差 / 最好」两个极值，其余（流水/在途/对平）在展开区的表尾图例里 ✓ */
+      perFundSec = '<details class="pf-fold"><summary class="snap-sec" title="左＝你的钱（按真实成交 / 申赎日期解 IRR，全史）；右＝标的本身（按快照期剔资金流连乘，窗口见下）。跨度不足 90 天不年化">逐只明细' +
+        '<span class="snap-cnt">（' + allRows.length + " 只" +
         (rank.length
-          ? " · 超额（简单−同期无风险）最差 " + fmtPp(rank[0].ex, 1) + "（" + rank[0].nm + "）" +
-            " · 最好 " + fmtPp(rank[rank.length - 1].ex, 1) + "（" + rank[rank.length - 1].nm + "）"
-          : " · 有效在场期均不足 30 天，暂不评级") +
-        " · " + (drift.length ? "⚠ " + drift.length + " 只流水比快照成本多，需核对"
-          : transit.length ? transit.length + " 只含在途补记 · 其余与快照成本对平"
-          : "与快照成本逐只对平") + "）</span></summary>" +
+          ? " · 最差 " + fmtPp(rank[0].ex, 1) + "（" + rank[0].nm + "） · 最好 " + fmtPp(rank[rank.length - 1].ex, 1) + "（" + rank[rank.length - 1].nm + "）"
+          : "") + "）</span></summary>" +
         /* 真表格（2026-09-30 重做）：8 列、列宽由内容自动对齐 —— 「对不齐」的根治就在这里。
            数字列一律右对齐 + 等宽，所以连小数点也成一条线；第二行的自由文本改为「备注」列、一条一行。
            手机端由 CSS 落成「名称独占一行 + 分项等宽三列 ×2 行 + 备注」（与操作体检同构）。 */
@@ -6323,7 +6329,9 @@ function renderPrincipal() {
   const rs = prRateSec();
   /* 拼接顺序＝拆前的 box.innerHTML 拼接顺序 ✓：KPI 三格 → 口径浮层 → 一句话结论 → 收益构成 → 收益率口径 → 逐只表/体检。
      （conclLine 段的原注释：用与快照卡完全相同的小节题 + 缩进块，全页一个版式（见 handoff §4.6）。） */
-  C.box.innerHTML = prKpisHtml(C) + C.qNote + rs.concl + prMixHtml(C) + rs.sec + prPerFund(C);
+  /* 2026-11-22：rs.sec 从「收益率口径折叠件」变成「对比条的 ? 浮层」→ 紧跟 concl（浮层是隐藏的，
+     位置无所谓，但紧随其主按钮更易读） */
+  C.box.innerHTML = prKpisHtml(C) + C.qNote + rs.concl + rs.sec + prMixHtml(C) + prPerFund(C);
 }
 
 function renderSnapLog() {

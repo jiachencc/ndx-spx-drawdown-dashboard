@@ -1124,8 +1124,10 @@ check("走势卡读数含最新累计收益 " + money(latest.pl - closedGap), in
   const pct = (s) => { const m = s && s.match(new RegExp("(" + SIGN + "\\d+\\.\\d+)%")); return m ? parseFloat(m[1].replace("−", "-")) : null; };
   /* ① 本金与收益卡（恒渲染 ✓） */
   const concl = [...win.document.querySelectorAll(".pf-concl")].map((x) => x.textContent.replace(/\s+/g, " ")).join(" ");
-  const bPct = pct((concl.match(new RegExp("同期纳指\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
-  const yPct = pct((concl.match(new RegExp("你是\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
+  /* ⚠ 2026-11-22：对比条把 label 从「你是 / 同期纳指」简化成「你 / 纳指」→ 锚词跟着改。
+     「纳指」别匹配到「你」行：两行各带关键字，正则各锚各的 ✓ */
+  const bPct = pct((concl.match(new RegExp("纳指\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
+  const yPct = pct((concl.match(new RegExp("你\\s*(" + SIGN + "\\d+\\.\\d+)%")) || [])[0]);
   const pp = (concl.match(/(跑赢|落后)\s*(\d+\.\d+)pp/) || []);
   const dir = pp[1], ppV = pp[2] ? parseFloat(pp[2]) : null;
   const asof = (concl.match(/均截至\s*(\d{2}\.\d{2})/) || [])[1];
