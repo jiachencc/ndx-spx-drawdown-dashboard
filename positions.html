@@ -9610,7 +9610,10 @@ function ladderHtml() {
     + (cost ? "（" + signedPct((pl / cost) * 100) + "）" : "") + "</span></div>";
   const proj = pjRows.length === CODES.length
     ? '<div class="ldb-proj">'
-      + '<div class="ldb-proj-h"><span class="ldb-proj-lb">回到 52 周前高（估 · 市值 / 浮盈）</span></div>'
+      /* ⚠ 2026-11-22：ⓘ 从「填平浮亏」那行**挪到标题行**（用户：「下面的 i 有点突兀」）——
+         它修饰的是整块「回前高」估算（口径 + 逐只明细），跟在某个具体数字后面像在解释那个数 ✗ */
+      + '<div class="ldb-proj-h"><span class="ldb-proj-lb">回到 52 周前高（估 · 市值 / 浮盈）</span>'
+      + tipBtn(pjTip, "回到前高：口径与逐只明细") + "</div>"
       + pjRow("场内 " + CODES.length + " 只", pjVal, pjPl, pjCost, false)
       + (oRows.length ? pjRow("场外 " + oRows.length + " 只", oVal, oVal - oCost, oCost, false) : "")
       + (oRows.length ? pjRow("合计", allVal, allVal - allCost, allCost, true) : "")
@@ -9621,11 +9624,25 @@ function ladderHtml() {
          → 拆成「填平浮亏 X ＋ 转为浮盈 Y」，三个数的关系一眼可见 ✓ */
       + '<div class="ldb-proj-sub">都回去 ≈ 市值 <b>' + signed(allVal - allNow) + "</b>"
       + '<span class="ldb-proj-brk">＝ 填平浮亏 <b>' + fmtAbs2(allCost - allNow) + "</b> ＋ 转为浮盈 <b>"
-      + signed(allVal - allCost) + "</b></span>"
-      + tipBtn(pjTip, "回到前高：口径与逐只明细") + "</div>"
+      + signed(allVal - allCost) + "</b></span></div>"
       + (etaTxt ? '<div class="ldb-proj-eta">' + etaTxt + "</div>" : "")
       + "</div>"
     : "";
+  /* 溢价与指数跌幅（2026-11-22）：给卡底那条「价格口径」用 —— 全从数据算，不写死 */
+  const prem = (typeof POSITIONS !== "undefined" && POSITIONS.premiums) || {};
+  const SHORT_NM = { "159941": "纳指", "513650": "标普", "513880": "日经" };
+  const premTxt = CODES.map((c) => {
+    const p = prem[c];
+    return (p && Number.isFinite(p.pct)) ? SHORT_NM[c] + " " + p.pct.toFixed(1) + "%" : null;
+  }).filter(Boolean).join(" / ") || "（缺）";
+  const DD = (typeof DEFAULT !== "undefined" && DEFAULT.ndx) ? DEFAULT.ndx : null;
+  const ndxDrop = (DD && Number.isFinite(DD.close) && Number.isFinite(DD.ath) && DD.ath > 0)
+    ? (DD.close / DD.ath - 1) * 100 : null;
+  const ndxDropTxt = ndxDrop === null ? "—" : neg1(ndxDrop);
+  const etfDrop = (T["159941"] && Number.isFinite(T["159941"].distHi)) ? T["159941"].distHi : null;
+  const gapTxt = (ndxDrop !== null && etfDrop !== null && ndxDrop < 0)
+    ? Math.abs(Math.abs(ndxDrop) - Math.abs(etfDrop)).toFixed(1) + "pp" : "—";
+
   const card = document.getElementById("ladder-card");
   if (!card) return;
   card.innerHTML = '<div class="ld">'
@@ -9635,6 +9652,15 @@ function ladderHtml() {
     + proj
     + '<div class="ld-note">'
     + "<b>「距52周高点」</b>＝现价 ÷ 52 周最高<b>收盘</b>价 − 1；别处的「距高点」用盘中最高，差约 1pp —— 刻意避开上影线，不是数据打架"
+    /* ⚠ 2026-11-22 加（用户：「−13.7% 是不是也是错的，主页上是 −20%」）——
+       两个数描述的是**不同的东西**：主页 −20.2% 是纳指指数本身，这里的 −13.7% 是 ETF 的**交易价格**。
+       ETF 价格 = 净值 × (1+溢价)，溢价从 6.5% 扩到 15.1% → 抵掉 6.5pp 跌幅，所以它「看起来抗跌」✗
+       这个差额必须写在卡面上：否则读者会以为阶梯在用一个错误的跌幅定档
+       （更实际的隐患：溢价高时阶梯迟迟不触发，收敛时又会突然连跳两档）*/
+    + "<br><b>⚠ 价格口径 · 含溢价</b>：现价含溢价 <b>" + premTxt + "</b> —— "
+    + "溢价扩张会让 ETF 比指数<b>抗跌</b>（纳指：指数 <b>" + ndxDropTxt + "</b>、ETF 只 <b>"
+    + (Number.isFinite(T["159941"] && T["159941"].distHi) ? neg1(T["159941"].distHi) : "—")
+    + "</b>，差的 " + gapTxt + " 全来自溢价）；<b>溢价收敛时则会补跌</b> —— 所以本阶梯用它定档会偏慢"
     + "<br><b>档位按各自波动定</b>：纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，设那么深等于永远不投 ✗；"
     + "而等不到时标的平均涨了 <b>+33~38%</b>，所以底仓给到 " + LADDER.base + "% ✓"
     + "<br><b>时间兜底</b>：距上次买入满 <b>" + LADDER.months + " 个月</b>，不管跌没跌都投下一批 —— 防「牛市整年等不到」✓"
