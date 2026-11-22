@@ -6229,15 +6229,26 @@ function prPerFund(C) {
          → 未到 90 天时折叠条直接写「还差 N 天」，展开也只给一行解释，不再摊一张空表 ✓ */
       const bDaysAll = (bStart && bEnd) ? Math.round((Date.parse(bEnd) - Date.parse(bStart)) / 86400000) : 0;
       const canCheck = winDays >= 90 && bDaysAll >= 90;
+      /* ⚠ 2026-11-22：折叠条在 375px 下会折成两行（用户：「下面小字在移动端折叠了」）——
+         未到窗口时不需要再报「几只 + 场外/场内拆分」（展开后块里也没有表可看），
+         缩成一行「还差 N 天」；满 90 天后自动回到完整的那句 ✓ */
       perFundSec += '<details class="pf-fold"><summary class="snap-sec" title="① 标的＝TWR vs 同类指数（只对纳指类：BENCH 只有纳指且比快照晚一期，故取交集窗口）② 时点＝同窗口 XIRR − TWR ③ 数据＝流水齐全且 Σ 与快照成本对平。跨度 <90 天或口径不齐的项一律标 ⏳ 样本不足，不出结论。">逐只体检' +
-        '<span class="snap-cnt">（' + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length + " · " +
-        (canCheck
-          ? "✓达标 ⚠观察 ✗需处理 ⏳样本不足｜「你的钱」是否达标＝上一张表的评级（同口径，不重复给灯）"
-          : "⏳ 未到体检窗口 —— 需同窗口 ≥90 天，现 " + winDays + " 天（还差 " + (90 - winDays) + " 天），满 90 天后自动点亮") +
+        '<span class="snap-cnt">' + (canCheck
+          ? "（" + allRows.length + " 只 = 场外 " + rows.length + " ＋ 场内 " + etfRows.length
+            + " · ✓达标 ⚠观察 ✗需处理 ⏳样本不足｜「你的钱」是否达标＝上一张表的评级（同口径，不重复给灯）"
+          : "（还差 " + (90 - winDays) + " 天满 90 天）") +
         "</span></summary>" +
-        (canCheck ? "" : '<div class="chk-hold">⏳ 三项体检都还没到能出结论的时候：① 标的要拿 TWR 与同类指数比、② 时点要把 XIRR 和 TWR 拆开比，两者都要求<b>同窗口 ≥90 天</b>；'
-          + "现窗口 " + winDays + " 天，短窗口下 QDII 净值滞后 1~2 天就足以造出 2~3pp 的假差距，硬给结论反而误导 ✗。<br>"
-          + "满 90 天后这三项会自动点亮，不用手工改数据。</div>") +
+        /* ⚠ 2026-11-22 重做这块提示（用户：「配色不太明显 而且下面的小字在移动端折叠了」）——
+           上一版是 11px 灰字的**两大段连续文本**（375px 下高 116px、折行 6 行），
+           既没有任何视觉标记（和普通说明文字完全一样），又长得让人不想读 ✗
+           → 改成**带琥珀左边框的小块**：一行标题（还差几天）＋ 一句理由 ＋ 一句结论，
+             整体压到 ~60px；详细口径（QDII 净值滞后为什么能造出 2~3pp 假差距）移进 title ✓ */
+        (canCheck ? "" : '<div class="chk-hold" title="三项判据：① 标的＝该只 TWR vs 同类指数（BENCH 只有纳指，故仅纳指类可比）'
+          + '② 时点＝同窗口 XIRR − TWR ③ 数据＝流水齐全且 Σ 与快照成本对平。'
+          + '跨度 <90 天时，QDII 净值滞后 1~2 天就足以造出 2~3pp 的假差距，硬给结论反而误导。">'
+          + '<b class="chk-hold-t">⏳ 未到体检窗口 · 还差 ' + (90 - winDays) + ' 天</b>'
+          + '<span class="chk-hold-d">三项判据都要求<b>同窗口 ≥90 天</b>（现 ' + winDays + ' 天），短窗口下的差距分不清是能力还是噪声。</span>'
+          + '<span class="chk-hold-x">满 90 天后自动点亮，不用改数据。</span></div>') +
         /* 与上一张表同一套表格语言（真 <table> + 分节行 + 手机端三列分项）：
            三枚灯各占一列 —— 这样「哪一项不达标」可以竖着扫，而不是每行一段自由文本。
            ⚠ 2026-11-22 修：上一版的三元只包了**表头后半段**，`<table>` 与「标的」那个
@@ -9784,7 +9795,10 @@ function addDistMiniHtml(code) {
   const segs = d.rows.map((r, i) => (r.amt > 0
     ? '<b class="' + col[i] + '" style="width:' + (r.amt / d.amt * 100).toFixed(1) + '%"></b>' : "")).join("");
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
-  const detail = d.rows.map((r, i) => (r.n ? ORD[i] + " <b>" + r.n + "</b> 笔" : ""))
+  /* ⚠ 2026-11-22：去掉「笔」字与档位里的空格 —— 4 个档位并排时原格式（「≥ −5% 17 笔 · …」）
+     在 375px 下会折成两行（用户：「下面的小字在移动端折叠了」）；去掉后约 24 字符，能压进一行 ✓
+     单位由卡面的「N 笔」总数字承担，明细里只给「档位 次数」✓ */
+  const detail = d.rows.map((r, i) => (r.n ? ORD[i].replace(/ /g, "") + " <b>" + r.n + "</b>" : ""))
     .filter(Boolean).join(" · ");
   return '<div class="ad-mini" title="按买入时该标的距 52 周高的回撤归档（分母取该月及之前 12 个月的月末收盘最高）'
     + ' —— 颜色越深＝档位越深；本行只列有成交的档位">'
@@ -9825,7 +9839,7 @@ function renderAddDist() {
     const pct = totAmt > 0 ? (a.amt / totAmt * 100) : 0;
     return '<div class="ad-row' + (a.n ? "" : " ad-zero") + '">'
       + '<span class="ad-lb">' + lb + "</span>"
-      + '<i class="ad-bar"><b style="width:' + w.toFixed(1) + '%"></b></i>'
+      + '<i class="ad-bar"><b class="d' + i + '" style="width:' + w.toFixed(1) + '%"></b></i>'
       + '<span class="ad-p">' + pct.toFixed(0) + "%</span>"
       + '<span class="ad-sub">' + a.n + " 笔 · " + (a.amt / 10000).toFixed(1) + " 万</span></div>";
   }).join("");

@@ -1300,8 +1300,18 @@
      ⚠ 首版只写了 class 名、**忘了写样式** → 它按浏览器默认的 16px 正文渲染，
        而四周全是 10~12px 的小字，视觉上突然放大、非常突兀 ✗（用户当场指出）
        → 现在与 .oc-note 同一档：11px / --tx3 / 1.75 行高，与上下文同密度 ✓ */
-  .chk-hold { padding: 11px 2px 9px; font-size: 11px; color: var(--tx3); line-height: 1.75; }
-  .chk-hold b { color: var(--tx2); font-weight: 600; }
+  /* ⚠ 2026-11-22 重做（用户：「配色其实不太明显 而且下面的小字在移动端折叠了」）——
+     上一版是裸灰字（--tx3 / 11px），跟四周说明文字长得一样，没有「这是一条状态提示」的信号 ✗
+     → 做成**信息块**：琥珀左边框 + 极淡琥珀底（不用重色，避免抢标题），
+       三级结构：标题（还差几天，琥珀加粗）/ 理由（--tx2）/ 结论（--tx3 更小）✓ */
+  .chk-hold { margin: 8px 0 3px; padding: 8px 11px 8px 10px; border-radius: 7px;
+    background: rgba(216,161,58,.075); border-left: 3px solid rgba(216,161,58,.6);
+    font-size: 10.5px; color: var(--tx2); line-height: 1.62; }
+  .chk-hold-t { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 700;
+    color: var(--warn, #d8a13a); }
+  .chk-hold-d { display: block; color: var(--tx2); }
+  .chk-hold-d b { color: var(--tx); font-weight: 600; }
+  .chk-hold-x { display: block; margin-top: 2px; color: var(--tx3); font-size: 10px; }
   .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
   /* 说明列的两套文案（2026-10-29）：宽屏用整句、窄屏用短标签（见下方 767px 段） */
   .chk-tbl .cn-mini { display: none; }
@@ -2645,15 +2655,25 @@
 .ad-mini-bar { display: flex; height: 6px; border-radius: 2px; overflow: hidden;
   background: rgba(147,163,187,.13); }
 .ad-mini-bar > b { display: block; height: 100%; }
-.ad-mini-bar .d0 { background: var(--blue); }
-.ad-mini-bar .d1 { background: #4a7fd4; }
-.ad-mini-bar .d2 { background: #6b6fd0; }
-.ad-mini-bar .d3 { background: #8a5fc0; }
-.ad-mini-bar .d4 { background: #a5529f; }
+/* ⚠ 2026-11-22 换配色（用户：「这个配色其实不太明显」）——
+   原来 5 档是「蓝 → 蓝紫」的同类渐变（#5ba3ff / #4a7fd4 / #6b6fd0 / #8a5fc0 / #a5529f），
+   相邻两档的色相差不到 15°、明度也接近，在 6px 高的条上几乎分不出来 ✗
+   → 改成**色相递进**：蓝(215°) → 蓝紫(250°) → 紫(290°) → 玫红(325°) → 红(355°)，
+     越往深档越靠近「危险红」，既好区分、也自带「越深越警示」的语义 ✓ */
+.ad-d0, .ad-bar > b.d0 { background: #4a90e2; }
+.ad-d1, .ad-bar > b.d1 { background: #7b6ae0; }
+.ad-d2, .ad-bar > b.d2 { background: #b05fc8; }
+.ad-d3, .ad-bar > b.d3 { background: #d9569a; }
+.ad-d4, .ad-bar > b.d4 { background: #e04f5f; }
+.ad-mini-bar .d0 { background: #4a90e2; }
+.ad-mini-bar .d1 { background: #7b6ae0; }
+.ad-mini-bar .d2 { background: #b05fc8; }
+.ad-mini-bar .d3 { background: #d9569a; }
+.ad-mini-bar .d4 { background: #e04f5f; }
 .ad-mini-n { font-size: 9.5px; color: var(--tx2); white-space: nowrap;
   font-family: var(--mono); }
 .ad-mini-d { grid-column: 2 / -1; font-size: 9px; color: var(--tx3); line-height: 1.5;
-  font-family: var(--mono); }
+  font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-mini-d b { color: var(--tx2); font-weight: 700; }
 /* 「已越出阶梯设计」（2026-11-22 加）：跌幅穿过最后一档后，阶梯不再给任何动作 —— 这个事实
    比「5 批已全部触发」重要得多，用琥珀色单独标出来 ✓ */
