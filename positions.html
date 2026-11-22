@@ -9761,7 +9761,9 @@ function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("la
    （5 个字符串每次重建，开销可忽略，换来零顺序依赖 ✓） */
 function addDistOf(code) {
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
-  const out = ORD.map(() => ({ n: 0, amt: 0 }));
+  /* 2026-11-22：每档额外收一份 items 明细（用户：「点击不同颜色的进度条有一个对应的数据呈现」）——
+     点开某档能看到「具体是哪几笔、哪天、什么价、当时跌了多少 ✓」 */
+  const out = ORD.map(() => ({ n: 0, amt: 0, items: [] }));
   const it = (typeof TREND !== "undefined" && TREND.items && TREND.items[code]) || {};
   const mo = it.mo || {};
   const keys = Object.keys(mo).sort();
@@ -9780,6 +9782,7 @@ function addDistOf(code) {
     const i = dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4;
     const amt = (e.qty || 0) * e.cost;
     out[i].n++; out[i].amt += amt;
+    out[i].items.push({ d: e.d, cost: +e.cost, qty: +e.qty, amt: amt, dd: dd, sym: h.sym, code: code });
   });
   const n = out.reduce((a, x) => a + x.n, 0);
   const amt = out.reduce((a, x) => a + x.amt, 0);
@@ -9817,7 +9820,7 @@ function renderAddDist() {
   const box = $("add-dist-card");
   if (!box) return;
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
-  const agg = ORD.map(() => ({ n: 0, amt: 0 }));
+  const agg = ORD.map(() => ({ n: 0, amt: 0, items: [] }));
   let tot = 0, totAmt = 0, miss = 0;
   const CODES = ["159941", "513650", "513880"];
   const T = (typeof TREND !== "undefined" && TREND.items) || {};
@@ -9826,22 +9829,37 @@ function renderAddDist() {
     const it = T[c] || {};
     if (Number.isFinite(it.distHi)) cur.push(it.name.replace(/ETF.*$/, "") + " " + it.distHi.toFixed(1).replace("-", "−") + "%");
     const d = addDistOf(c);
-    d.rows.forEach((r, i) => { agg[i].n += r.n; agg[i].amt += r.amt; });
+    d.rows.forEach((r, i) => {
+      agg[i].n += r.n; agg[i].amt += r.amt;
+      if (r.items) r.items.forEach((x) => agg[i].items.push(x));
+    });
     tot += d.n; totAmt += d.amt; miss += d.miss;
   });
   const cnt = $("add-dist-cnt");
   if (cnt) cnt.textContent = tot ? "（" + tot + " 笔 · " + (totAmt / 10000).toFixed(1) + " 万 · 按买入时该标的距 52 周高的回撤归档）" : "（暂无逐笔买入）";
   if (!tot) { box.innerHTML = '<div class="snap-line"><span class="n"></span><span class="v" style="color:var(--tx3)">暂无逐笔买入记录</span></div>'; return; }
   const maxAmt = Math.max.apply(null, agg.map((a) => a.amt));
+  /* 明细行（2026-11-22）：点开某档 → 该档逐笔（日期 / 标的 / 金额 / 当时回撤）。
+     ⚠ 点击区域是**整行**（约 30px 高），不是那根 6px 的色条 —— 手机上点 6px 根本点不中 ✗ */
+  const detailOf = (items) => items
+    .slice().sort((x, y) => (x.d < y.d ? -1 : x.d > y.d ? 1 : 0))
+    .map((x) => '<div class="ad-di">'
+      + '<span class="ad-di-d">' + mdOf(x.d) + "</span>"
+      + '<span class="ad-di-s">' + esc(String(x.sym).replace(/ETF.*$/, "")) + "</span>"
+      + '<span class="ad-di-a">' + (x.amt / 10000).toFixed(2) + " 万</span>"
+      + '<span class="ad-di-dd">' + x.dd.toFixed(1).replace("-", "−") + "%</span>"
+      + "</div>").join("");
   const rows = ORD.map((lb, i) => {
     const a = agg[i];
     const w = maxAmt > 0 ? (a.amt / maxAmt * 100) : 0;
     const pct = totAmt > 0 ? (a.amt / totAmt * 100) : 0;
-    return '<div class="ad-row' + (a.n ? "" : " ad-zero") + '">'
+    return '<div class="ad-row' + (a.n ? "" : " ad-zero") + '"' + (a.n ? ' data-b="' + i + '" role="button" tabindex="0"' : "") + ">"
       + '<span class="ad-lb">' + lb + "</span>"
       + '<i class="ad-bar"><b class="d' + i + '" style="width:' + w.toFixed(1) + '%"></b></i>'
       + '<span class="ad-p">' + pct.toFixed(0) + "%</span>"
-      + '<span class="ad-sub">' + a.n + " 笔 · " + (a.amt / 10000).toFixed(1) + " 万</span></div>";
+      + '<span class="ad-sub">' + a.n + " 笔 · " + (a.amt / 10000).toFixed(1) + " 万"
+      + (a.n ? '<span class="ad-x">点击看这 ' + a.n + " 笔</span>" : "") + "</span></div>"
+      + (a.n ? '<div class="ad-detail" hidden>' + detailOf(a.items) + "</div>" : "");
   }).join("");
   const shallow = totAmt > 0 ? agg[0].amt / totAmt * 100 : 0;
   const deep = totAmt > 0 ? (agg[3].amt + agg[4].amt) / totAmt * 100 : 0;
@@ -9856,6 +9874,26 @@ function renderAddDist() {
 }
 function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
 renderAddDistSafe();
+
+/* 加仓分布：点击档位行 → 展开该档逐笔（2026-11-22）——
+   ⚠ 用事件委托（不绑在行上）：renderAddDist 每次重渲染都会换掉节点，绑在节点上的监听会一起消失 ✗
+   ⚠ 只 toggle 紧随其后的 .ad-detail，不关别的 —— 允许同时开两档做对比 ✓ */
+document.addEventListener("click", (e) => {
+  const row = e.target && e.target.closest ? e.target.closest("#add-dist-card .ad-row[data-b]") : null;
+  if (!row) return;
+  const det = row.nextElementSibling;
+  if (!det || !det.classList.contains("ad-detail")) return;
+  const open = !det.hidden;
+  det.hidden = open;
+  row.classList.toggle("open", !open);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const row = e.target && e.target.closest ? e.target.closest("#add-dist-card .ad-row[data-b]") : null;
+  if (!row) return;
+  e.preventDefault();
+  row.click();
+});
 
 renderPremScan();                        // 溢价扫描（2026-10-28 加，紧跟场内持仓之后）
 renderDdRef();

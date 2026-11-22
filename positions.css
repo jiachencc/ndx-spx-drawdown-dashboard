@@ -2640,6 +2640,20 @@
   font-family: var(--mono); font-feature-settings: "tnum"; }
 .ad-sub { grid-column: 2 / -1; font-size: 9.5px; color: var(--tx3);
   font-family: var(--mono); margin-top: -1px; }
+/* 档位行可点（2026-11-22）：整行 ~30px 都是命中区，不是那根 6px 的色条 */
+.ad-row[data-b] { cursor: pointer; border-radius: 6px; transition: background .12s; }
+.ad-row[data-b]:hover { background: rgba(147,163,187,.06); }
+.ad-row[data-b].open { background: rgba(147,163,187,.09); }
+.ad-x { margin-left: 6px; color: var(--blue); }
+.ad-row[data-b].open .ad-x { color: var(--tx3); }
+/* 展开的逐笔明细：日期 / 标的 / 金额 / 当时回撤 —— 四列等宽，右两列右对齐 */
+.ad-detail { padding: 3px 0 7px 5.2em; border-bottom: 1px dashed var(--line-soft); }
+.ad-di { display: grid; grid-template-columns: 3.4em 1fr 4.4em 3.6em;
+  gap: 6px; align-items: baseline; padding: 1.5px 0;
+  font-size: 9.5px; color: var(--tx3); font-family: var(--mono);
+  font-feature-settings: "tnum"; }
+.ad-di-a, .ad-di-dd { text-align: right; }
+.ad-di-dd { color: var(--down); }
 .ad-zero { opacity: .45; }
 .ad-zero .ad-bar > b { background: var(--tx3); }
 .ad-note { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft);
