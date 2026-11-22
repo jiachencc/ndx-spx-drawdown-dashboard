@@ -9470,8 +9470,18 @@ function ladderHtml() {
     }).join("");
 
     /* 下一次：回撤 或 时间兜底，两个都写出来 */
+    /* ⚠ 2026-11-22 加「越出阶梯设计」提示（用户：「百分比已经差不多到头了」）——
+       阶梯的最后一档本来就**浅于历史最深**（纳指 −15 vs −31.1、标普 −10 vs −21.2、日经 −25 vs −28.1），
+       所以打满之后还剩一大段「无规则区」；而原来只说「5 批已全部触发」，
+       读者分不清「是刚好打满」还是「已经跌穿了阶梯、后面没规则了」✗
+       → 当 dd 深于最后一档时追加一句，并挂 title 说明后续怎么办 ✓ */
+    const beyond = next === undefined && dd <= lv[lv.length - 1];
     const nextTxt = next === undefined
       ? '<b class="ldb-allhit">5 批已全部触发</b>'
+        + (beyond ? '<b class="ldb-over" title="阶梯最深一档是 ' + neg(lv[lv.length - 1])
+          + '，现已跌到 ' + neg1(dd) + ' —— 后续任何跌幅都不会再触发新批次。'
+          + '要继续加，只能靠新转入的资金，或从超配的标的匀出（同一笔钱别重复算）">'
+          + "已越出阶梯设计</b>" : "")
       : "下次 <b>" + neg(next) + "</b> 还差 <b>" + gap.toFixed(1) + "pp</b>"
         + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\">或 "
           + (due.slice(0, 4) === TODAY.slice(0, 4) ? due.slice(5) : due) + " 兜底</b>" : "");
@@ -9491,11 +9501,20 @@ function ladderHtml() {
       + '<span class="ldb-nm">' + NAME[c] + "</span>"
       + '<span class="ldb-dd-lb" title="' + ddTitle + '">距52周高点</span>'
       + '<b class="ldb-dd">' + neg1(dd) + "</b>"
-      + '<span class="ldb-cum">已投 <b>' + cum + "%</b></span>"
+      /* ⚠ 2026-11-22：cum 是「按阶梯规则该投的比例」，不是「这只占总资产的比重」。
+         原来只写「已投 100%」，很容易被读成「这只已经满仓、不能再买」✗
+         → 满档时补「额度用尽」，把语义钉在「阶梯额度」上 ✓ */
+      + '<span class="ldb-cum">已投 <b>' + cum + "%</b>"
+      + (cum >= LADDER.base + lv.length * LADDER.stepW ? '<i class="ldb-used">额度用尽</i>' : "") + "</span>"
       + "</div>"
       + '<div class="ldb-track">' + segBase + segs + "</div>"
       + '<div class="ldb-foot">' + nextTxt
-      + '<span class="ldb-deep">最深 ' + neg1(LADDER.deepest[c]) + "</span>"
+      // ⚠ 2026-11-22：title 里不要写 **星号** —— HTML 属性是纯文本，星号会原样显示；
+      // 也别用双引号包这段（它里面有 HTML 的 "）→ 全用单引号 ✓
+      + '<span class="ldb-deep" title="该标的历史最深回撤（人工核定值，非本页现算）——'
+      + ' 用它衡量「阶梯最深一档」离真正的极端还有多远：阶梯最深档只到 '
+      + neg(lv[lv.length - 1]) + '，历史曾跌到 ' + neg1(LADDER.deepest[c])
+      + '，两者之间就是「无规则区」（跌进去阶梯不会再给动作）">历史最深 ' + neg1(LADDER.deepest[c]) + "</span>"
       + "</div></div>";
   }).join("");
 

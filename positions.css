@@ -2601,6 +2601,11 @@
 .ldb-foot b { color: var(--tx2); font-family: var(--mono); font-feature-settings: "tnum"; }
 .ldb-allhit { color: var(--up, #2dd4a7) !important; }
 .ldb-deep { white-space: nowrap; font-family: var(--mono); }
+/* 「已越出阶梯设计」（2026-11-22 加）：跌幅穿过最后一档后，阶梯不再给任何动作 —— 这个事实
+   比「5 批已全部触发」重要得多，用琥珀色单独标出来 ✓ */
+.ldb-over { color: var(--warn, #d8a13a); font-weight: 600; margin-left: 8px; }
+/* 「额度用尽」：钉住 cum 的语义是「阶梯额度」而不是「仓位占比」 */
+.ldb-used { font-style: normal; color: var(--tx3); margin-left: 3px; font-size: var(--fs-xxs); }
 
 /* 回到前高（2026-11-12 加）：把「还差多远」（−7.4%）换算成「到了值多少」——
    用户要的是心理锚，不用新开板块：口径与上面那个百分比完全同源，摆在一起才不会两处各说各话 ✓
