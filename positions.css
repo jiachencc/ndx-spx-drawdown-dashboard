@@ -2686,8 +2686,26 @@
 .ad-mini-bar .d4 { background: #e04f5f; }
 .ad-mini-n { font-size: 9.5px; color: var(--tx2); white-space: nowrap;
   font-family: var(--mono); }
-.ad-mini-d { grid-column: 2 / -1; font-size: 9px; color: var(--tx3); line-height: 1.5;
-  font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 档位胶囊（2026-11-22）：原来明细是一串纯文本，看着像注释、没有可点暗示；
+   改成带底 + 内边距的按钮（高约 19px），手机上能点中 ✓ */
+.ad-mini-d { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 3px 5px;
+  margin-top: 3px; }
+.ad-chip { appearance: none; border: 1px solid var(--line-soft); background: rgba(147,163,187,.09);
+  border-radius: 999px; padding: 1px 7px; font-size: 9px; line-height: 1.45;
+  color: var(--tx3); font-family: var(--mono); font-feature-settings: "tnum";
+  cursor: pointer; white-space: nowrap; }
+.ad-chip:hover { background: rgba(147,163,187,.16); color: var(--tx2); }
+.ad-chip.open { background: rgba(91,163,255,.18); border-color: rgba(91,163,255,.5); color: var(--tx); }
+.ad-chip b { color: var(--tx2); font-weight: 700; }
+.ad-chip.open b { color: var(--tx); }
+/* 展开的逐笔：日期 / 成交价 / 金额 / 当时回撤 */
+/* ⚠ 限高可滚（2026-11-22）：标普「≥−5%」那档有 25 笔，全展开 350px、把整张卡撑成两屏 ✗
+   → 最高 176px（约 12 行），超出内部滚动；滚到底能看到最后一条，不会静默丢数据 ✓ */
+.ad-mini-detail { grid-column: 1 / -1; padding: 3px 0 5px;
+  max-height: 176px; overflow-y: auto; overscroll-behavior: contain; }
+.ad-mini-detail::-webkit-scrollbar { width: 4px; }
+.ad-mini-detail::-webkit-scrollbar-thumb { background: rgba(147,163,187,.28); border-radius: 2px; }
+.ad-mini-detail .ad-di { grid-template-columns: 3.4em 4.6em 1fr 3.6em; }
 .ad-mini-d b { color: var(--tx2); font-weight: 700; }
 /* 「已越出阶梯设计」（2026-11-22 加）：跌幅穿过最后一档后，阶梯不再给任何动作 —— 这个事实
    比「5 批已全部触发」重要得多，用琥珀色单独标出来 ✓ */

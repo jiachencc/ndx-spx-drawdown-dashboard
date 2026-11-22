@@ -9801,14 +9801,28 @@ function addDistMiniHtml(code) {
   /* ⚠ 2026-11-22：去掉「笔」字与档位里的空格 —— 4 个档位并排时原格式（「≥ −5% 17 笔 · …」）
      在 375px 下会折成两行（用户：「下面的小字在移动端折叠了」）；去掉后约 24 字符，能压进一行 ✓
      单位由卡面的「N 笔」总数字承担，明细里只给「档位 次数」✓ */
-  const detail = d.rows.map((r, i) => (r.n ? ORD[i].replace(/ /g, "") + " <b>" + r.n + "</b>" : ""))
-    .filter(Boolean).join(" · ");
+  /* ⚠ 2026-11-22 改成**可点的档位胶囊**（用户：「场内持仓与操作记录 是否可以加上 加仓分布 的点击」）——
+     原来明细是一串纯文本「≥−5% 17 · −5~−10% 19」，看着像注释、没有可点的暗示 ✗
+     → 每个有成交的档位做成小胶囊（带背景、20px 高，手机上点得中），点开看该档逐笔；
+       用 `<button>` 而不是 span —— 自带焦点与键盘可达，不用再补 tabindex ✓ */
+  const chips = d.rows.map((r, i) => (r.n
+    ? '<button type="button" class="ad-chip" data-b="' + i + '" aria-expanded="false">'
+      + ORD[i].replace(/ /g, "") + " <b>" + r.n + "</b></button>" : "")).join("");
+  const dHtml = d.rows.map((r, i) => (r.n
+    ? '<div class="ad-mini-detail" data-d="' + i + '" hidden>'
+      + r.items.slice().sort((x, y) => (x.d < y.d ? -1 : 1)).map((x) =>
+        '<div class="ad-di"><span class="ad-di-d">' + mdOf(x.d) + "</span>"
+        + '<span class="ad-di-s">' + (x.cost || 0).toFixed(4) + "</span>"
+        + '<span class="ad-di-a">' + (x.amt / 10000).toFixed(2) + " 万</span>"
+        + '<span class="ad-di-dd">' + x.dd.toFixed(1).replace("-", "−") + "%</span></div>").join("")
+      + "</div>" : "")).join("");
   return '<div class="ad-mini" title="按买入时该标的距 52 周高的回撤归档（分母取该月及之前 12 个月的月末收盘最高）'
-    + ' —— 颜色越深＝档位越深；本行只列有成交的档位；条长与占比都按<b>买入金额</b>（非笔数）">'
+    + ' —— 颜色越深＝档位越深；条长与占比都按<b>买入金额</b>（非笔数）；点档位胶囊看这一档的逐笔">'
     + '<span class="ad-mini-k">加仓分布</span>'
     + '<i class="ad-mini-bar">' + segs + "</i>"
     + '<span class="ad-mini-n">' + d.n + " 笔</span>"
-    + '<span class="ad-mini-d">' + detail + "</span></div>";
+    + '<span class="ad-mini-d">' + chips + "</span>"
+    + dHtml + "</div>";
 }
 /* 加仓分布（2026-11-22，用户：「做一个 −5/−10/−15/−20 加仓的阶梯汇总，每个档位有个分布」）——
    把逐笔买入按「买入时该标的距 52 周高的回撤」归档，回答「我的钱到底加在了哪一档」——
@@ -9874,6 +9888,25 @@ function renderAddDist() {
 }
 function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
 renderAddDistSafe();
+
+/* 持仓卡里的迷你条：点档位胶囊 → 展开该档逐笔（2026-11-22）——
+   ⚠ 与汇总卡不同：这里**一次只开一个**（持仓卡本来就有 12 行，多开几个会把卡片撑得很长 ✗），
+     再点同一个则收起 ✓ */
+document.addEventListener("click", (e) => {
+  const chip = e.target && e.target.closest ? e.target.closest(".ad-mini .ad-chip") : null;
+  if (!chip) return;
+  const wrap = chip.closest(".ad-mini");
+  const idx = chip.dataset.b;
+  const target = wrap.querySelector('.ad-mini-detail[data-d="' + idx + '"]');
+  const wasOpen = !!(target && !target.hidden);
+  wrap.querySelectorAll(".ad-mini-detail").forEach((d) => { d.hidden = true; });
+  wrap.querySelectorAll(".ad-chip").forEach((c) => { c.classList.remove("open"); c.setAttribute("aria-expanded", "false"); });
+  if (target && !wasOpen) {
+    target.hidden = false;
+    chip.classList.add("open");
+    chip.setAttribute("aria-expanded", "true");
+  }
+});
 
 /* 加仓分布：点击档位行 → 展开该档逐笔（2026-11-22）——
    ⚠ 用事件委托（不绑在行上）：renderAddDist 每次重渲染都会换掉节点，绑在节点上的监听会一起消失 ✗
