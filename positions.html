@@ -174,8 +174,13 @@ try {
          顺着「我持有 159941（溢价 13.4%）→ 同类里有没有更便宜的」这个追问最自然 ✓
          再往后（回撤坐标 → 操作体检）正好是「通道 → 环境 → 操作」三段复盘。
        ⚠ 数据只读 data.js 的 PREM_SCAN（AUTO，scripts/fetch-premium-scan.mjs），页面不自己算 ✓ -->
-  <h2 class="sec-title" id="sec-prem"><span aria-hidden="true">🎫</span> 溢价扫描 · 同赛道该买哪只 <span class="cnt" id="prem-scan-cnt"></span></h2>
-  <div class="card tight" id="prem-scan-card"></div>
+  <!-- ⚠ 2026-11-22 折叠（用户：「溢价扫描 和 场外净值水位 这个不怎么看 折叠吧」）——
+       整块收进 details，默认收起；summary 沿用 .sec-title 的排版（标题 + cnt 徽章），
+       右侧加 ▸/▾ 指示，视觉上与其它小节标题一致、但可点 ✓ -->
+  <details class="sec-fold">
+    <summary class="sec-title" id="sec-prem" title="溢价扫描（点开看：同赛道 10 只 ETF 的溢价与分位；数据来自 PREM_SCAN）"><span aria-hidden="true">🎫</span> 溢价扫描 · 同赛道该买哪只 <span class="cnt" id="prem-scan-cnt"></span></summary>
+    <div class="card tight" id="prem-scan-card"></div>
+  </details>
 
   <!-- 加仓阶梯（2026-11-04 加，用户：「帮我做一个加仓阶梯，每跌百分之几加多少」）
        ⚠ 位置：紧跟溢价扫描 —— 溢价回答「该用哪只买」，阶梯回答「买多少」，顺序不能倒 ✓
@@ -219,8 +224,11 @@ try {
        于是「成本买在区间什么位置、现在到什么位置」两个点一眼可见（正是本页副标题的「成本位置视角」）。
        数据全在 positions-data.js（nav.lo/hi/close ＋ 最新快照的 cost/qty），零新增抓取。
        位置：紧跟场内那组之后、场外定投记录之前（现状 → 过程）。 -->
-  <h2 class="sec-title" id="sec-otclvl"><span aria-hidden="true">🌊</span> 场外净值水位 <span class="cnt" id="otc-lvl-cnt"></span></h2>
-  <div class="card" id="otc-lvl-card"></div>
+  <!-- 同上（2026-11-22 折叠）：与「溢价扫描」一起收进 details，两块都是「不常看但偶尔要查」的 ✓ -->
+  <details class="sec-fold">
+    <summary class="sec-title" id="sec-otclvl" title="场外净值水位（点开看：6 只基金的净值在 52 周区间的位置）"><span aria-hidden="true">🌊</span> 场外净值水位 <span class="cnt" id="otc-lvl-cnt"></span></summary>
+    <div class="card" id="otc-lvl-card"></div>
+  </details>
 
 
   <!-- 「工具」（2026-09-30 合并）：① 标的替换回测 —— 差额来自溢价（波动、**不可控**）；

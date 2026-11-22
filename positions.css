@@ -872,6 +872,31 @@
   /* ===== 区块标题 ===== */
   .sec-title { font-size: var(--fs-md); font-weight: 700; margin: 20px 2px 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; scroll-margin-top: 44px; }
   .sec-title .cnt { font-size: var(--fs-xs); color: var(--tx3); font-weight: 400; }
+  /* 可折叠的小节（2026-11-22，用户：「溢价扫描 和 场外净值水位 不怎么看 折叠吧」）——
+     summary 沿用 .sec-title 的排版，只多两件事：去掉默认三角、右侧加 ▸/▾；
+     收起时把下边距收窄（否则标题下方会留一条空档）✓ */
+  details.sec-fold { display: block; }
+  details.sec-fold > summary.sec-title { cursor: pointer; list-style: none; user-select: none; }
+  details.sec-fold > summary.sec-title::-webkit-details-marker { display: none; }
+  details.sec-fold > summary.sec-title::after {
+    content: "▸"; margin-left: auto; padding-left: 8px;
+    color: var(--tx3); font-size: 11px; font-weight: 400; }
+  details.sec-fold[open] > summary.sec-title::after { content: "▾"; }
+  details.sec-fold[open] > summary.sec-title { margin-bottom: 10px; }
+  details.sec-fold:not([open]) > summary.sec-title { margin-bottom: 0; }
+  details.sec-fold > summary.sec-title:hover { color: var(--tx); }
+  /* ⚠ 收起时 cnt 会折成两行（溢价扫描那句「纳指 10 只 · 数据至 11.20 · 收盘 ÷ 前一交易日净值」
+     在 375px 下放不下 → summary 高 45px，与旁边「场外净值水位」的 21px 不齐 ✗）
+     → 收起态截断成一行（完整文案展开后看；悬停 title 也能看）✓ */
+  /* ⚠ 光给 .cnt 加 ellipsis 没用 —— .sec-title 本身是 `flex-wrap: wrap`，
+     超宽时它直接换行、把 summary 撑成两行（实测仍 45px）✗
+     → 收起态禁止换行，再让 cnt 可压缩并截断 ✓ */
+  /* ⚠ 截断仍不够（2026-11-22）：标题本身「溢价扫描 · 同赛道该买哪只」就有 ~170px，
+     加上 cnt 的 172px 上限 = 362px > 355px 可用宽 → 依然折行（实测 36px vs 21px）✗
+     → 收起态**直接隐藏 cnt**：标题已说清这是什么，具体「几只 / 数据到哪天」展开就看得到，
+       且 summary 的 title 里也写了 ✓ */
+  details.sec-fold:not([open]) > summary.sec-title { flex-wrap: nowrap; overflow: hidden; }
+  details.sec-fold:not([open]) > summary.sec-title .cnt { display: none; }
   /* 「工具」一节里两张卡各自的小标题（2026-09-30）：原先是两个独立小节标题，合并成「🔧 工具」后
      降为卡上方的小标题行 —— 徽章 id 不变（alt-cnt / fee-cnt），故渲染逻辑零改动。 */
   .tool-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); font-weight: 600; color: var(--tx2); margin: 14px 2px 6px; }
