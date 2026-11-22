@@ -6009,11 +6009,15 @@ function prPerFund(C) {
       const sumVal = allRows.reduce((a, r) => a + (r.val || 0), 0);
       /* 分组行：跨全表的 colspan 行，桌面与手机都用它分节 —— 故做成同一个函数、列数当参数。
          ⚠ colspan 必须等于该表实际列数，否则桌面那行缺一格、分节线接不上。 */
-      const grpRow = (g, cols) => {
+      const grpRow = (g, cols, asDiv) => {
         const gv = g.rows.reduce((a, r) => a + (r.val || 0), 0);
-        return '<tr class="xr-grp-row"><td colspan="' + cols + '" title="' + esc(g.note + "；段内按市值降序") + '">' +
-          '<span class="g-t">' + g.t + '</span><span class="g-s">' + g.rows.length + " 只 · 市值 " + fmtYuan(gv) +
-          (sumVal > 0 ? " · 占持仓 " + Math.round(gv / sumVal * 100) + "%" : "") + "</span></td></tr>";
+        const inner = '<span class="g-t">' + g.t + '</span><span class="g-s">' + g.rows.length + " 只 · 市值 " + fmtYuan(gv) +
+          (sumVal > 0 ? " · 占持仓 " + Math.round(gv / sumVal * 100) + "%" : "") + "</span>";
+        /* asDiv（2026-11-22 加）：逐只明细从 8 列表格改成卡片列表后，分组头也从 <tr> 换成独立 <div>；
+           操作体检仍是表格、继续用 <tr> 版 ✓ */
+        return asDiv
+          ? '<div class="xr-sec" title="' + esc(g.note + "；段内按市值降序") + '">' + inner + "</div>"
+          : '<tr class="xr-grp-row"><td colspan="' + cols + '" title="' + esc(g.note + "；段内按市值降序") + '">' + inner + "</td></tr>";
       };
       /* ---- 历史极值（2026-09-30 加，用户要求「每只加历史最大收益 / 最大亏损」）----------------
          放「说明」弹层第⑤条：它属于"这一行的解读"，不值得为它加一列（表格已经 8 列）。
@@ -6072,16 +6076,16 @@ function prPerFund(C) {
         /* 真表格（2026-09-30 重做）：8 列、列宽由内容自动对齐 —— 「对不齐」的根治就在这里。
            数字列一律右对齐 + 等宽，所以连小数点也成一条线；第二行的自由文本改为「备注」列、一条一行。
            手机端由 CSS 落成「名称独占一行 + 分项等宽三列 ×2 行 + 备注」（与操作体检同构）。 */
-        '<table class="chk-tbl xr-tbl"><thead><tr><th class="c-nm">标的</th>' +
-          '<th title="评级＝简单收益 对照 无风险利率（按该只的**有效在场期**折算），不做年化 → A ≥ +10pp · B ≥ +3pp · C ≥ 0（达标）· D ＜ 0；⏳ ＝ 未录流水或有效在场期 < 30 天">评级</th>' +
-          '<th class="num" title="资金加权 IRR：按每一笔真实申赎 / 成交的日期与金额解（全史）。⚠ 跨度不足 90 天不年化；且**分批投入时会被外推放大** —— 旁边小字给出该只的有效在场期（资金加权平均在场天数），悬停看放大倍数">年化 XIRR</th>' +
-          /* 2026-10-20 收窄（用户：「8 列太挤、列头竖排」）：
-             TWR 移进「年化」单元格的 tooltip；投入/现值 合并成一格「投入 → 现值」→ 8 列变 6 列。 */
-          '<th class="num" title="' + esc("场外＝Σ申购（成功后进成本的金额，含在途补记）；场内＝Σ买入成交额 ＋ 买入费（费后口径）。箭头后为期末市值：场外按份额×净值（在途另计），场内按收盘市值") + '">投入 → 现值</th>' +
-          '<th class="num" title="简单收益率＝（现值 ＋ 已赎回/已卖 − 投入）÷ 投入，不做年化 —— 年化在样本期很短时会被放大，这个数才是「实际赚了多少」">简单</th>' +
-          '<th class="c-info" title="逐行**汇总说明**：① 评级怎么来的（不外推）② 年化为什么偏大 ③ 金额口径（笔数 / 含费 / 在途 / 已卖）④ 数据自检是否对平 —— 点行内 ⓘ 展开；⚠ ＝ 需核对（悬停看详情）">说明</th>' +
-        "</tr></thead><tbody>" +
-        groups.map((g) => grpRow(g, 6) + g.rows.map((r) => {
+        /* ⚠ 2026-11-22 重做（用户：「点开后这个表格好像不太好看」）——
+           8 列表格在手机 356px 下每列只剩 ~44px，「−12.8% 在场均 139 天」挤成两截、
+           「13,900 → 13,193」的数字对不齐 ✗
+           → 改成**每只一张三行小卡**（视觉层级从结论到细节）：
+             第一行：名称 ＋ 简单收益（结论，红/绿，字号最大）
+             第二行：亏损 bar（量程 = 同批最深 × 1.05，长短即亏损深浅，一眼排出谁亏得多 ✓）
+             第三行：投入 → 现值 · 年化（在场 N 天）· 评级 —— 细节小字
+           ⓘ 浮层（结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值 六条）完整保留 ✓ */
+        '<div class="xr-list">' +
+        groups.map((g) => grpRow(g, 6, true) + g.rows.map((r) => {
           const gd = gradeOf(r);
           const dot = '<span class="c-dot ' + (r.mkt === "etf" ? "etf" : "otc") + '"></span>';
           const lb = (t) => '<span class="c-lb">' + t + "</span>";   /* 仅手机显示：隐去表头后由它充当列名 */
@@ -6164,18 +6168,23 @@ function prPerFund(C) {
               : "结论：没跑赢无风险利率（" + ppTxt(exv) + "，累计只" + (r.gain >= 0 ? "赚到 " : "亏掉 ") + fmtYuan(Math.abs(r.gain)) + "）" + rk + "；" + yTxt + "。";
             if (warn) concl += " 另有 " + warn.replace(/^⚠ /, "") + "。";
           }
-          return "<tr>" +
-            '<td class="c-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm) + "</td>" +
-            '<td class="c-gr">' + lb("评级") + '<b class="oc-' + gd.k + '" title="' + esc(r.nm + "：" + gd.why) + '">' + gd.t + "</b></td>" +
-            '<td class="c-xirr num" title="' + esc(xTip) + '">' + lb("年化") + xirrCell + "</td>" +
-            '<td class="c-inv num">' + lb("投入") + (r.miss ? "—" : fmtYuan(r.invAll)) +
-              '<em class="c-val">→ ' + fmtYuan(r.val) + "</em></td>" +
-            '<td class="c-rate num' + (r.miss ? "" : " " + cls(r.gain)) + '">' + lb("简单") + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</td>" +
-            /* 说明列：全文收进 ⓘ（结论在最上面，四条依据跟在后面）。 */
-            '<td class="c-info">' + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值", concl) + "</td>" +
-          "</tr>";
-        }).join("")).join("") +
-        "</tbody></table>" +
+          const maxRate = Math.max(0.01, ...allRows.filter((x) => !x.miss).map((x) => Math.abs(x.rate)));
+          const barW = r.miss ? 0 : Math.max(3, Math.min(100, Math.abs(r.rate) / maxRate * 100));
+          return '<div class="xr-row">'
+            + '<div class="xr-r1"><span class="xr-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm)
+            + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值", concl) + "</span>"
+            + '<b class="xr-rate' + (r.miss ? "" : " " + cls(r.gain)) + '">' + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</b></div>"
+            + (r.miss ? "" : '<span class="xr-bar"><i style="width:' + barW.toFixed(1) + '%"></i></span>')
+            + '<div class="xr-r2">'
+            + (r.miss
+              ? "现值 " + fmtYuan(r.val)
+              : "投入 <b>" + fmtYuan(r.invAll) + "</b> → 现值 <b>" + fmtYuan(r.val) + "</b> · 年化 "
+                + ((r.ann && r.xirr !== null) ? '<b class="' + cls(r.xirr) + '">' + fmtPct(r.xirr, 1) + "</b>" : "暂不年化")
+                + "（在场 " + Math.round(r.expo) + " 天） · <b class=\"oc-" + gd.k + "\" title=\"" + esc(r.nm + "：" + gd.why)
+                + "\">" + gd.t + "</b>")
+            + "</div></div>";
+        }).join("")).join("</div>") +
+        "</div>" +
         /* 表尾图例（用户要的「参考标准」）：阈值写在表里，口径随时可查，不做黑箱评分。
            容器沿用操作体检的 .otc-note（细虚线上边 + 灰字），两张表的尾注长得一样。 */
         /* 逐只 XIRR 表尾（2026-10-12 裁剪）：≈520 字 → ≈260 字 —— 保留阈值与「年化会被放大」的警告 ✓，
