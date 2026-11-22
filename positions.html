@@ -9782,7 +9782,8 @@ function addDistOf(code) {
     const i = dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4;
     const amt = (e.qty || 0) * e.cost;
     out[i].n++; out[i].amt += amt;
-    out[i].items.push({ d: e.d, cost: +e.cost, qty: +e.qty, amt: amt, dd: dd, sym: h.sym, code: code });
+    out[i].items.push({ d: e.d, cost: +e.cost, qty: +e.qty, amt: amt, dd: dd, sym: h.sym, code: code,
+      hi: hi, hiMonth: keys.filter((k) => win.includes(k) && mo[k] === hi).slice(-1)[0] || "" });
   });
   const n = out.reduce((a, x) => a + x.n, 0);
   const amt = out.reduce((a, x) => a + x.amt, 0);
@@ -9811,10 +9812,15 @@ function addDistMiniHtml(code) {
   const dHtml = d.rows.map((r, i) => (r.n
     ? '<div class="ad-mini-detail" data-d="' + i + '" hidden>'
       + r.items.slice().sort((x, y) => (x.d < y.d ? -1 : 1)).map((x) =>
-        '<div class="ad-di"><span class="ad-di-d">' + mdOf(x.d) + "</span>"
-        + '<span class="ad-di-s">' + (x.cost || 0).toFixed(4) + "</span>"
-        + '<span class="ad-di-a">' + (x.amt / 10000).toFixed(2) + " 万</span>"
-        + '<span class="ad-di-dd">' + x.dd.toFixed(1).replace("-", "−") + "%</span></div>").join("")
+        /* ⚠ 这段 title 里含 HTML 的 `"`，**必须全程用单引号**拼 —— 用双引号会提前把字符串截断 ✗
+           （这个坑今天第 4 次了：凡往 HTML 属性里拼值，片段一律单引号） */
+        '<div class="ad-di" title="' + mdOf(x.d) + ' 成交 ' + (x.cost || 0).toFixed(4)
+          + '；该月及之前 12 个月的月末收盘最高 ' + (x.hi || 0).toFixed(3) + '（' + (x.hiMonth || '—')
+          + '）→ 回撤 ' + x.dd.toFixed(2) + '%（相对买入当时的 52 周高，不是当前高点）">'
+          + '<span class="ad-di-d">' + mdOf(x.d) + "</span>"
+          + '<span class="ad-di-s">' + (x.cost || 0).toFixed(4) + "</span>"
+          + '<span class="ad-di-a">' + (x.amt / 10000).toFixed(2) + " 万</span>"
+          + '<span class="ad-di-dd">' + x.dd.toFixed(1).replace("-", "−") + "%</span></div>").join("")
       + "</div>" : "")).join("");
   return '<div class="ad-mini" title="按买入时该标的距 52 周高的回撤归档（分母取该月及之前 12 个月的月末收盘最高）'
     + ' —— 颜色越深＝档位越深；条长与占比都按<b>买入金额</b>（非笔数）；点档位胶囊看这一档的逐笔">'
@@ -9857,7 +9863,9 @@ function renderAddDist() {
      ⚠ 点击区域是**整行**（约 30px 高），不是那根 6px 的色条 —— 手机上点 6px 根本点不中 ✗ */
   const detailOf = (items) => items
     .slice().sort((x, y) => (x.d < y.d ? -1 : x.d > y.d ? 1 : 0))
-    .map((x) => '<div class="ad-di">'
+    .map((x) => '<div class="ad-di" title="' + mdOf(x.d) + ' 成交 ' + (x.cost || 0).toFixed(4)
+      + '；该月及之前 12 个月的月末收盘最高 ' + (x.hi || 0).toFixed(3) + '（' + (x.hiMonth || '—')
+      + '）→ 回撤 ' + x.dd.toFixed(2) + '%（相对买入当时的 52 周高，不是当前高点）">'
       + '<span class="ad-di-d">' + mdOf(x.d) + "</span>"
       + '<span class="ad-di-s">' + esc(String(x.sym).replace(/ETF.*$/, "")) + "</span>"
       + '<span class="ad-di-a">' + (x.amt / 10000).toFixed(2) + " 万</span>"
@@ -9883,7 +9891,9 @@ function renderAddDist() {
     + '<div class="ad-foot"><b>条形长度与百分比都按「买入金额」</b>（每笔 份数 × 成交价 累加），不是笔数 ——'
     + ' 决定仓位轻重的是钱不是次数（本次浅档 45 笔占 51.7%、但金额占 53.3%）；'
     + '只含当前持有的 3 只（不含已清仓的中概/港美/科创），含已减仓那部分的买入额、不扣卖出。<br>'
-    + '分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓'
+    + '分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓<br>'
+    + '⚠ 因此<b>不同月份的买入不能按绝对价格比深浅</b>：标普 06.24 买 1.884 只算 −1.9%（当时 52 周高才 1.92），'
+    + '而 11.06 买 1.924 算 −5.8%（那时高已到 2.043）—— 分母跟着市场在走，这才是「当时跌了多少」✓'
     + (miss ? " · " + miss + " 笔缺月度行情未计入" : "") + "</div></div>";
 }
 function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
