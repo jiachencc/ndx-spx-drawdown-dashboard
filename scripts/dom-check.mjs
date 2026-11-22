@@ -2924,26 +2924,35 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
       }
 
       /* 「这波跌多久能修复」2026-11-07 从 positions.html 搬来这里（用户：「放在历史回撤对照就可以」）——
-         它整块是 JS 渲染的，数据缺了会静默变空 ✗ → 断言：有中位天数、有「还需约」、有概率三档 */
+         它整块是 JS 渲染的，数据缺了会静默变空 ✗ → 必须有断言 */
       {
+        /* ⚠ 2026-11-22 重做（用户：「精简和视觉结合」）：**表格整块删掉**，改成
+           「大数字（还需约 N 日）＋ 一条时间尺 ＋ 一行概率」——
+           断言的判据随之全换：不再数 table，改数「大数字 / 尺 / 概率」三个部件 ✓
+           同时校验**时间尺的几何**：已走段的宽度必须 ≈ past ÷ 轴长（轴长 = p75 × 1.04），
+           这是「视觉是否真实反映数据」的唯一可断言处（尺画歪了数据就对不上 ✗） */
+        const box = idoc.getElementById("hist-repair");   // index 段用 idoc（不是 positions 段的 gs）
         const rpTxt = (txtOf("hist-repair") || "").replace(/\s+/g, " ");
-        /* ⚠ 2026-11-14：从**两张 4 列表**合成**一张 2 列纵表**（用户：「4 个模块、4 个表格排布混乱」）——
-           上 4 行是时间口径（中位 / 分位 / 已过 / 还需约），下面 N 行是各期限的累计概率。
-           断言的判据随之改：**表格数 = 1**（原为 2），概率档位文本变成「≤N 个月内收复」 ✓ */
-        /* ⚠ 2026-11-22：表头从「峰→收复 · 中位」改成「回到前高 · 中位」（用户问「是回到当前点位吗」，
-           指明目标是前高）→ 断言的锚词跟着换 ✓ */
-        const hasMed = /回到前高/.test(rpTxt) && /\b\d+\s*日/.test(rpTxt);
-        const hasLeft = /还需约/.test(rpTxt) && /\d+\s*日/.test(rpTxt);
-        const nPr = /≤1\s*个月内收复/.test(rpTxt) && /≤3\s*个月内收复/.test(rpTxt) && /≤6\s*个月内收复/.test(rpTxt);
-        const nTbl = (() => {
-          const box = idoc.getElementById("hist-repair");   // index 段用 idoc（不是 positions 段的 gs）
-          return box ? box.querySelectorAll("table.hr-tbl").length : 0;
-        })();
+        const leadN = box && box.querySelector(".hr-lead-n");
+        const leadVal = leadN ? parseInt(String(leadN.textContent).replace(/[^\d-]/g, ""), 10) : NaN;
+        const doneBar = box && box.querySelector(".hr-rl-done");
+        const medLine = box && box.querySelector(".hr-rl-med");
+        const bandEl = box && box.querySelector(".hr-rl-band");
+        const wOf = (el) => (el && el.style && el.style.width) ? parseFloat(el.style.width) : NaN;
+        const lOf = (el) => (el && el.style && el.style.left) ? parseFloat(el.style.left) : NaN;
+        const probTxt = box && box.querySelector(".hr-prob") ? box.querySelector(".hr-prob").textContent : "";
+        const nPr = /≤1\s*月/.test(probTxt) && /≤3\s*月/.test(probTxt) && /≤6\s*月/.test(probTxt);
+        const hasMedMark = Number.isFinite(lOf(medLine)) && Number.isFinite(wOf(bandEl));
         /* 折叠条上的关键数（2026-11-14 加）：折叠状态下也要能读到「中位 N 日 · 还需约 M 日」 */
         const kTxt = (txtOf("hx-repair-k") || "").replace(/\s+/g, " ");
-        check("决策看板「这波跌多久能修复」：一张纵表（时间 4 行 ＋ 概率 N 行）且数值齐",
-          hasMed && hasLeft && nPr && nTbl === 1 && /中位\s*\d+\s*日/.test(kTxt),
-          "表格 " + nTbl + "/1 · 中位 " + (hasMed ? "有" : "无 ✗") + " · 还需 " + (hasLeft ? "有" : "无 ✗")
+        check("决策看板「这波跌多久能修复」：大数字 ＋ 时间尺（已走/区间/中位）＋ 概率行 三件俱全",
+          Number.isFinite(leadVal) && leadVal > 0
+            && Number.isFinite(wOf(doneBar)) && wOf(doneBar) > 0 && wOf(doneBar) <= 100
+            && hasMedMark && nPr && /中位\s*\d+\s*日/.test(kTxt),
+          "大数字 " + (Number.isFinite(leadVal) ? leadVal + " 日" : "无 ✗")
+            + " · 已走段 " + (Number.isFinite(wOf(doneBar)) ? wOf(doneBar) + "%" : "无 ✗")
+            + " · 中位刻度 " + (hasMedMark ? lOf(medLine) + "%" : "无 ✗")
+            + " · 区间带 " + (Number.isFinite(wOf(bandEl)) ? wOf(bandEl) + "%" : "无 ✗")
             + " · 概率 " + (nPr ? "有" : "无 ✗") + " · 折叠条「" + kTxt + "」");
       }
   }

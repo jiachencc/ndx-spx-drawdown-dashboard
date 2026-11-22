@@ -546,28 +546,34 @@
     font-size: 12px; color: var(--tx2); margin-bottom: 7px; }
   .hr-head i { font-style: normal; font-size: 10.5px; color: var(--tx3); }
   /* 时间进度条（2026-11-22）：轨道 = 0 → 中位，填充 = 已走 —— 右侧留白即「还得等」*/
-  .hr-prog-row td { padding-top: 2px; padding-bottom: 6px; }
-  .hr-bar { display: block; height: 4px; border-radius: 2px; overflow: hidden;
-    background: rgba(147,163,187,.16); }
-  .hr-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--blue); }
-  .hr-bar.done > i { background: var(--yellow); }
-  .hr-bar.over > i { background: var(--warn, #d8a13a); }
-  .hr-bar-lb { display: block; margin-top: 3px; font-size: 10px; color: var(--tx3);
+  /* 时间尺（2026-11-22 重做：表格 → 大数字 + 一条尺）——
+     三层信息各占一个视觉通道：已走段=蓝色实块、p25~p75=淡灰区间带、中位=实色竖线 ✓ */
+  .hr-lead { display: flex; align-items: baseline; gap: 5px; margin: 4px 0 9px; }
+  .hr-lead-n { font-family: var(--mono); font-size: 25px; font-weight: 800; line-height: 1;
+    color: var(--tx); font-feature-settings: "tnum"; letter-spacing: -.5px; }
+  .hr-lead-u { font-size: 11px; color: var(--tx3); }
+  .hr-lead-lb { margin-left: auto; font-size: 10px; color: var(--tx3);
     font-family: var(--mono); font-feature-settings: "tnum"; }
-  .hr-bar-lb b { color: var(--tx2); }
-  .hr-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono);
-    font-feature-settings: "tnum"; }
-  .hr-tbl th, .hr-tbl td { padding: 5px 8px; text-align: right;
-    border-bottom: 1px dashed var(--line-soft); font-size: 11.5px; }
-  .hr-tbl th:first-child, .hr-tbl td:first-child { text-align: left; }
-  .hr-tbl th { color: var(--tx3); font-weight: 400; font-size: 10.5px;
-    border-bottom: 1px solid var(--line); }
-  .hr-tbl td { color: var(--tx2); }
-  .hr-tbl tr:last-child td { border-bottom: none; }
-  .hr-tbl td b { color: var(--tx); font-weight: 700; }
-  .hr-tbl td .hr-sub { display: block; font-size: 10px; color: var(--tx3); font-weight: 400; }
-  .hr-tbl td .hr-hi { color: var(--tx); font-weight: 700; }
-  .hr-tbl th + th, .hr-tbl td + td { border-left: 1px dashed var(--line-soft); }
+  .hr-rl { margin: 0 0 11px; padding: 0 2px; }
+  .hr-rl-track { position: relative; height: 9px; border-radius: 5px;
+    background: rgba(147,163,187,.13); }
+  /* ⚠ 区间带要看得见：p25~p75 往往只有 10 来天（本次 75~86），在 90 天宽的轴上仅占 ~12%，
+     纯色块几乎看不出来 → 加 1px 边框把边界画出来 ✓ */
+  .hr-rl-band { position: absolute; top: -4px; bottom: -4px; border-radius: 3px;
+    background: rgba(147,163,187,.22); border: 1px solid rgba(147,163,187,.45); box-sizing: border-box; }
+  .hr-rl-done { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px;
+    background: var(--blue); }
+  .hr-rl-track.done .hr-rl-done { background: var(--yellow); }
+  .hr-rl-track.over .hr-rl-done { background: var(--warn, #d8a13a); }
+  .hr-rl-med { position: absolute; top: -7px; bottom: -7px; width: 2px; border-radius: 1px;
+    background: var(--tx); }   /* 用最亮的 --tx：它要压在灰色区间带之上还看得见 */
+  .hr-rl-ax { position: relative; height: 15px; margin-top: 6px; }   /* 5px 以上：给区间带伸出的下边缘留位，否则「中位」标签被压住 */
+  .hr-rl-t { position: absolute; font-size: 10px; color: var(--tx3); white-space: nowrap;
+    font-family: var(--mono); font-feature-settings: "tnum"; transform: translateX(-50%); }
+  .hr-rl-t.end { transform: translateX(-100%); }
+  .hr-prob { font-size: 10.5px; color: var(--tx3); font-family: var(--mono);
+    font-feature-settings: "tnum"; margin-bottom: 8px; }
+  .hr-prob b { color: var(--tx2); font-weight: 700; }
   .hr-note { margin-top: 7px; font-size: 10.5px; color: var(--tx3);
     line-height: 1.65; opacity: .9; }
   @media (max-width: 430px) {
@@ -1582,42 +1588,46 @@ function renderHist(ndxDD) {
          一列标签一列数值，手机上不再挤成一团 ✓（信息一条没少）
        ⚠ summary 里也塞了关键数（中位 N 日 · 还需约 M 日）—— 折叠状态下也能读到结论 ✓ */
     /* 进度条：已走 / 中位（0~100，超过中位就钉在 100 并换色）*/
-    const prog = (b && Number.isFinite(b.medianTotal) && b.medianTotal > 0 && Number.isFinite(past))
-      ? Math.max(0, Math.min(100, past / b.medianTotal * 100)) : null;
-    const tone = (prog === null) ? ""
-      : (past >= b.p75 ? " over" : (past >= b.medianTotal ? " done" : ""));
-    const prRows = (b.within || []).map((w) => {
-      const p2 = w.n ? Math.round(w.k / w.n * 100) + "%" : "—";
-      return '<tr><td>≤<b>' + (w.days / 21).toFixed(0) + '</b> 个月内收复</td>'
-        + '<td><b>' + w.k + "/" + w.n + '</b><span class="hr-sub">' + p2 + "</span></td></tr>";
-    }).join("");
+    /* ⚠ 2026-11-22 重做（用户：「精简和视觉结合」）——
+       上一版是「一张 8 行表格 ＋ 一条进度条」，三处重复且密：
+       ① 「25%~75% → 75~86 日」与进度条说的是同一段区间；
+       ② 「已过 33 / 还需 48」在表里一行、条上又写一遍；
+       ③ 4 行概率在 n=2 时全是 0/2、0/2、0/2、2/2，占四行却几乎没有信息 ✗
+       → 现在：**一个大数字（还需约 48 日）＋ 一条时间尺 ＋ 一行概率**
+         时间尺把「今天 / 中位 / p25~p75 区间带」画在同一条轴上（绝对定位），
+         三个数的相对位置一眼可见，不用在表格里上下对照 ✓
+       轴长取 p75 × 1.04（而不是中位）：否则 p25~p75 那段会挤在最右端、看不出宽度；
+       中位刻度线用实色竖线，区间带用淡灰块，已走段用蓝条 —— 三层信息不抢同一个视觉通道 ✓ */
+    const canRuler = Number.isFinite(past) && Number.isFinite(b.medianTotal) && b.medianTotal > 0;
+    const axis = canRuler ? Math.max(b.p75, b.medianTotal, past) * 1.04 : 1;
+    const at = (v) => Math.max(0, Math.min(100, (Number.isFinite(v) ? v : 0) / axis * 100));
+    const tone = !canRuler ? "" : (past >= b.p75 ? " over" : (past >= b.medianTotal ? " done" : ""));
+    const probTxt = (b.within || []).map((w) =>
+      "≤" + (w.days / 21).toFixed(0) + " 月 <b>" + w.k + "/" + w.n + "</b>").join(" · ");
+    const ruler = !canRuler ? "" : '<div class="hr-rl">'
+      + '<div class="hr-rl-track ' + tone + '">'
+      + '<i class="hr-rl-band" style="left:' + at(b.p25).toFixed(1) + '%;width:'
+      + Math.max(0, at(b.p75) - at(b.p25)).toFixed(1) + '%"></i>'
+      + '<i class="hr-rl-done" style="width:' + at(past).toFixed(1) + '%"></i>'
+      + '<i class="hr-rl-med" style="left:' + at(b.medianTotal).toFixed(1) + '%"></i>'
+      + "</div>"
+      + '<div class="hr-rl-ax">'
+      + '<span class="hr-rl-t" style="left:' + at(past).toFixed(1) + '%">今天 · ' + past + " 日</span>"
+      + '<span class="hr-rl-t end" style="left:' + at(b.medianTotal).toFixed(1) + '%">中位 ' + b.medianTotal + "</span>"
+      + "</div></div>";
     box.innerHTML = '<div class="hr-head">这波跌多久能修复'
       + '<i>' + (bAlt
-        ? '⚠ 当前 ' + pct(dd).replace("-", "−") + " 这一档（" + (bOwn ? bOwn.label : "—")
-          + '）在 NDX 历史里没有已收复的样本 → 借用更深一档 ' + b.label + '（' + b.n + ' 次）仅作参考'
-        : '同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次已收复') + '</i></div>'
-      + '<table class="hr-tbl">'
-      + '<tr><th>指标</th><th>值</th></tr>'
-      + '<tr><td>回到前高 · 中位<span class="hr-sub">自 ' + (og && /^\d{4}-\d{2}-\d{2}$/.test(og.peak) ? og.peak.slice(5) : "本波") + ' 峰值起算</span></td><td><b>' + b.medianTotal + '</b> 日<span class="hr-sub">约 ' + mo(b.medianTotal) + ' 个月</span></td></tr>'
-      + '<tr><td>25% ~ 75% 分位</td><td><b>' + b.p25 + ' ~ ' + b.p75 + '</b> 日<span class="hr-sub">样本 ' + b.n + ' 次</span></td></tr>'
-      + '<tr><td>已过<span class="hr-sub">' + (og && /^\d{4}-\d{2}-\d{2}$/.test(og.peak) ? "自 " + og.peak.slice(5) + " 高点" : "自本波高点") + '</span></td>'
-      + '<td>' + (Number.isFinite(past) ? '<b>' + past + '</b> 日' : '—') + '</td></tr>'
-      + '<tr><td>还需约</td>'
-      + '<td>' + (left === null ? '—' : '<b class="hr-hi">' + left + '</b> 日<span class="hr-sub">约 ' + mo(left) + ' 个月</span>') + '</td></tr>'
-      /* ⚠ 2026-11-22 加时间进度条（用户：「数据上加一些颜色，能凸显在什么位置」）——
-         上面两行「已过 33 日 / 还需约 48 日」是两个孤立数字，读者得自己算 33÷81 才知道走了多少 ✗
-         → 一条 0 → 中位 的轨道：已走部分填色，右侧留白就是「还得等」，一眼看出进度 ✓
-         宽度基准是**中位**（不是 p75）：中位是「一半情况比这快」的界标，拿它当 100% 才有意义；
-         超过 p75 时整条转橙 —— 说明这次等待已经进入「较慢的那四分之一」⚠ */
-      + (prog === null ? "" : '<tr class="hr-prog-row"><td colspan="2">'
-        + '<span class="hr-bar ' + tone + '"><i style="width:' + prog.toFixed(1) + '%"></i></span>'
-        + '<span class="hr-bar-lb">已走 <b>' + past + '</b> / 中位 <b>' + b.medianTotal + '</b> 日 · '
-        + prog.toFixed(0) + '%' + (tone === "over" ? " · 已超 75% 分位（" + b.p75 + " 日），这次偏慢" : (tone === "done" ? " · 已过中位，属于较慢的那一半" : ""))
-        + '</span></td></tr>')
-      + prRows
-      + '</table>'
-      + '<div class="hr-note">⚠ 样本只有 ' + b.n + ' 次，25%~75% 落在 ' + b.p25 + '~' + b.p75
-      + ' 日、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>';
+        ? "⚠ 当前 " + pct(dd).replace("-", "−") + " 这一档（" + (bOwn ? bOwn.label : "—")
+          + "）在 NDX 历史里没有已收复的样本 → 借用更深一档 " + b.label + "（" + b.n + " 次）仅作参考"
+        : "同类跌幅 " + b.label + " · 历史 " + b.n + " 次已收复") + "</i></div>"
+      + '<div class="hr-lead">'
+      + '<b class="hr-lead-n">' + (left === null ? "—" : left) + "</b>"
+      + '<span class="hr-lead-u">日</span>'
+      + '<span class="hr-lead-lb">还需约' + (left === null ? "（样本不足）" : " · 约 " + mo(left) + " 个月") + "</span></div>"
+      + ruler
+      + '<div class="hr-prob">' + probTxt + "</div>"
+      + '<div class="hr-note">⚠ 样本只有 ' + b.n + " 次，25%~75% 落在 " + b.p25 + "~" + b.p75
+      + " 日（尺上那段灰带）、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>";
     /* 折叠条上的关键数：不展开也能判断「要不要展开看分布」 */
     const kEl = $("hx-repair-k");
     /* ⚠ 2026-11-22 加样本量：−15~−20% 这一档只有 2 个历史样本，而「中位 176 日」看上去像个确定结论 ✗ ——
