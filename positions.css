@@ -1237,6 +1237,12 @@
   .chk-tbl b.oc-c { color: var(--yellow); }
   .chk-tbl b.oc-d { color: var(--red); }
   .chk-tbl b.oc-na { color: var(--tx3); font-weight: 400; }
+  /* 体检「未到窗口」的整块说明（2026-11-22 加）——
+     ⚠ 首版只写了 class 名、**忘了写样式** → 它按浏览器默认的 16px 正文渲染，
+       而四周全是 10~12px 的小字，视觉上突然放大、非常突兀 ✗（用户当场指出）
+       → 现在与 .oc-note 同一档：11px / --tx3 / 1.75 行高，与上下文同密度 ✓ */
+  .chk-hold { padding: 11px 2px 9px; font-size: 11px; color: var(--tx3); line-height: 1.75; }
+  .chk-hold b { color: var(--tx2); font-weight: 600; }
   .chk-tbl .c-note { color: var(--tx3); line-height: 1.55; }
   /* 说明列的两套文案（2026-10-29）：宽屏用整句、窄屏用短标签（见下方 767px 段） */
   .chk-tbl .cn-mini { display: none; }
