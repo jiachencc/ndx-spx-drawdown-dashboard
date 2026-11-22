@@ -13,7 +13,7 @@
  *   ① 事件定义：从**历史最高点**回撤首次触及 −10%，直到收盘**收复前高**为止；
  *      未收复的那次标 ongoing ✓（可能持续很久，别当成"已修复"✗）
  *   ② 天数一律**交易日**（不是日历日）；页面同时给日历日约数（×1.4）✓
- *   ③ 序列来自东财「100.NDX · 日线 · 前复权」——
+ *   ③ 序列来自东财「100.NDX100 · 日线 · 前复权」（⚠ 2026-11-22 前误用 100.NDX，那是纳斯达克综合）——
  *      它的**绝对值与项目 DEFAULT.ndx 不同**（复权口径差异，ATH 27,599.89 vs 31,361.37），
  *      但**百分比回撤**可比 ✓ 页面只用百分比，不用绝对点位 ✓
  *   ④ 1995 年前的数据留在原始序列里但不参与统计（早期数据质量不稳 + 样本够用 ✓）
@@ -30,7 +30,14 @@ const SINCE = "1995-01-01"; // 统计起点
 
 async function ndxDaily() {
   const url = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
-    + "?secid=100.NDX&fields1=f1,f2,f3,f4,f5&fields2=f51,f52,f53,f54,f55,f56"
+    /* ⚠ 2026-11-22 修：`100.NDX` 在东财返回的是**纳斯达克综合指数（IXIC）**，不是纳斯达克100 ✗
+       —— 实测（11-20）：东财 100.NDX 收 22,617.73 / 高 23,837.76 / 低 22,513.01，
+       与新浪 gb_$ixic 的 22,617.7330 / 23,837.7641 / 22,513.0127 **逐位一致**；
+       而同日真正的 NDX 收盘是 25,028.98（Yahoo + 新浪双源吻合）。
+       后果：整条序列都是 IXIC → 「本次回撤」算成 −18.05%（真实 −19.85%），
+       恰好跨过 −20% 档位边界，把「还需要修多久」的答案从 131 日变成 176 日 ✗
+       正确码：`100.NDX100`（实测末根 25,028.98，与双源一致 ✓） */
+    + "?secid=100.NDX100&fields1=f1,f2,f3,f4,f5&fields2=f51,f52,f53,f54,f55,f56"
     + "&klt=101&fqt=1&beg=0&end=20500101&lmt=10000";
   const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
   if (!r.ok) throw new Error("HTTP " + r.status);
@@ -120,7 +127,7 @@ const stats = BUCKETS.map((b) => {
 
 const payload = {
   asOf: S.at(-1).d,
-  source: "东财 100.NDX 日线（前复权）",
+  source: "东财 100.NDX100 日线（前复权）",
   since: SINCE,
   days: S.length,
   thresh: THRESH,

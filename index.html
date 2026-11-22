@@ -1541,12 +1541,23 @@ function renderHist(ndxDD) {
        positions 页那句「回到前高约还差 N 周」也是按「今天」算的 → 三处会各说各话。
        → 统一成「峰→今天」：28 + 25 = 53 ✓（已经反弹了一段，剩余天数理应比「假设今天还在谷底」少） */
     const past = Number.isFinite(D.ndx.days) ? D.ndx.days : (og ? og.toTrough : null);
-    const b = N.stats.find((x) => {
+    const bOwn = N.stats.find((x) => {
       if (x.k === "d10") return dd > -15;
       if (x.k === "d15") return dd <= -15 && dd > -20;
       if (x.k === "d20") return dd <= -20 && dd > -30;
       return dd <= -30;
     }) || null;
+    /* ⚠ 2026-11-22 加「本档无样本时借用相邻档」——
+       修好数据源（东财 100.NDX → 100.NDX100）后，本次 dd 从 −18.05%（错，那是纳斯达克综合）
+       变成 **−19.84%**（与「今年这几次跌」那格完全一致 ✓），落入 −15~−20% 档；
+       而这一档在 NDX 真实历史里**一个已完成样本都没有**（NDX 这十几年要么跌 10 出头、要么直接 −20% 以上）
+       → 整块只剩「没有样本」四个字，对「还要等多久」毫无帮助 ✗
+       → 无样本时借用**更深一档**（−20~−30%），并在卡面显著标明借的是哪一档、几个样本 ✓
+         只往更深的方向借：借更浅的一档会系统性低估等待时间 ✗ */
+    const bAlt = (!bOwn || !bOwn.n)
+      ? (N.stats.find((x) => x.k === "d20" && x.n > 0) || N.stats.find((x) => x.k === "d30" && x.n > 0) || null)
+      : null;
+    const b = (bOwn && bOwn.n) ? bOwn : bAlt;
     if (!b || !b.n) { box.innerHTML = '<div class="hr-head">这波跌多久能修复</div><div class="hr-line">这一档没有已完成的历史样本（当前 ' + neg(pct(dd)) + '）</div>'; return; }
     const left = Number.isFinite(past) && Number.isFinite(b.medianTotal) ? Math.max(0, b.medianTotal - past) : null;
     const mo = (n) => (Math.round(n * 1.4) / 30.4).toFixed(1);
@@ -1566,7 +1577,10 @@ function renderHist(ndxDD) {
         + '<td><b>' + w.k + "/" + w.n + '</b><span class="hr-sub">' + p2 + "</span></td></tr>";
     }).join("");
     box.innerHTML = '<div class="hr-head">这波跌多久能修复'
-      + '<i>同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次已收复</i></div>'
+      + '<i>' + (bAlt
+        ? '⚠ 当前 ' + pct(dd).replace("-", "−") + " 这一档（" + (bOwn ? bOwn.label : "—")
+          + '）在 NDX 历史里没有已收复的样本 → 借用更深一档 ' + b.label + '（' + b.n + ' 次）仅作参考'
+        : '同类跌幅 ' + b.label + ' · 历史 ' + b.n + ' 次已收复') + '</i></div>'
       + '<table class="hr-tbl">'
       + '<tr><th>指标</th><th>值</th></tr>'
       + '<tr><td>回到前高 · 中位<span class="hr-sub">自 ' + (og && /^\d{4}-\d{2}-\d{2}$/.test(og.peak) ? og.peak.slice(5) : "本波") + ' 峰值起算</span></td><td><b>' + b.medianTotal + '</b> 日<span class="hr-sub">约 ' + mo(b.medianTotal) + ' 个月</span></td></tr>'
