@@ -831,6 +831,15 @@
      先给结论、再给依据；加粗 + 下方虚线与正文隔开。不传 head 的其它 ⓘ 观感不变。 */
   .tip-pop .tip-head { font-weight: 700; color: var(--tx); margin: 0 0 7px; padding-bottom: 7px;
     border-bottom: 1px dashed var(--line); }
+  /* 结构化浮层（2026-11-22 加）：键值两列 —— 用户：「看上去很多文字 但实际有点不太清楚」
+     原来是 6 段长句靠 \n 分隔（white-space: pre-line），读起来像散文 ✗
+     → 左列短键（评级/年化/口径/数据/极值）+ 竖线做视觉锚点，右列一句短的；
+       键列 nowrap 定宽，值列自动换行，扫读时眼睛只走一列 ✓ */
+  .tip-pop .tip-dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr);
+    gap: 5px 10px; align-items: baseline; }
+  .tip-pop .tip-dl dt { color: var(--tx3); font-size: 10.5px; white-space: nowrap;
+    padding-left: 6px; border-left: 2px solid var(--line); line-height: 1.5; }
+  .tip-pop .tip-dl dd { margin: 0; color: var(--tx2); line-height: 1.55; }
   /* 徽标：一个词说明一档事实（假设 / 已是最低 / 你持有），比整句说明省 80% 宽度 */
   .pill { display: inline-block; padding: 0 5px; margin-left: 4px; border: 1px solid var(--line); background: var(--card2);
     border-radius: 999px; font-size: var(--fs-xxs); font-weight: 400; color: var(--tx2); white-space: nowrap; }

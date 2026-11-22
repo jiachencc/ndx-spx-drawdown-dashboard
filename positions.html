@@ -6124,30 +6124,32 @@ function prPerFund(C) {
           const baseRv = rfPer(r.expo);                                    // 同期无风险（按有效在场期折算）
           const exv = (r.miss || baseRv === null) ? null : r.rate - baseRv; // 超额
           const ppTxt = fmtPp;   // 全局 fmtPp（2026-10-12 收拢）
-          const notes = r.miss
-            ? ["没有逐笔成交流水（该只在支付宝渠道，App 不提供申赎记录）→ 不参与年化与评级，只按现值列入",
-              "现值 " + fmtYuan(r.val) + (typeof r.cost === "number" ? "（快照成本 " + fmtYuan(r.cost) + "）" : "")]
+          const rowsArr = r.miss
+            ? [{ k: "流水", v: "没有逐笔成交流水（该只在支付宝渠道，App 不提供申赎记录）→ 不参与年化与评级，只按现值列入" },
+               { k: "现值", v: fmtYuan(r.val) + (typeof r.cost === "number" ? "（快照成本 " + fmtYuan(r.cost) + "）" : "") }]
             : [
               /* ① 评级依据 */
-              "评级 " + gd.t + "：" + (exv === null ? gd.why
-                : "简单收益 " + fmtPct(r.rate, 2) + " − 同期无风险 " + fmtPct(baseRv, 2) + "（按有效在场期 " + Math.round(r.expo) + " 天折算）＝ " +
-                  ppTxt(exv) + (exv >= 0.10 ? "（≥ +10pp）" : exv >= 0.03 ? "（≥ +3pp）" : exv >= 0 ? "（≥ 0，达标线）" : "（< 0，没跑赢无风险）")),
+              { k: "评级", v: gd.t + "：" + (exv === null ? gd.why
+                : "简单 " + fmtPct(r.rate, 2) + " − 无风险 " + fmtPct(baseRv, 2) + "（按在场 " + Math.round(r.expo) + " 天折算）＝ " +
+                  ppTxt(exv) + (exv >= 0.10 ? "（≥ +10pp）" : exv >= 0.03 ? "（≥ +3pp）" : exv >= 0 ? "（≥ 0，达标线）" : "（< 0，没跑赢无风险）")) },
               /* ② 年化为什么偏大 */
-              (r.ann && r.xirr !== null)
-                ? "年化 " + fmtPct(r.xirr, 1) + " 是外推值：" + r.n + " 笔钱平均只在场 " + Math.round(r.expo) + " 天" +
-                  ((infl !== null && infl > 1.05) ? " → 约为「整段年化」的 " + infl.toFixed(2) + " 倍，仅供参考" : "，与整段口径接近")
-                : r.days + " 天跨度未达 90 天门槛 → 不做年化（这是护栏，不是缺数据）",
+              { k: "年化", v: (r.ann && r.xirr !== null)
+                ? fmtPct(r.xirr, 1) + "（外推值：" + r.n + " 笔钱平均在场 " + Math.round(r.expo) + " 天" +
+                  ((infl !== null && infl > 1.05) ? " → 约「整段年化」的 " + infl.toFixed(2) + " 倍，仅供参考" : "，与整段口径接近") + "）"
+                : "未做 —— " + r.days + " 天跨度未达 90 天门槛（这是护栏，不是缺数据）" },
               /* ③ 金额口径 */
               /* ⚠ 嵌在句子里的金额一律用**无符号**的 fmtYuan：「含买入费 65」比「含买入费 +65」读起来顺 */
-              "口径：" + (r.mkt === "etf"
+              { k: "口径", v: (r.mkt === "etf"
                 ? r.n + " 笔买入共 " + fmtYuan(r.invAll) + (r.fee > 0.5 ? "（含买入费 " + fmtYuan(r.fee) + "）" : "") +
                   (r.sold > 0.5 ? "；已卖 " + fmtYuan(r.sold) + " 已从现金流扣回" : "")
                 : r.n + " 笔申购共 " + fmtYuan(r.invAll) + (r.transit > 0.05 ? "（含在途 " + fmtYuan(r.transit) + "）" : "")) +
-                "；现值 " + fmtYuan(r.val) + "，简单 " + fmtPct(r.rate, 2),
+                "；现值 " + fmtYuan(r.val) + "，简单 " + fmtPct(r.rate, 2) },
               /* ④ 数据自检 */
-              warn ? "数据：" + warn : "数据：Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平"
+              { k: "数据", v: warn ? warn.replace(/^⚠ /, "") : "Σ流水与快照" + (r.mkt === "etf" ? "摊薄成本" : "成本") + "对平" }
             ];
-          notes.push(extLine(extOf(r)));   /* ⑤ 历史极值（最大浮盈 / 最深浮亏 / 已实现单笔最好·最差） */
+          /* ⑤ 历史极值（最大浮盈 / 最深浮亏 / 已实现单笔最好·最差）—— 去掉句首的「极值：」，
+             它现在由左列的 dt 承担 ✓ */
+          rowsArr.push({ k: "极值", v: extLine(extOf(r)).replace(/^极值：/, "") });
           /* 结论（用户要求「给一个结论」）：一句话把这一行说清楚 —— 跑赢/没跑赢、在同类里第几、
              年化是不是外推值、数据有没有要核对的。放在弹层**最上面**（先给结论，再给依据）。
              ⚠ 措辞遵守操作体检那条规矩：只描述已发生的事实，不预测涨跌、不评价基金本身好坏。
@@ -6172,7 +6174,7 @@ function prPerFund(C) {
           const barW = r.miss ? 0 : Math.max(3, Math.min(100, Math.abs(r.rate) / maxRate * 100));
           return '<div class="xr-row">'
             + '<div class="xr-r1"><span class="xr-nm" title="' + esc(r.full) + '">' + dot + esc(r.nm)
-            + tipBtn(notes.join("\n"), "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值", concl) + "</span>"
+            + tipBtnRows(rowsArr, "这一行的说明：结论 / 评级依据 / 年化外推 / 金额口径 / 数据自检 / 历史极值", concl) + "</span>"
             + '<b class="xr-rate' + (r.miss ? "" : " " + cls(r.gain)) + '">' + (r.miss ? "—" : fmtPct(r.rate, 2)) + "</b></div>"
             + (r.miss ? "" : '<span class="xr-bar"><i style="width:' + barW.toFixed(1) + '%"></i></span>')
             + '<div class="xr-r2">'
@@ -7030,6 +7032,16 @@ window.addEventListener("resize", debounce(() => {
  * 全页只有一个浮层实例：点 ⓘ 打开、点别处 / 再点同一个 / Esc 关闭。零依赖、无状态机。 */
 let tipPop = null;
 function closeTipPop() { if (tipPop) { tipPop.remove(); tipPop = null; } }
+/* 结构化 ⓘ 浮层（2026-11-22 加，用户：「i 的弹窗…看上去很多文字 但实际有点不太清楚」）——
+   逐只明细那 6 条原是一串长句（评级依据 / 年化外推 / 金额口径 / 数据自检 / 极值），
+   靠 \n 换行分隔，读起来像一段散文 ✗ → 改成**键值两列**：左侧「评级 / 年化 / 口径 / 数据 / 极值」，
+   右侧一句短的；数字用等宽、左列带竖线做视觉锚点 ✓
+   ⚠ 新开一个函数而不是改 tipBtn：全页 20+ 处调用都传纯文本，改签名会波及一片 ✗ */
+function tipBtnRows(rows, label, head) {
+  return '<button type="button" class="tip" data-tip-rows="' + esc(JSON.stringify(rows)) + '"'
+    + (head ? ' data-tip-head="' + esc(head) + '"' : "")
+    + ' title="' + esc(label || "说明") + '" aria-label="' + esc(label || "说明") + '">i</button>';
+}
 function tipBtn(text, label, head) {
   /* head（可选）：弹层**最上面**的一句结论 —— 加粗、与正文之间一条虚线隔开。
      只有个别调用方传它（逐只表的"说明"列），其它 ⓘ 的观感不变。 */
@@ -7049,8 +7061,19 @@ document.addEventListener("click", (e) => {
   tipPop.className = "tip-pop";
   tipPop.dataset.src = t.dataset.tip;
   tipPop.setAttribute("role", "note");
+  /* 2026-11-22：加了键值结构化模式（data-tip-rows）—— 有就用 <dl> 两列渲染，否则照旧纯文本 ✓ */
+  let tipBody = esc(t.dataset.tip || "");
+  if (t.dataset.tipRows) {
+    try {
+      const rowsArr = JSON.parse(t.dataset.tipRows);
+      if (Array.isArray(rowsArr) && rowsArr.length) {
+        tipBody = '<dl class="tip-dl">' + rowsArr.map((it) =>
+          "<dt>" + esc(it.k) + "</dt><dd>" + esc(it.v) + "</dd>").join("") + "</dl>";
+      }
+    } catch (err) { /* 解析失败就退回纯文本，不让浮层开天窗 */ }
+  }
   tipPop.innerHTML = '<button type="button" class="tip-x" aria-label="关闭">✕</button>' +
-    (t.dataset.tipHead ? '<div class="tip-head">' + esc(t.dataset.tipHead) + "</div>" : "") + esc(t.dataset.tip);
+    (t.dataset.tipHead ? '<div class="tip-head">' + esc(t.dataset.tipHead) + "</div>" : "") + tipBody;
   document.body.appendChild(tipPop);
   /* 贴按钮弹出（2026-09-30，与 index.html 的 .hint-pop 同一套行为）：
      优先放在按钮**下方** 8px 处；下方盛不下（含 8px 边距）就翻到按钮**上方**；
