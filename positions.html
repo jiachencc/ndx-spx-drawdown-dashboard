@@ -9759,8 +9759,22 @@ function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("la
    持仓卡（posCardHtml）在文件前部就调用了 addDistMiniHtml，而模块级 const 在这一行才初始化
    → 会撞 TDZ：「Cannot access 'ADD_DIST_ORD' before initialization」，整页变「数据加载异常」✗
    （5 个字符串每次重建，开销可忽略，换来零顺序依赖 ✓） */
+/* 分母口径（2026-11-22，用户：「假如这些加仓相对现在高点，我也想知道」）——
+   "then" = 买入**当时**的 52 周高（默认，回答「你当时跌多少才加」）
+   "now"  = **当前** 52 周高（回答「这些点位放到今天算深还是浅」，与加仓阶梯同口径）
+   ⚠ 存 window 上而不是模块级 const —— 本文件里 posCardHtml 在前部就会调到 addDistMiniHtml，
+     模块级 const 会撞 TDZ（今天已经栽过一次，见 addDistOf 里那条注释） */
+/* ⚠ 必须是 **function 声明**，不能写成 `const addDistBasis = () => ...` ——
+   posCardHtml 在文件前部（~7700 行）就会经 addDistMiniHtml → addDistOf 调到这里，
+   而模块级 const 要到这一行才初始化 → 撞 TDZ，整页变「数据加载异常：Cannot access
+   'addDistBasis' before initialization」，且浏览器 **不报 pageerror**（被 try/catch 吞了），极难查 ✗
+   今天同一条坑踩了两次（上午是 ADD_DIST_ORD）：**被前部代码调用的辅助函数一律用 function 声明** ✓ */
+function addDistBasis() {
+  return (typeof window !== "undefined" && window.__addDistBasis === "now") ? "now" : "then";
+}
 function addDistOf(code) {
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
+  const basis = addDistBasis();
   /* 2026-11-22：每档额外收一份 items 明细（用户：「点击不同颜色的进度条有一个对应的数据呈现」）——
      点开某档能看到「具体是哪几笔、哪天、什么价、当时跌了多少 ✓」 */
   const out = ORD.map(() => ({ n: 0, amt: 0, items: [] }));
@@ -9778,12 +9792,16 @@ function addDistOf(code) {
     const win = keys.slice(Math.max(0, idx - 11), idx + 1);
     const hi = Math.max.apply(null, win.map((k) => mo[k]));
     if (!(hi > 0) || !(e.cost > 0)) { miss++; return; }
-    const dd = (e.cost / hi - 1) * 100;
+    /* now 口径：分母换成**当前** 52 周最高收盘（it.hi52）—— 同一个月买入的笔会因此下沉，
+       因为 8~10 月把高点抬上去了 ✓ */
+    const denom = (basis === "now" && it.hi52 > 0) ? it.hi52 : hi;
+    const dd = (e.cost / denom - 1) * 100;
     const i = dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4;
     const amt = (e.qty || 0) * e.cost;
     out[i].n++; out[i].amt += amt;
     out[i].items.push({ d: e.d, cost: +e.cost, qty: +e.qty, amt: amt, dd: dd, sym: h.sym, code: code,
-      hi: hi, hiMonth: keys.filter((k) => win.includes(k) && mo[k] === hi).slice(-1)[0] || "" });
+      hi: denom,
+      hiMonth: (basis === "now") ? "当前" : (keys.filter((k) => win.includes(k) && mo[k] === hi).slice(-1)[0] || "") });
   });
   const n = out.reduce((a, x) => a + x.n, 0);
   const amt = out.reduce((a, x) => a + x.amt, 0);
@@ -9885,19 +9903,49 @@ function renderAddDist() {
   }).join("");
   const shallow = totAmt > 0 ? agg[0].amt / totAmt * 100 : 0;
   const deep = totAmt > 0 ? (agg[3].amt + agg[4].amt) / totAmt * 100 : 0;
-  box.innerHTML = '<div class="ad-wrap">' + rows
+  const basisNow = addDistBasis() === "now";
+  box.innerHTML = '<div class="ad-switch" role="group" aria-label="回撤分母口径">'
+    + '<button type="button" class="ad-sw' + (basisNow ? "" : " on") + '" data-basis="then"'
+    + ' title="每笔回撤 = 成交价 ÷ **买入当时**的 52 周最高收盘 − 1（回答「你当时跌了多少才加」）">按买入当时</button>'
+    + '<button type="button" class="ad-sw' + (basisNow ? " on" : "") + '" data-basis="now"'
+    + ' title="每笔回撤 = 成交价 ÷ **当前** 52 周最高收盘 − 1（回答「这些点位放到今天算深还是浅」；'
+    + ' 与「加仓阶梯」同口径，但它会随行情变化，不是历史事实）">按当前高点</button>'
+    + '<span class="ad-sw-x">' + (basisNow
+      ? "分母＝<b>当前</b> 52 周高（纳指 " + (T["159941"] || {}).hi52 + " / 标普 " + (T["513650"] || {}).hi52
+        + " / 日经 " + (T["513880"] || {}).hi52 + "）—— 会随行情变，不是历史事实"
+      : "分母＝<b>买入当时</b>的 52 周高（该月及之前 12 个月月末最高）") + "</span></div>"
+    + '<div class="ad-wrap">' + rows
     + '<div class="ad-note">浅档（≥ −5%）占 <b>' + shallow.toFixed(0) + "%</b> 的钱、深档（≤ −15%）只占 <b>"
     + deep.toFixed(0) + "%</b>" + (cur.length ? " —— 当前三只在 " + cur.join(" / ") : "") + "</div>"
     + '<div class="ad-foot"><b>条形长度与百分比都按「买入金额」</b>（每笔 份数 × 成交价 累加），不是笔数 ——'
     + ' 决定仓位轻重的是钱不是次数（本次浅档 45 笔占 51.7%、但金额占 53.3%）；'
     + '只含当前持有的 3 只（不含已清仓的中概/港美/科创），含已减仓那部分的买入额、不扣卖出。<br>'
-    + '分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓<br>'
-    + '⚠ 因此<b>不同月份的买入不能按绝对价格比深浅</b>：标普 06.24 买 1.884 只算 −1.9%（当时 52 周高才 1.92），'
-    + '而 11.06 买 1.924 算 −5.8%（那时高已到 2.043）—— 分母跟着市场在走，这才是「当时跌了多少」✓'
+    /* ⚠ 脚注必须跟着口径走（2026-11-22）——「当时口径」的警示语（不能按绝对价格比）
+       在「当前口径」下不成立（那时三只共用一个分母，反而**可以**直接比）✗ */
+    + (addDistBasis() === "now"
+      ? '⚠ 本模式下每笔都用<b>同一个分母</b>（当前 52 周高），所以这几档可以直接横向比价；'
+        + '但它会随行情变（今天的分母明天可能不同），<b>不是历史事实</b> —— 要看「你当时跌多少才加」请切回「按买入当时」✓'
+      : '分母取<b>该月及之前 12 个月的月末收盘最高</b>（近似当日 52 周高）；月末取不到月中高点，故回撤略偏浅 ✓<br>'
+        + '⚠ 因此<b>不同月份的买入不能按绝对价格比深浅</b>：标普 06.24 买 1.884 只算 −1.9%（当时 52 周高才 1.92），'
+        + '而 11.06 买 1.924 算 −5.8%（那时高已到 2.043）—— 分母跟着市场在走，这才是「当时跌了多少」✓')
     + (miss ? " · " + miss + " 笔缺月度行情未计入" : "") + "</div></div>";
 }
 function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
 renderAddDistSafe();
+
+/* 加仓分布：口径切换（2026-11-22）——「按买入当时」↔「按当前高点」。
+   切换要**两处一起重绘**：汇总卡（renderAddDist）＋ 持仓卡的迷你条（在 renderImpl 里）——
+   只重绘一处会出现「汇总卡是 now、持仓卡还是 then」的自相矛盾 ✗
+   ⚠ 重绘 renderImpl 会丢掉别的展开状态（如逐笔流水），可接受：切换本身就是重新看一遍 ✓ */
+document.addEventListener("click", (e) => {
+  const sw = e.target && e.target.closest ? e.target.closest("#add-dist-card .ad-sw") : null;
+  if (!sw) return;
+  const want = sw.dataset.basis === "now" ? "now" : "then";
+  if (addDistBasis() === want) return;
+  window.__addDistBasis = want;
+  renderAddDist();
+  if (typeof renderImpl === "function") renderImpl();
+});
 
 /* 持仓卡里的迷你条：点档位胶囊 → 展开该档逐笔（2026-11-22）——
    ⚠ 与汇总卡不同：这里**一次只开一个**（持仓卡本来就有 12 行，多开几个会把卡片撑得很长 ✗），

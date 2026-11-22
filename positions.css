@@ -2628,6 +2628,15 @@
 .ldb-proj-brk b { color: var(--tx2); font-weight: 600; }
 /* 加仓分布（2026-11-22）：每档 = 标签 / 条形 / 占比 ＋ 第二行小字（笔数·金额）
    条形长度按**金额**归一（不是笔数）—— 决定仓位轻重的是钱，不是次数 ✓ */
+/* 口径切换（2026-11-22）：两个小分段按钮 + 右侧一句「当前用的是什么分母」 */
+.ad-switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0 8px; }
+.ad-sw { appearance: none; border: 1px solid var(--line-soft); background: rgba(147,163,187,.07);
+  border-radius: 999px; padding: 2px 9px; font-size: 10px; color: var(--tx3);
+  cursor: pointer; white-space: nowrap; font-family: var(--sans); }
+.ad-sw:hover { color: var(--tx2); background: rgba(147,163,187,.14); }
+.ad-sw.on { background: rgba(91,163,255,.18); border-color: rgba(91,163,255,.5); color: var(--tx); font-weight: 600; }
+.ad-sw-x { font-size: 9.5px; color: var(--tx3); font-family: var(--mono); }
+.ad-sw-x b { color: var(--tx2); }
 .ad-wrap { padding: 2px 0; }
 .ad-row { display: grid; grid-template-columns: 5.2em minmax(0, 1fr) 2.8em;
   gap: 1px 8px; align-items: center; padding: 5px 0 3px; }
