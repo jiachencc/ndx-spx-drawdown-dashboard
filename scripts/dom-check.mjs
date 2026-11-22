@@ -2930,7 +2930,9 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
         /* ⚠ 2026-11-14：从**两张 4 列表**合成**一张 2 列纵表**（用户：「4 个模块、4 个表格排布混乱」）——
            上 4 行是时间口径（中位 / 分位 / 已过 / 还需约），下面 N 行是各期限的累计概率。
            断言的判据随之改：**表格数 = 1**（原为 2），概率档位文本变成「≤N 个月内收复」 ✓ */
-        const hasMed = /峰→收复/.test(rpTxt) && /\b\d+\s*日/.test(rpTxt);
+        /* ⚠ 2026-11-22：表头从「峰→收复 · 中位」改成「回到前高 · 中位」（用户问「是回到当前点位吗」，
+           指明目标是前高）→ 断言的锚词跟着换 ✓ */
+        const hasMed = /回到前高/.test(rpTxt) && /\b\d+\s*日/.test(rpTxt);
         const hasLeft = /还需约/.test(rpTxt) && /\d+\s*日/.test(rpTxt);
         const nPr = /≤1\s*个月内收复/.test(rpTxt) && /≤3\s*个月内收复/.test(rpTxt) && /≤6\s*个月内收复/.test(rpTxt);
         const nTbl = (() => {
