@@ -204,7 +204,11 @@
   }
   /* iQOO15 / phones (≤767) */
   @media (max-width: 767px) {
-    body { padding: 16px 14px 48px; }
+    /* ⚠ 2026-11-21 收窄（用户：「卡片宽度没有占满手机宽度」）——
+       375px 下原来是 14(页面) + 20(卡片) = 两侧各 34px，内容区只剩 307px（占屏幕 82%），
+       而表格/统计条恰恰是最吃宽度的两块 → 页面 14 → 10、卡片 20 → 14，
+       内容区回到 337px（89%）。仍保留 10px 边距：贴边会让 iOS 的左右边缘手势容易误触 ✓ */
+    body { padding: 14px 10px 48px; }
     .header { flex-direction: column; align-items: flex-start; }
     .header h1 { font-size: 20px; }
     .header .meta { flex-wrap: wrap; gap: 8px; }
@@ -228,7 +232,9 @@
     .scale-stats { flex-wrap: wrap; gap: 10px; }
     .scale-stats .ss { min-width: 90px; }
     .kpi .k-val { font-size: 14px; }
-    .card { padding: 16px; }
+    /* ⚠ 2026-11-22：原来这里有 `.card { padding: 16px }`，但它写在**基础 .card（261 行）之前** ——
+       同优先级下后写的赢，所以手机上一直是基础规则的 20px，这条从没生效过 ✗
+       → 已移到基础规则之后（搜索「2026-11-22 窄屏卡片内边距」）✓ */
     .idx-close { font-size: 24px; }
     .drawdown-num { font-size: 38px; }
     .hint-i { width: 22px; height: 22px; font-size: 12px; }
@@ -264,6 +270,13 @@
     min-height: 0;
     box-shadow: 0 4px 24px -12px rgba(0,0,0,.45);
     transition: border-color .2s, box-shadow .2s, transform .2s;
+  }
+  /* 2026-11-22 窄屏卡片内边距（必须写在上面那条**之后** —— 同优先级下后写的赢，
+     之前它写在 231 行、被这里覆盖掉，手机上一直是 20px ✗）*/
+  @media (max-width: 767px) {
+    .card { padding: 14px; }
+  }
+  /* 下面这段是原来的 .card 收尾（保持结构不变）*/
   }
   @media (hover: hover) {
     .card:hover { border-color: #2c3a58; box-shadow: 0 8px 32px -14px rgba(0,0,0,.55); }
