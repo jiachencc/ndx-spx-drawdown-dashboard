@@ -6873,11 +6873,21 @@ function renderAcctStats() {
       /* 一句话归纳「关系」：只统计**完整月**（排除首条＝建仓月，它的 pct 分母含未投入资金、会失真；
          再排除指数数据还没入表的进行中月），然后按指数涨/跌分组算两边均值 ✓ 现算，不写死 */
       + (() => {
+        /* ⚠ 2026-11-22 修（用户：「数据都正确对吗」）——注释一直说要「排除指数数据还没入表的进行中月」，
+           但 filter 里**只排了建仓月（i>0）**，进行中的当月照样进统计 ✗
+           后果：11 月才过 15 个交易日（−11.82%），却被算进「完整 5 个月」的跌月均值 ——
+           页面印「跌的 3 个月：指数均 −8.36%」，而真实的完整跌月只有 7 月(−6.61)、10 月(−6.65)，
+           均值应是 −6.63%；「你均」同理从 −8.49 被拉到含 11 月的 −7.84
+           → 当月未走完（updated 的「日」< 28）时把它排除，与文案「完整 N 个月」对齐 ✓ */
+        const upd = String(S.updated || "");
+        const curMoNum = Number(upd.slice(5, 7)) || null;
+        const curMoDone = (Number(upd.slice(8, 10)) || 0) >= 28;   // 28 日及以后视为该月已走完
         const full = (S.monthly || []).map((r, i) => {
-          const k = Number(String(r.m).replace(/[^0-9]/g, "")) - 1;
-          const mo = (typeof MONTHLY !== "undefined" && MONTHLY[k]) ? MONTHLY[k] : null;
-          return { i, r, mo };
-        }).filter((x) => x.i > 0 && x.mo && typeof x.r.pct === "number");
+          const mNum = Number(String(r.m).replace(/[^0-9]/g, ""));
+          const mo = (typeof MONTHLY !== "undefined" && MONTHLY[mNum - 1]) ? MONTHLY[mNum - 1] : null;
+          return { i, r, mNum, mo };
+        }).filter((x) => x.i > 0 && x.mo && typeof x.r.pct === "number"
+          && !(curMoNum !== null && x.mNum === curMoNum && !curMoDone));
         if (full.length < 3) return "";
         const ups = full.filter((x) => x.mo.ndx > 0), dns = full.filter((x) => x.mo.ndx <= 0);
         const avg = (arr, f) => arr.reduce((a, x) => a + f(x), 0) / arr.length;
