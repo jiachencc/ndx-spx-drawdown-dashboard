@@ -3156,6 +3156,24 @@
 .bar-lvseg.is-empty { font-size: 11px; color: var(--tx3); opacity: .45;
   padding: 0 4px; cursor: default; font-family: var(--mono); }
 .bar-lvseg.is-empty:hover { background: none; }
+
+/* ① 金额用「加仓分布」那套档位色（2026-11-24 建议①）——
+   与「加仓分布」卡 5 行条同色（#4a90e2 → #e04f5f），跨模块建立「紫 = −10~−15%」的映射 ✓
+   只给金额上色、笔数保持灰：90px 宽的标签里两行都上色会花 ✗ */
+.bar-lvseg[data-bin="0"] b { color: #4a90e2; }
+.bar-lvseg[data-bin="1"] b { color: #7b6ae0; }
+.bar-lvseg[data-bin="2"] b { color: #b05fc8; }
+.bar-lvseg[data-bin="3"] b { color: #d9569a; }
+.bar-lvseg[data-bin="4"] b { color: #e04f5f; }
+
+/* ③ 现价所在档：极淡底色 + 下方一个小尖角指向条（2026-11-24 建议③）——
+   不给条本身刷底色（条上已有山峰/档位线/成本圆/现价线/区间带，再加会挤）✗ */
+.bar-lvseg.is-now { background: rgba(147,163,187,.13); }
+.bar-lvseg.is-now::before {
+  content: ""; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+  border-left: 3px solid transparent; border-right: 3px solid transparent;
+  border-bottom: 4px solid var(--tx3); opacity: .55; }
+.bar-lvseg.is-now b { filter: brightness(1.12); }
 .bar-lvseg.open b { color: var(--tx); }
 /* 展开的逐笔：四列（日期 / 成交价 / 金额 / 当时回撤） */
 .bar-lvdetail { margin: 2px 0 4px; padding: 5px 7px 4px; border-radius: 6px;
@@ -3171,3 +3189,22 @@
   font-feature-settings: "tnum"; }
 .bar-lvdi > span:nth-child(3), .bar-lvdi > span:nth-child(4) { text-align: right; }
 .bar-lvdi > span:nth-child(4) { color: var(--down); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   「52周区间 · 买入密度」整块可折叠（2026-11-24 建议②）
+   ─ 收起态只占一行（21px），右侧给出「现价 / 成本」的回撤数
+   ─ 与「溢价扫描」「场外净值水位」用同一套 details 交互（▸/▾）
+   ══════════════════════════════════════════════════════════════════════════ */
+details.bar-fold { display: block; margin: 2px 0 0; }
+details.bar-fold > summary { display: flex; align-items: baseline; gap: 8px;
+  cursor: pointer; list-style: none; user-select: none;
+  padding: 2px 0; border-radius: 5px; }
+details.bar-fold > summary::-webkit-details-marker { display: none; }
+details.bar-fold > summary::after {
+  content: "▸"; margin-left: auto; color: var(--tx3); font-size: 10px; }
+details.bar-fold[open] > summary::after { content: "▾"; }
+details.bar-fold > summary:hover { background: rgba(147,163,187,.06); }
+.bar-sum-t { font-size: var(--fs-xs); color: var(--tx2); }
+.bar-sum-x { font-size: 9px; color: var(--tx3); font-family: var(--mono);
+  font-feature-settings: "tnum"; white-space: nowrap; }
+details.bar-fold[open] > summary { margin-bottom: 2px; }

@@ -7701,23 +7701,32 @@ function holdCardHtml(row, i, ctx) {
      且 edges 长度会随 ddLo 变化（跌得少时只有 3 段）→ 靠 4−k 也不稳 ✗
      → 用**区间中点的回撤**反查档位，无论几段都正确 ✓ */
   const binOfDd = (dd) => (dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4);
+  /* 现价落在哪一档（2026-11-24 建议③）—— 给那一段的标签挂 is-now，
+     读者不用心算「现价 −11.4% 属于 −10~−15% 还是 −5~−10%」✓ */
+  /* ⚠ 用 **m.close** 而不是 close —— positionBarHtml 作用域里没有 `close` 这个变量
+     （那是 costScatterHtml 里的局部量），写成 close 会静默得到 undefined、
+     Number.isFinite 直接 false → is-now 永远加不上，而且不报错 ✗ */
+  const nowBin = Number.isFinite(m.close) ? binOfDd((m.close / hi - 1) * 100) : null;
   const lvSegs = edges.slice(0, -1).map((d0, k) => {
     const d1 = edges[k + 1];
     const midDd = (d0 + d1) / 2;
     const mid = xOfDd(midDd);
     const bin = binOfDd(midDd);
+    const isNow = (bin === nowBin);
     const r = dist ? dist.rows[bin] : null;
     /* ⚠ 空档也渲染（2026-11-24，用户采纳建议②）——
        原来 0 笔的段直接不画，读者会以为「这一段漏了」。
        现在给一个灰色「—」：明确「这一档真的没买过」✓ 且不可点（不是 button） */
     if (!r || !r.n) {
-      return '<span class="bar-lvseg is-empty" style="left:' + mid.toFixed(1) + '%"'
-        + ' title="' + FR[bin] + ' 档 · 这一档没有成交">—</span>';
+      return '<span class="bar-lvseg is-empty' + (isNow ? " is-now" : "") + '" style="left:' + mid.toFixed(1) + '%"'
+        + ' title="' + FR[bin] + ' 档 · 这一档没有成交'
+        + (isNow ? '（现价就在这一档）' : "") + '">—</span>';
     }
-    return '<button type="button" class="bar-lvseg" style="left:' + mid.toFixed(1) + '%"'
+    return '<button type="button" class="bar-lvseg' + (isNow ? " is-now" : "") + '" style="left:' + mid.toFixed(1) + '%"'
       + ' data-code="' + p.code + '" data-bin="' + bin + '" aria-expanded="false"'
       + ' title="' + FR[bin] + ' 档 · ' + r.n + ' 笔 · ' + (r.amt / 10000).toFixed(2) + ' 万'
-      + '（分母＝' + (addDistBasis() === "now" ? "当前 52 周高" : "买入当时 52 周高") + '）—— 点击看逐笔">'
+      + '（分母＝' + (addDistBasis() === "now" ? "当前 52 周高" : "买入当时 52 周高") + '）'
+      + (isNow ? "\n★ 现价就落在这一档" : "") + '—— 点击看逐笔">'
       + '<b>' + (r.amt / 10000).toFixed(1) + '万</b><em>' + r.n + '笔</em></button>';
   }).join("");
 
@@ -7866,7 +7875,19 @@ function holdCardHtml(row, i, ctx) {
            （两者确实不同：成本 1.6153 vs 现价 1.643，同一把尺上 67% vs 72%）*/
         '<span aria-hidden="true">' + tier[2] + '</span> 成本位 ' + pct.toFixed(0) + '% · ' + tier[1] + '</span></span>' +
     '</div>' +
-    '<div class="bar-wrap">' +
+    /* ⚠ 2026-11-24 整块可折叠（用户采纳建议②）——「52周区间 · 买入密度」这一整块
+       （山峰 + 条 + 五档金额 + 两端价 + 图例）收进 details。
+       ⚠ 默认**展开**（2026-11-24，用户：「52周 默认还是展开吧」）——
+         这块是「我在 52 周区间的什么位置」的核心图，收起来每次都要多点一下 ✗
+         折叠能力保留（嫌占地方可以手动收），摘要行在收起态仍给出「现价 / 成本」的回撤 ✓
+       ⚠ 内容**仍照常渲染**（只是隐藏）—— 点击展开零延迟，也不会影响 SVG 的 clip-path 计算 */
+    '<details class="bar-fold" open><summary>'
+      + '<span class="bar-sum-t">52周区间 · 买入密度</span>'
+      + '<span class="bar-sum-x">' + (Number.isFinite(m.close) && hi > 0
+        ? '现价 ' + (((m.close / hi - 1) * 100).toFixed(1)).replace("-", "−") + '%'
+          + (Number.isFinite(p.idxAtCost) && hi > 0 ? ' · 成本 ' + (((p.idxAtCost / hi - 1) * 100).toFixed(1)).replace("-", "−") + '%' : '')
+        : '') + '</span></summary>'
+      + '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
       /* ⚠ 散点曾插在这里 —— 但 bar-wrap 里是**一条完整的位置图**
          （绿点层 → 分位条 → 两端价 → 图例），插在第 1、3 块之间把它劈成两半 ✗
@@ -7906,7 +7927,7 @@ function holdCardHtml(row, i, ctx) {
         (buys.length ? '<span title="上方的山峰图＝买入金额密度：山峰越高＝该价位段买得越多（' + buys.length + ' 笔合计）。含已减仓部分；逐笔明细在下方「成本 × 时间」里可点"><i style="background:var(--green);border-radius:50% 50% 0 0;height:5px;width:8px"></i>买入密度</span>' : "") +
         (sells.length ? '<span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span>' : "") +
       "</div>" +
-    '</div>' +
+    '</div></details>' +
     /* 「成本 × 时间」详细视图 —— 紧贴位置图**之后**（2026-11-04 第二版）✓
        为什么放这一格：位置图 → 详细入口 → 今日提醒 → 建仓区间/趋势 → 流水，
        是"总 → 详细"的连续阅读顺序 ✓
@@ -10217,11 +10238,13 @@ document.addEventListener("click", (e) => {
       + '<span>' + x.dd.toFixed(1).replace("-", "−") + "%</span></div>").join("");
   det.innerHTML = '<div class="bar-lvsum"><b>' + FR[bin] + "</b> 档 · " + r.n + " 笔 · <b>"
     + (r.amt / 10000).toFixed(2) + " 万</b> · 占这只 <b>" + (d.amt > 0 ? (r.amt / d.amt * 100).toFixed(0) : "0")
-    + '%</b>　<span class="bar-lvx" title="回撤分母：'
-    + (addDistBasis() === "now" ? "当前 52 周最高收盘（会随行情变，不是历史事实）" : "买入当时该月及之前 12 个月的月末最高")
-    + '">分母 ' + (addDistBasis() === "now" ? "当前" : "当时") + "</span>"
+    + '%</b>　<span class="bar-lvx" title="分档按「相对当前 52 周最高的回撤」——'
+    + (addDistBasis() === "now"
+      ? "今天跌 12% 落这档，涨回去就换档了（会随行情变，不是历史事实）"
+      : "用买入当时该月及之前 12 个月的月末最高做分母（固定的历史值）")
+    + '">档位 ' + (addDistBasis() === "now" ? "当前" : "当时") + "</span>"
     + '<span class="bar-lvx" title="每条右侧的百分比是「买入那一刻」的回撤，不是今天的回撤 —— '
-    + '它是历史事实、不会随行情变">· 回撤 当时</span></div>' + rows;
+    + '它是历史事实、永远不会变"> · 明细 当时</span></div>' + rows;
   det.hidden = false;
   btn.classList.add("open");
   btn.setAttribute("aria-expanded", "true");
