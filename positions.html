@@ -7875,8 +7875,28 @@ function costScatterHtml(i) {
   const szOf = (e) => (7 + 10 * Math.sqrt((e.cost * e.qty) / maxAmt)).toFixed(1);
 
   let marks = "";
-  /* 横向网格：3 条 */
-  [25, 50, 75].forEach((t) => { marks += '<i class="cs-gl" style="top:' + t + '%"></i>'; });
+  /* ⚠ 2026-11-24 换掉原来的「价格四分位」网格（用户：「图里的两条灰色线是 −5% 和 −15% 吗？」）——
+     原来那 3 条（25/50/75%）只是把**价格域**等分，既不是回撤、也不是成本偏离，
+     **没有任何决策含义**，而且没有标签 —— 读者只能猜，猜成回撤档位很自然 ✗
+     → 改成「相对 52 周最高收盘的回撤档位线」（−5/−10/−15/−20/−25），
+       与「加仓阶梯」同一把尺子：线在哪，就是「跌到那里该加仓」的价格 ✓
+       落在可视区外的档位不画（贴着上下边缘画反而误导） */
+  const hi52 = (() => {
+    const t = (typeof TREND !== "undefined" && TREND.items && hold && hold.code) ? TREND.items[hold.code] : null;
+    return (t && Number.isFinite(t.hi52) && t.hi52 > 0) ? t.hi52 : null;
+  })();
+  if (hi52) {
+    [-5, -10, -15, -20, -25].forEach((dd) => {
+      const p = hi52 * (1 + dd / 100);
+      if (p <= Y0 || p >= Y1) return;
+      const ty = pctY(p).toFixed(2);
+      marks += '<i class="cs-gl cs-gl-dd" style="top:' + ty + '%" title="相对 52 周最高收盘 '
+        + hi52 + ' 的 ' + dd + '%（对应价格 ' + p.toFixed(4) + '）"></i>'
+        + '<b class="cs-gl-lb" style="top:' + ty + '%">' + String(dd).replace("-", "−") + '%</b>';
+    });
+  } else {
+    [25, 50, 75].forEach((t) => { marks += '<i class="cs-gl" style="top:' + t + '%"></i>'; });
+  }
   /* 摊薄成本线（虚线）与现价线（实线） */
   if (hold && Number.isFinite(hold.cost)) {
     marks += '<i class="cs-cost" style="top:' + pctY(hold.cost).toFixed(2) + '%" title="摊薄成本 '

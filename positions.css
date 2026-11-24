@@ -2873,6 +2873,13 @@
 /* 网格线：1px 高、绝对定位 —— 不会被拉伸变粗 ✓ */
 .cs-gl { position: absolute; left: 0; right: 0; height: 0;
   border-top: 1px solid var(--tx3); opacity: .16; }
+/* 回撤档位线（2026-11-24 加）：比普通网格线稍实一点，右侧带 −5%/−10% 之类的小标签 ——
+   读者不用猜「这条线是什么」✓ */
+.cs-gl-dd { border-top-style: dashed; opacity: .28; }
+.cs-gl-lb { position: absolute; right: 2px; transform: translateY(-50%);
+  font-size: 8.5px; line-height: 1; color: var(--tx3); opacity: .8;
+  font-family: var(--mono); font-feature-settings: "tnum";
+  pointer-events: none; letter-spacing: -.02em; }
 /* 摊薄成本（虚线）／现价（实线） */
 .cs-cost, .cs-now { position: absolute; left: 0; right: 0; height: 0; }
 .cs-cost { border-top: 1.5px dashed var(--cyan, #4ecdc4); opacity: .85; }
