@@ -7400,8 +7400,18 @@ function holdCardHtml(row, i, ctx) {
   const { p, m, r, nav, costAmt, valAmt } = row;
   const { asOfUs, firstDate, totalVal } = ctx;
   const pl = valAmt - costAmt;
+  /* ⚠ 2026-11-24：右端从 **`m.ath`（历史最高）** 改成 **52 周最高收盘（hi52）** ——
+     条的名称一直是「52 周区间」，但右端取的却是历史最高：纳指 1.795（ath）vs 1.769（hi52），
+     于是「离高点 −13.7%」这类读数和加仓分布（按 hi52 分档）**对不上** ✗
+     改成 hi52 后：这条条的右端就是「回撤 0%」，加仓分布的 5 个档位落在它切开的 5 段上，
+     两个模块终于共用一把尺子 ✓
+     （「离历史最高还有多远」在决策矩阵和主页另有一块，不会因此丢失） */
+  const hi52 = (() => {
+    const t = (typeof TREND !== "undefined" && TREND.items && p.code) ? TREND.items[p.code] : null;
+    return (t && Number.isFinite(t.hi52) && t.hi52 > 0) ? t.hi52 : null;
+  })();
   const lo = m.low52 || Math.min(p.idxAtCost, m.close || p.idxAtCost);
-  const hi = m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
+  const hi = hi52 || m.ath || Math.max(p.idxAtCost, m.close || p.idxAtCost);
   const pctOf = (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
   /* 价格格式化（2026-10-16 加，用户点单 ②）：**按每个数自己的来源精度显示** ——
      成本价 4 位（它是累加摊薄量、4 位才有意义 ✓）、场内报价与高低点 3 位（A 股 ETF 报价本身就是 3 位 ✓）。
@@ -7507,36 +7517,94 @@ function holdCardHtml(row, i, ctx) {
     const t = bi / (buys.length - 1);
     return t < 0.34 ? "t-old" : t < 0.67 ? "t-mid" : "t-new";
   };
-  const buyMarks = buys.map((e, bi) => {
-    const pc = Math.max(0, Math.min(100, pctOf(e.cost)));
-    const bin = Math.round(pc / CONFIG.BUY_BIN);
-    const lvl = Math.min(binCnt[bin] || 0, CONFIG.BUY_STACK_MAX);
-    binCnt[bin] = (binCnt[bin] || 0) + 1;
-    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * Math.sqrt(amtOf(e) / maxAmt)).toFixed(1);
-    return '<button type="button" class="buy-mark ' + buyTier(bi) + '" style="left:' + pc.toFixed(1) + '%"' +
-      ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + e.qty + '"' +
-      /* title 与 aria-label 都写：前者鼠标悬停即见（原先只有 aria-label，读屏能读、正常人看不到），
-         后者给读屏；点击仍会定位到该买入点并闪烁（flashBuyMark） */
-      ' title="' + e.d + ' 买入 ' + fmtQty(e.qty) + ' 份 @ ' + e.cost + ' 元"' +
-      ' aria-label="' + e.d + ' 买入 ' + e.cost + ' 元 ' + fmtQty(e.qty) + ' 份">' +
-      '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:' + (4 + lvl * 10) + 'px"></i></button>';
-  }).join("");
+  /* ⚠ 2026-11-24 绿点 → **密度热力带**（用户：「试试方案 A」）——
+     上一版梳齿（40 根 2px 竖线）已经比圆点干净，但密集处 11 根叠成一条粗线、稀疏处是零散的齿，
+     整体仍像「一排刻度」；实测有买入的只有 9/20 个价格段（一半以上是空的）✗
+     → 把逐笔聚成 **20 段**（每段 5% 价格区间），段的不透明度 = 该段买入金额 ÷ 最大段，
+       相邻段无缝相接 → 变成**一条有起伏的绿带**：空段透明、密段实色，
+       「钱集中在哪一段」一眼可见，且 40 个 DOM 节点降到 20 个 ✓
+     ⚠ 逐笔不再可点（原来点绿点能定位到那一笔）—— 逐笔位置在「成本 × 时间」散点里仍可点，
+       加仓分布的胶囊也仍能按档位展开；这条带只负责「密度」这一个语义 ✓ */
+  /* ⚠ 2026-11-24（方案 A）：20 段 → **30 段**、容器 30 → **44px** ——
+     与「成本分布」合并后，这条山峰要同时承担两个职责：
+     ① 看整体分布（哪里高）② 看买入集中在哪个价位（细节）
+     实测三只的买入价只覆盖 52 周区间的 48~52%，30 段里有 ~15 段落在买入范围内，
+     每段约 0.017（一分钱级），足够看出「1.60~1.65 那一簇」✓ */
+  const HEAT_BINS = 30;
+  const heatAmt = new Array(HEAT_BINS).fill(0);
+  const heatCnt = new Array(HEAT_BINS).fill(0);
+  buys.forEach((e) => {
+    const i = Math.min(HEAT_BINS - 1, Math.max(0, Math.floor(pctOf(e.cost) / 100 * HEAT_BINS)));
+    heatAmt[i] += Math.abs(e.qty) * (e.cost || 0);
+    heatCnt[i] += 1;
+  });
+  const heatMax = Math.max.apply(null, heatAmt.concat([1]));
+  /* ⚠ 用 **flex 均分**而不是绝对定位 + 百分比（2026-11-24）：
+     20 段用 `left: i*5%` + `width: 5%` 时，15.85px 的步长会被舍入成 15/16/16… 累积错位，
+     相邻段之间露出 1px 深色缝，整条看着像「一排小方块」而不是「一条带」✗
+     → 套一层 `.heat-strip { display:flex }`，每段 `flex:1`，浏览器自己均分（无舍入缝）✓
+        空段也保留（否则 flex 均分会把剩下的段拉宽，位置就错了）
+     不透明度 = 金额热度；title 给出该段的笔数与金额 */
+  /* ⚠ 20 段硬边界 + 透明度差 → 看着像「条形码」（2026-11-24 第三版）——
+     每段一个色块时，相邻段的不透明度差会形成一道道竖线，读者读成「格子」而不是「分布」✗
+     且 flex 均分下 317/20 = 15.85px，舍入后相邻段仍露 0.15px 暗线（3x DPR 下可见）
+     → 改成**一条 linear-gradient**：20 个色标按段中心落位，浏览器自动插值，
+       得到一条真正平滑的带（DOM 从 20 个降到 1 个）✓
+     ⚠ 色标用 rgba 而不是 opacity —— gradient 里的 opacity 会作用于整条带，不是单个色标 */
+  /* ⚠ 2026-11-24 v5：阶梯柱 → **平滑山峰**（用户：「能做成山峰一样吗？圆滑一些？或者加上颜色」）——
+     阶梯柱（clip-path polygon）形状对但视觉上「硬」，像柱状图而不是地形 ✗
+     → 改用 **SVG 平滑面积图**：
+       · 20 个段中心点之间用三次贝塞尔连接（控制点取中点 → 单调平滑，不会过冲）
+       · 竖向**渐变填充**（底部几乎透明 → 山脊实色），像山体的受光面 ✓
+       · 再加一条山脊描边（non-scaling-stroke：任何宽度下都保持 1px，不会被拉伸变粗）✓
+     viewBox 0 0 100 22 + preserveAspectRatio="none"：横向拉伸不影响曲线平滑度 */
+  /* ⚠ 2026-11-24 v6：**高度按实际数据放大**（用户：「根据实际的数据调整高度」）——
+     实测三只的峰谷金额比是 10.3x / 14.5x / 6.0x，而 v5 的高度公式（0.24 + 0.76v）只给出 3.1x 的差，
+     「钱最集中的一段」和「只买过一笔的那段」看起来差不多高 ✗
+     → 基线从 0.24 降到 0.10（谷 0.19 vs 峰 1.00 ＝ 5.3x），
+       容器从 22px 加到 **30px**（绝对像素差从 16px 拉到 24px），起伏才读得出来 ✓
+     空段基线 0.03（≈1px，几乎贴底）—— 与「有小额买入」的段（≥5.7px）区分得开 */
+  const HEAT_H = 44;
+  /* ⚠ 每个段的**相对高度**（0.10~1.0）：空段也给 10%，否则整条左侧会「缺一块」✗
+     （v4 时这行在块首，v5 重写时被误删 → 运行时报 heatH is not defined，
+       整页变成「数据加载异常」；而 try/catch 把错误吞成一句提示，不翻 console 看不到） */
+  const heatH = (v) => (v > 0 ? 0.10 + 0.90 * (v / heatMax) : 0.03);
+  const heatPts = heatAmt.map((v, i2) => [((i2 + 0.5) * 100) / HEAT_BINS, HEAT_H - heatH(v) * HEAT_H]);
+  let heatD = "M0," + HEAT_H + " L" + heatPts[0][0].toFixed(2) + "," + heatPts[0][1].toFixed(2);
+  for (let i2 = 0; i2 < heatPts.length - 1; i2++) {
+    const a2 = heatPts[i2], b2 = heatPts[i2 + 1], mx = (a2[0] + b2[0]) / 2;
+    heatD += " C" + mx.toFixed(2) + "," + a2[1].toFixed(2) + " " + mx.toFixed(2) + ","
+      + b2[1].toFixed(2) + " " + b2[0].toFixed(2) + "," + b2[1].toFixed(2);
+  }
+  heatD += " L100," + HEAT_H + " Z";
+  const heatRidge = heatD.replace(/ Z$/, "");
+  const gid = "hg-" + p.code;
+  const buyMarks = '<svg class="heat-svg" viewBox="0 0 100 ' + HEAT_H + '" preserveAspectRatio="none"'
+    + ' role="img" aria-label="买入金额密度山峰图">'
+    + '<defs><linearGradient id="' + gid + '" x1="0" y1="1" x2="0" y2="0">'
+    + '<stop offset="0%" stop-color="#2dd4a7" stop-opacity="0.08"/>'
+    + '<stop offset="55%" stop-color="#2dd4a7" stop-opacity="0.46"/>'
+    + '<stop offset="100%" stop-color="#5ee6c0" stop-opacity="0.92"/>'
+    + "</linearGradient></defs>"
+    + '<path d="' + heatD + '" fill="url(#' + gid + ')"/>'
+    + '<path d="' + heatRidge + '" fill="none" stroke="#5ee6c0" stroke-opacity="0.85"'
+    + ' stroke-width="1" vector-effect="non-scaling-stroke"/>'
+    + "<title>买入金额密度（山峰越高＝该价位段买得越多）：" + buys.length + " 笔 / "
+    + (buys.reduce((a2, e2) => a2 + Math.abs(e2.qty) * (e2.cost || 0), 0) / 10000).toFixed(1)
+    + " 万</title></svg>";
   /* 卖出标记：红空心圈，位置=成交价分位；与买入点同处 buy-layer（**形状＋颜色**双重区分买/卖 ✓）
      ⚠ 2026-10-16 与买入侧同步改：大小按 **√金额**（原先份数线性、极差同样只有几 px ✗）、
        时间维度按**颜色深浅三档**（原先 opacity，与买入侧同一问题 ✗）。
        卖出侧保留 +1px 补偿：空心圈比实心点显轻，等大时看着更小 ✓。 */
   const sells = (POSITIONS.log || []).filter((e) => symIdx[e.sym] === p.idx && e.cost !== undefined && isSell(e));
   const maxAmtS = Math.max.apply(null, sells.map(amtOf).concat([1]));
-  const sellMarks = sells.map((e, si) => {
-    const pc = Math.max(0, Math.min(100, pctOf(e.cost)));
-    const sz = (CONFIG.BUY_DOT_BASE + CONFIG.BUY_DOT_RANGE * Math.sqrt(amtOf(e) / maxAmtS) + 1).toFixed(1);
-    const tier = sells.length < 3 ? "t-new" : (si / (sells.length - 1)) < 0.34 ? "t-old" : (si / (sells.length - 1)) < 0.67 ? "t-mid" : "t-new";
-    return '<button type="button" class="sell-mark ' + tier + '" style="left:' + pc.toFixed(1) + '%"' +
+  /* 卖出侧同步成竖线（同一层里两种形状会打架）✓ */
+  const sellMarks = sells.map((e) =>
+    '<button type="button" class="sell-mark" style="left:' + Math.max(0, Math.min(100, pctOf(e.cost))).toFixed(1) + '%"' +
       ' data-d="' + e.d + '" data-c="' + e.cost + '" data-q="' + Math.abs(e.qty) + '"' +
       ' title="' + e.d + ' 卖出 ' + fmtQty(Math.abs(e.qty)) + ' 份 @ ' + e.cost + ' 元"' +
       ' aria-label="' + e.d + ' 卖出 ' + e.cost + ' 元 ' + fmtQty(Math.abs(e.qty)) + ' 份">' +
-      '<b style="width:' + sz + 'px;height:' + sz + 'px"></b><i style="height:3px"></i></button>';
-  }).join("");
+      '<b></b></button>').join("");
   /* 三点水位梯 */
   /* 现价口径日：取「自动源核验日」与「本页在用 priceDate（脚本写入 / 人工实读）」中较新者 ✓
      —— 与徽标同一判据（quoteDay 一处 ✓）；两者都无才标未核验。
@@ -7604,6 +7672,55 @@ function holdCardHtml(row, i, ctx) {
      ② clip-path 箭头在短距离（<4% 时不加、4~8% 时尖角被压扁）根本读不出方向 ✗
      → 改成**水平渐变 ＋ 两端半圆的胶囊**：任何宽度都不变形，渐变本身就在说"从这儿到那儿" ✓
         方向编码为「左淡右浓」—— 右端是现价（"现在"），该更醒目 ✓ */
+  /* ⚠ 2026-11-24 档位线 + **每档金额标签**（用户：「加上加仓分布的具体金额在 x 轴下面，
+     比如点击每个段位（比如 −5~−10%）可以展开？因为我想看到具体的数值」）——
+     条上的 X 轴已经被 4 条档位线切成 5 段，于是每一段就是「加仓分布」的一个档：
+       ≥−5% / −5~−10% / −10~−15% / −15~−20% / ≤−20%
+     → 在**区间中央**（不是线上）标该档的金额与笔数，点击整段展开逐笔 ✓
+     为什么标在中央而不是线上：线是「边界」，金额是「这一段的属性」；
+       标在线上会让人以为「这个金额属于那个价位」✗
+     为什么只标金额不标档位名：档位由两侧的线已经说明了，再写一遍会挤爆（每段只有 ~60px）✓ */
+  const dist = (typeof addDistOf === "function") ? addDistOf(p.code) : null;
+  const FR = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
+  /* 5 个区间的边界（回撤 %）：从「> 0 端」往「深端」排 —— 条的左端 = 52 周低点、右端 = 0% */
+  const ddLo = (lo / hi - 1) * 100;
+  const edges = [ddLo].concat([-20, -15, -10, -5].filter((d) => d > ddLo)).concat([0]);
+  const xOfDd = (dd) => Math.max(0, Math.min(100, ((dd - ddLo) / (0 - ddLo)) * 100));
+  const lvLines = edges.slice(1, -1).map((dd) => {
+    const lf = xOfDd(dd);
+    if (!(lf > 4 && lf < 96)) return "";
+    const pv = hi * (1 + dd / 100);
+    return '<span class="bar-lv" style="left:' + lf.toFixed(1) + '%" title="相对 52 周最高 '
+      + hi + ' 回撤 ' + dd + '%（价格 ' + pv.toFixed(3) + '）">'
+      + '<i>' + String(dd).replace("-", "−") + '%</i></span>';
+  }).join("");
+  /* 每段的中央位置：edges[i] ~ edges[i+1]，取中点 */
+  /* ⚠ 档位索引**不能用区间序号**（2026-11-24 修）：
+     edges 是从「深 → 浅」排的（与 X 轴一致），而 addDistOf 的 rows 是从「浅 → 深」排的，
+     直接拿 k 取 rows[k] 会把 ≤−20% 的金额标到 ≥−5% 上 ✗
+     且 edges 长度会随 ddLo 变化（跌得少时只有 3 段）→ 靠 4−k 也不稳 ✗
+     → 用**区间中点的回撤**反查档位，无论几段都正确 ✓ */
+  const binOfDd = (dd) => (dd > -5 ? 0 : dd > -10 ? 1 : dd > -15 ? 2 : dd > -20 ? 3 : 4);
+  const lvSegs = edges.slice(0, -1).map((d0, k) => {
+    const d1 = edges[k + 1];
+    const midDd = (d0 + d1) / 2;
+    const mid = xOfDd(midDd);
+    const bin = binOfDd(midDd);
+    const r = dist ? dist.rows[bin] : null;
+    /* ⚠ 空档也渲染（2026-11-24，用户采纳建议②）——
+       原来 0 笔的段直接不画，读者会以为「这一段漏了」。
+       现在给一个灰色「—」：明确「这一档真的没买过」✓ 且不可点（不是 button） */
+    if (!r || !r.n) {
+      return '<span class="bar-lvseg is-empty" style="left:' + mid.toFixed(1) + '%"'
+        + ' title="' + FR[bin] + ' 档 · 这一档没有成交">—</span>';
+    }
+    return '<button type="button" class="bar-lvseg" style="left:' + mid.toFixed(1) + '%"'
+      + ' data-code="' + p.code + '" data-bin="' + bin + '" aria-expanded="false"'
+      + ' title="' + FR[bin] + ' 档 · ' + r.n + ' 笔 · ' + (r.amt / 10000).toFixed(2) + ' 万'
+      + '（分母＝' + (addDistBasis() === "now" ? "当前 52 周高" : "买入当时 52 周高") + '）—— 点击看逐笔">'
+      + '<b>' + (r.amt / 10000).toFixed(1) + '万</b><em>' + r.n + '笔</em></button>';
+  }).join("");
+
   const seg = (m.close && p.idxAtCost && segWv > 0.01)
     ? '<span class="seg ' + (r >= 0 ? "gain" : "loss") + '" style="left:' + Math.min(segC, segN)
       + "%;width:" + segWv + '%">'
@@ -7611,7 +7728,10 @@ function holdCardHtml(row, i, ctx) {
          实测标普现价距成本 −1.4% → segWv = 5.9% ✗ 被 7 挡掉，区间带上什么都不显示 ✓
          降到 5 之后：5.9% × 条宽 ≈ 32px，`−1.4%` 约 26px，放得下 ✓
          ⚠ 仍保留一个下限：<5% 时那条区间太窄（<28px），字会溢出到区间外 ✗ 宁可不放 ✓ */
-      + (segWv >= 5 ? '<em class="seg-d">' + fmtPct(r, 1) + "</em>" : "")
+      /* ⚠ 2026-11-24：区间带里那个「−2.6%」不再渲染（原来 segWv ≥ 5 时显示）——
+         条改成回撤轴后，成本圆 / 现价竖线 / 4 条档位线都挤在这 14px 里，那三个字符正好压住「−10%」标签 ✗
+         同一个数在卡头 KPI 里已有（「距成本位 +2.7%」，同一件事的另一面）✓ */
+      + ""
       + "</span>"
     : "";
   const prem = (POSITIONS.premiums || {})[p.code];
@@ -7751,24 +7871,39 @@ function holdCardHtml(row, i, ctx) {
       /* ⚠ 散点曾插在这里 —— 但 bar-wrap 里是**一条完整的位置图**
          （绿点层 → 分位条 → 两端价 → 图例），插在第 1、3 块之间把它劈成两半 ✗
          2026-11-04 按用户反馈挪到 bar-wrap **之后**，作为独立的「详细视图」入口 ✓ */
-      /* 四分位刻度（2026-10-16 加）：这条轴的横轴就是「52周分位」，而这个数页面上到处在用
-         （胶囊「52周分位 64%」、体检表、归因），条上原先却只有两端两个价格 ✗ → 加 25/50/75% 三条极淡刻度，
-         成本位落在哪一档不必再靠目测 ✓。刻度无 z-index、且写在 seg 之前 → 压在区间带与游标之下 ✓ */
+      /* ⚠ 2026-11-24（方案 A5）：3 条「52 周分位刻度」→ **4 条加仓档位线**——
+         这条条的横轴从「价格」改成「相对 52 周高的回撤」（几何位置不变，只是刻度含义变了）：
+         左端 = 52 周最低（如 −29.3%）、右端 = 0%（高点）。
+         → 于是「加仓分布」的 5 个档位（≥−5 / −5~−10 / −10~−15 / −15~−20 / ≤−20）**正好是这条轴被切开的 5 段**，
+           山峰在每段内的面积 ＝ 该档买入了多少钱 —— 两个模块合并成一个 ✓
+         档位线用虚线 + 条内小字（8px、半透明），既不抢山峰、又让「这笔买在 −12%」可直接读 ✓
+         ⚠ 落在可视区外的档位（该只跌得没那么深时）不画，避免贴着边缘误导 */
       '<div class="bar-track pops">' +
-        '<span class="bar-tick" style="left:25%" title="52周分位 25%"></span>' +
-        '<span class="bar-tick" style="left:50%" title="52周分位 50%"></span>' +
-        '<span class="bar-tick" style="left:75%" title="52周分位 75%"></span>' + seg +
-        '<span class="bar-end"></span>' +
+        lvLines + seg +
+        /* ⚠ 2026-11-24 删掉 .bar-end（用户：「最右边的黄的是最高值，x轴已经能代表了对吧」）——
+           完全对：它标的是「52 周最高价」，而条的右端本身就是那个位置，
+           下方标签也写着 `1.769 · 0%`，这个黄色竖条是第三遍重复 ✗
+           ⚠ 更糟的是**黄色在本页是警告语义**（溢价提示、源滞后、样本不足都用它）——
+             拿它标「52 周高点」会被读成「这里有问题」，语义是错的 ✓ */
         '<button type="button" class="bar-marker cost" style="left:' + pctOf(p.idxAtCost) + '%" data-k="' + i + '" aria-label="查看成本位解读" aria-expanded="false"></button>' +
         '<button type="button" class="bar-marker now" style="left:' + pctOf(m.close) + '%" data-k="' + i + '" aria-label="查看现价位置解读" aria-expanded="false"></button>' +
       '</div>' +
-      '<div class="bar-labels"><span>' + fmtPx(lo, 3) + '</span><span>' + fmtPx(hi, 3) + '</span></div>' +
+      /* 两端双写「价格 · 回撤%」（2026-11-24）：轴改成回撤后，光给价格读者不知道位置；
+         光给回撤又丢了「这只多少钱」的具体感 → 两个都给 ✓ */
+      '<div class="bar-lvsegs">' + lvSegs + '</div>' +
+      '<div class="bar-lvdetail" hidden></div>' +
+      '<div class="bar-labels"><span>' + fmtPx(lo, 3) + ' <em>'
+        + (((lo / hi - 1) * 100).toFixed(0)).replace("-", "−") + '%</em></span>'
+        + '<span>' + fmtPx(hi, 3) + ' <em>0%</em></span></div>' +
       /* 图例去掉「成本/现价/高点」三项（2026-09-23）：它们已在上面 .lad-line 里逐项给出、配色与条上标记一致 → 图例只留条上独有的两类点 */
       /* 去掉「历次买入」后面的星号（2026-09-23）：星号只在 title 里有解释，移动端没有悬停 → 说明挪进 ? 里 */
       /* 图例**按需**渲染（2026-10-16）：三只在持标的的卖出笔数都是 0（卖出都发生在已清仓的中韩/港美上，
          而卡片只为在持标的渲染）→ 红圈与「卖出」这一项当前**永不出现在页面上**，摆着是死项 ✗。有数据才画 ✓ */
       '<div class="bar-legend"><span>52周区间</span>' +
-        (buys.length ? '<span title="历次买入成交价的位置，含已减仓部分。⚠ 两个编码（2026-10-16 改）：**点越大＝那笔金额越大**（面积按 √ 缩放）、**颜色越深＝越新**（三档：浅/中/深）；当前持仓成本分布以青色成本位为准"><i style="background:var(--green);border-radius:50%"></i>历次买入</span>' : "") +
+        /* ⚠ 2026-11-24：图例从「● 历次买入」改成「买入密度」——
+           绿点已经变成上方那条**山峰图**（柱高＝该价位段的买入金额），
+           还写「历次买入」会让人去找不存在的点 ✗ */
+        (buys.length ? '<span title="上方的山峰图＝买入金额密度：山峰越高＝该价位段买得越多（' + buys.length + ' 笔合计）。含已减仓部分；逐笔明细在下方「成本 × 时间」里可点"><i style="background:var(--green);border-radius:50% 50% 0 0;height:5px;width:8px"></i>买入密度</span>' : "") +
         (sells.length ? '<span title="历史卖出成交价的位置"><i style="border:1.5px solid var(--red);border-radius:50%;background:none;box-sizing:border-box"></i>卖出</span>' : "") +
       "</div>" +
     '</div>' +
@@ -7777,10 +7912,17 @@ function holdCardHtml(row, i, ctx) {
        是"总 → 详细"的连续阅读顺序 ✓
        （第一版插在 bar-wrap **内部** —— 它把「绿点层 / 分位条 / 两端价 / 图例」这条完整的图劈成两半 ✗
          第二版挪到卡末尾 —— 中间隔着"今日提醒 + 建仓区间 + 趋势"，入口离图太远 ✗）*/
-    costScatterHtml(i) +
-    /* 迷你加仓分布（2026-11-22，用户：「也想看到每个 ETF 对应的加仓分布」）——
-       紧跟「成本 × 时间」散点：散点看**什么时候买的**，这条看**买在哪个回撤档**，两维互补 ✓ */
-    addDistMiniHtml(p.code) +
+    /* ⚠ 2026-11-24（方案 A）：这里原来还有一块 `costScatterHtml(i)` ——「成本 × 时间」折叠件，
+       内含散点图（时间 × 价格 × 面积）+ POC 横向柱（价位 × 金额）。
+       它与上方 52 周条的「买入密度山峰」**Y 轴都是价格、只是参照系不同**
+       （一个按 52 周区间铺满、一个按买入价区间铺满），读者要在脑内对齐 ✗
+       → 合并：山峰抽细到 30 段、加高到 44px，直接铺在 52 周区间上；
+         横躺那张图删掉（函数体保留但不再调用，方便回退）✓
+       ⚠ 代价：时间维度不再可视化 —— 每笔的日期在「加仓分布」的胶囊明细里仍可查 ✓ */
+    /* ⚠ 2026-11-24（方案 A5）：这里原来有一条 `addDistMiniHtml(p.code)` —— 卡内的「加仓分布」迷你条。
+       它列的是「≥−5% 17 · −5~−10% 24…」的五个档位计数，而**上方那条 52 周区间条已经改成了回撤轴**，
+       五个档位就是轴上被切开的五段、山峰在每段内的面积就是该档金额 —— 同一件事说了两遍 ✗
+       → 删掉这一条；需要逐笔时点「加仓分布」汇总卡的胶囊（那里仍按档位列出明细）✓ */
     '<div class="strat-row">' + strat + chipDip +
       '<button type="button" class="strat-hint" aria-label="口径说明" aria-expanded="false">?</button>' +
       '<div class="strat-note">触发线按当日涨跌计算：美股按<b>指数</b>口径，其余按 ETF 场内价。QDII 的日内价格受溢价与汇率影响，与海外指数涨跌存在错位——以券商账户的实际成交为准。<br>' +
@@ -7927,46 +8069,74 @@ function costScatterHtml(i) {
       + " 元）" + (dear ? " · 高于现价" : " · 低于现价") + '"></b>';
   });
 
-  /* ② 成本分布：横向柱状（2026-11-04 第二版，参考 TradingView 的 Volume Profile / POC）——
-     第一版是 20 格热力条（深浅＝笔数），信息量够但**看不出量级差** ✗
-     改成横向柱：每档一根，长度 ∝ **金额**（不是笔数）→ "钱堆在哪个价位"更直观 ✓
-     最长那根标 POC（Point of Control ＝ 成本最密集的价位）✓ */
+  /* ⚠ 2026-11-24 **重做成「横躺的山峰」**（用户：「横轴不用时间，也改为横向的山峰，
+     然后把下面的 POC 这些柱状图数据带入」）——
+     原来这一块是「散点图（时间 × 价格 × 面积）+ 下方横向柱（价位 × 金额）」两个图叠着：
+     散点回答「什么时候买的」、柱子回答「钱堆在哪个价位」，但**两块的 Y 轴都是价格**，
+     读者要在脑子里把两个图对齐 ✗
+     → 合并成**一个**：横轴＝金额（向右凸出）、纵轴＝价格（上贵下便宜），
+       用与「52 周区间」同一套视觉语言（平滑贝塞尔 + 竖向渐变 + 山脊描边），
+       等于把 POC 柱状图「化成了山」✓
+     代价：时间维度不再可视化（逐笔的日期在「加仓分布」的胶囊明细里仍能看到）
+     保留：摊薄成本线、现价线 —— 它们是「这座山相对我现在的成本/价格在哪」的锚点 */
   const B = 10;
   const cLo0 = Math.min.apply(null, buys.map((e) => e.cost));
   const cHi0 = Math.max.apply(null, buys.map((e) => e.cost));
-  const binOf = (v) => (cHi0 > cLo0 ? Math.min(B - 1, Math.floor((v - cLo0) / (cHi0 - cLo0) * B)) : 0);
+  const span0 = cHi0 - cLo0 || 1;
+  const binOf = (v) => Math.min(B - 1, Math.max(0, Math.floor((v - cLo0) / span0 * B)));
   const amtAt = new Array(B).fill(0), cntAt = new Array(B).fill(0);
   buys.forEach((e) => { const b = binOf(e.cost); amtAt[b] += e.cost * e.qty; cntAt[b]++; });
   const maxBin = Math.max.apply(null, amtAt) || 1;
   const pocBin = amtAt.indexOf(maxBin);
-  const vpRows = [];
-  for (let i = B - 1; i >= 0; i--) {
-    if (!cntAt[i]) continue;                       // 空档不画，省地方 ✓
-    const v0 = cLo0 + (cHi0 - cLo0) * i / B;
-    const w = amtAt[i] / maxBin * 100;
-    vpRows.push('<div class="vp-r' + (i === pocBin ? " vp-poc" : "") + '" title="'
-      + v0.toFixed(3) + " 附近：" + cntAt[i] + " 笔 · " + Math.round(amtAt[i]).toLocaleString("en-US") + " 元"
-      + (i === pocBin ? "（POC · 钱最集中的价位）" : "") + '">'
-      + '<span class="vp-p">' + v0.toFixed(2) + "</span>"
-      + '<span class="vp-t"><i style="width:' + w.toFixed(1) + '%"></i></span>'
-      + '<span class="vp-n">' + cntAt[i] + "</span></div>");
-  }
-  const vp = '<div class="vp">' + vpRows.join("") + "</div>";
 
-  const yHead = '<span>' + Y1.toFixed(2) + '</span><span>' + ((Y1 + Y0) / 2).toFixed(2) + '</span><span>' + Y0.toFixed(2) + '</span>';
-  const legend = '<i class="lg-buy"></i>买在现价下方<i class="lg-dear"></i>买在现价上方<i class="lg-sell"></i>卖出'
-    + '<i class="lg-cost"></i>摊薄成本' + (Number.isFinite(close) ? '<i class="lg-now"></i>现价' : '')
-    + '<span class="cs-hint">下方柱：该价位的投入金额（POC＝最密集）</span>';
-  const sub = buys.length + ' 笔买入' + (sells.length ? ' · ' + sells.length + ' 笔卖出' : '')
-    + ' · ' + ds[0].slice(5) + ' ~ ' + ds[ds.length - 1].slice(5);
+  const H = 60;                                    // viewBox 高度
+  const binH = H / B;                              // 每档占的高度
+  const yOfPrice = (v) => H - ((v - cLo0) / span0) * H;   // 便宜在下、贵在上
+  const yOfBin = (bi) => H - (bi + 0.5) * binH;
+  const heatPts2 = amtAt.map((a, bi) => [Math.max(2, (a / maxBin) * 100), yOfBin(bi)]);
+  let mtnD = "M0," + heatPts2[0][1].toFixed(1) + " L" + heatPts2[0][0].toFixed(1) + "," + heatPts2[0][1].toFixed(1);
+  for (let k = 0; k < heatPts2.length - 1; k++) {
+    const a = heatPts2[k], b = heatPts2[k + 1], my = (a[1] + b[1]) / 2;
+    mtnD += " C" + a[0].toFixed(1) + "," + my.toFixed(1) + " " + b[0].toFixed(1) + "," + my.toFixed(1)
+      + " " + b[0].toFixed(1) + "," + b[1].toFixed(1);
+  }
+  mtnD += " L0," + heatPts2[heatPts2.length - 1][1].toFixed(1) + " Z";
+  const mtnRidge = mtnD.replace(/ Z$/, "");
+  const gid2 = "cm-" + hold.code;
+  const yCost = Number.isFinite(hold && hold.cost) ? yOfPrice(hold.cost).toFixed(1) : null;
+  const yNow = Number.isFinite(close) ? yOfPrice(close).toFixed(1) : null;
+
+  const mtn = '<svg class="cs-mtn" viewBox="0 0 100 ' + H + '" preserveAspectRatio="none"'
+    + ' role="img" aria-label="买入金额按价位的分布（山峰越宽＝该价位买得越多）">'
+    + '<defs><linearGradient id="' + gid2 + '" x1="0" y1="0" x2="1" y2="0">'
+    + '<stop offset="0%" stop-color="#2dd4a7" stop-opacity="0.06"/>'
+    + '<stop offset="55%" stop-color="#2dd4a7" stop-opacity="0.42"/>'
+    + '<stop offset="100%" stop-color="#5ee6c0" stop-opacity="0.88"/>'
+    + "</linearGradient></defs>"
+    + '<path d="' + mtnD + '" fill="url(#' + gid2 + ')"/>'
+    + '<path d="' + mtnRidge + '" fill="none" stroke="#5ee6c0" stroke-opacity="0.85"'
+    + ' stroke-width="1" vector-effect="non-scaling-stroke"/>'
+    + (yCost !== null ? '<line x1="0" y1="' + yCost + '" x2="100" y2="' + yCost
+      + '" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>' : "")
+    + (yNow !== null ? '<line x1="0" y1="' + yNow + '" x2="100" y2="' + yNow
+      + '" stroke="var(--tx)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.9"/>' : "")
+    + "<title>买入金额按价位的分布</title></svg>";
+
+  /* 右侧刻度：最高价 / POC / 最低价 三档 —— 只标三个，避免又变成密集的坐标轴 ✗ */
+  const pocPrice = cLo0 + span0 * (pocBin + 0.5) / B;
+  const axisTxt = '<div class="cs-axis">'
+    + '<span style="top:0">' + cHi0.toFixed(2) + '</span>'
+    + '<span style="top:' + ((yOfBin(pocBin) / H) * 100).toFixed(1) + '%" class="poc">'
+    + pocPrice.toFixed(2) + " · " + cntAt[pocBin] + " 笔</span>"
+    + '<span style="top:100%">' + cLo0.toFixed(2) + "</span></div>";
+
+  const legend = (Number.isFinite(hold && hold.cost) ? '<i class="lg-cost"></i>摊薄成本' : "")
+    + (Number.isFinite(close) ? '<i class="lg-now"></i>现价' : "")
+    + '<span class="cs-hint">山峰越宽＝该价位买得越多（POC＝最集中的价位）</span>';
+  const sub = buys.length + " 笔买入" + (sells.length ? " · " + sells.length + " 笔卖出" : "");
   return `<details class="cs-wrap">
-    <summary><span class="cs-t">成本 × 时间 · 详细</span><span class="cs-s">${sub}</span></summary>
-    <div class="cs-body">
-      <div class="cs-yh">${yHead}</div>
-      <div class="cs-plot" role="img" aria-label="${esc(sym)}：按日期的买入成本分布">${marks}</div>
-    </div>
-    <div class="cs-tip" aria-live="polite">点一下圆点看这笔明细</div>
-    ${vp}
+    <summary><span class="cs-t">成本分布 · 价位 × 金额</span><span class="cs-s">${sub}</span></summary>
+    <div class="cs-mtn-wrap">${mtn}${axisTxt}</div>
     <div class="cs-legend">${legend}</div>
   </details>`;
 }
@@ -10016,6 +10186,46 @@ function renderAddDist() {
 }
 function renderAddDistSafe() { try { renderAddDist(); } catch (e) { console.warn("addDist:", e.message); } }
 renderAddDistSafe();
+
+/* 52 周条上「每档金额」的点击展开（2026-11-24，用户：「点击每个段位比如 −5~−10% 可以展开？
+   因为我想看到具体的数值」）——
+   ⚠ 事件委托（条是每次 render 重建的，绑在节点上的监听会一起消失 ✗）
+   ⚠ 一次只开一段：卡内空间有限，且对比两段的需求不如「汇总卡」那边强
+     （汇总卡可以同时开两档，这里不行 —— 上下文不同，行为也不同是刻意的）*/
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest(".bar-lvseg") : null;
+  if (!btn) return;
+  const card = btn.closest("article.card");
+  if (!card) return;
+  const det = card.querySelector(".bar-lvdetail");
+  if (!det) return;
+  const wasOpen = btn.getAttribute("aria-expanded") === "true";
+  card.querySelectorAll(".bar-lvseg").forEach((b2) => { b2.classList.remove("open"); b2.setAttribute("aria-expanded", "false"); });
+  if (wasOpen) { det.hidden = true; det.innerHTML = ""; return; }
+  const code = btn.dataset.code, bin = Number(btn.dataset.bin);
+  const d = (typeof addDistOf === "function") ? addDistOf(code) : null;
+  if (!d) return;
+  const r = d.rows[bin] || { n: 0, amt: 0, items: [] };
+  const FR = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
+  const md = (x) => String(x).slice(5).replace("-", ".");
+  const rows = (r.items || []).slice().sort((x, y) => (x.d < y.d ? -1 : 1)).map((x) =>
+    '<div class="bar-lvdi" title="' + md(x.d) + ' 成交 ' + (+x.cost || 0).toFixed(4)
+      + '；当时回撤 ' + x.dd.toFixed(2) + '%">'
+      + '<span>' + md(x.d) + "</span>"
+      + '<span>' + (+x.cost || 0).toFixed(4) + "</span>"
+      + '<span>' + (x.amt / 10000).toFixed(2) + " 万</span>"
+      + '<span>' + x.dd.toFixed(1).replace("-", "−") + "%</span></div>").join("");
+  det.innerHTML = '<div class="bar-lvsum"><b>' + FR[bin] + "</b> 档 · " + r.n + " 笔 · <b>"
+    + (r.amt / 10000).toFixed(2) + " 万</b> · 占这只 <b>" + (d.amt > 0 ? (r.amt / d.amt * 100).toFixed(0) : "0")
+    + '%</b>　<span class="bar-lvx" title="回撤分母：'
+    + (addDistBasis() === "now" ? "当前 52 周最高收盘（会随行情变，不是历史事实）" : "买入当时该月及之前 12 个月的月末最高")
+    + '">分母 ' + (addDistBasis() === "now" ? "当前" : "当时") + "</span>"
+    + '<span class="bar-lvx" title="每条右侧的百分比是「买入那一刻」的回撤，不是今天的回撤 —— '
+    + '它是历史事实、不会随行情变">· 回撤 当时</span></div>' + rows;
+  det.hidden = false;
+  btn.classList.add("open");
+  btn.setAttribute("aria-expanded", "true");
+});
 
 /* 加仓分布：口径切换（2026-11-22）——「按买入当时」↔「按当前高点」。
    切换要**两处一起重绘**：汇总卡（renderAddDist）＋ 持仓卡的迷你条（在 renderImpl 里）——

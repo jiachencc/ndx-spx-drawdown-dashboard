@@ -130,15 +130,17 @@ else {
 /* ---- 买点：淡填充必须靠**全色描边**兜底（这是时间三档能在两套主题都过 3:1 的唯一理由）----
    ⚠ 这条查的是**结构**而不是数值：只调 α 永远过不了（深色 30% → 1.94:1、浅色 30% → 1.40:1，
    加到 100% 也只有 3.23 ✗）→ 一旦有人把描边删掉、退回纯 α，这条必须报 ✗ */
+/* ⚠ 2026-11-24：买点从「圆点 + 淡填充 + 描边兜底」改成**实色竖线**（方案 B 梳齿）——
+   实测 2×7px 的实色 var(--up) 在两套主题上都远超 3:1，不再需要描边 ✓
+   判据相应改成「必须是实色 --up 背景」，防止有人退回 30% 的淡填充（那在浅色底上只有 1.40:1 ✗） */
 const dotBody = rule(".buy-mark b");
 if (!dotBody) issues.push("找不到 .buy-mark b 规则 —— 买点样式被改名/删除，本条门禁已失效 ✗");
-else if (!/inset\s+0\s+0\s+0\s+1px\s+var\(--up\)/.test(dotBody))
-  issues.push(".buy-mark b 丢了「inset 0 0 0 1px var(--up)」实心描边 ✗ —— 淡填充（--up-line 30%）在深色底上只有 " +
-    "1.94:1、浅色底上 1.40:1，全靠这圈描边把它拉到 3:1 以上 ✓（同时 .t-mid 那一档也要有）");
-if (!/inset\s+0\s+0\s+0\s+1px\s+var\(--up\)/.test(rule(".buy-mark.t-mid b") || ""))
-  issues.push(".buy-mark.t-mid b 也必须有同一条实心描边（中档填充 --up-fill 60% 在浅色底上仍不到 3:1）✗");
+else if (!/background:\s*var\(--up\)/.test(dotBody))
+  issues.push(".buy-mark b 的背景必须是实色 var(--up) ✗ —— 淡填充（--up-line 30%）在深色底上只有 1.94:1、" +
+    "浅色底上 1.40:1；竖线只有 2px 宽，必须靠实色才看得见 ✓");
+/* 卖出侧同步改成实色竖线（2026-11-24）：判据从「1.5px 全色边框」改成「实色 --down 背景」✓ */
 const sellBody = rule(".sell-mark b") || "";
-if (!/border:\s*1\.5px\s+solid\s+var\(--down\)/.test(sellBody))
+if (!/background:\s*var\(--down\)/.test(sellBody))
   issues.push(".sell-mark b 的边框必须是**全色** var(--down) ✗ —— 空心圈的可见度只由边框色决定，" +
     "边框一淡化就直接掉到 2:1 以下（实测 --down-line 30% = 1.94:1）");
 

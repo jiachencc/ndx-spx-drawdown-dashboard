@@ -355,7 +355,10 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
          3.5 是「人眼在 8~12px 尺度上还能分辨」的下限 ✓，也是「编码塌掉」的分界（改回线性映射会掉到 2.4~2.9 ✗）。 */
       if (range < MIN_DOT_SPAN) thin.push(sym + " 直径极差仅 " + range.toFixed(1) + "px（" + Math.min.apply(null, dots) + "~" + Math.max.apply(null, dots) + "px）");
     }
-    if (card.querySelectorAll(".bar-tick").length !== 3) tickBad.push(sym + " " + card.querySelectorAll(".bar-tick").length + " 条");
+    /* ⚠ 2026-11-24：轴从「52 周分位」改成「相对 52 周高的回撤」→ 3 条分位刻度换成 4 条加仓档位线
+       （−5/−10/−15/−20）。落到可视区外的档位不画（该只跌得没那么深时），故只校验「≥1 条且 ≤4 条」✓ */
+    const lvN = card.querySelectorAll(".bar-lv").length;
+    if (lvN < 1 || lvN > 4) tickBad.push(sym + " " + lvN + " 条档位线（应 1~4）");
     /* ⚠ 形状用 **getComputedStyle** 读，不能用 getBoundingClientRect —— 本文件跑在 jsdom 里，
        没有布局引擎，rect 恒为 0×0 ✗（2026-10-16 首次写这条时正是这样误报了三张卡）。
        jsdom 的 getComputedStyle 能解析样式表里的 width/height/border-radius ✓（实测确认）。 */
@@ -371,7 +374,7 @@ check("汇总卡当日副标只留快照日期（不再重述来源与推导 ✗
     if (lgN !== wantLg) legendBad.push(sym + " 图例 " + lgN + " 项（应 " + wantLg + "：区间" + (buys.length ? "＋买入" : "") + (sells.length ? "＋卖出" : "") + "）");
   });
   check("场内位置条：绿点直径极差 ≥ " + MIN_DOT_SPAN + "px（金额编码真的有分辨率）", thin.length === 0, thin.join("；") || "各卡极差都够 ✓");
-  check("场内位置条：每张卡 3 条四分位刻度（25/50/75%）", tickBad.length === 0, tickBad.join("；") || "全部 ✓");
+  check("场内位置条：每张卡 1~4 条加仓档位线（−5/−10/−15/−20，回撤轴）", tickBad.length === 0, tickBad.join("；") || "全部 ✓");
   check("场内位置条：成本＝圆 · 现价＝竖线（形状可区分，不只靠颜色）", shapeBad.length === 0, shapeBad.join("；") || "形状区分 ✓");
   check("场内位置条：图例按需渲染（无卖出点则不出现「卖出」）", legendBad.length === 0, legendBad.join("；") || "图例项 ≡ 数据 ✓");
 }
@@ -2618,8 +2621,10 @@ check("页面无 JS 报错", errors.length === 0, errors.slice(0, 3).join(" | ")
          且 现价 > 成本 ⇒ 现价分位 ≥ 成本位（同一把尺上单调）✓ */
       const card = el.closest(".card") || el.closest("[class*=card]");
       const cardTxt = card ? card.textContent.replace(/\s+/g, "") : "";
-      if (Number.isFinite(t.pos52Lo) && Number.isFinite(t.pos52Hi) && Number.isFinite(h.cost)) {
-        const wantCost = Math.round(((h.cost - t.pos52Lo) / (t.pos52Hi - t.pos52Lo)) * 100);
+      /* ⚠ 2026-11-24：页面这条轴的上界从 `m.ath`（历史最高）改成 **hi52**（52 周最高收盘），
+         为的是与「加仓分布」的分档同尺 → 复算也要跟着用 hi52，否则两边差 1.5% 会误报 ✗ */
+      if (Number.isFinite(t.pos52Lo) && Number.isFinite(t.hi52) && Number.isFinite(h.cost)) {
+        const wantCost = Math.round(((h.cost - t.pos52Lo) / (t.hi52 - t.pos52Lo)) * 100);
         const okCost = [wantCost - 1, wantCost, wantCost + 1].some((v) => cardTxt.indexOf("成本位" + v + "%") >= 0);
         if (!okCost) bad.push(h.code + " 胶囊成本位 ≠ 同尺复算 " + wantCost + "%");
         if (t.px > h.cost && t.pos52 < wantCost - 1) bad.push(h.code + " 现价高于成本但分位更低（口径不一致）");

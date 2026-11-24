@@ -1011,10 +1011,10 @@
      在 550px 的条上就是 27px，渐变基本看不出来 ✗ 所以加外发光让它有存在感，
      真正的数值交给上方那行「成本 1.6162 +1.5% → 现价 1.640」✓ */
   .bar-track .seg { border-radius: 999px; min-width: 8px;
-    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent),
-                0 0 8px -2px var(--up-fill); }
-  .bar-track .seg.loss { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent),
-                0 0 8px -2px var(--down-fill); }
+    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent),
+                0 0 6px -3px var(--up-fill); }
+  .bar-track .seg.loss { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent),
+                0 0 6px -3px var(--down-fill); }
   /* ⚠ 2026-11-09 改（用户：「日经225ETF华安 那个 −8.3% 看不清楚 配色优化下」）：
      原来三处叠加导致完全读不出 ——
        ① 底色只有 22%→72% 不透明度 → 区间本身很淡 ✗
@@ -1026,10 +1026,14 @@
      ⚠ 为什么不统一用白字：深色主题的 --down 是 #f26d7d（亮红），白字只有 ~2.5:1 ✗
        统一用深字：浅色主题的 --down 是 #e23b53（中红），深字只有 ~2.8:1 ✗
        只能按主题分开 ✓ */
-  .bar-track .seg.gain { background: linear-gradient(90deg, color-mix(in srgb, var(--up) 45%, transparent),
-                                              color-mix(in srgb, var(--up) 95%, transparent)); }
-  .bar-track .seg.loss { background: linear-gradient(90deg, color-mix(in srgb, var(--down) 45%, transparent),
-                                              color-mix(in srgb, var(--down) 95%, transparent)); }
+  .bar-track .seg.gain { background: linear-gradient(90deg, color-mix(in srgb, var(--up) 32%, transparent),
+                                              color-mix(in srgb, var(--up) 70%, transparent)); }
+  /* ⚠ 2026-11-24 降饱和（用户：「红色区间带与绿色山峰比有点跳」）——
+     2026-11-09 那次为了「看得见」提到 45→95%，但那时条上只有这一个色块；
+     现在条上还有绿色山峰、4 条档位线、成本圆、现价线 —— 饱和的红色成了最亮的元素 ✗
+     → 32→70%（仍比早期 22→72% 醒目，但不抢）；发光同步收小 ✓ */
+  .bar-track .seg.loss { background: linear-gradient(90deg, color-mix(in srgb, var(--down) 32%, transparent),
+                                              color-mix(in srgb, var(--down) 70%, transparent)); }
   /* 带中央的涨跌幅（宽度 ≥7% 才有位置放；太窄会糊成一团 ✗）*/
   .bar-track .seg-d { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     font-style: normal; font-size: 9.5px; font-weight: 800; font-family: var(--mono);
@@ -1038,9 +1042,11 @@
   body.light .bar-track .seg-d { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
   /* 游标形态（替代细竖线）：成本=青圆、现价=白圆（略大，代表"当下"），都带描边+光晕 */
   .bar-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; border-radius: 50%; border: none; padding: 0; margin: 0; cursor: pointer; }
-  .bar-marker.cost { width: 10px; height: 10px; background: var(--cyan);
+  /* ⚠ 2026-11-24 10 → 8px（用户：「优化一下」）—— 10px 的实心圆与 3px 的现价竖线并排时，
+     圆的视觉重量是线的 3 倍以上，反而盖过「现在在哪」这个更常看的数 ✗
+     8px + 2px 卡片底色描边 ＝ 视觉 12px，仍够大、但不再抢 ✓ */
+  .bar-marker.cost { width: 8px; height: 8px; background: var(--cyan);
     box-shadow: 0 0 0 2px var(--card), 0 0 9px var(--info-fill); }
-  .bar-end { position: absolute; right: -2px; top: 50%; transform: translateY(-50%); width: 6px; height: 18px; border-radius: 3px; background: var(--yellow); box-shadow: 0 0 9px var(--warn-solid); }
   /* 现价游标：**竖线**（2026-10-16 改）—— 原先与成本位同为圆点、只差颜色与 2px 直径 ✗，
      色盲 / 强光 / 小屏下会退化成两个圆点；改后**形状本身**就能区分（成本＝实心青圆 · 现价＝贯穿竖线）✓。
      20px 高 > 12px 轨道 → 上下各探出 4px，像一根"当前水位"的标尺 ✓；可点区仍走下面的 ::after（26×32）✓ */
@@ -1089,7 +1095,9 @@
   .bar-legend { display: flex; gap: 10px; margin-top: 6px; font-size: var(--fs-xxs); color: var(--tx3); flex-wrap: wrap; opacity: .85; }
   .bar-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
   /* 买入位置分布 */
-  .buy-layer { position: relative; height: 52px; margin-bottom: 1px; }
+  /* ⚠ 2026-11-24 52px → 9px：竖棒删掉后，梳齿只占 6px（省 43px）✓ */
+  .buy-layer { position: relative; height: 44px; margin-bottom: 1px;
+    border-radius: 4px 4px 0 0; overflow: hidden; }
   .buy-layer:empty { display: none; }
   .buy-mark, .sell-mark { position: absolute; bottom: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; background: none; border: none; padding: 0; cursor: pointer; }
   .bar-track.pops { cursor: pointer; touch-action: manipulation; }
@@ -1101,12 +1109,25 @@
      竖线与光晕不再跟着变暗 ✓。档位由渲染侧按**笔序三分位**给（.t-old/.t-mid/.t-new），少于 3 笔一律 .t-new ✓ */
   /* 2026-10-18 改：三档「空心 / 半透明 / 实心」容易被读成**两个类别**（用户：有的实心有的空心 ✗）。
      统一实心，只用**透明度**表示新旧 —— 同一形状的不同阶段，不会被误读。 */
-  .buy-mark b { width: 6px; height: 6px; border-radius: 50%;
-    background: color-mix(in srgb, var(--up) 58%, transparent);
-    box-shadow: inset 0 0 0 1px var(--up); }
-  .buy-mark.t-old b { background: color-mix(in srgb, var(--up) 58%, transparent); box-shadow: inset 0 0 0 1px var(--up); }
-  .buy-mark.t-mid b { background: color-mix(in srgb, var(--up) 80%, transparent); box-shadow: inset 0 0 0 1px var(--up); }
-  .buy-mark.t-new b { background: var(--up); box-shadow: inset 0 0 0 1px var(--up), 0 0 5px var(--up-fill); }
+  /* ⚠ 2026-11-24（方案 B）：圆点 → **1px × 6px 竖线（梳齿）** ——
+     实测纳指 40 笔里有买入的只有 9/20 个价格段、最密一段挤 11 笔：
+     11 个 6~17px 的圆点在 317px 上间距不到 1px，完全重叠成一坨 ✗
+     1px 的线即使重叠也只是一条线 —— 密集处自然连成「较宽的深色带」、稀疏处是「几根独立的齿」，
+     分布形态反而比圆点更清楚，且逐笔仍可点 ✓
+     三档色一并删掉（.t-old / .t-mid / .t-new 已不再输出）—— 新旧看「成本 × 时间」的时间轴 ✓ */
+  /* ⚠ 2026-11-24（方案 A）：梳齿 → **密度热力带** ——
+     20 段（每段 5% 价格区间）无缝相接，不透明度 ∝ 该段买入金额；
+     空段不渲染 → 看起来是「一条有起伏的绿带」，而不是「一排刻度」✓ */
+  /* ⚠ 段宽多给 0.6px（2026-11-24）：left/width 各按 5% 累加，亚像素舍入后相邻段之间会露 1px 缝，
+     整条看着像「一排小方块」而不是「一条带」✗ → 段之间**故意重叠** 0.6px，缝就消失了；
+     圆角交给容器（.buy-layer 加 overflow:hidden + 上圆角），段本身一律直角 ✓ */
+  /* 热力山峰（2026-11-24 v5）：SVG 平滑面积图，柱高即密度 ——
+     阶梯柱太「硬」，改成贝塞尔曲线连接 + 竖向渐变填充，像山体受光面 ✓ */
+  .heat-svg { position: absolute; left: 0; right: 0; bottom: 0; height: 44px;
+    width: 100%; display: block; pointer-events: none; }
+  /* 兼容旧类（若别处仍生成 .buy-mark，退化成细竖线，不至于开天窗） */
+  .buy-mark b { width: 2px; height: 7px; border-radius: 1px;
+    background: var(--up); opacity: .78; }
   .buy-mark.flash b { animation: buyflash .5s ease-in-out 3; }
   /* 定位高亮环（2026-11-04）：绿点只有 6~14px，滑动定位后一闪容易错过 ✗
      给它套一圈 2px 的环 + 轻微放大，比单纯闪点更容易被眼睛抓到 ✓ */
@@ -1126,7 +1147,9 @@
   .buy-mark i { width: 1.5px; background: var(--up); }
   /* 卖出标记：红**空心**圈（与买入绿实心对称，空心＝已离场）；不堆叠，笔数少时更清爽。
      颜色深浅三档与买入侧同一套规则（2026-10-16）✓ */
-  .sell-mark b { border-radius: 50%; background: transparent; border: 1.5px solid var(--down); box-shadow: 0 0 4px var(--down-fill); box-sizing: border-box; }
+  /* 卖出侧同步成竖线（2026-11-24，方案 B）：同一层里两种形状会打架，
+     红/绿 + 「实心竖线 vs 略高的红竖线」已足够区分 ✓ */
+  .sell-mark b { width: 2px; height: 9px; border-radius: 1px; background: var(--down); }
   /* ⚠ 卖出侧**不按时间分档**（2026-10-16）：空心圈的可见度只由边框色决定，边框一淡化就掉到 2:1 以下 ✗
      （实测 --down-line 30% 压卡片 = 1.94:1）；且时间对已了结的卖出意义有限 ✓。
      JS 仍会给它 t-old/t-mid/t-new 类，这里刻意不给对应规则（无害 —— 别以为是漏了 ✗）。 */
@@ -3068,3 +3091,83 @@
   .rp-tr > b:last-child { grid-column: 1 / -1; text-align: left; }
   .rp-th > b:last-child { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   成本分布 · 横躺山峰（2026-11-24 加，用户：「横轴不用时间，改为横向的山峰，
+   然后把下面的 POC 这些柱状图数据带入」）
+   ─ 横轴＝金额（向右凸出）、纵轴＝价格（上贵下便宜）
+   ─ 与上方「52 周区间」同一套视觉语言：平滑贝塞尔 + 纵向渐变 + 山脊描边
+   ─ 右侧只标三个刻度（最高 / POC / 最低），避免又变成密集坐标轴 ✗
+   ══════════════════════════════════════════════════════════════════════════ */
+.cs-mtn-wrap { position: relative; margin: 8px 0 4px; padding-right: 80px; }
+.cs-mtn { display: block; width: 100%; height: 132px; }
+.cs-axis { position: absolute; top: 0; right: 0; bottom: 0; width: 76px;
+  font-family: var(--mono); font-size: 9px; color: var(--tx3);
+  font-feature-settings: "tnum"; }
+.cs-axis > span { position: absolute; right: 0; transform: translateY(-50%);
+  white-space: nowrap; line-height: 1; }
+.cs-axis > span:first-child { transform: none; }
+.cs-axis > span:last-child { transform: translateY(-100%); }
+.cs-axis > span.poc { color: var(--tx2); font-weight: 700; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   52 周区间 → **回撤轴 + 加仓档位线**（2026-11-24 方案 A5）
+   ─ 横轴含义从「价格」改为「相对 52 周最高的回撤」：左端 = 区间最低、右端 = 0%
+   ─ 加仓分布的 5 个档位（≥−5 / −5~−10 / −10~−15 / −15~−20 / ≤−20）
+     正好是这条轴被切开的 5 段 —— 山峰在每段内的面积 = 该档买入了多少钱
+   ─ 档位线用虚线 + 条内 8px 小字，不抢山峰、又能直读「这笔买在 −12%」
+   ══════════════════════════════════════════════════════════════════════════ */
+.bar-lv { position: absolute; top: 0; bottom: 0; width: 0; z-index: 1;
+  border-left: 1px dashed rgba(147,163,187,.5); pointer-events: none; }
+/* ⚠ 档位标签放到**条下方**（2026-11-24）：放条内时，纳指的 −10% 档正好落在现价与成本之间，
+   被成本圆 / 现价竖线盖住 ✗ —— 挪到条下方那一行（与两端价同一行、但位置错开不冲突）✓ */
+.bar-lv > i { position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  margin-top: 2px;
+  font-style: normal; font-family: var(--mono); font-size: 8.5px; line-height: 1;
+  color: var(--tx3); opacity: .85; white-space: nowrap;
+  font-feature-settings: "tnum"; letter-spacing: -.02em; }
+.bar-labels em { font-style: normal; font-family: var(--mono); font-size: 8.5px;
+  color: var(--tx3); opacity: .8; margin-left: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   52 周条 · 每档金额 ＋ 点击展开逐笔（2026-11-24）
+   ─ 5 个区间 = 加仓分布的 5 个档（由 4 条档位线切开）
+   ─ 金额标在**区间中央**而不是线上：线是边界，金额是这一段的属性
+   ─ 每段只有 ~60px，所以只写「金额 / 笔数」，档位名由两侧的线表达
+   ══════════════════════════════════════════════════════════════════════════ */
+/* ⚠ 2026-11-24：金额标签要跟档位线的「−20%/−15%」错开一行 ——
+   两者都贴着条底时，「−10%」和「15.6万」会直接叠在一起（实测完全糊住）✗
+   → 档位线标签留在条底（top:100%），金额标签从 14px 处起 ✓ */
+/* ⚠ 再压一版（2026-11-24）：24px/15px → 20px/9px，字号 9.5/8 → 9/7.5 ——
+   整块从 +61px 收到约 +48px；再压就挤了，两行结构保持不变 ✓ */
+.bar-lvsegs { position: relative; height: 20px; margin-top: 9px; }
+.bar-lvseg { position: absolute; top: 0; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  background: none; border: 0; padding: 1px 4px; border-radius: 5px;
+  cursor: pointer; white-space: nowrap; line-height: 1.15;
+  transition: background .12s; }
+.bar-lvseg:hover { background: rgba(147,163,187,.10); }
+.bar-lvseg.open { background: rgba(91,163,255,.16); }
+.bar-lvseg b { font-size: 9px; font-weight: 700; color: var(--tx2);
+  font-family: var(--mono); font-feature-settings: "tnum"; }
+.bar-lvseg em { font-style: normal; font-size: 7.5px; color: var(--tx3);
+  font-family: var(--mono); font-feature-settings: "tnum"; }
+/* 空档的「—」：不占两行、不可点、更淡 —— 明确「这一档没买过」而不是「漏了」 */
+.bar-lvseg.is-empty { font-size: 11px; color: var(--tx3); opacity: .45;
+  padding: 0 4px; cursor: default; font-family: var(--mono); }
+.bar-lvseg.is-empty:hover { background: none; }
+.bar-lvseg.open b { color: var(--tx); }
+/* 展开的逐笔：四列（日期 / 成交价 / 金额 / 当时回撤） */
+.bar-lvdetail { margin: 2px 0 4px; padding: 5px 7px 4px; border-radius: 6px;
+  background: rgba(147,163,187,.07); max-height: 132px; overflow-y: auto;
+  overscroll-behavior: contain; }
+.bar-lvsum { font-size: 9.5px; color: var(--tx3); margin-bottom: 4px; line-height: 1.5;
+  font-family: var(--mono); font-feature-settings: "tnum"; }
+.bar-lvsum b { color: var(--tx); font-weight: 700; }
+.bar-lvsum .bar-lvx { color: var(--tx3); font-size: 8.5px; }
+.bar-lvdi { display: grid; grid-template-columns: 3.2em 4.8em 4.6em 3.4em;
+  gap: 8px; align-items: baseline; padding: 1px 0; justify-content: start;
+  font-size: 9px; color: var(--tx3); font-family: var(--mono);
+  font-feature-settings: "tnum"; }
+.bar-lvdi > span:nth-child(3), .bar-lvdi > span:nth-child(4) { text-align: right; }
+.bar-lvdi > span:nth-child(4) { color: var(--down); }
