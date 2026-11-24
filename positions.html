@@ -9874,7 +9874,17 @@ function ladderHtml() {
     const hi = f.nav && f.nav.hi;
     if (!it || !Number.isFinite(hi) || !Number.isFinite(it.qty)) return;
     const cost = Number.isFinite(it.cost) ? it.cost : (it.val - it.pl);
-    const val = it.qty * hi;
+    /* ⚠ 2026-11-24 修一处口径不一致（用户：「都回去 ≈ 市值 +104,141 计算正确对吧」）——
+       原来：**前高市值** = `qty × nav.hi`（不含在途）、**现值** = `it.val`（含在途 400）→
+         两者分母不同，021000 那一格少算 **493.56**（400 的本金 ＋ 94 的增值），
+         合计从 104,635 被低估成 104,141（−0.47%）✗
+       → 前高改成**按实际市值比例换算** `it.val × hi / nav.close`：
+         现值已经含在途，按同一比例放大后自然也对得上 ✓
+         拿不到 nav.close 时才退回 qty × hi（宁可少算也不要算错）*/
+    const navClose = f.nav && f.nav.close;
+    const val = (Number.isFinite(it.val) && Number.isFinite(navClose) && navClose > 0)
+      ? it.val * (hi / navClose)
+      : it.qty * hi;
     oCost += cost; oVal += val; oNow += (it.val || 0);
     oRows.push({ name: f.name, hi, val, pl: val - cost });
   });
@@ -9901,7 +9911,8 @@ function ladderHtml() {
       { k: "会变", v: "份数与成本取当前持仓 —— 后续再加仓，这个数会跟着变（批次越多，回前高的绝对收益越大）。" },
       { k: "两个 +X", v: "「市值 +X」与上面那行「浮盈 +Y」不是同一个数：前者是「市值增加」（含把当前浮亏填平的那部分），"
         + "后者是「市值 − 成本」。两者之差正好等于当前浮亏。" },
-      { k: "⚠ 场外", v: "份额取快照 items 的 qty，021000 的 400 在途不含在内 → 它那一格少算约 400 元。" },
+      { k: "⚠ 场外", v: "前高市值按**实际市值比例**换算（items.val × hi / 净值），所以 021000 那 400 在途也一并算进去了 ✓"
+        + "（原来用 qty × hi，那 400 没计入 → 整表少算 494 元，2026-11-24 修正）。" },
       { k: "同档历史", v: "来自 NDX_DD（纳指指数 1995 以来 · 东财前复权），不是这些 ETF / 基金的价格统计 —— "
         + "它只回答「这个跌幅档历史上一般多久收复」，不是对你的预测（溢价与跟踪误差会让实际更快或更慢）。" },
     ].concat(st ? [{ k: "⚠ 中位", v: "样本只有 " + st.n + " 次，且都是纳指本身的历史 —— 75% 分位 "
