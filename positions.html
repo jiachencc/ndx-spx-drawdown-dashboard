@@ -9778,7 +9778,12 @@ function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("la
    'addDistBasis' before initialization」，且浏览器 **不报 pageerror**（被 try/catch 吞了），极难查 ✗
    今天同一条坑踩了两次（上午是 ADD_DIST_ORD）：**被前部代码调用的辅助函数一律用 function 声明** ✓ */
 function addDistBasis() {
-  return (typeof window !== "undefined" && window.__addDistBasis === "now") ? "now" : "then";
+  /* ⚠ 2026-11-24 默认改为 "now"（用户：「加仓分布 改为默认按当前高点」）——
+     原来的默认是 "then"（买入当时），读者进来先看到「浅档 53%」，容易误以为加仓很集中在上方；
+     而 "now" 与「加仓阶梯」同口径（阶梯也是拿当前 52 周高定档），两块对照时不会打架 ✓
+     ⚠ 判据写反了：现在只有**显式选了 then** 才返回 then，其余（含未设置）一律 now；
+       不能写成 `=== "now" ? "now" : "then"`（那样未设置时会落回 then ✗） */
+  return (typeof window !== "undefined" && window.__addDistBasis === "then") ? "then" : "now";
 }
 function addDistOf(code, basisArg) {
   const ORD = ["≥ −5%", "−5 ~ −10%", "−10 ~ −15%", "−15 ~ −20%", "≤ −20%"];
