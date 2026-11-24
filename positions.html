@@ -157,14 +157,21 @@ try {
          卡内 sa-head 从此只留**随维度变化**的说明（那句才是独有信息 ✓）。门禁 ⑧ 盯着这条 ✓。 -->
   <div class="card tight" id="snap-attr" hidden></div>
 
-  <h2 class="sec-title" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></h2>
-  <div class="card tight" id="acct-card"></div>
+  <!-- ⚠ 2026-11-24 折叠（用户：「场内账户统计 场外账户统计 都默认折叠」）——
+       这两块是**月度/年度复盘**用的，不需要每天看；而「本金与收益」「持仓与操作记录」才是日常入口 ✓
+       沿用「溢价扫描」那套 sec-fold（summary 继承 .sec-title 排版、收起态隐藏 cnt） -->
+  <details class="sec-fold">
+    <summary class="sec-title" id="sec-acct"><span aria-hidden="true">🧮</span> 场内账户统计 <span class="cnt" id="acct-cnt">（场内券商 · 月度盈亏含已实现）</span></summary>
+    <div class="card tight" id="acct-card"></div>
+  </details>
 
   <!-- 场外账户统计（2026-10-10 加，用户：「场内账户统计 模块是不是可以加上场外账户统计？
        因为有数据在 finance/index.html 里了」）—— 数据取自本页**已加载**的 finance/finance-data.js
        （与「盈亏全程」那条场外线同源），放在场内账户统计之后、持仓之前 ✓（账户级的两块挨着）。 -->
-  <h2 class="sec-title" id="sec-otc-acct"><span aria-hidden="true">🏦</span> 场外账户统计 <span class="cnt" id="otc-acct-cnt">（场外 5 个渠道 · 月频 App 账单）</span></h2>
-  <div class="card tight" id="otc-acct-card"></div>
+  <details class="sec-fold">
+    <summary class="sec-title" id="sec-otc-acct"><span aria-hidden="true">🏦</span> 场外账户统计 <span class="cnt" id="otc-acct-cnt">（场外 5 个渠道 · 月频 App 账单）</span></summary>
+    <div class="card tight" id="otc-acct-card"></div>
+  </details>
 
   <h2 class="sec-title" id="sec-pos"><span aria-hidden="true">📊</span> 场内持仓与操作记录 <span class="cnt" id="etf-cnt"></span></h2>
   <div id="pos-list"></div>
