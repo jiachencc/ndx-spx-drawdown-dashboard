@@ -188,7 +188,13 @@
      竖线分隔符改成相邻组之间的左边框 —— 换行后不会出现悬空的「|」。 */
   .src-line { font-size: var(--fs-xs); color: var(--tx3); margin: 10px 2px; line-height: 1.6;
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
-  .src-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  /* ⚠ 2026-11-24：原来是 `white-space: nowrap` —— 平常的「AUTO场内行情 场内 11.20」很短没问题，
+     但源滞后的警告会附一长串「· 超过有效期（源末点 2026-11-20 · 滞后 3 天）」，
+     380px 下整条撑到 442px、把页面顶出 78px 横向滚动 ✗
+     → 允许换行（flex-wrap + normal），标签与文本各自成块、整体不拆散 ✓ */
+  .src-item { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
+    white-space: normal; min-width: 0; max-width: 100%; }
+  .src-item > b, .src-item > span { min-width: 0; overflow-wrap: anywhere; }
   /* 不用 border-left 做分隔（2026-10-18）：换行后它会在行首留一根悬空的竖线 ✗。
      改纯间距 —— MANUAL / AUTO / SNAP 三个彩色标签本身已经是最好的分隔符。 */
   /* 2026-10-18：原来空容器也占一整行（实测 375px 下 #pos-source-health 空着吃掉 30px 高度，
