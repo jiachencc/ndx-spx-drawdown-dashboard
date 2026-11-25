@@ -39,12 +39,36 @@ async function ndxDaily() {
        正确码：`100.NDX100`（实测末根 25,028.98，与双源一致 ✓） */
     + "?secid=100.NDX100&fields1=f1,f2,f3,f4,f5&fields2=f51,f52,f53,f54,f55,f56"
     + "&klt=101&fqt=1&beg=0&end=20500101&lmt=10000";
-  const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  const j = await r.json();
-  const kl = j && j.data && j.data.klines;
-  if (!Array.isArray(kl) || !kl.length) throw new Error("没拿到 klines");
-  return kl.map((s) => { const a = s.split(","); return { d: a[0], c: +a[2] }; });
+  /* ⚠ 2026-11-25 加腾讯兜底（GitHub Actions 的 runner 在海外，东财 K 线接口整批抓不到，
+     实测 `TypeError: fetch failed` / `SocketError: other side closed`，CI 直接崩在这步 ✗）
+     ⚠ 但腾讯美股只给 **1000 根（≈4 年，2022-11 起）**，而本脚本的统计起点是 1995 ——
+       降级后「历史 10 次深跌」会缩成 2~3 次，**必须让用户看得见**，所以：
+       · 返回值和 source 一起给出，main 里把 source 写进 NDX_DD
+       · 页面「数据健康」区会显示实际来源 ✓（降级要明示，不能假装满血）*/
+  const TENCENT_US = "https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param=usNDX,day,,,1000,qfq";
+  const fetchTencent = async () => {
+    const r2 = await fetch(TENCENT_US, { headers: UA, signal: AbortSignal.timeout(30000) });
+    if (!r2.ok) throw new Error("HTTP " + r2.status);
+    const j2 = await r2.json();
+    const d2 = (j2.data || {}).usNDX || {};
+    const arr = d2.qfqday || d2.day || [];
+    if (!Array.isArray(arr) || !arr.length) throw new Error("腾讯没给 klines");
+    return arr.map((x) => ({ d: x[0], c: +x[2] }))
+      .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.d) && Number.isFinite(x.c) && x.c > 0);
+  };
+  try {
+    const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(30000) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const kl = j && j.data && j.data.klines;
+    if (!Array.isArray(kl) || !kl.length) throw new Error("没拿到 klines");
+    return { rows: kl.map((s) => { const a = s.split(","); return { d: a[0], c: +a[2] }; }), source: "eastmoney" };
+  } catch (e) {
+    const rows = await fetchTencent();
+    console.log("  ⚠ 东财不可用（" + e.message + "）→ 改用腾讯 " + rows.length + " 根"
+      + "（" + rows[0].d + " 起，样本缩水，非满血口径）");
+    return { rows, source: "tencent-1000" };
+  }
 }
 
 /** 识别回撤事件：从 ATH 首次触及 −THRESH%，到收盘重回前高（或一直到序列末还没回） */
@@ -94,7 +118,8 @@ function events(S) {
 const q = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
 const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length % 2 ? s[(s.length - 1) / 2] : Math.round((s[s.length / 2 - 1] + s[s.length / 2]) / 2); };
 
-const all = await ndxDaily();
+const ndxRes = await ndxDaily();
+const all = ndxRes.rows;
 const S = all.filter((x) => x.d >= SINCE);
 const ev = events(S);
 
@@ -129,6 +154,7 @@ const payload = {
   asOf: S.at(-1).d,
   source: "东财 100.NDX100 日线（前复权）",
   since: SINCE,
+  source: ndxRes.source,
   days: S.length,
   thresh: THRESH,
   latest: S.at(-1).c,

@@ -57,6 +57,22 @@ let asOf = "";
 for (const it of items) {
   const url = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + secid(it.code)
     + "&fields1=f1,f2&fields2=f51,f53&klt=101&fqt=1&beg=0&end=20500101";
+  /* ⚠ 2026-11-25 加腾讯兜底（GitHub Actions 的 runner 在海外，东财 K 线接口经常
+     `fetch failed` / `SocketError: other side closed` 整批抓不到 —— 实测 6 只全失败，
+     于是 TREND 永远停在旧值、而 CI 又因后续步骤崩掉一直红 ✗）
+     腾讯的 fqkline 在同一条流水线里是通的（fetch_and_update 的 premium 就走它）→ 东财失败就切它 ✓
+     ⚠ 两者字段顺序不同：东财 `日期,收盘,成交量…`（取 [0]/[1]）、
+       腾讯 `[日期, 开, 收, 高, 低, 量]`（收盘在**索引 2**）—— 取错一位会全盘错 ✗ */
+  const tencentSym = (code) => (/^(15|16|00|30)/.test(code) ? "sz" : "sh") + code;
+  const fetchTencent = async (code) => {
+    const u = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=" + tencentSym(code) + ",day,,,400,qfq";
+    const res = await fetch(u, { headers: UA, signal: AbortSignal.timeout(20000) });
+    const j = await res.json();
+    const d = (j.data || {})[tencentSym(code)] || {};
+    const arr = d.qfqday || d.day || [];
+    return arr.map((r) => ({ d: r[0], c: +r[2] }))
+      .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.d) && Number.isFinite(x.c) && x.c > 0);
+  };
   let rows;
   try {
     const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
@@ -64,7 +80,17 @@ for (const it of items) {
     rows = ((j.data && j.data.klines) || [])
       .map((s) => { const [d, c] = s.split(","); return { d, c: +c }; })
       .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.d) && Number.isFinite(x.c) && x.c > 0);
-  } catch (e) { console.warn("  " + it.code + " 取价失败：" + e.message + "（保留旧值）"); continue; }
+    if (rows.length < 60) throw new Error("东财只给 " + rows.length + " 根");
+  } catch (e) {
+    try {
+      rows = await fetchTencent(it.code);
+      if (rows.length < 60) throw new Error("腾讯只给 " + rows.length + " 根");
+      console.warn("  " + it.code + " 东财不可用（" + e.message + "）→ 改用腾讯 " + rows.length + " 根 ✓");
+    } catch (e2) {
+      console.warn("  " + it.code + " 取价失败：" + e2.message + "（保留旧值）");
+      continue;
+    }
+  }
   if (rows.length < 60) { console.warn("  " + it.code + " 日线不足，跳过"); continue; }
 
   const cl = rows.map((r) => r.c), n = cl.length, last = cl[n - 1];

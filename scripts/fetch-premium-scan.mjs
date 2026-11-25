@@ -116,6 +116,17 @@ for (const [code, name, market] of UNIVERSE) {
     turnover: Q[code] ? +Q[code].turnover.toFixed(2) : null,
   });
 }
+/* ⚠ 2026-11-25 加阈值（原来只防「0 只」）——
+   GitHub Actions 的 runner 在海外，东财日K 整批抓不到，实测只成功 1 只（513390）就写盘了：
+   PREM_SCAN 从 10 只缩成 1 只 → 后续 check-data 报「缺 4 只」→ CI 红 ✗
+   → 少于 MIN_ITEMS 只就**放弃写盘**（保留上一版完整数据），exit 0 不阻断流水线
+     （「拿不到」是环境问题，不该让 CI 一直红、也不该用残缺数据覆盖好数据）*/
+const MIN_ITEMS = 5;
+if (items.length < MIN_ITEMS) {
+  console.log("⚠ 只拉到 " + items.length + "/" + UNIVERSE.length + " 只（< " + MIN_ITEMS
+    + "），放弃写盘 —— 保留上一版 PREM_SCAN，避免用残缺数据覆盖 ✓");
+  process.exit(0);
+}
 if (!items.length) throw new Error("一只都没拉到，放弃写盘");
 
 /* ── 公共日（2026-10-28 修）──────────────────────────────────────────────
