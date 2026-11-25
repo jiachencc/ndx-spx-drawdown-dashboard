@@ -2655,10 +2655,11 @@
 .ldb-seg b { font-size: 9px; font-weight: 700; color: var(--tx3); font-family: var(--mono);
   font-feature-settings: "tnum"; white-space: nowrap; }
 /* 底仓段最宽，字能大一点 */
-.ldb-base { flex: 55; }
-.ldb-base i, .ldb-base b { font-size: 10px; }
+/* ⚠ 2026-11-25：底仓段已删（用户：「底仓去掉，只想看当前回撤到哪个档位」）——
+   原来 .ldb-base { flex: 55 } 让底仓占 55 份、其余 5 档各 9 份；
+   现在只剩 5 个回撤档 → 等宽 flex: 1，档与档的间距一致，读起来才是「刻度」而非「额度」✓ */
 /* 5 批各占 9 */
-.ldb-track > .ldb-seg:not(.ldb-base) { flex: 9; }
+.ldb-track > .ldb-seg { flex: 1; }
 /* 已触发：实心（用涨色系但压暗，避免和「当日涨跌」混淆）*/
 .ldb-seg.done { background: rgba(45, 212, 167, .18); border-color: rgba(45, 212, 167, .45); }
 .ldb-seg.done i { color: var(--tx2); }
@@ -3208,3 +3209,33 @@ details.bar-fold > summary:hover { background: rgba(147,163,187,.06); }
 .bar-sum-x { font-size: 9px; color: var(--tx3); font-family: var(--mono);
   font-feature-settings: "tnum"; white-space: nowrap; }
 details.bar-fold[open] > summary { margin-bottom: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   加仓阶梯 · 档位徽章（2026-11-25）
+   ─ 颜色随档位递进：灰（未触发）→ 蓝（中段）→ 绿（打满）
+   ─ **超出**（跌穿阶梯最深一档）单独用琥珀：那不是「更深的档」，而是「规则之外」，
+     必须与「打满」区分开 —— 打满说明按规则投完了，超出说明规则已经失效 ✓
+   ══════════════════════════════════════════════════════════════════════════ */
+.ldb-badge { display: inline-flex; align-items: baseline; gap: 2px;
+  padding: 1px 7px; border-radius: 999px; font-size: 9px; line-height: 1.55;
+  font-family: var(--sans); white-space: nowrap;
+  background: rgba(147,163,187,.12); color: var(--tx3);
+  box-shadow: inset 0 0 0 1px rgba(147,163,187,.22); }
+.ldb-badge > b { font-family: var(--mono); font-feature-settings: "tnum";
+  font-weight: 700; color: var(--tx2); font-size: 9.5px; }
+.ldb-badge.lv-mid { background: rgba(91,163,255,.14); color: #7fb2f0;
+  box-shadow: inset 0 0 0 1px rgba(91,163,255,.30); }
+.ldb-badge.lv-mid > b { color: #a8ccf7; }
+.ldb-badge.lv-full { background: rgba(45,212,167,.14); color: #4fd9b0;
+  box-shadow: inset 0 0 0 1px rgba(45,212,167,.32); }
+.ldb-badge.lv-full > b { color: #7fe8c9; }
+.ldb-badge > i { font-style: normal; font-size: 8.5px; opacity: .9; }
+.ldb-badge > i.ok { color: inherit; }
+/* 超出设计：琥珀实底 + 一个小「!」—— 与「打满」的绿明确分开 */
+.ldb-badge.is-over { background: rgba(216,161,58,.18); color: #e0b25c;
+  box-shadow: inset 0 0 0 1px rgba(216,161,58,.42); }
+.ldb-badge.is-over > b { color: #f0cd8c; }
+/* ⚠ 「超出」前面那个 ! 不再用 ::before 挤进去（实测「!超出」两个字粘在一起）✗
+   改成左边一条琥珀竖线 ＋ 稍宽的内边距，靠形状区分、不靠符号 ✓ */
+.ldb-badge.is-over { padding-left: 9px; border-left: 2px solid rgba(216,161,58,.75); }
+.ldb-badge.is-over > i { font-weight: 700; letter-spacing: .02em; }

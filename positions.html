@@ -7884,8 +7884,14 @@ function holdCardHtml(row, i, ctx) {
     '<details class="bar-fold" open><summary>'
       + '<span class="bar-sum-t">52周区间 · 买入密度</span>'
       + '<span class="bar-sum-x">' + (Number.isFinite(m.close) && hi > 0
-        ? '现价 ' + (((m.close / hi - 1) * 100).toFixed(1)).replace("-", "−") + '%'
-          + (Number.isFinite(p.idxAtCost) && hi > 0 ? ' · 成本 ' + (((p.idxAtCost / hi - 1) * 100).toFixed(1)).replace("-", "−") + '%' : '')
+        /* ⚠ 2026-11-25 改说法（用户：「能否换个说法 更容易理解？」→ 选方案 1）——
+           原来写「现价 −14% · 成本 −9%」：两个负数并列、又不说分母是什么，
+           「成本 −9%」极易被读成「成本亏了 9%」✗（实际是「成本相当于从 52 周高点下来 9%」）
+           → 显式带上参照物「低于高点」，并去掉负号（负号在这里只增加负担）✓ */
+        ? '现价' + (m.close < hi ? '低于' : '高于') + '高点 ' + Math.abs((m.close / hi - 1) * 100).toFixed(1) + '%'
+          + (Number.isFinite(p.idxAtCost) && hi > 0
+            ? ' · 成本' + (p.idxAtCost < hi ? '低于' : '高于') + '高点 ' + Math.abs((p.idxAtCost / hi - 1) * 100).toFixed(1) + '%'
+            : '')
         : '') + '</span></summary>'
       + '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +
@@ -9707,13 +9713,25 @@ const LADDER = {
        标普  −5% 48% · −10% 27% · −15% 13%
        日经  −5% 65% · −10% 51% · −15% 35% · −20% 18%
      所以：纳指最深 −15%、标普 −10%、日经 −25%（日经波动大，深档真等得到）✓ */
-  base: 55,
-  stepW: 9,          // 5 批 × 9% ＝ 45%；55 ＋ 45 ＝ 100 ✓
+  /* ⚠ 2026-11-25 **`base` 字段整体删除**（用户：「底仓去掉」）——
+     底仓是「一次性建仓 55%」的建议，和「跌多少加多少」是两套逻辑；
+     条上不画之后它只残留在一句章节提示里，容易让人以为「还有 55% 要投」✗
+     → 现在阶梯只表达**6 个回撤档 × 每档 9%**，不再有「底仓」这个概念 ✓ */
+  stepW: 9,          // 每批 9%；⚠ 2026-11-25 加了第 6 档后「55 + 6×9 = 109%」会超 100 ——
+                     //   所以 base/stepW 只用于「额度」表述，不再当作「必须加满 100%」的预算 ✓
   months: 2,         // 时间兜底：距上次买入满 2 个月，不管跌没跌都投这一批
+  /* ⚠ 2026-11-25 每只**加第 6 档**（用户：「我的意思是超出的话 加一个档位，这样更好？」）——
+     原来最深只到 −15 / −10 / −25，而三只的历史最深分别是 −31.1 / −21.2 / −28.1 →
+     一旦跌穿最后一档就进了「无规则区」（页面只能标「已越出阶梯设计」，但不给动作）✗
+     → 按各自步长再延一档，让「极端情况」也有规则：
+         纳指 步长 3 → 第 6 档 **−18%**（离历史最深 −31.1 还有 13pp 余量）
+         标普 步长 2 → 第 6 档 **−12%**（离 −21.2 还有 9pp）
+         日经 步长 5 → 第 6 档 **−30%**（略深于历史最深 −28.1 —— 极端情况才触发，但规则先写好）
+     `deepest` 不动：它是「历史真到过多深」的事实值，不是规则 ✓ */
   levels: {
-    "159941": [-3, -6, -9, -12, -15],
-    "513650": [-2, -4, -6, -8, -10],
-    "513880": [-5, -10, -15, -20, -25],
+    "159941": [-3, -6, -9, -12, -15, -18],
+    "513650": [-2, -4, -6, -8, -10, -12],
+    "513880": [-5, -10, -15, -20, -25, -30],
   },
   deepest: { "159941": -31.1, "513650": -21.2, "513880": -28.1 },
 };
@@ -9748,23 +9766,30 @@ function ladderHtml() {
     if (dd === null) return "";
     const lv = LADDER.levels[c];
     const hit = lv.filter((L) => dd <= L);
-    const cum = LADDER.base + hit.length * LADDER.stepW;
     const next = lv.find((L) => dd > L);
     const gap = next === undefined ? null : Math.abs(next - dd);
+    /* ⚠ beyond0 要在徽章之前算 —— 原来 beyond 在 footer 那段才算，而徽章在 head，
+       直接引用会 TDZ（const 未初始化）✗ */
+    const beyond0 = next === undefined && dd <= lv[lv.length - 1];
     const lb = lastBuyOf(NAME[c]);
     const due = lb ? addMonths(lb, LADDER.months) : null;
     const overdue = due && TODAY >= due;
 
-    /* 分段：底仓（权重 base）＋ 5 批（各 stepW）；done = 已触发 */
-    const segBase = '<span class="ldb-seg ldb-base done" title="底仓 ' + LADDER.base + '% · 立即买入">'
-      + "<i>底仓</i><b>" + LADDER.base + "%</b></span>";
+    /* ⚠ 2026-11-25 删掉「底仓」段（用户：「加仓阶梯 的 底仓去掉，然后我只想看当前回撤到哪个档位」）——
+       底仓 55% 是「不管跌没跌都先投」的**一次性建仓**建议，它和「跌多少加多少」这条阶梯不是一回事，
+       摆在同一排里会让「第 N 档」的位置永远从 2 开始数 ✗
+       → 只留 5 个回撤档，当前跌到哪一档高亮，一眼就是「现在还差几档」✓
+       （`LADDER.base` 已于同日整体删除 —— 上面这句原本说「保留给回到前高用」，实为误记）*/
     const segs = lv.map((L, i) => {
       const done = dd <= L;
       const isNext = next === L;
+      /* 段内文案（2026-11-25 改）：原来未触发档写「投 9%」，可用户要的是「我在第几档」——
+         9% 是额度、不是位置；改成「还差 2.4」这种距离，读起来才是「离下一档多远」✓
+         已触发的档仍显示 ✓（它表示「这一档的回撤确实出现过」） */
       return '<span class="ldb-seg' + (done ? " done" : "") + (isNext ? " next" : "") + '"'
-        + ' title="第 ' + (i + 1) + " 批 · 回撤 " + neg(L) + " 时投 " + LADDER.stepW + "%"
-        + (done ? "（已触发）" : isNext ? "（下一档，还差 " + gap.toFixed(1) + "pp）" : "（未触发）") + '">'
-        + "<i>" + neg(L) + "</i><b>" + (done ? "✓" : LADDER.stepW + "%") + "</b></span>";
+        + ' title="第 ' + (i + 1) + ' 档 · 回撤 ' + neg(L) + (done ? " 已触发" : " 触发")
+        + (isNext ? "（还差 " + gap.toFixed(1) + "pp）" : "") + '">'
+        + "<i>" + neg(L) + "</i><b>" + (done ? "✓" : isNext ? "待" : "—") + "</b></span>";
     }).join("");
 
     /* 下一次：回撤 或 时间兜底，两个都写出来 */
@@ -9780,9 +9805,14 @@ function ladderHtml() {
           + '，现已跌到 ' + neg1(dd) + ' —— 后续任何跌幅都不会再触发新批次。'
           + '要继续加，只能靠新转入的资金，或从超配的标的匀出（同一笔钱别重复算）">'
           + "已越出阶梯设计</b>" : "")
+      /* ⚠ 2026-11-25：日期从正文挪进 title（用户：「只想看当前回撤到哪个档位」）——
+         375px 下「下次 −15% 还差 0.8pp 或 2027-01-24 兜底」会折成两行，把一行信息撑成三行 ✗
+         正文只留「还差 X pp」＋ 一个「⏱」标记（悬停看具体日期）✓ */
       : "下次 <b>" + neg(next) + "</b> 还差 <b>" + gap.toFixed(1) + "pp</b>"
-        + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\">或 "
-          + (due.slice(0, 4) === TODAY.slice(0, 4) ? due.slice(5) : due) + " 兜底</b>" : "");
+        + (due ? "　<b class=\"" + (overdue ? "ld-due-now" : "ld-due") + "\" title=\"距上次买入满 "
+          + LADDER.months + " 个月的兜底日：<b>" + due + "</b>"
+          + (overdue ? "（已到期 —— 不管跌没跌都该投这一批）" : "") + "\">⏱ "
+          + (overdue ? "已到期" : due.slice(5)) + "</b>" : "");
 
     /* ⚠ 2026-11-12 给这个数字加标签（用户原话：「−6.3% 是什么意思？」）——
        原来它是**裸奔**的：一行里只有「名称 · −6.3% · 已投 73%」，读者只能猜这是跌幅、
@@ -9799,13 +9829,25 @@ function ladderHtml() {
       + '<span class="ldb-nm">' + NAME[c] + "</span>"
       + '<span class="ldb-dd-lb" title="' + ddTitle + '">距52周高点</span>'
       + '<b class="ldb-dd">' + neg1(dd) + "</b>"
-      /* ⚠ 2026-11-22：cum 是「按阶梯规则该投的比例」，不是「这只占总资产的比重」。
-         原来只写「已投 100%」，很容易被读成「这只已经满仓、不能再买」✗
-         → 满档时补「额度用尽」，把语义钉在「阶梯额度」上 ✓ */
-      + '<span class="ldb-cum">已投 <b>' + cum + "%</b>"
-      + (cum >= LADDER.base + lv.length * LADDER.stepW ? '<i class="ldb-used">额度用尽</i>' : "") + "</span>"
+      /* ⚠ 2026-11-25：「已投 82%」→「第 4 / 5 档」（用户：「我只想看当前回撤到哪个档位」）——
+         「已投」是**额度**口径（55 + N×9），要和「这只占总资产多少」区分，每次都得靠 title 解释 ✗
+         而用户真正想知道的是**位置**：现在跌到第几档、还剩几档 —— 直接给档位序号 ✓
+         （额度信息仍在每段的 title 里：触发后累计投多少） */
+      /* 档位徽章（2026-11-25，用户：「把第 N / 5 档做成一个小徽章，加上超出的设计」）——
+         · 一档都没触发 → 灰（还在浅档上面）
+         · 打到一半 → 蓝（中段）
+         · 打满 → 绿（额度用尽）
+         · **越出阶梯最深一档** → 琥珀（超出设计范围，后面没有规则了，必须一眼看出）✓
+         颜色随档位递进，扫一行就知道三只分别在什么位置、谁已经「跌穿了规则」 */
+      + '<span class="ldb-badge' + (hit.length === 0 ? " lv0" : hit.length < lv.length ? " lv-mid" : " lv-full")
+      + (beyond0 ? " is-over" : "") + '" title="' + (beyond0
+        ? "已跌穿阶梯最深一档（" + neg(lv[lv.length - 1]) + "）—— 后续任何跌幅都不会再触发新批次"
+        : "阶梯共 " + lv.length + " 档，已触发 " + hit.length + " 档") + '">'
+      + "第 <b>" + (hit.length || 0) + " / " + lv.length + "</b> 档"
+      + (beyond0 ? ' <i>超出</i>' : hit.length === lv.length ? ' <i class="ok">打满</i>' : "")
+      + "</span>"
       + "</div>"
-      + '<div class="ldb-track">' + segBase + segs + "</div>"
+      + '<div class="ldb-track">' + segs + "</div>"
       + '<div class="ldb-foot">' + nextTxt
       // ⚠ 2026-11-22：title 里不要写 **星号** —— HTML 属性是纯文本，星号会原样显示；
       // 也别用双引号包这段（它里面有 HTML 的 "）→ 全用单引号 ✓
@@ -9965,7 +10007,11 @@ function ladderHtml() {
   card.innerHTML = '<div class="ld">'
     + rows
     + '<div class="ld-legend2"><i class="lg-done"></i>已触发 <i class="lg-next"></i>下一档 <i class="lg-todo"></i>未触发'
-    + '<span class="ld-legend2-note">条长比例＝投入占比：底仓 ' + LADDER.base + "% ＋ 5 批 × " + LADDER.stepW + "%</span></div>"
+    /* ⚠ 2026-11-25 图例改（底仓段已删）——原写「条长比例＝投入占比：底仓 55% ＋ 5 批 × 9%」，
+       条上已经没有底仓那段了，这句会让人去找一根不存在的柱子 ✗
+       现在 5 段等宽，条长不再编码权重，只编码「第几档」✓ */
+    + '<span class="ld-legend2-note">条长＝' + (LADDER.levels["159941"] || []).length
+    + ' 个回撤档（等宽，不代表额度）</span></div>'
     + proj
     + '<div class="ld-note">'
     + "<b>「距52周高点」</b>＝现价 ÷ 52 周最高<b>收盘</b>价 − 1；别处的「距高点」用盘中最高，差约 1pp —— 刻意避开上影线，不是数据打架"
@@ -9979,12 +10025,19 @@ function ladderHtml() {
     + (Number.isFinite(T["159941"] && T["159941"].distHi) ? neg1(T["159941"].distHi) : "—")
     + "</b>，差的 " + gapTxt + " 全来自溢价）；<b>溢价收敛时则会补跌</b> —— 所以本阶梯用它定档会偏慢"
     + "<br><b>档位按各自波动定</b>：纳指 −20% 一年只有 <b>10%</b> 概率触及、标普 −20% 只有 <b>3%</b>，设那么深等于永远不投 ✗；"
-    + "而等不到时标的平均涨了 <b>+33~38%</b>，所以底仓给到 " + LADDER.base + "% ✓"
+    /* ⚠ 2026-11-25：底仓段已从条上移除 → 这句不再提「底仓给到 55%」（会让人去找那根柱子）✗
+       改成「所以档位不设太深」——它才是这句话真正在解释的事（为什么纳指最深只到 −15%）✓ */
+    + "而等不到时标的平均涨了 <b>+33~38%</b>，所以档位不设太深（纳指最深只到 −15%）"
     + "<br><b>时间兜底</b>：距上次买入满 <b>" + LADDER.months + " 个月</b>，不管跌没跌都投下一批 —— 防「牛市整年等不到」✓"
     + "<br><b>⚠ 前提</b>：场内可用现金 <b>0</b>，第一档就执行不了 ✗ 弹药从「新转进来的钱」留出，或从超配的那只匀"
     + "</div></div>";
   const cnt = document.getElementById("ladder-cnt");
-  if (cnt) cnt.textContent = "底仓 " + LADDER.base + "% ＋ 5 批 × " + LADDER.stepW + "% · 回撤或 " + LADDER.months + " 个月先到先做";
+  if (cnt) {
+    /* ⚠ 2026-11-25 改（底仓已删）：原来写「底仓 55% ＋ 5 批 × 9%」，
+       55% 那部分现在已经不存在了 ✗ → 只留档位与每档额度 ✓ */
+    const nLv = (LADDER.levels["159941"] || []).length;
+    cnt.textContent = nLv + " 档 × 每档 " + LADDER.stepW + "% · 回撤或 " + LADDER.months + " 个月先到先做";
+  }
 }
 renderLadderSafe();
 function renderLadderSafe() { try { ladderHtml(); } catch (e) { console.warn("ladder:", e.message); } }
