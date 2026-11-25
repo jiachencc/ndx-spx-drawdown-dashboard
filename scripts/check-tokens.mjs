@@ -64,7 +64,9 @@ pages.forEach((p) => {
   const html = read(p.html);
   const linkIdx = html.indexOf(TOKENS);
   const mainCss = p.css[0] ? html.indexOf(p.css[0]) : html.indexOf("</head>");
-  const linkTag = new RegExp('<link[^>]+href="' + p.link.replace(".", "\\.") + '"');
+  /* ⚠ 2026-11-25：允许 `?v=20261125` 这类版本参数（防 Edge 缓存旧 CSS/JS）——
+     原来的正则要求 `href="tokens.css"` 精确闭合，加了 ?v= 就判「没引用」✗ */
+  const linkTag = new RegExp('<link[^>]+href="' + p.link.replace(".", "\\.") + '(\\?[^"]*)?"');
   check(p.html + " 引了 tokens.css 且在它自己的样式表之前",
     linkIdx >= 0 && linkTag.test(html) && (mainCss < 0 || linkIdx < mainCss),
     linkIdx < 0 ? "没有 <link … " + p.link + ">" : "tokens 位置 " + linkIdx + " vs 主样式表 " + mainCss);

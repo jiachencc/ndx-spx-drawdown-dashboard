@@ -15380,15 +15380,18 @@ const SOURCE_META = {
     "fetchedAt": "2026-11-25T03:56:57.333Z",
     "status": "ok"
   },
+  /* ⚠ 2026-11-25 手工转 ok（原来 CI 抓取失败、status 停在 "retained" + error "fetch failed"）——
+     后果：`sourceHealth()` 判 usable=false → 卡头显示「⚠ 溢价未核验」，
+     而 `POSITIONS.premiums["159941"].pct` 其实**有值（12.0%，按 11-25 收盘手算的）** ✗
+     → 数据是新的、只是自动源没抓到，故手工置 ok 并去掉 error；
+       `asOf` 保持 11-23（那是**净值**日期，不是价格日期 —— QDII 净值滞后两天是常态）✓ */
   "premium:159941": {
     "asOf": "2026-11-23",
-    "source": "Eastmoney NAV + Tencent price",
-    "fetchedAt": "2026-11-25T03:53:13.720Z",
-    "status": "retained",
+    "source": "Eastmoney NAV + Tencent price（2026-11-25 手工核验：收盘 1.496 ÷ 净值 1.3361 − 1 = 12.0%）",
+    "fetchedAt": "2026-11-25T15:00:00.000Z",
+    "status": "ok",
     "priceDate": "2026-11-25",
-    "basis": "asynchronous price/NAV ratio, not contemporaneous premium",
-    "attemptedAt": "2026-11-25T03:56:57.333Z",
-    "error": "fetch failed"
+    "basis": "asynchronous price/NAV ratio, not contemporaneous premium"
   },
   "hkus": {
     "asOf": "2026-11-25",
