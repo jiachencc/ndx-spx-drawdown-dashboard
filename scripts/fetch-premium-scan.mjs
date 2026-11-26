@@ -127,6 +127,18 @@ if (items.length < MIN_ITEMS) {
     + "），放弃写盘 —— 保留上一版 PREM_SCAN，避免用残缺数据覆盖 ✓");
   process.exit(0);
 }
+/* ⚠ 还要求「关键代码」齐全（2026-11-26 加）——
+   只数个数不够：实测抓到 7/10 只、但恰好缺了 159941，
+   写盘后 `check-data` 报「PREM_SCAN 缺 159941 / 513100 / 159632」→ 整条流水线红 ✗
+   这 4 只是 data-quality 硬性要求必须在场的（纳指类主力 4 只）✓
+   ⚠ 这里**不做「合并旧值」**：PREM_SCAN 是整体快照，asOf / chart / median 都基于同一批，
+     补几条会造成内部不一致（10 只条目配 7 条走势线）✗ → 缺就整体不写，保留上一版 ✓ */
+const MUST_HAVE = ["159941", "513100", "159632", "513110"];
+const lack = MUST_HAVE.filter((c) => !items.some((x) => String(x.code) === c));
+if (lack.length) {
+  console.log("⚠ 关键代码缺失（" + lack.join(" / ") + "），放弃写盘 —— 保留上一版 PREM_SCAN ✓");
+  process.exit(0);
+}
 if (!items.length) throw new Error("一只都没拉到，放弃写盘");
 
 /* ── 公共日（2026-10-28 修）──────────────────────────────────────────────
