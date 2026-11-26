@@ -356,8 +356,13 @@ let candidate;
 if (/^const YEARLY_YTD = \{/m.test(src)) {
   candidate = src.replace(/^const YEARLY_YTD = \{[\s\S]*?^\};/m, () => ytdBody);
 } else {
-  const anchor = "const NDX_DD = {";
-  if (!src.includes(anchor)) throw new Error("找不到插入锚点 const NDX_DD");
+  /* ⚠ 锚点从 `const NDX_DD` 换成 `const DDHIST`（2026-11-26 修）——
+     `build-ndx-dd.mjs` 整块替换 NDX_DD 时，替换起点是它的**注释开头**
+     （`/**\n * NDX_DD …`），而 YEARLY_YTD 原来正好夹在「注释」与「const」之间
+     → 每次跑 build-ndx-dd 都会把 YEARLY_YTD **整块删掉**，页面年度表现直接消失 ✗
+     换到 DDHIST 之前（在 NDX_DD 的范围之外）就安全了 ✓ */
+  const anchor = "const DDHIST = {";
+  if (!src.includes(anchor)) throw new Error("找不到插入锚点 const DDHIST");
   candidate = src.replace(anchor, () => ytdHeader + ytdBody + "\n\n" + anchor);
 }
 /* 清掉旧版整块 YEARLY（2026-11-26 前的形态，已拆成两个文件） */
