@@ -40,7 +40,14 @@ const CODE = {
                                     data-quality 报「缺标的」→ daily 整段回滚 ✗ */
 };
 
-async function navSeries(code) {
+/* ⚠ 2026-11-26 加「翻够就停」（needFrom）——
+   原来固定翻 40 页（每页 20 条 = 800 天），而 PREM_LOG 实际只覆盖 **58 个交易日**
+   （2026-06-01 起，只有成交日才记）→ **浪费 93% 的请求** ✗
+   实测 6 只共 222 次请求 / 973 KB，是本项目最大的单项开销（占全部请求的 63%）
+   → 传入「最早的成交日」后，翻到比它更早一页就停：约 4~5 页/只，**222 → 约 30 次** ✓
+   ⚠ needFrom 必须由调用方给（本函数不知道哪些日子有成交）——
+     给 null 时退回老行为（翻满 40 页），保证「不知道要多久」时不会漏数据 ✓ */
+async function navSeries(code, needFrom) {
   const m = {};
   for (let p = 1; p <= 40; p++) {
     const r = await fetch(`https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=${p}&pageSize=20`,
@@ -50,6 +57,9 @@ async function navSeries(code) {
     const list = (j.Data && j.Data.LSJZList) || [];
     if (!list.length) break;
     for (const x of list) if (isDate(x.FSRQ)) m[x.FSRQ] = +x.DWJZ;
+    /* 本页最老一天已经早于 needFrom → 再往前翻也没用了 */
+    const oldest = list[list.length - 1] && list[list.length - 1].FSRQ;
+    if (needFrom && oldest && oldest < needFrom) break;
   }
   return m;
 }
@@ -87,9 +97,13 @@ async function main() {
   const jobs = await Promise.all(Object.entries(CODE).map(async ([name, code]) => {
     const rows = log.filter((e) => e.sym === name && isDate(e.d) && Number.isFinite(+e.cost));
     if (!rows.length) return null;
+    /* 该只**最早**的一笔成交日 − 7 天＝净值要翻到多早（7 天缓冲覆盖长假/周末）
+       → navSeries 翻到这一页就停，不用把 800 天全拉完 ✓ */
+    const earliest = rows.reduce((a, e) => (e.d < a ? e.d : a), rows[0].d);
+    const needFrom = new Date(Date.parse(earliest) - 7 * 86400000).toISOString().slice(0, 10);
     let nav;
     try {
-      nav = await navSeries(code);
+      nav = await navSeries(code, needFrom);
     } catch (e) {
       return { name, err: e.message };
     }
