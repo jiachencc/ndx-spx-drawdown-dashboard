@@ -68,6 +68,29 @@ async function fredSeries(id, from) {
   return out;
 }
 
+/* ⚠ 腾讯美股日线（2026-11-26 加）—— GitHub Actions 的 runner 在海外，
+   东财 K 线（push2his.eastmoney.com）整批不通，而腾讯（web.ifzq.gtimg.cn）是通的。
+   实测 usINX 与东财 100.SPX 在 1,000 个重叠交易日上**平均差 0.0000%、最大差 0.0005%**，
+   且用它算出的 2023~2026 三列与东财**逐位一致** ✓
+   ⚠ 只给 **1,000 根（≈4 年）** → 够「增量模式」（只需上年 12 月＋当年），
+     但**不够全量**（要 40 年）→ 全量模式仍走东财/FRED，失败就放弃写盘，绝不截断历史 ✗
+   ⚠ 字段是数组：`[日期, 开, 收, 高, 低, 量]` —— **收盘在索引 2**（东财的字符串是索引 1） */
+async function tencentSeries(sym, limit = 1000) {
+  const u = "https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param="
+    + sym + ",day,,," + limit + ",qfq";
+  const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", Referer: "https://finance.qq.com/" },
+    signal: AbortSignal.timeout(25000) });
+  if (!r.ok) throw new Error("tencent " + sym + " HTTP " + r.status);
+  const j = await r.json();
+  const obj = (j.data || {})[sym] || {};
+  const key = Object.keys(obj).find((k) => Array.isArray(obj[k]));
+  const arr = key ? obj[key] : [];
+  const out = arr.map((x) => ({ d: x[0], c: +x[2] }))
+    .filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.d) && Number.isFinite(x.c) && x.c > 0);
+  if (!out.length) throw new Error("tencent " + sym + " 无有效行");
+  return out;
+}
+
 async function eastmoneySeries(secid, beg) {
   const u = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + secid
     + "&fields1=f1,f2&fields2=f51,f53&klt=101&fqt=1&beg=" + beg + "&end=20500101&lmt=20000";
@@ -151,11 +174,17 @@ const say = (t) => console.log("  " + t);
    → 行情数据按**北京日期**落盘，判据也统一用本地年 ✓ */
 const localYear = new Date().getFullYear();
 const thisYear = localYear;
-let histTo = null;
+let histTo = null, histNN = 0, histNS = 0;
 try {
   const cur = readFileSync(histFile, "utf8");
   const m = /"to":\s*(\d{4})/.exec(cur);
   if (m) histTo = +m[1];
+  /* 旧行数：用来判断「历史是否被截断」（比 from 可靠 ——
+     from 取两个指数的 min，NDX 还在 1987 时 SPX 被砍掉一半也看不出来 ✗） */
+  const mN = /"ndx":\s*\[([\s\S]*?)\]/.exec(cur);
+  const mS = /"spx":\s*\[([\s\S]*?)\]/.exec(cur);
+  if (mN) histNN = (mN[1].match(/\{"y":/g) || []).length;
+  if (mS) histNS = (mS[1].match(/\{"y":/g) || []).length;
 } catch (e) { /* 文件不存在 → 需要全量 */ }
 
 /* 历史「已完整」= yearly.js 的 to 已经 ≥ 去年（即除当年外的年份都有了） */
@@ -179,20 +208,45 @@ try {
   ndxSrc = "FRED NASDAQ100";
   say("NDX ← FRED · " + ndxRows.length + " 根 · " + ndxRows[0].d + " ~ " + ndxRows[ndxRows.length - 1].d);
 } catch (e) {
-  ndxRows = await eastmoneySeries("100.NDX100", fromDay ? fromDay.replace(/-/g, "") : "19800101");
-  ndxSrc = "Eastmoney 100.NDX100";
-  console.warn("  ⚠ FRED NDX 失败（" + e.message + "）→ 退回东财（只到 2019-04，历史会短很多）");
+  /* FRED 失败 → 先试腾讯（CI 里稳定、且给日线）；东财的 NDX 只到 2019-04，放最后 ✓ */
+  try {
+    ndxRows = await tencentSeries("usNDX");
+    ndxSrc = "Tencent usNDX";
+    console.warn("  ⚠ FRED NDX 失败（" + e.message + "）→ 改用腾讯 usNDX " + ndxRows.length + " 根");
+  } catch (e2) {
+    ndxRows = await eastmoneySeries("100.NDX100", fromDay ? fromDay.replace(/-/g, "") : "19800101");
+    ndxSrc = "Eastmoney 100.NDX100";
+    console.warn("  ⚠ FRED 与腾讯都失败 → 退回东财（只到 2019-04，历史会短很多）");
+  }
 }
 
 let spxRows, spxSrc;
-try {
-  spxRows = await eastmoneySeries("100.SPX", fromDay ? fromDay.replace(/-/g, "") : "19800101");
+if (!needFull) {
+  /* 增量：只需「上年 12 月 ＋ 当年」≈ 250 根 → 腾讯 1,000 根绰绰有余，
+     而且它在 CI 里是通的（东财不通）。先腾讯、再东财、最后 FRED ✓ */
+  try {
+    spxRows = await tencentSeries("usINX");
+    spxSrc = "Tencent usINX";
+    say("SPX ← 腾讯 usINX · " + spxRows.length + " 根 · " + spxRows[0].d + " ~ "
+      + spxRows[spxRows.length - 1].d);
+  } catch (e) {
+    try {
+      spxRows = await eastmoneySeries("100.SPX", fromDay.replace(/-/g, ""));
+      spxSrc = "Eastmoney 100.SPX";
+      say("SPX ← 东财 · " + spxRows.length + " 根（腾讯失败：" + e.message + "）");
+    } catch (e2) {
+      spxRows = await fredSeries("SP500", fromDay);
+      spxSrc = "FRED SP500";
+      console.warn("  ⚠ 腾讯与东财都失败 → 退回 FRED（" + e2.message + "）");
+    }
+  }
+} else {
+  /* 全量：必须 40 年 → 只有东财给得出。**失败就抛错、不写盘** ——
+     用 4 年（腾讯）或 10 年（FRED）覆盖 40 年历史是数据损坏，
+     比「晚几天归档」严重得多 ✗ 宁可让 CI 失败一次、保留旧 yearly.js ✓ */
+  spxRows = await eastmoneySeries("100.SPX", "19800101");
   spxSrc = "Eastmoney 100.SPX";
   say("SPX ← 东财 · " + spxRows.length + " 根 · " + spxRows[0].d + " ~ " + spxRows[spxRows.length - 1].d);
-} catch (e) {
-  spxRows = await fredSeries("SP500", fromDay);
-  spxSrc = "FRED SP500";
-  console.warn("  ⚠ 东财 SPX 失败（" + e.message + "）→ 退回 FRED（只有滚动 10 年）");
 }
 
 const ndxAll = yearlyStats(ndxRows);
@@ -251,6 +305,21 @@ const YEARLY_YTD = {
 };
 
 /* ── 写 yearly.js（历史，低频）────────────────────────────────────────── */
+/* ⚠ 保护：全量重建时，历史起点**不许后退**（2026-11-26 加）——
+   SPX 全量只有东财给得出 1986；万一它挂了退回 FRED（滚动 10 年）或腾讯（4 年），
+   会把 40 年历史**静默截断**成 10 年 / 4 年，而页面只是「年份变少了」，
+   没有任何报错 ✗ → 起点比原来晚 2 年以上就拒绝写盘 ✓
+   （「晚几天归档」是小问题，「丢 30 年历史」是大问题） */
+if (!histCarry) {
+  const cut = [];
+  if (histNN && YEARLY_HIST.ndx.length < histNN * 0.9) cut.push("NDX " + histNN + "→" + YEARLY_HIST.ndx.length);
+  if (histNS && YEARLY_HIST.spx.length < histNS * 0.9) cut.push("SPX " + histNS + "→" + YEARLY_HIST.spx.length);
+  if (cut.length) {
+    throw new Error("历史被截断（" + cut.join(" / ") + "）—— 数据源降级了（"
+      + ndxSrc + " / " + spxSrc + "）→ 拒绝写盘，保留旧 yearly.js ✓");
+  }
+}
+
 const histBody = "const YEARLY_HIST = " + JSON.stringify(YEARLY_HIST, null, 1) + ";\n";
 const histHeader = "/* AUTO（低频）：年度涨跌 · 年内最大涨幅 · 年内最大回撤 —— 已完结年份\n"
   + "   ⚠ **这个文件一年只变一次**（新增一整年后），所以从 data.js 里拆出来 ——\n"
