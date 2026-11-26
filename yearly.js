@@ -251,6 +251,12 @@ const YEARLY_HIST = {
  ],
  "spx": [
   {
+   "y": 1988,
+   "yr": 12.4,
+   "runup": 16.91,
+   "dd": -7.64
+  },
+  {
    "y": 1989,
    "yr": 27.25,
    "runup": 30.69,
@@ -488,15 +494,15 @@ const YEARLY_HIST = {
    "bestRun": 100
   },
   "spx": {
-   "n": 37,
-   "pos": 27,
+   "n": 38,
+   "pos": 28,
    "neg": 10,
-   "winRate": 73,
-   "cum": 24.65,
-   "cagr": 9,
+   "winRate": 74,
+   "cum": 27.7,
+   "cagr": 9.1,
    "avg": 10.5,
-   "avgDD": -14.1,
-   "avgUp": 24.7,
+   "avgDD": -13.9,
+   "avgUp": 24.5,
    "worstDD": -48,
    "bestRun": 67.9
   }

@@ -42,8 +42,14 @@ const UA = { "User-Agent": "Mozilla/5.0" };
 const MIN_DAYS = 200;        // 少于这么多交易日视为不完整（首年 / 当年）
 
 /* ── 取数 ─────────────────────────────────────────────────────────────── */
-async function fredSeries(id) {
-  const r = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=" + id,
+async function fredSeries(id, from) {
+  /* ⚠ `cosd` 让 FRED 只返回该日之后的行（2026-11-26 加）——
+     全量是 10,669 行、只取当年是 233 行，日更时省 97% 流量 ✓
+     FRED 不支持增量追加，所以「历史已完整」时只拉当年即可：
+     YTD 的三列（年度/年内最高/年内回撤）**只需要当年数据**，
+     历史那部分连同它的 stats 都已在 yearly.js 里、不必重算 ✓ */
+  const r = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=" + id
+    + (from ? "&cosd=" + from : ""),
     { headers: UA, signal: AbortSignal.timeout(30000) });
   if (!r.ok) throw new Error(id + " HTTP " + r.status);
   const t = await r.text();
@@ -85,7 +91,12 @@ function yearlyStats(rows) {
     const rs = byYear[y];
     const complete = rs.length >= MIN_DAYS;
     const prevRows = yrs[i - 1] ? byYear[yrs[i - 1]] : null;
-    const prevOk = prevRows && prevRows.length >= MIN_DAYS;
+    /* ⚠ 上一年**不要求完整**（2026-11-26 修）——
+       年度涨跌的分母只是「上年最后一个交易日收盘」，有一行就够 ✓
+       原来要求 prevRows.length >= 200，导致增量模式（只拉上年 12 月）
+       算出的 yr 全是 null ✗；而全量模式下这条限制也没必要：
+       1987 用 1986-12-31 的收盘是**正确**的做法，不该因为 1986 只有 200 天就丢掉一年 ✓ */
+    const prevOk = prevRows && prevRows.length > 0;
     let hi = -Infinity, lo = Infinity, mdd = 0, mru = 0;
     rs.forEach((r) => {
       if (r.c > hi) hi = r.c;
@@ -130,33 +141,68 @@ function summarize(list) {
   };
 }
 
-/* ── 跑 ───────────────────────────────────────────────────────────────── */
+/* ── 先看历史是否已完整（决定要不要拉全量）───────────────────────────── */
 const say = (t) => console.log("  " + t);
+const thisYear = +new Date().toISOString().slice(0, 4);
+let histTo = null;
+try {
+  const cur = readFileSync(histFile, "utf8");
+  const m = /"to":\s*(\d{4})/.exec(cur);
+  if (m) histTo = +m[1];
+} catch (e) { /* 文件不存在 → 需要全量 */ }
+
+/* 历史「已完整」= yearly.js 的 to 已经 ≥ 去年（即除当年外的年份都有了） */
+const needFull = histTo === null || histTo < thisYear - 1;
+/* ⚠ 增量模式要从**上一年 12 月**起拉（2026-11-26 修）——
+   只拉当年会缺「上年末收盘」→ 2026 的年度涨跌算成 null ✗
+   多拉一个月就够了（2025-12 的月末收盘就是分母），成本可以忽略 ✓
+   ⚠ 多出来的 2025-12 那几天会被 pick() 按 `complete` 滤掉（不足 200 个交易日）✓ */
+const fromDay = needFull ? null : (thisYear - 1) + "-12-01";
+say(needFull
+  ? "历史不完整（yearly.js " + (histTo === null ? "缺失" : "只到 " + histTo) + "）→ 拉全量"
+  : "历史已完整（yearly.js 到 " + histTo + "）→ 只拉当年 " + thisYear + "，历史不重算");
+
+/* ── 跑 ───────────────────────────────────────────────────────────────── */
 
 let ndxRows, ndxSrc;
 try {
-  ndxRows = await fredSeries("NASDAQ100");
+  ndxRows = await fredSeries("NASDAQ100", fromDay);
   ndxSrc = "FRED NASDAQ100";
   say("NDX ← FRED · " + ndxRows.length + " 根 · " + ndxRows[0].d + " ~ " + ndxRows[ndxRows.length - 1].d);
 } catch (e) {
-  ndxRows = await eastmoneySeries("100.NDX100", "19800101");
+  ndxRows = await eastmoneySeries("100.NDX100", fromDay ? fromDay.replace(/-/g, "") : "19800101");
   ndxSrc = "Eastmoney 100.NDX100";
   console.warn("  ⚠ FRED NDX 失败（" + e.message + "）→ 退回东财（只到 2019-04，历史会短很多）");
 }
 
 let spxRows, spxSrc;
 try {
-  spxRows = await eastmoneySeries("100.SPX", "19800101");
+  spxRows = await eastmoneySeries("100.SPX", fromDay ? fromDay.replace(/-/g, "") : "19800101");
   spxSrc = "Eastmoney 100.SPX";
   say("SPX ← 东财 · " + spxRows.length + " 根 · " + spxRows[0].d + " ~ " + spxRows[spxRows.length - 1].d);
 } catch (e) {
-  spxRows = await fredSeries("SP500");
+  spxRows = await fredSeries("SP500", fromDay);
   spxSrc = "FRED SP500";
   console.warn("  ⚠ 东财 SPX 失败（" + e.message + "）→ 退回 FRED（只有滚动 10 年）");
 }
 
 const ndxAll = yearlyStats(ndxRows);
 const spxAll = yearlyStats(spxRows);
+
+/* ⚠ 增量模式下只拿到了当年的数据 → 算出来的「历史」只有当年那一年，
+   若照原逻辑写盘会把 yearly.js 覆盖成一行 ✗ → 历史部分**整块沿用旧文件** ✓ */
+let histCarry = null;
+if (!needFull) {
+  try {
+    const cur = readFileSync(histFile, "utf8");
+    const m = /const YEARLY_HIST = (\{[\s\S]*?\n\});/.exec(cur);
+    if (m) histCarry = JSON.parse(m[1]);
+  } catch (e) {
+    console.warn("  ⚠ 读不出 yearly.js 的历史块（" + e.message + "）→ 退回全量模式");
+    histTo = null;
+  }
+}
+if (!needFull && !histCarry) throw new Error("增量模式但读不到历史块，放弃（避免把 yearly.js 写坏）");
 const ytdYear = +[ndxRows[ndxRows.length - 1].d, spxRows[spxRows.length - 1].d].sort()[1].slice(0, 4);
 
 /* 已完结年份 → yearly.js；当年 → data.js */
@@ -166,9 +212,11 @@ const ndxYtd = ndxAll.find((x) => x.y === ytdYear) || null;
 const spxYtd = spxAll.find((x) => x.y === ytdYear) || null;
 const asOf = [ndxYtd ? ndxYtd.lastTrade : "?", spxYtd ? spxYtd.lastTrade : "?"].sort()[1];
 
-if (!ndxHist.length || !spxHist.length) throw new Error("历史序列为空，放弃写盘");
+/* ⚠ 增量模式下 ndxHist/spxHist 必然为空（只拉了当年，而 pick 会滤掉当年）——
+   那不是错误，历史走 histCarry ✓ 只有「全量模式且仍为空」才是真错 ✗ */
+if (!histCarry && (!ndxHist.length || !spxHist.length)) throw new Error("历史序列为空，放弃写盘");
 
-const YEARLY_HIST = {
+const YEARLY_HIST = histCarry ? Object.assign({}, histCarry, { updated: asOf }) : {
   updated: asOf,
   from: Math.min(ndxHist[0].y, spxHist[0].y),
   to: ytdYear - 1,
@@ -197,18 +245,23 @@ const histHeader = "/* AUTO（低频）：年度涨跌 · 年内最大涨幅 · 
   + "   ⚠ 当年（YTD）在 data.js 的 YEARLY_YTD，每日更新 ✓\n"
   + "   ⚠ ②「年内最大涨幅」③「年内最大回撤」都是**顺序扫描**，不是最高÷最低 ✗\n"
   + "   由 scripts/build-yearly.mjs 整块重写 */\n";
-try {
-  const cur = readFileSync(histFile, "utf8");
-  if (cur === histHeader + histBody) {
-    say("yearly.js 无变化，跳过写盘");
-  } else {
+if (histCarry) {
+  say("yearly.js 未改动（增量模式 · 历史沿用 " + histCarry.from + "~" + histCarry.to
+    + " · NDX " + histCarry.ndx.length + " 行 / SPX " + histCarry.spx.length + " 行）");
+} else {
+  try {
+    const cur = readFileSync(histFile, "utf8");
+    if (cur === histHeader + histBody) {
+      say("yearly.js 无变化，跳过写盘");
+    } else {
+      atomicWrite(histFile, histHeader + histBody);
+      say("yearly.js 已写入（" + YEARLY_HIST.from + "~" + YEARLY_HIST.to
+        + " · NDX " + YEARLY_HIST.ndx.length + " 行 / SPX " + YEARLY_HIST.spx.length + " 行）");
+    }
+  } catch (e) {
     atomicWrite(histFile, histHeader + histBody);
-    say("yearly.js 已写入（" + YEARLY_HIST.from + "~" + YEARLY_HIST.to
-      + " · NDX " + YEARLY_HIST.ndx.length + " 行 / SPX " + YEARLY_HIST.spx.length + " 行）");
+    say("yearly.js 已创建（" + YEARLY_HIST.from + "~" + YEARLY_HIST.to + "）");
   }
-} catch (e) {
-  atomicWrite(histFile, histHeader + histBody);
-  say("yearly.js 已创建（" + YEARLY_HIST.from + "~" + YEARLY_HIST.to + "）");
 }
 
 /* ── 写 data.js（YTD，每日）──────────────────────────────────────────── */
