@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份）—— 必须先于本页样式表 -->
-<link rel="stylesheet" href="tokens.css?v=20261126c">
-<link rel="stylesheet" href="positions.css?v=20261126c">
+<link rel="stylesheet" href="tokens.css?v=20261126d">
+<link rel="stylesheet" href="positions.css?v=20261126d">
 </head>
 <body>
 <script>
@@ -270,13 +270,13 @@ try {
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
 
-<script src="data.js?v=20261126c"></script>
-<script src="positions-data.js?v=20261126c"></script>
+<script src="data.js?v=20261126d"></script>
+<script src="positions-data.js?v=20261126d"></script>
 <!-- 共享口径（2026-10-16 加）：「本期已同步」/ 场外当日合计的有效集合 /「组合已到」的日期，
      三处判据原先在本页、scripts/apply-screenshot.mjs、scripts/dom-check.mjs 各写一份 → 一次更新里漂了 3 处 ✗。
      现在只定义在这一个文件里，本页直接调用、脚本侧用 data-quality.mjs 的 readPosLogic() 读同一份源码 ✓。
      ⚠ 只放判据不放数据；改它的同时要同步 scripts/lint.mjs 的 positions.inline 拼接顺序 ✗。 -->
-<script src="positions-logic.js?v=20261126c"></script>
+<script src="positions-logic.js?v=20261126d"></script>
 <!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
      的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移，
      并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
@@ -8373,35 +8373,42 @@ const monthOf = (d) => (d || "").slice(0, 7);   // "2026-10" —— **带年份*
    ⚠ 不用「上月同日」：台账是不规则的（有时一周三拍、有时半月一拍），
      按「上一个有数据的月份」比按日历月稳 ✓
    ⚠ 返回 null 表示算不出来（该月或上月没有快照）→ 调用处不显示这一项 ✓ */
-function monthCostDelta(mo, codes) {
-  const withItems = (typeof SNAPSHOTS !== "undefined" ? SNAPSHOTS : []).filter((x) => x && x.items);
-  /* codes 给了就只算这几只（每只卡的流水要的是**该只**的成本变化，
-     否则同一页所有卡片会显示同一个数 ✗ 实测就是这样） */
-  const sumCost = (sn) => Object.entries(sn.items)
-    .filter(([c]) => !codes || codes.has(c))
-    .reduce((a, [, it]) => a + (Number.isFinite(it.cost) ? it.cost : 0), 0);
-  const inMo = withItems.filter((x) => monthOf(x.d) === mo);
-  if (!inMo.length) return null;
-  const prevMo = [...new Set(withItems.map((x) => monthOf(x.d)))].filter((m) => m < mo).sort().at(-1);
-  if (!prevMo) return null;
-  const prevIn = withItems.filter((x) => monthOf(x.d) === prevMo);
-  if (!prevIn.length) return null;
-  const costEnd = sumCost(inMo.at(-1)), costPrev = sumCost(prevIn.at(-1));
-  const sumQty = (sn) => Object.entries(sn.items)
-    .filter(([c]) => !codes || codes.has(c))
-    .reduce((a, [, it]) => a + (Number.isFinite(it.qty) ? it.qty : 0), 0);
-  const qEnd = sumQty(inMo.at(-1)), qPrev = sumQty(prevIn.at(-1));
-  /* 成本**价**（Σ成本 ÷ Σ份数）—— 用户要的「当月把成本降低了多少%」是这个口径 ✓
-     ⚠ 不能把每条流水的 pct 相加（那是相对当笔之前的乘法变化率）：
-       实测纳指 11 月，21 笔逐条加起来约 −3%，而真实的月初→月末只有 **−1.38%** ✗ */
-  const pEnd = qEnd > 0 ? costEnd / qEnd : null;
-  const pPrev = qPrev > 0 ? costPrev / qPrev : null;
+function monthCostDelta(mo, sym) {
+  /* ⚠ 2026-11-26 改成**用流水重放**，不再依赖 SNAPSHOTS ——
+     原来用快照算（月初最后一期 → 该月最后一期），但快照只有 2026-09-07 起（48 期），
+     而流水从 6 月就有 → 6/7/8 月直接算不出来、9 月因为「上月无快照」也空 ✗
+     （用户当场发现：「纳指 只有 11 和 10 月，6-9 月没有计算？」）
+     流水是**全量**的（每笔买卖都在），逐笔重放出「每笔之后的成本额/份数」，
+     按月的最后一次即「月末状态」；上一个有操作的月份末 ＝ 本月月初 ✓
+     ⚠ 口径与 costTrace() 一致：买入 basis += 毛额 ＋ 费；卖出 basis −= (毛额 − 费) ✓ */
+  const log = (typeof POSITIONS !== "undefined" && POSITIONS.log) ? POSITIONS.log.slice().reverse() : [];
+  const byMo = {};
+  let qty = 0, basis = 0;
+  log.forEach((e) => {
+    if (e.sym !== sym) return;                    // 只算这一只
+    if (!e.d) return;
+    const gross = (e.qty || 0) * (e.cost || 0);
+    const fee = feeOf(e);
+    if (isSellAct(e)) { qty -= (e.qty || 0); basis -= gross - fee; }
+    else { qty += (e.qty || 0); basis += gross + fee; }
+    const m = monthOf(e.d);
+    if (m) byMo[m] = { basis: basis, qty: qty };
+  });
+  const months = Object.keys(byMo).sort();
+  const k = months.indexOf(mo);
+  if (k < 0) return null;
+  const endSt = byMo[mo];
+  const pEnd = endSt.qty > 0 ? endSt.basis / endSt.qty : null;
+  /* 月初 ＝ 上一个**有操作**的月末状态；没有上一个 ＝ 该月才建仓，无从比较 ✓ */
+  const pPrev = k > 0 && byMo[months[k - 1]].qty > 0 ? byMo[months[k - 1]].basis / byMo[months[k - 1]].qty : null;
   return {
-    delta: costEnd - costPrev, end: costEnd,
+    delta: k > 0 ? endSt.basis - byMo[months[k - 1]].basis : null,
+    end: endSt.basis,
     pricePrev: pPrev, priceEnd: pEnd,
     pricePct: (pPrev > 0 && pEnd > 0) ? (pEnd / pPrev - 1) * 100 : null,
   };
 }
+
 function monthRowHtml(entries, mo, costInfo) {
   /* isSellAct 用全局版（2026-10-12 收拢；此前本函数内又定义了一份 ✗） */
   const buys = entries.filter((e) => !isSellAct(e)), sells = entries.filter(isSellAct);
@@ -9364,7 +9371,7 @@ function posLogHtml(p, r, pl) {
       mo = m;
       /* 该月成本基数变化 = 该月最后一期 Σcost − 上月最后一期 Σcost（见 monthRowHtml 注释） */
       html += monthRowHtml(entries.filter((x) => monthOf(x.d) === m), m,
-        monthCostDelta(m, new Set([p.code])));
+        monthCostDelta(m, p.sym));
     }
     html += logItemHtml(e, true, pairBadge(i));
   });
