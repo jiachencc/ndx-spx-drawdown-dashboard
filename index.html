@@ -796,6 +796,96 @@
   .footer b,
   td.h-desc b,
   .recent-spans .rtab { font-family: var(--mono); font-feature-settings: "tnum"; }
+
+  /* ══ 近 15 年年度涨跌卡（2026-11-26 加）═════════════════════════════════ */
+  /* ⚠ 2026-11-26：指数切换按钮**必须与「2026 年内月度涨跌幅」那组完全一致**——
+     原来这里是胶囊（999px 圆角、sans、淡青底），而 .mc-tab 是 8px 圆角、
+     mono、选中蓝底实色 + 阴影；同一页两组切换器长得像两个产品 ✗
+     → 逐项对齐 .mc-tab（flex:1 等分 / 6px 上下留白 / var(--mono) / var(--blue) 实底）
+     ⚠ 右侧「近15年 / 全部」是**次要**切换，保持小号无底 —— 它不该和主切换抢 ⚠ */
+  .yc-bar { display: flex; align-items: center; gap: 8px; margin: 6px 0 8px; }
+  .yc-tabs { display: flex; gap: 8px; flex: 1; }
+  .yc-tab { flex: 1; padding: 6px 0; border: 1px solid var(--line); background: var(--card2);
+    color: var(--tx2); border-radius: 8px; font-size: 12px; font-weight: 600;
+    font-family: var(--mono); cursor: pointer; transition: .15s; }
+  .yc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff;
+    box-shadow: 0 3px 12px rgba(74,158,255,.32); }
+  .yc-tab:active { transform: scale(.98); }
+  .yc-span { display: flex; gap: 2px; flex-shrink: 0; }
+  .yc-sp { appearance: none; border: 0; background: none; padding: 3px 6px;
+    border-radius: 5px; font-size: 9px; color: var(--tx3); cursor: pointer;
+    font-family: var(--sans); transition: all .12s; white-space: nowrap; }
+  .yc-sp:hover { color: var(--tx2); }
+  .yc-sp.active { background: rgba(147,163,187,.16); color: var(--tx2); font-weight: 700; }
+  /* ⚠ 限高（2026-11-26）：15 年时 15×34 ≈ 510px（不滚）；「全部」是 40 行 ≈ 1360px，
+     会让整张卡变两屏 ✗ → 内部滚动（15 年不触发，全部才触发） */
+  .yc-table { margin: 2px 0 0; max-height: 560px; overflow-y: auto;
+    overscroll-behavior: contain; }
+  /* ⚠ 从四列（年份 + 三列数字）改成三列（年份 + 图形 + 年度）——
+     图形的横轴已经承载了「年内最高 / 年内回撤」两个数（就是红绿段的两端），
+     再并排两列数字等于把同一件事说了两遍 ✗ 精确值在条形的 hover 里 */
+  /* ⚠ 5 列（2026-11-26 第三版：用户「还是想看到数字」）——
+     年份 + 图形 + 年度 + 年内最高 + 年内回撤。
+     375px 实测：34 + 185 + 3×33 + 4×4 ≈ 343px，刚好占满卡片内宽 ✓
+     数字列只给 3.2em（6 字符 @9px ≈ 33px），再宽条就没地方了 */
+  /* ⚠ 4 列数字的宽度要按**实际字形**算（2026-11-26 第四版）——
+     `+16.8%` 是 6 个等宽字符，9.5px 下约 34px；原来给 3.2em（30.4px）装不下，
+     三个数会连着排版成 `+16.8%+23.4%-11.9%`，完全黏在一起 ✗
+     → 数字列 3.6em（34.2px）、列距 6px；实测 375px 下条还剩约 186px ✓ */
+  .yc-row { display: grid; grid-template-columns: 3.2em 1fr 3.6em 3.6em 3.6em;
+    gap: 6px; align-items: center; padding: 2px 0;
+    font-family: var(--mono); font-feature-settings: "tnum"; font-size: 9.5px; }
+  .yc-hd { gap: 6px; }
+  /* ⚠ 必须 display:block —— 这是 <span>，默认 inline 的 height/position 都不生效，
+     子元素的绝对定位全塌成 0 高度（实测：条和点都渲染了但看不见）✗ */
+  .yc-plot { display: block; position: relative; height: 13px; min-width: 40px; }
+  .yc-plot-hd { color: var(--tx3); font-family: var(--sans); font-size: 9px;
+    text-align: center; font-weight: 600; letter-spacing: .01em; }
+  /* 0% 基准竖线：所有年份共用，红绿段都从它出发 ✓ */
+  .yc-zero { position: absolute; top: -1px; bottom: -1px; width: 1px;
+    background: var(--tx3); opacity: .30; }
+  /* 波动范围：从 dd 到 0（红）或 0 到 runup（绿）；一格覆盖一年 ✓ */
+  .yc-rng { position: absolute; top: 3px; height: 7px; border-radius: 2px; }
+  /* ⚠ 用 --green / --red，不是 --up / --down —— 后者是 positions.css 的变量，
+     tokens.css（index.html 用的这套）里没有 → var() 未定义会让整条声明失效，
+     背景直接变透明（实测：条和点都渲染了但完全看不见）✗ */
+  .yc-rng.up { background: color-mix(in srgb, var(--green) 52%, transparent); }
+  .yc-rng.dn { background: color-mix(in srgb, var(--red) 52%, transparent); }
+  /* 年度结果点：实心 + 卡片底色描边，保证在任何段上都清晰 ✓ */
+  .yc-dot { position: absolute; top: 50%; width: 6px; height: 6px; border-radius: 50%;
+    transform: translate(-50%, -50%); box-shadow: 0 0 0 1.5px var(--card); z-index: 2; }
+  /* dot 的颜色由**自己的 class** 决定（不再靠 ~ 兄弟选择器）——
+     现在一行里红段/绿段可能并存，兄弟选择器会匹配到第一个段、上错色 ✗ */
+  .yc-dot { background: var(--tx); }
+  .yc-dot.up { background: var(--green); }
+  .yc-dot.dn { background: var(--red); }
+  .yc-row + .yc-row { border-top: 1px solid color-mix(in srgb, var(--line-soft) 42%, transparent); }
+  .yc-hd { color: var(--tx3); font-family: var(--sans); font-size: 9px;
+    padding-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+  .yc-hd .yc-plot-hd { color: var(--tx3); }
+  .yc-hd .yc-v { font-weight: 600; letter-spacing: .02em; }
+  .yc-y { color: var(--tx2); font-weight: 600; }
+  .yc-y > i { font-style: normal; font-size: 8px; color: var(--yellow);
+    margin-left: 3px; letter-spacing: .02em; }
+  .yc-v { text-align: right; color: var(--tx2); white-space: nowrap;
+    font-variant-numeric: tabular-nums; }
+  .yc-v.up > b { color: var(--green); font-weight: 700; }
+  .yc-v.dn > b { color: var(--red); font-weight: 700; }
+  .yc-v.up2 { color: color-mix(in srgb, var(--green) 62%, var(--tx3)); }
+  .yc-v.dn { color: color-mix(in srgb, var(--red) 78%, var(--tx3)); }
+  /* 「年内最高」用更淡的绿、「年内回撤」用更淡的红 —— 与条两端的深浅呼应：
+     极值是**过程**、年度是**结果**，结果要更亮 ✓ */
+  .yc-v.dn2 { color: color-mix(in srgb, var(--red) 62%, var(--tx3)); }
+  .yc-row.is-ytd .yc-y { color: var(--yellow); }
+  .yc-row.is-ytd .yc-v { opacity: .82; }
+  .yc-foot { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft);
+    font-size: 9.5px; color: var(--tx2); line-height: 1.6;
+    font-family: var(--mono); font-feature-settings: "tnum"; }
+  .yc-foot b { color: var(--tx); font-weight: 700; }
+  .yc-foot .yc-f1, .yc-foot .yc-f2 { line-height: 1.7; }
+  .yc-foot .yc-f2 { color: var(--tx3); }
+  .yc-foot .yc-f2 b { color: var(--tx2); }
+  .yc-foot .yc-fx { color: var(--tx3); font-size: 9px; margin-left: 6px; cursor: help; }
 </style>
 </head>
 <body>
@@ -1181,6 +1271,37 @@
   <div class="note">纵轴满刻度 <b>±<span id="mc-max">16</span>%</b>，柱子 <b>高于零轴=当月上涨、低于=下跌</b>。点击上方 Tab 切换指数。数据截至 <b id="mc-asof">--</b>，采用 <b>ETF 总回报口径</b>（含分红，用 QQQ/SPY 代理），与上方指数卡片的"价格回报 YTD"存在约 0.3~0.8pp 分红差异属正常。</div>
 </div>
 
+
+<!-- ======= Yearly performance（2026-11-26 加）========
+     用户：「近10年每年涨跌幅」→「年度 年内最大涨幅 年内最大回撤」→「15年吧」
+     ⚠ 「年内最大涨幅/回撤」都是**顺序扫描**（从当时的前低/前高算起），
+       不是「最高 ÷ 最低」——后者在最高点早于最低点时给出从未发生过的数 ✗
+     ⚠ 当年未走完 → 行尾 YTD；三列都只代表「年初到最新交易日」 -->
+<div class="card">
+  <div class="card-title"><span class="bar" aria-hidden="true" style="background:var(--cyan)"></span><span aria-hidden="true">📈</span> 年度表现 · 涨跌与振幅<span class="src-tag auto">AUTO</span></div>
+  <div class="yc-bar">
+    <div class="yc-tabs">
+      <button type="button" class="yc-tab active" data-idx="ndx">纳指100 NDX</button>
+      <button type="button" class="yc-tab" data-idx="spx">标普500 SPX</button>
+    </div>
+    <div class="yc-span">
+      <button type="button" class="yc-sp active" data-span="15">近 15 年</button>
+      <button type="button" class="yc-sp" data-span="all">全部</button>
+    </div>
+  </div>
+  <div class="yc-table">
+    <div class="yc-row yc-hd">
+      <span class="yc-y">年份</span>
+      <span class="yc-plot-hd">回撤 ←┃→ 最高</span>
+      <span class="yc-v">年度</span>
+      <span class="yc-v">最高</span>
+      <span class="yc-v">回撤</span>
+    </div>
+    <div id="yc-body"></div>
+  </div>
+  <div class="yc-foot" id="yc-foot"></div>
+</div>
+
 <!-- ======= Indicator lexicon ======= -->
 <div class="card">
   <div class="card-title" style="justify-content:space-between;margin-bottom:0;">
@@ -1200,6 +1321,7 @@
 </div>
 
 <script src="data.js?v=20261125"></script>
+<script src="yearly.js?v=20261126"></script>
 <script>
 "use strict";
 /* ================= 数据层 ================= */
@@ -2720,6 +2842,118 @@ themeBtn.addEventListener("click", () => {
   try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
 });
 renderAll();
+
+/* ===== 年度涨跌（2026-11-26 加 · 全史 + 动静分离 · 图形化）=====
+   数据来自两个文件（**动静分离**）：
+     · yearly.js 的 YEARLY_HIST —— 已完结年份（1987~2025），一年只变一次
+     · data.js 的 YEARLY_YTD   —— 当年（2026），每日更新
+   为什么拆：HIST 占了年度数据的 99% 体积，留在 data.js 会让每日更新产生 7KB 的无谓 diff ✗
+
+   ── 视觉编码（2026-11-26 第二版：纯表格「看数据没感觉」）──────────────
+   一行 ＝ 一条以 0% 为中心的轴：
+     · **红段** 从 `dd`（年内最大回撤）到 0   → 这一年**跌到过多深**
+     · **绿段** 从 0 到 `runup`（年内最大涨幅） → 这一年**涨到过多高**
+     · **实心点** 落在 `yr`（年度结果）        → 收在哪儿
+   这样「2020 从 −28% 冲到 +84%、收在 +47.6%」一眼可见，
+   而纯表格要读三个数再自己想象 ✗
+   ⚠ 轴的范围按**全史**取（不是按当前显示的年数），否则切「15 年 / 全部」时
+     同一年的条长会变，读起来像两套数据 ✗
+   ⚠ 后两列都是**顺序扫描**，不是「最高 ÷ 最低」（后者在最高点早于最低点时给出假数）
+*/
+(function renderYearly() {
+  const H = (typeof YEARLY_HIST !== "undefined") ? YEARLY_HIST : null;
+  const T = (typeof YEARLY_YTD !== "undefined") ? YEARLY_YTD : null;
+  const body = document.getElementById("yc-body");
+  const foot = document.getElementById("yc-foot");
+  if (!body || !H) return;
+  const pct = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
+  const tabWrap = document.querySelector(".yc-tabs");
+  const spanWrap = document.querySelector(".yc-span");
+  let idx = "ndx", span = "15";
+
+  /* 轴范围：按全史两端取（dd 最负 / runup 最正），两边各留 8% 边距 */
+  const AXIS = (() => {
+    const lo = Math.min(...Object.values(H.stats).map((x) => x.worstDD).filter(Number.isFinite));
+    const hi = Math.max(
+      ...["ndx", "spx"].flatMap((k) => (H[k] || []).map((x) => x.runup)),
+      ...(T ? ["ndx", "spx"].map((k) => (T[k] ? T[k].runup : 0)) : [0])
+    );
+    const pad = (hi - lo) * 0.06;
+    return { lo: lo - pad, hi: hi + pad };
+  })();
+  const xOf = (v) => ((v - AXIS.lo) / (AXIS.hi - AXIS.lo)) * 100;
+
+  function rowsOf(k) {
+    return (H[k] || []).slice().concat(T && T[k] ? [T[k]] : []);
+  }
+
+  function draw() {
+    const all = rowsOf(idx);
+    const shown = span === "all" ? all : all.slice(-15);
+    const ytdYear = T ? T.y : null;
+    body.innerHTML = shown.map((x) => {
+      const isYtd = ytdYear && x.y === ytdYear;
+      /* ⚠ 红绿必须**按 0% 分段**，不能按「年度正负」整条上色（2026-11-26）——
+         2020 从 −28% 涨到 +84%、收在 +47.6%，按年度正负会画成「整条绿」，
+         但左边那 28% 明明是**跌**进去的 ✗
+         → 两段：`dd → 0` 红、`0 → runup` 绿，0% 处断开 ✓ */
+      const z = xOf(0);
+      const wDn = Math.max(0, z - xOf(x.dd));
+      const wUp = Math.max(0, xOf(x.runup) - z);
+      const pos = Math.max(1.5, Math.min(98.5, xOf(x.yr)));
+      return '<div class="yc-row' + (isYtd ? " is-ytd" : "") + '">'
+        + '<span class="yc-y">' + x.y + (isYtd ? "<i>YTD</i>" : "") + "</span>"
+        + '<span class="yc-plot" title="' + x.y + "　年内最大回撤 " + pct(x.dd)
+          + "　年度 " + pct(x.yr) + "　年内最大涨幅 " + pct(x.runup) + '">'
+          + '<i class="yc-zero" style="left:' + z.toFixed(2) + '%"></i>'
+          + (wDn > 0.2 ? '<i class="yc-rng dn" style="left:' + (z - wDn).toFixed(2)
+            + "%;width:" + wDn.toFixed(2) + '%"></i>' : "")
+          + (wUp > 0.2 ? '<i class="yc-rng up" style="left:' + z.toFixed(2)
+            + "%;width:" + wUp.toFixed(2) + '%"></i>' : "")
+          + '<b class="yc-dot ' + (x.yr >= 0 ? "up" : "dn") + '" style="left:' + pos.toFixed(2) + '%"></b>'
+        + "</span>"
+        + '<span class="yc-v ' + (x.yr >= 0 ? "up" : "dn") + '"><b>' + pct(x.yr) + "</b></span>"
+        + '<span class="yc-v up2">' + pct(x.runup) + "</span>"
+        + '<span class="yc-v dn2">' + pct(x.dd) + "</span>"
+        + "</div>";
+    }).join("");
+
+    const st = (H.stats || {})[idx];
+    if (!st) { foot.innerHTML = ""; return; }
+    const worst = (H[idx] || []).reduce((a2, x) => (x.dd < a2.dd ? x : a2), { dd: 0, y: "-" });
+    foot.innerHTML = '<div class="yc-f1">全史 <b>' + st.n + "</b> 年 · 胜率 <b>" + st.winRate
+      + "%</b> · 累计 <b>" + st.cum + " 倍</b></div>"
+      + '<div class="yc-f2">年化 <b>' + st.cagr + "%</b> · 平均 <b>" + pct(st.avg)
+      + "</b> · 回撤均值 <b>" + pct(st.avgDD) + "</b>"
+      + '<span class="yc-fx" style="margin-left:6px" title="红段＝年内最大回撤（0 左侧）；'
+      + '绿段＝年内最大涨幅（0 右侧）；●＝年度收盘结果，落在两段之间'
+      + '｜最深 ' + pct(worst.dd) + "（" + worst.y + "）| " + String(H.basis).replace(/"/g, "'")
+      + '">口径 ⓘ</span></div>';
+  }
+
+  if (tabWrap) {
+    tabWrap.addEventListener("click", (e) => {
+      const b2 = e.target.closest(".yc-tab");
+      if (!b2) return;
+      tabWrap.querySelectorAll(".yc-tab").forEach((x) => x.classList.remove("active"));
+      b2.classList.add("active");
+      idx = b2.dataset.idx;
+      draw();
+    });
+  }
+  if (spanWrap) {
+    spanWrap.addEventListener("click", (e) => {
+      const b2 = e.target.closest(".yc-sp");
+      if (!b2) return;
+      spanWrap.querySelectorAll(".yc-sp").forEach((x) => x.classList.remove("active"));
+      b2.classList.add("active");
+      span = b2.dataset.span;
+      draw();
+    });
+  }
+  draw();
+})();
+
 </script>
 </body>
 </html>
