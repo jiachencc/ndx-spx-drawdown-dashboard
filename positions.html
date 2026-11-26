@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份）—— 必须先于本页样式表 -->
-<link rel="stylesheet" href="tokens.css?v=20261126e">
-<link rel="stylesheet" href="positions.css?v=20261126e">
+<link rel="stylesheet" href="tokens.css?v=20261126f">
+<link rel="stylesheet" href="positions.css?v=20261126f">
 </head>
 <body>
 <script>
@@ -270,13 +270,13 @@ try {
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
 
-<script src="data.js?v=20261126e"></script>
-<script src="positions-data.js?v=20261126e"></script>
+<script src="data.js?v=20261126f"></script>
+<script src="positions-data.js?v=20261126f"></script>
 <!-- 共享口径（2026-10-16 加）：「本期已同步」/ 场外当日合计的有效集合 /「组合已到」的日期，
      三处判据原先在本页、scripts/apply-screenshot.mjs、scripts/dom-check.mjs 各写一份 → 一次更新里漂了 3 处 ✗。
      现在只定义在这一个文件里，本页直接调用、脚本侧用 data-quality.mjs 的 readPosLogic() 读同一份源码 ✓。
      ⚠ 只放判据不放数据；改它的同时要同步 scripts/lint.mjs 的 positions.inline 拼接顺序 ✗。 -->
-<script src="positions-logic.js?v=20261126e"></script>
+<script src="positions-logic.js?v=20261126f"></script>
 <!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
      的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移，
      并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
@@ -8415,9 +8415,22 @@ function monthRowHtml(entries, mo, costInfo) {
   const bAmt = buys.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
   const sAmt = sells.reduce((a, e) => a + e.qty * (e.cost || 0), 0);
   const net = bAmt - sAmt;
+  /* 加权成交均价（2026-11-26 加，用户：「1+2」）——
+     它直接解释「成本价为什么升/降」：均价低于月初成本 → 摊薄、高于 → 抬高 ✓
+     实测纳指 2026-10：买均价 1.7017 vs 月初成本 1.5914 → 贵 6.9%，这就是「追高」的硬证据；
+     而只显示「成本价 ↑1.50%」看不出是因为**买贵了**还是卖出导致的 ✗
+     ⚠ 用「Σ(份数×价) ÷ Σ份数」= 成交毛额加权，与 bAmt 同分子 → 天然一致 ✓
+     ⚠ 375px 余量 84px、360px 余 69px，`@1.5686` 约 40px，放得下 ✓ */
+  const bQty = buys.reduce((a2, e) => a2 + (e.qty || 0), 0);
+  const sQty = sells.reduce((a2, e) => a2 + (e.qty || 0), 0);
+  const bAvg = bQty > 0 ? bAmt / bQty : null;
+  const sAvg = sQty > 0 ? sAmt / sQty : null;
+  const avgTag = (v, tip) => v === null ? "" : ' <i class="log-avg" title="' + esc(tip) + '">@' + v.toFixed(4) + "</i>";
   let parts = mo;                                        // "2026-10"（带年份 ✓）
-  if (buys.length) parts += ' · 买 ' + buys.length + ' 笔 <b class="up">+' + fmtAbs2(bAmt) + '</b>';
-  if (sells.length) parts += ' · 卖 ' + sells.length + ' 笔 <b class="down">−' + fmtAbs2(sAmt) + '</b>';
+  if (buys.length) parts += ' · 买 ' + buys.length + ' 笔 <b class="up">+' + fmtAbs2(bAmt) + '</b>'
+    + avgTag(bAvg, "本月买入的加权成交均价（Σ份数×价 ÷ Σ份数，不含费）。与「成本价」比：均价更低说明买得便宜（摊薄），更高说明买贵了（抬高成本）。");
+  if (sells.length) parts += ' · 卖 ' + sells.length + ' 笔 <b class="down">−' + fmtAbs2(sAmt) + '</b>'
+    + avgTag(sAvg, "本月卖出的加权成交均价（Σ份数×价 ÷ Σ份数，不含费）。卖出时成本基数按加权摊薄成本减少、不是按卖价，所以这个数不能与成本价直接比。");
   if (buys.length && sells.length) parts += " · " + (net >= 0 ? "净投入 " : "净收回 ") + "<b>" + fmtAbs2(net) + "</b>";
   /* ── 持仓成本变化（2026-11-26 加，用户：「每个月汇总加上当月把成本提高了多少或者降低多少」）
      与「买/卖金额」**不是同一个数** ✓ —— 卖出时成本基数按**加权摊薄成本**减少、不是按卖价：
@@ -8440,15 +8453,18 @@ function monthRowHtml(entries, mo, costInfo) {
       + "（" + (down ? "−" : "+") + Math.abs(costInfo.pricePct).toFixed(2) + "%）。"
       + "⚠ 这不是把下面各条的百分比相加 —— 每条是「相对当笔之前」的乘法变化率，"
       + "相加会算错（实测本页纳指 11 月：21 条加起来约 −3%，实际只有 −1.38%）✗"
-      + ' ">成本价 <b class=\"' + (down ? "up" : "down") + "\">"
+      + ' ">成本<b class=\"' + (down ? "up" : "down") + "\">"
       + (down ? "↓" : "↑") + Math.abs(costInfo.pricePct).toFixed(2) + "%</b></span>";
   }
   /* data-* 带**精确值**（笔数 / 买额 / 卖额）供门禁核对「月表头笔数合计 ≡ 该卡流水行数」——
      分组最容易犯的正是丢行与重复计入 ✗；页面显示值带千分位与加粗，不能拿它比 ✗（同清仓卡分段那条 ✓） */
   return '<div class="log-month" data-mo="' + mo + '" data-mo-n="' + entries.length + '"' +
     ' data-mo-b="' + bAmt.toFixed(2) + '" data-mo-s="' + sAmt.toFixed(2) + '"' +
-    ' title="月小计：买卖金额为该月**成交毛额**（份数 × 成交价、不含费 ✓）；末项是资金净额（买入额 − 卖出额），' +
-    '「净收回」表示卖出多于买入、钱在往回收，不是盈亏。已实现盈亏见各行（券商先进先出口径），与本项不是同一件事。' +
+    ' title="月小计：买卖金额为该月**成交毛额**（份数 × 成交价、不含费 ✓）；@ 后是加权成交均价 —— ' +
+    '与月初成本比，能看出这个月是在摊薄还是追高。「净投入 / 净收回」是资金净额（买入额 − 卖出额），' +
+    '「净收回」表示卖出多于买入、钱在往回收，不是盈亏。末项「成本价 ±X%」是**持仓成本价**' +
+    '（Σ成本 ÷ Σ份数）的月度变化，与净投入不是同一个数 —— 有卖出时两者会差很多，差额就是已实现盈亏。' +
+    '已实现盈亏见各行（券商先进先出口径），与本项不是同一件事。' +
     '⚠ 刻意**不**引用券商对账单的月度盈亏 —— 那是含已实现与税费的口径，与本块的毛额不同名 ✗">' + parts + '</div>';
 }
 /* ================= 卡内操作记录（原独立「操作日志」模块并入持仓卡） =================
