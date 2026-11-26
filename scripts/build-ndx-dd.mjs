@@ -152,9 +152,11 @@ const stats = BUCKETS.map((b) => {
 
 const payload = {
   asOf: S.at(-1).d,
+  /* ⚠ 原来这里有两个 `source:`（前者被后者覆盖）——
+     现在合成一句，降级时能在页面上看出来 ✓ */
   source: "东财 100.NDX100 日线（前复权）",
   since: SINCE,
-  source: ndxRes.source,
+  degraded: ndxRes.source !== "eastmoney",
   days: S.length,
   thresh: THRESH,
   latest: S.at(-1).c,
@@ -164,6 +166,24 @@ const payload = {
 
 /* ── 写回 data.js：替换 NDX_DD 整块（没有就插在 DDHIST 之前）── */
 const src = readFileSync(DATA, "utf8");
+
+/* ⚠ 降级时**放弃写盘**（2026-11-26 加）——
+   东财 K 线在 GitHub runner 上不通时会退到腾讯，而腾讯美股只给 1,000 根（≈4 年），
+   于是「纳指 30 年 ≥10% 回撤约 20 次」会缩成 3 次 ✗
+   实测 CI 里 check-data 直接报「NDX_DD: events 少于 10 次」→ 整条流水线红 ✗
+   → 新事件数比旧数据少 30% 以上就**不写**，保留上一版满血数据 ✓
+     （「今天没更新」远比「把 20 次的历史换成 3 次」安全） */
+const oldEvN = (() => {
+  const m = /const NDX_DD = \{[\s\S]*?"?events"?:\s*\[/.exec(src) || /events:\s*\[/.exec(src);
+  if (!m) return 0;
+  const seg = src.slice(m.index);
+  return (seg.match(/\{"?start"?|start:/g) || []).length;
+})();
+if (oldEvN >= 10 && ev.length < oldEvN * 0.7) {
+  console.log("⚠ 降级到 " + ndxRes.source + "（样本缩水）：事件 " + oldEvN + " → " + ev.length
+    + " 次 → **放弃写盘**，保留旧的满血 NDX_DD ✓");
+  process.exit(0);
+}
 const block = "/**\n * NDX_DD —— 纳指回撤事件表（AUTO，scripts/build-ndx-dd.mjs 写）\n"
   + " * 用户 2026-11-07：「预估纳指目前的跌幅需要多久修复？」→ 需要真实长历史，\n"
   + " * 而 DDHIST 只有 5 个近期事件（2025-01 起）样本太小 ✗ 故单开这一块 ✓\n"
