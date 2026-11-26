@@ -14796,9 +14796,9 @@ const ALT_BACKTEST = {
           final: 333827.58,
           ret: -0.033693,
           retFlat: -0.044993,
-          navRet: -0.124521,
+          navRet: -0.128793,
           premStart: 0.070723,
-          premEnd: 0.160875,
+          premEnd: 0.166566,
           diff: 4532.03,
           diffPp: 0.013119,
           mine: false
