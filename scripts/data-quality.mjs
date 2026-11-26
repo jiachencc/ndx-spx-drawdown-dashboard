@@ -139,7 +139,14 @@ export function validateModel(m) {
         const want = Math.round((q.close / p.nav - 1) * 100 * 10) / 10;
         /* 容差 0.15 → 0.5（2026-10-20）：pct 与 nav 都由 CI 分别写入、各自四舍五入到 1 位，
            差 0.2pp 是正常现象；0.15 会在每次自动更新后误报一次（当天实测 513650 存 7 / 算式 6.8）。 */
-        if (Math.abs(p.pct - want) > 0.5)
+        /* ⚠ 抓取失败（retained）时跳过校验（2026-11-26）——
+           `premium:*` retained ＝ 净值与 pct 都还是上一次的，而 `etfNdx.close` 已更新到新价，
+           两者必然对不上；实测 A 股盘中跑（北京 10:00 的补跑）拿到的价格与收盘价差 0.7%，
+           于是 pct 差 0.8pp 直接判非法、整条流水线红 ✗
+           「拿不到新净值」不是数据错误，不该让校验报错 ✓ */
+        const pmeta = (m.SOURCE_META || {})["premium:" + code];
+        const pRetained = pmeta && pmeta.status === "retained";
+        if (!pRetained && Math.abs(p.pct - want) > 0.5)
           errors.push("premium pct 与「收盘价 ÷ 净值 − 1」不符 " + code + "（存 " + p.pct + "%，算式给 " + want + "%）"
             + " → 修法：premiums[" + code + "].pct 改成 " + want + "，或把 nav 换到与该 pct 匹配的那一期（容差 ±0.5pp）");
       }
