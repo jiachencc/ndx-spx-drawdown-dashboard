@@ -47,6 +47,9 @@ const STEPS = [
   /* 溢价扫描（2026-10-28 加）：10 只纳指 ETF 的日K ＋ 净值（约 25 秒、20 多个请求）。
      放在最后：它**只写自己的块**，失败不影响前面那些；页面缺这块时会整卡隐藏 ✓ */
   { key: "scan", label: "溢价扫描（PREM_SCAN）", file: "scripts/fetch-premium-scan.mjs" },
+  /* ⚠ 2026-11-26 加：年度表现（YEARLY_YTD / yearly.js）——
+     平时走增量（只拉上年 12 月起，约 250 行、1 秒）；历史完整时不碰 yearly.js ✓ */
+  { key: "yearly", label: "年度表现（YEARLY_YTD）", file: "scripts/build-yearly.mjs" },
 ];
 
 /* 前置检查（只提示、不拦）：① 今天的流水录了没 ② 溢价块会不会因净值未公布而跳过 */

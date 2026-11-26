@@ -143,7 +143,14 @@ function summarize(list) {
 
 /* ── 先看历史是否已完整（决定要不要拉全量）───────────────────────────── */
 const say = (t) => console.log("  " + t);
-const thisYear = +new Date().toISOString().slice(0, 4);
+/* ⚠ 用**本地年**而不是 UTC 年（2026-11-26 修）——
+   跨年边界：北京时间 2027-01-01 03:00 ＝ UTC 2026-12-31 19:00 ＝ 纽约 2026-12-31 14:00，
+   此时数据里**已经有 2027-01-01 的 A 股**，但用 UTC/纽约都算成 2026 →
+   `needFull = 2025 < 2026-1` 为 false → 走增量 → 2026 那一年**永远不会被归档进 yearly.js** ✗
+   （每年丢一整年，且悄无声息）
+   → 行情数据按**北京日期**落盘，判据也统一用本地年 ✓ */
+const localYear = new Date().getFullYear();
+const thisYear = localYear;
 let histTo = null;
 try {
   const cur = readFileSync(histFile, "utf8");
@@ -152,14 +159,16 @@ try {
 } catch (e) { /* 文件不存在 → 需要全量 */ }
 
 /* 历史「已完整」= yearly.js 的 to 已经 ≥ 去年（即除当年外的年份都有了） */
-const needFull = histTo === null || histTo < thisYear - 1;
+/* `--full` 强制全量：数据源修正历史（复权口径调整等）时用 —— 增量模式察觉不到 ✓ */
+const forceFull = process.argv.includes("--full");
+const needFull = forceFull || histTo === null || histTo < thisYear - 1;
 /* ⚠ 增量模式要从**上一年 12 月**起拉（2026-11-26 修）——
    只拉当年会缺「上年末收盘」→ 2026 的年度涨跌算成 null ✗
    多拉一个月就够了（2025-12 的月末收盘就是分母），成本可以忽略 ✓
    ⚠ 多出来的 2025-12 那几天会被 pick() 按 `complete` 滤掉（不足 200 个交易日）✓ */
 const fromDay = needFull ? null : (thisYear - 1) + "-12-01";
 say(needFull
-  ? "历史不完整（yearly.js " + (histTo === null ? "缺失" : "只到 " + histTo) + "）→ 拉全量"
+  ? (forceFull ? "--full 强制全量" : "历史不完整（yearly.js " + (histTo === null ? "缺失" : "只到 " + histTo) + "）→ 拉全量")
   : "历史已完整（yearly.js 到 " + histTo + "）→ 只拉当年 " + thisYear + "，历史不重算");
 
 /* ── 跑 ───────────────────────────────────────────────────────────────── */
@@ -216,7 +225,11 @@ const asOf = [ndxYtd ? ndxYtd.lastTrade : "?", spxYtd ? spxYtd.lastTrade : "?"].
    那不是错误，历史走 histCarry ✓ 只有「全量模式且仍为空」才是真错 ✗ */
 if (!histCarry && (!ndxHist.length || !spxHist.length)) throw new Error("历史序列为空，放弃写盘");
 
-const YEARLY_HIST = histCarry ? Object.assign({}, histCarry, { updated: asOf }) : {
+/* ⚠ 增量模式**不改 updated**（2026-11-26）——
+   `updated` 的含义是「yearly.js 这份历史最后被重算的日子」，
+   而增量模式下历史根本没动；每跑一次就刷新它会让这个字段变成
+   「脚本最后运行日」，与语义不符 ✗ */
+const YEARLY_HIST = histCarry ? Object.assign({}, histCarry) : {
   updated: asOf,
   from: Math.min(ndxHist[0].y, spxHist[0].y),
   to: ytdYear - 1,
