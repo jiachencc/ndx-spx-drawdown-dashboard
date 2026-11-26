@@ -114,6 +114,13 @@ for (const f of OTC.funds) {
   const newest = em[0];                        // 最新一条
   const prev = em[1] || null;                  // 前一交易日
 
+  /* ⚠ 这里**只更新 OTC.funds，不碰 SNAPSHOTS**（2026-11-26 明确）——
+     快照是「那天收盘的历史事实」，`OTC.funds` 是「当前最新读数」。
+     净值常常晚于收盘才公布（QDII 甚至 T+1/T+2），所以两者在「净值已更新、
+     但快照仍按旧净值算」时天然不同 ✓ 那是正确状态，不是不一致 ✗
+     强行同步会改写历史快照 → 总资产 / 累计收益 / 当日全变 ✗
+     cross-check ① 已相应放宽（见 data-quality.mjs：navDate >= 快照日时跳过比对）✓ */
+
   /* ① 净值日必须有前进 */
   if (old.closeDate && newest.d <= old.closeDate) {
     console.log(tag + "跳过（净值日 " + newest.d + " 未前进，现有 " + old.closeDate + "）");

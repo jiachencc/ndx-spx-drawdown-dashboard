@@ -69,13 +69,24 @@ export function crossIssues(model, html, diag = false) {
   const snapVal = sumOf(last.items, "val", (c) => !holdCodes.has(c)), snapPl = sumOf(last.items, "pl", (c) => !holdCodes.has(c));
   lines.push("① 场外 Σ：快照 " + money(snapVal) + " / " + money(snapPl) + "  vs  OTC.funds " + money(otcVal) + " / " + money(otcPl) +
     "   残差 " + money(snapVal - otcVal) + " / " + money(snapPl - otcPl));
-  if (Math.abs(snapVal - otcVal) > TOL.otc || Math.abs(snapPl - otcPl) > TOL.otc)
+  /* ⚠ 2026-11-26：**净值日 ≥ 快照日时跳过比对** ——
+     快照是「那天收盘时的 App 读数」，而 QDII 的净值常常晚一两天才公布
+     （T+1/T+2 是常态，日本基金不滞后）。于是会出现：
+       快照 11-25 的 items 按 11-24 净值算（App 当晚就是这样显示的）
+       而 11-25 的净值在 11-26 才出 → `refresh-otc-nav` 会把它写进 OTC.funds
+     两者此刻必然不同 ✓ 那是**正确状态**，不是「改一处漏了另一处」✗
+     强行同步等于改写历史快照 → 总资产 / 累计收益 / 当日全部要重算 ✗
+     （CI 实测：018738 市值差 +37.02、盈亏差 +37.02，就是这种情况） */
+  const navAhead = funds.some((f) => f.nav && f.nav.closeDate && f.nav.closeDate >= last.d);
+  if (!navAhead && (Math.abs(snapVal - otcVal) > TOL.otc || Math.abs(snapPl - otcPl) > TOL.otc))
     issues.push("① 最新快照（" + last.d + "）场外 Σval/Σpl 与 OTC.funds 对不上：市值差 " + money(snapVal - otcVal) + "、盈亏差 " + money(snapPl - otcPl) +
       "（同一批 App 读数写了两处，改一处漏了另一处 → 汇总卡与快照会各说各话）");
   for (const f of funds) {
     const it = last.items[f.code];
     if (!it) { issues.push("① OTC.funds 的 " + f.code + "（" + f.name + "）在最新快照 items 里不存在"); continue; }
-    if (Math.abs(it.val - f.value) > TOL.otc || Math.abs(it.pl - f.pnl) > TOL.otc)
+    /* 逐只也放宽：该只的净值日晚于快照日 → 两个数本来就不同时刻 ✓ */
+    const thisAhead = f.nav && f.nav.closeDate && f.nav.closeDate >= last.d;
+    if (!thisAhead && (Math.abs(it.val - f.value) > TOL.otc || Math.abs(it.pl - f.pnl) > TOL.otc))
       issues.push("① " + f.code + "（" + f.name + "）快照 items val/pl " + money(it.val) + "/" + money(it.pl) +
         " ≠ OTC.funds " + money(f.value) + "/" + money(f.pnl));
   }
@@ -96,7 +107,16 @@ export function crossIssues(model, html, diag = false) {
   };
   for (const f of funds) {
     const it = last.items[f.code];
-    if (!it || !f.nav || !Number.isFinite(f.nav.close) || !Number.isFinite(f.nav.close) || !Number.isFinite(it.qty)) continue;
+    if (!it || !f.nav || !Number.isFinite(f.nav.close) || !Number.isFinite(it.qty)) continue;
+    /* ⚠ 净值日晚于快照日 → 跳过 ⑤（2026-11-26，与 ① 同一原因）——
+       `it.val` 是**快照当时**（按旧净值）的市值，`f.nav.close` 是**后来公布**的新净值，
+       两者相减算出的 slack 是假数 ✗ CI 实测：018738 推出「在途 +37.02」，
+       既不是 0 也不是定投额整数倍 → 审计判非法、流水线红 ✗
+       净值滞后是 QDII 的常态（T+1/T+2），不是数据错 ✓ */
+    if (f.nav.closeDate && f.nav.closeDate >= last.d) {
+      if (diag) lines.push("  ⑤ " + f.code + " 跳过（净值日 " + f.nav.closeDate + " ≥ 快照日 " + last.d + "）");
+      continue;
+    }
     const slack = it.val - it.qty * f.nav.close;
     if (diag) lines.push("  ⑤ " + f.code + " " + money(it.val) + " − qty(" + it.qty + ") × nav.close(" + f.nav.close + ") = " + money(slack) + "（= 在途）");
     if (slack < -TOL.navSlack)
