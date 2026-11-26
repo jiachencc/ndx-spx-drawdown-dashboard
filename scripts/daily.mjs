@@ -50,6 +50,10 @@ const STEPS = [
   /* ⚠ 2026-11-26 加：年度表现（YEARLY_YTD / yearly.js）——
      平时走增量（只拉上年 12 月起，约 250 行、1 秒）；历史完整时不碰 yearly.js ✓ */
   { key: "yearly", label: "年度表现（YEARLY_YTD）", file: "scripts/build-yearly.mjs" },
+  /* ⚠ 2026-11-26 加：场外 6 只的当日净值/市值（OTC.funds）——
+     在这之前全靠用户每晚截图、我手抄，慢且易错（11-25 就把 021000 的 closeDate 抄错一天）✗
+     ⚠ 它会改 positions-data.js（不只是 data.js）→ workflow 的 Commit 步必须同时 add 那个文件 */
+  { key: "otcnav", label: "场外净值（OTC.funds）", file: "scripts/refresh-otc-nav.mjs", args: ["--write"] },
 ];
 
 /* 前置检查（只提示、不拦）：① 今天的流水录了没 ② 溢价块会不会因净值未公布而跳过 */
@@ -85,7 +89,9 @@ for (const s of STEPS) {
   const t = Date.now();
   process.stdout.write("  " + s.label + " … ");
   try {
-    const out = execFileSync(process.execPath, [s.file], { cwd: fileURLToPath(ROOT), encoding: "utf8" });
+    /* ⚠ 支持 step 自带参数（2026-11-26 加）——
+       `refresh-otc-nav.mjs` 默认是 dry-run，不加 `--write` 等于白跑一遍 ✗ */
+    const out = execFileSync(process.execPath, [s.file, ...(s.args || [])], { cwd: fileURLToPath(ROOT), encoding: "utf8" });
     const lines = out.trim().split("\n").filter(Boolean);
     const hints = lines.filter((l) => /净值还没公布|未公布/.test(l));
     /* 「结论行」= 最后一条**不是**提示的行（否则 ⏳ 那句会被印两遍 ✗） */

@@ -121,7 +121,7 @@ jobs:
         #   只把 step 挂进 daily.mjs 的 STEPS 是不够的，必须在这里显式列出，
         #   否则永远不会在 CI 里跑 ✗
         #   yearly 平时走增量（只拉上年 12 月＋当年，约 250 行、1 秒），不碰 yearly.js ✓
-        run: node scripts/daily.mjs --only=trend,rng,dd,ndxdd,scan,yearly
+        run: node scripts/daily.mjs --only=trend,rng,dd,ndxdd,scan,yearly,otcnav
       # 2026-10-16 删：原第 ⑥ 步「OTC nowcast inputs (NOWCAST)」—— 页面上的「场外当日预估」模块整体下线、
       # 数据侧已无消费者，故 fetch-nowcast.mjs 与 NOWCAST / NOWCAST_LOG 两块一并移除 ✓（连这一步一起拔掉）。
       - name: Final audit
@@ -133,11 +133,14 @@ jobs:
           # ⚠ 2026-11-26 加 yearly.js（年度表现的历史块）——
           #   它平时**不变**（增量模式不碰它），只有跨年归档新一年时才改写；
           #   不纳入提交的话，那年新归档的一整年只存在于 runner 的临时磁盘 ✗
-          if git diff --quiet data.js fed-cycle/fed-data.js yearly.js; then
+          # ⚠ 2026-11-26 加 positions-data.js（场外净值 otcnav 会写它）——
+          #   只改 6 只的 value/day/pnl/rate/upd 与 nav.close/closeDate，
+          #   **不碰** qty/cost/OTC_LOG（那两项只有成交才会变）✓
+          if git diff --quiet data.js fed-cycle/fed-data.js yearly.js positions-data.js; then
             echo "no business data change"
             exit 0
           fi
-          git add data.js fed-cycle/fed-data.js yearly.js
+          git add data.js fed-cycle/fed-data.js yearly.js positions-data.js
           git commit -m "data(auto): validated source update"
           git push
 
