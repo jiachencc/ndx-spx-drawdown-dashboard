@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份）—— 必须先于本页样式表 -->
-<link rel="stylesheet" href="tokens.css?v=20261126b">
-<link rel="stylesheet" href="positions.css?v=20261126b">
+<link rel="stylesheet" href="tokens.css?v=20261126c">
+<link rel="stylesheet" href="positions.css?v=20261126c">
 </head>
 <body>
 <script>
@@ -270,13 +270,13 @@ try {
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
 
-<script src="data.js?v=20261126b"></script>
-<script src="positions-data.js?v=20261126b"></script>
+<script src="data.js?v=20261126c"></script>
+<script src="positions-data.js?v=20261126c"></script>
 <!-- 共享口径（2026-10-16 加）：「本期已同步」/ 场外当日合计的有效集合 /「组合已到」的日期，
      三处判据原先在本页、scripts/apply-screenshot.mjs、scripts/dom-check.mjs 各写一份 → 一次更新里漂了 3 处 ✗。
      现在只定义在这一个文件里，本页直接调用、脚本侧用 data-quality.mjs 的 readPosLogic() 读同一份源码 ✓。
      ⚠ 只放判据不放数据；改它的同时要同步 scripts/lint.mjs 的 positions.inline 拼接顺序 ✗。 -->
-<script src="positions-logic.js?v=20261126b"></script>
+<script src="positions-logic.js?v=20261126c"></script>
 <!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
      的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移，
      并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
@@ -8284,10 +8284,20 @@ function logItemHtml(e, hideSym, pair) {
     } else if (t.before === null) {
       costChip = '<span class="log-cost" title="首次建仓：成本价 ＝（价×份 ＋ 费）÷ 份">成本价 ' + f4(t.after) + w + '（建仓）</span>';
     } else if (isSell) {
+      /* ⚠ 2026-11-26 加百分比（用户：「逐笔流水 成本后面加上百分比」）——
+         原注释说「卖出行不给变化率」，理由是卖出会让剩余份额的单位成本**上升**，
+         容易被读成「买贵了」✗ —— 但用户要的是「一眼看到这一笔把成本动了多少」，
+         缺了它卖出行就只有个绝对值、没法横向比 ✓
+         → 给，但**用中性色**（不加 up/down 类）：卖出导致的成本上升既不是好事也不是坏事 ✓
+         并加「卖出冲减」标签，让读者知道原因是减仓、不是买入价高 ✓ */
+      const spct = t.before > 0 ? (t.after / t.before - 1) * 100 : null;
       costChip = '<span class="log-cost" title="' + esc(baseTip +
-        " ⚠ 卖出按净回款冲减成本、份数同时变少 → 剩余份额的单位成本会**上升**（成本集中到剩下的份额上）。" +
-        "这不是「买贵了」，也与盈亏无关，所以卖出行不给成本变化率，只给份数后的减仓幅度。") +
-        '">成本价 → <b>' + f4(t.after) + w + "</b>（摊薄）</span>";
+        " ⚠ 卖出按净回款冲减成本、份数同时变少 → 剩余份额的单位成本通常**上升**" +
+        "（成本集中到剩下的份额上）。这不是「买贵了」，也与盈亏无关 —— " +
+        "所以这一格的百分比用的是**中性色**，不像买入行那样标红绿 ✓") +
+        '">成本价 ' + f4(t.before) + " → <b>" + f4(t.after) + w + "</b>"
+        + (spct === null ? "" : " " + (spct >= 0 ? "↑" : "↓") + Math.abs(spct).toFixed(2) + "%")
+        + "（卖出冲减）</span>";
     } else {
       const pct = (t.after / t.before - 1) * 100;
       const dev = e.cost ? (e.cost / t.before - 1) * 100 : null;
@@ -8376,7 +8386,21 @@ function monthCostDelta(mo, codes) {
   if (!prevMo) return null;
   const prevIn = withItems.filter((x) => monthOf(x.d) === prevMo);
   if (!prevIn.length) return null;
-  return { delta: sumCost(inMo.at(-1)) - sumCost(prevIn.at(-1)), end: sumCost(inMo.at(-1)) };
+  const costEnd = sumCost(inMo.at(-1)), costPrev = sumCost(prevIn.at(-1));
+  const sumQty = (sn) => Object.entries(sn.items)
+    .filter(([c]) => !codes || codes.has(c))
+    .reduce((a, [, it]) => a + (Number.isFinite(it.qty) ? it.qty : 0), 0);
+  const qEnd = sumQty(inMo.at(-1)), qPrev = sumQty(prevIn.at(-1));
+  /* 成本**价**（Σ成本 ÷ Σ份数）—— 用户要的「当月把成本降低了多少%」是这个口径 ✓
+     ⚠ 不能把每条流水的 pct 相加（那是相对当笔之前的乘法变化率）：
+       实测纳指 11 月，21 笔逐条加起来约 −3%，而真实的月初→月末只有 **−1.38%** ✗ */
+  const pEnd = qEnd > 0 ? costEnd / qEnd : null;
+  const pPrev = qPrev > 0 ? costPrev / qPrev : null;
+  return {
+    delta: costEnd - costPrev, end: costEnd,
+    pricePrev: pPrev, priceEnd: pEnd,
+    pricePct: (pPrev > 0 && pEnd > 0) ? (pEnd / pPrev - 1) * 100 : null,
+  };
 }
 function monthRowHtml(entries, mo, costInfo) {
   /* isSellAct 用全局版（2026-10-12 收拢；此前本函数内又定义了一份 ✗） */
@@ -8395,14 +8419,22 @@ function monthRowHtml(entries, mo, costInfo) {
      → 这个数才真正回答「这个月把持仓成本推高/拉低了多少」✓
      ⚠ 数据来自 SNAPSHOTS 的 Σcost（月初最后一期 → 该月最后一期），不是从流水硬推 ——
        流水反推会因费用（每笔 5 元）与加权口径产生几十元偏差 ✗ */
-  if (costInfo && Number.isFinite(costInfo.delta) && Math.abs(costInfo.delta) >= 0.5) {
-    parts += ' · <span title="持仓成本基数的变化（月初最后一期 → 该月最后一期）。'
-      + '⚠ 与左边「买 N 笔 +X」略有差异：那个是**成交毛额**（份数×价格、不含费），'
-      + '这个含手续费（每笔约 5 元）→ 所以通常大几十到一百多元。'
-      + '⚠ 有卖出时两者会差很多：卖出让成本按**加权摊薄成本**减少、不是按卖价，'
-      + '差额就是已实现盈亏。">成本 <b class=\"'
-      + (costInfo.delta > 0 ? "up" : "down") + "\">"
-      + (costInfo.delta > 0 ? "↑" : "↓") + fmtAbs2(Math.abs(costInfo.delta)) + "</b></span>";
+  /* 当月**成本价**变化（2026-11-26，用户：「把每条加起来就是当月的降低成本？」→ 不是，要给月度的真实值）
+     ⚠ 逐条的 pct 是「相对当笔之前」的变化率、乘法关系，**不能相加** ✗
+       实测纳指 11 月：21 条加起来约 −3%，而月初→月末只有 −1.38%（差一倍多）
+     → 这里直接给「月初成本价 → 月末成本价」的百分比 ✓ */
+  if (costInfo && Number.isFinite(costInfo.pricePct) && Math.abs(costInfo.pricePct) >= 0.005) {
+    const down = costInfo.pricePct <= 0;   // 成本下降＝摊薄＝好事 → 绿
+    /* ⚠ 这里不能用 f4() —— 它定义在 logItemHtml 内部（8255 行），monthRowHtml 看不到 ✗
+       实测报「ReferenceError: f4 is not defined」→ 整页渲染中断、逐笔流水全空 ✗ */
+    parts += ' · <span title="当月**成本价**变化：'
+      + (costInfo.pricePrev === null ? "—" : costInfo.pricePrev.toFixed(4))
+      + " → " + (costInfo.priceEnd === null ? "—" : costInfo.priceEnd.toFixed(4))
+      + "（" + (down ? "−" : "+") + Math.abs(costInfo.pricePct).toFixed(2) + "%）。"
+      + "⚠ 这不是把下面各条的百分比相加 —— 每条是「相对当笔之前」的乘法变化率，"
+      + "相加会算错（实测本页纳指 11 月：21 条加起来约 −3%，实际只有 −1.38%）✗"
+      + ' ">成本价 <b class=\"' + (down ? "up" : "down") + "\">"
+      + (down ? "↓" : "↑") + Math.abs(costInfo.pricePct).toFixed(2) + "%</b></span>";
   }
   /* data-* 带**精确值**（笔数 / 买额 / 卖额）供门禁核对「月表头笔数合计 ≡ 该卡流水行数」——
      分组最容易犯的正是丢行与重复计入 ✗；页面显示值带千分位与加粗，不能拿它比 ✗（同清仓卡分段那条 ✓） */
