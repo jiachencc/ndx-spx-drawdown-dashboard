@@ -322,7 +322,7 @@ async function runReverse(P, page) {
       " （" + (rows[0] ? signed(rows[0].final - base) + " / " + (rows[0].diffPp * 100).toFixed(2) + "pp" : "—") + "）");
   }
   /* 合计：把所有场外本金当一笔看——「全留场外」vs「全换成你场内那只」。
-     它的意义是把 5 只小额的零散差异收成一个数，方便一眼判断渠道值不值。 */
+     它的意义是把各只小额的零散差异收成一个数，方便一眼判断渠道值不值。 */
   let total = null;
   if (funds.length) {
     const cost = funds.reduce((a, f) => a + f.cost, 0);

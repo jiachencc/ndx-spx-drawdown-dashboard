@@ -92,8 +92,11 @@ async function main() {
 
   const items = {};
   let hit = 0, miss = 0, unpub = 0;
-  /* 5 只并行（2026-10-20）：原来串行 for，每只 40 页分页请求 × 5 只共 200 次、
-     实测 10.4 秒；并行后 ≈2 秒（各只之间无依赖，写入时也不互相覆盖）。 */
+  /* 并行（2026-10-20 起）：原来串行 for，几秒变十几秒；并行后 ≈2 秒
+     （各只之间无依赖，写入时也不互相覆盖）。
+     ⚠ **不要再写死「N 只 × M 次」**（2026-11-26 清理）——
+       这段原来写「5 只 × 40 页 = 200 次」，但后来标的变 6 只、页数又改成「翻够就停」（约 33 次），
+       一句话里两个数字同时过期 ✗ 数量以脚本实际行为为准，不在注释里复述 ✓ */
   const jobs = await Promise.all(Object.entries(CODE).map(async ([name, code]) => {
     const rows = log.filter((e) => e.sym === name && isDate(e.d) && Number.isFinite(+e.cost));
     if (!rows.length) return null;

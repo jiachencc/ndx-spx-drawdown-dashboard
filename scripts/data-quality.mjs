@@ -287,7 +287,9 @@ export function validateModel(m) {
   }
 
   /* ── TREND（场内标的的技术面读数，2026-11-02 加）──────────────────────────
-     它是 scripts/build-sell-after.mjs 抓的日线读数，**每只已清仓的场内标的都必须有**。
+     它是 scripts/build-trend.mjs 抓的日线读数，**每只已清仓的场内标的都必须有**。
+     ⚠ 2026-11-26 修：这里原写 build-sell-after.mjs —— 那个脚本已改名/并入 build-trend.mjs，
+       照着旧名去找会找一个不存在的文件 ✗
      缺了不会报错，只是「已清仓标的后市」卡少一行 —— 肉眼发现不了 ✗，所以机器守。 */
   if (m.TREND && m.TREND.items && m.HOLD_HIST && Array.isArray(m.HOLD_HIST.items)) {
     /* 2026-11-02：TREND 覆盖**全部**场内标的（在持 ＋ 已清仓）—— 持仓卡的「趋势」一行要读在持那三只，

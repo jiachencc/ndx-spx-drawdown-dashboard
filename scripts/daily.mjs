@@ -35,7 +35,7 @@ const STEPS = [
      ⚠ 幂等：账已平时打印「已齐，跳过写盘」，不影响其它步骤 ✓ */
   { key: "dca", label: "场外定投补记（OTC_LOG）", file: "scripts/sync-otc-dca.mjs" },
   /* 场内技术面读数（2026-11-02 加）：给持仓卡「趋势」一行 ＋「已清仓标的后市」卡提供
-     日线读数（均线 / RSI / 52 周位置 / MACD，5 只共 5 个请求，约 0.5s） */
+     日线读数（均线 / RSI / 52 周位置 / MACD，每只 1 个请求，约 0.5s） */
   { key: "trend", label: "场内技术面读数（TREND）", file: "scripts/build-trend.mjs" },
   { key: "rng", label: "当日区间（RANGE_LOG）", file: "scripts/fetch-trade-range.mjs" },
   { key: "hold", label: "各标的浮盈曲线（HOLD_HIST）", file: "scripts/fetch-hold-history.mjs" },

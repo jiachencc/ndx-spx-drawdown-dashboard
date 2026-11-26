@@ -115,7 +115,7 @@ jobs:
       # positions-data.js，而下面「Commit」那步只 git add data.js，跑了也不会被提交 ✗。
       # continue-on-error：这几块都不影响「行情本身是否可用」，某一步失败（腾讯日K 限流、
       # 东财净值未公布等）不该阻断日更；各脚本都是「校验后才原子写」，失败即保留旧值 ✓。
-      - name: Derived blocks (TREND / RANGE_LOG / DDHIST / NDX_DD / PREM_SCAN / YEARLY)
+      - name: Derived blocks (TREND / RANGE_LOG / DDHIST / NDX_DD / PREM_SCAN / YEARLY / OTC nav)
         continue-on-error: true
         # ⚠ 2026-11-26 加 yearly（年度表现）—— 这个 step 是**白名单**（--only），
         #   只把 step 挂进 daily.mjs 的 STEPS 是不够的，必须在这里显式列出，

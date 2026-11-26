@@ -8,8 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份）—— 必须先于本页样式表 -->
-<link rel="stylesheet" href="tokens.css?v=20261125">
-<link rel="stylesheet" href="positions.css?v=20261125">
+<link rel="stylesheet" href="tokens.css?v=20261126">
+<link rel="stylesheet" href="positions.css?v=20261126">
 </head>
 <body>
 <script>
@@ -108,7 +108,7 @@ try {
   <div class="card trend-card" id="hh-card">
     <div class="trend-sum" id="hh-sum"></div>
     <!-- 筛选（2026-10-18 加）：时间档位 + 金额/收益率口径。
-         收益率是刚需：5 只本金差 4 倍（纳指 16 万 / 日经 4.8 万），金额图看不出谁表现好。 -->
+         收益率是刚需：各只本金差数倍（纳指十几万 / 日经几万），金额图看不出谁表现好。 -->
     <!-- 场内 / 场外切换（2026-11-09 加，用户要求）：
          场外用 SNAPSHOTS 构建（每期 6 只都有 val/pl），不是 HOLD_HIST —— 后者需要逐笔成交，
          场外没有那个记录 ✗ 代价是点数少（38 vs 93 个）且不均匀，见下方口径注 ✓ -->
@@ -270,13 +270,13 @@ try {
   另见：<a href="finance/index.html">💰 个人财务看板（收益 ＋ 资产）</a>（账户 × 月 ＋ 9 月末总资产构成，7 个账户含招行理财/蚂蚁，口径与本页不同：那边是月频账户级账单，这边是日频持仓级快照）
 </footer>
 
-<script src="data.js?v=20261125"></script>
-<script src="positions-data.js?v=20261125"></script>
+<script src="data.js?v=20261126"></script>
+<script src="positions-data.js?v=20261126"></script>
 <!-- 共享口径（2026-10-16 加）：「本期已同步」/ 场外当日合计的有效集合 /「组合已到」的日期，
      三处判据原先在本页、scripts/apply-screenshot.mjs、scripts/dom-check.mjs 各写一份 → 一次更新里漂了 3 处 ✗。
      现在只定义在这一个文件里，本页直接调用、脚本侧用 data-quality.mjs 的 readPosLogic() 读同一份源码 ✓。
      ⚠ 只放判据不放数据；改它的同时要同步 scripts/lint.mjs 的 positions.inline 拼接顺序 ✗。 -->
-<script src="positions-logic.js?v=20261125"></script>
+<script src="positions-logic.js?v=20261126"></script>
 <!-- 财务页的数据（2026-10-04 加）：本页「盈亏全程」要读**场外的月度收益**（FIN_PL 里 kind === "fund"
      的 5 个渠道）。直接从源头读、不在 data.js 里再抄一份 —— 同一批数字两处存放必然漂移，
      并让 dom-check 把渲染值与该文件独立复算对一遍。这是纯数据文件（只定义常量），无副作用。 -->
@@ -3164,7 +3164,7 @@ let hhMode = "amount";    // amount = 浮盈金额 / rate = 相对成本的收�
 
 function hhFmt(v) { return (v >= 0 ? "+" : "−") + Math.abs(Math.round(v)).toLocaleString("en-US"); }
 /* 收益率口径（2026-10-18）：p = [日期, 浮盈, 份额, 摊薄成本, 成本基数]。
-   5 只本金差 4 倍，金额图看不出「谁表现好」—— 收益率才可比。 */
+   各只本金差数倍，金额图看不出「谁表现好」—— 收益率才可比。 */
 function hhRate(p) { return p[4] > 0 ? (p[1] / p[4]) * 100 : 0; }
 function hhNum(p) { return hhMode === "rate" ? hhRate(p) : p[1]; }
 function hhV(v) {
@@ -8530,7 +8530,8 @@ function opCheckupBrief(p) {
  * 为什么**不**逐笔显示（结论，别"优化"回去 ✗）：单笔落在当日振幅的哪一段，量级远小于**溢价**
  *   （10-21 那笔买在当日 5% 位＝极好的执行，可同一只的溢价是 +15.9%）—— 行内多一个这样的数，
  *   只会把注意力从真正拖累收益的那个量上引开 ✗。有价值的是**模式**：是不是习惯性追高。
- * 覆盖**全部 5 只场内**（含已清仓的港美 / 中韩）—— 它们的持仓卡已经没了，但成交记录仍在流水里 ✓。
+ * 覆盖**全部场内标的**（含已清仓的港美 / 中韩 / 科创半导体）—— 它们的持仓卡已经没了，
+ * 但成交记录仍在流水里 ✓。
  * 口径：位置 ≡ (成交价 − 当日最低) ÷ (最高 − 最低)，[0,100]%；
  *   数据是 data.js 的 RANGE_LOG（腾讯前复权日K 的高低，**比例**对复权不敏感 ✓）。
  * ⚠ 找不到当日K / 一字板的笔**不参与统计**（不补 0、不补 50 ✗），覆盖数在 title 里交代。 */
@@ -9182,7 +9183,7 @@ function renderCheckup() {
       + "买点封顶在 C：它衡量「买入时点」且与成本高度重叠（买得贵 ⇒ 成本位也高），不单独把一只打成 D。"
       + "标的旁的 ⓘ ＝ 该渠道没有任何流水记录（档位来自更少的证据，但不因此放宽或加重）。"
       + "「没有卖出记录」不算数据缺口（那是「没发生过」，页面用「—」表示），故不打 ⓘ。"
-      + "数据来源：场内 5 只用券商全流水（日期 / 份数 / 成交价 / 费用，共 43 笔）；场外 6 只的买点由 scripts/refresh-otc.mjs "
+      + "数据来源：场内全部标的用券商全流水（日期 / 份数 / 成交价 / 费用，逐笔全量）；场外的买点由 scripts/refresh-otc.mjs "
       + "用东财历史净值（按申购日逐笔定位）算好写进数据层；支付宝渠道 2 只（摩根日本精选 A、中欧港股 A）没有任何流水记录 → "
       + "买点「不适用」、调仓标「无记录」，不代表没操作过。"
     ) + '">' +

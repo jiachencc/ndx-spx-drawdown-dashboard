@@ -12,7 +12,7 @@
  *   · 已清仓的：曲线在清仓日归零并终止，另记 realized 与「若持有至今」
  *
  * 失败保留旧值：先 validateModel 再原子写，任何一步不过就不写。
- * 请求量：5 只 × 1 次（约 100KB）。
+ * 请求量：每只 1 次（约 100KB）。
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
