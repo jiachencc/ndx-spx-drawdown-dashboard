@@ -135,7 +135,15 @@ export function validateModel(m) {
     const alias = ALIAS_OF[code], q = alias ? (m.DEFAULT || {})[alias] : null;
     if (q && isDate(q.priceDate)) {
       if (p.priceDate > q.priceDate) errors.push("premium priceDate 晚于该 ETF 的报价日 " + code + "（" + p.priceDate + " > " + q.priceDate + "）");
-      else if (p.priceDate === q.priceDate && Number.isFinite(q.close)) {
+      /* ⚠ 只有当「净值日 ≥ 报价日」时才校验 pct（2026-11-26 修）——
+         `navDate` 与 `priceDate` 跨天时，两个数根本不是同一时刻的：
+         净值是 T-1/T-2 的（QDII 滞后），价格是今天的 → `close / nav − 1` 每天都在变，
+         而 `pct` 只在「抓到新净值」那一刻才更新 ✗
+         实测 159941：nav 11-24 / close 11-26，pct 存 16.1（按 1.52 算），
+         收盘后 close 变 1.53 → 算式 16.9 → 报错；手动改成 16.9 后 next day 又反过来 ✗
+         循环无解 → 承认「跨天不校验」（同日时仍严格校验，那才是真能对上的场景）✓ */
+      else if (p.priceDate === q.priceDate && Number.isFinite(q.close)
+               && p.navDate && p.navDate >= q.priceDate) {
         const want = Math.round((q.close / p.nav - 1) * 100 * 10) / 10;
         /* 容差 0.15 → 0.5（2026-10-20）：pct 与 nav 都由 CI 分别写入、各自四舍五入到 1 位，
            差 0.2pp 是正常现象；0.15 会在每次自动更新后误报一次（当天实测 513650 存 7 / 算式 6.8）。 */
