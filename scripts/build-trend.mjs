@@ -55,8 +55,14 @@ const out = {};
 let asOf = "";
 
 for (const it of items) {
+  /* ⚠ 按日期取最近 500 天，不再 `beg=0` 拉全部历史（2026-11-27）——
+     本脚本只用到 MA200（200 个交易日）、52 周区间（约 250 天）、MACD(26)、RSI(14) →
+     260 根就够；原来拉全史（159941 有 3000+ 根，是需求的 10 倍以上）✗
+     而下面的腾讯兜底一直是 `,,400,`（400 根）—— 两边口径本来就不一致 ✗
+     500 天（约 340 个交易日）留足缓冲，且与腾讯的 400 根同量级 ✓ */
+  const fromDay = new Date(Date.now() - 500 * 86400000).toISOString().slice(0, 10).replace(/-/g, "");
   const url = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + secid(it.code)
-    + "&fields1=f1,f2&fields2=f51,f53&klt=101&fqt=1&beg=0&end=20500101";
+    + "&fields1=f1,f2&fields2=f51,f53&klt=101&fqt=1&beg=" + fromDay + "&end=20500101";
   /* ⚠ 2026-11-25 加腾讯兜底（GitHub Actions 的 runner 在海外，东财 K 线接口经常
      `fetch failed` / `SocketError: other side closed` 整批抓不到 —— 实测 6 只全失败，
      于是 TREND 永远停在旧值、而 CI 又因后续步骤崩掉一直红 ✗）

@@ -115,17 +115,34 @@ async function main() {
   const jobs = await Promise.all(Object.entries(CODE).map(async ([name, code]) => {
     const rows = log.filter((e) => e.sym === name && isDate(e.d) && Number.isFinite(+e.cost));
     if (!rows.length) return null;
-    /* 该只**最早**的一笔成交日 − 7 天＝净值要翻到多早（7 天缓冲覆盖长假/周末）
-       → navSeries 翻到这一页就停，不用把 800 天全拉完 ✓ */
-    const earliest = rows.reduce((a, e) => (e.d < a ? e.d : a), rows[0].d);
-    const needFrom = new Date(Date.parse(earliest) - 7 * 86400000).toISOString().slice(0, 10);
+
+    /* ── 增量：只拉「还没算过」的成交日（2026-11-27 重写，用户：「只用拉最新日期的数据对吧？
+       历史数据是固定的，可以优化吗？」）──────────────────────────────────
+       溢价 = 成交价 ÷ **成交日净值** − 1，两个输入都是历史固定的：
+         · 成交价存在 POSITIONS.log，录入后不变
+         · 成交日净值由基金公司公布，公布后永不改变
+       → 某一天的溢价一旦算出来就**永远不用再算** ✓
+       ⚠ 原来从「最早成交日」翻到今天（32 页 / 6 只），而实测**所有成交日都已算过**：
+         净值 6 只 34/27/19/14/10/2 天全在 PREM_LOG 里，`missing` 为空 → 纯重复劳动 ✗
+       → 改成「只看流水里有、PREM_LOG 里没有的那些日期」：
+           平时 0 请求 · 有新成交 1 页 · 净值未公布则每天重试 1 页直到公布 ✓
+       ⚠ 这个优化没引入新状态（判断依据就是已有的 PREM_LOG），所以数据坏了会自动退回全量 ✓ */
+    const oldOut = oldPremItems[name] || {};
+    const have = new Set(Object.keys(oldOut));
+    const dates = [...new Set(rows.map((e) => e.d).filter(isDate))].sort();
+    const missing = dates.filter((d) => !have.has(d));
+    if (!missing.length) {
+      return { name, out: oldOut, h: 0, m: 0, ub: 0, reused: true, total: dates.length };
+    }
+    /* 「最早未算的那天」− 7 天＝要翻到多早（7 天缓冲覆盖长假/周末）*/
+    const needFrom = new Date(Date.parse(missing[0]) - 7 * 86400000).toISOString().slice(0, 10);
     let nav;
     try {
       nav = await navSeries(code, needFrom);
     } catch (e) {
       return { name, err: e.message };
     }
-    const out = {};
+    const out = Object.assign({}, oldOut);      // 沿用已算过的（净值不会变 ✓）
     let h = 0, m = 0, ub = 0;
     const maxNav = Object.keys(nav).sort().at(-1) || "";      // 该只**已公布**的最后一个净值日
     for (const e of rows) {
@@ -135,7 +152,7 @@ async function main() {
       out[e.d] = Math.round(((+e.cost / n.nav) - 1) * 1000) / 10;   // 保留 1 位小数
       h++;
     }
-    return { name, out, h, m, ub, maxNav };
+    return { name, out, h, m, ub, maxNav, added: missing.length, total: dates.length };
   }));
   for (const r of jobs) {
     if (!r) continue;
@@ -149,6 +166,7 @@ async function main() {
     hit += r.h; miss += r.m; unpub += r.ub || 0;
     if (Object.keys(r.out).length) items[r.name] = r.out;
     console.log("  " + r.name.padEnd(18) + Object.keys(r.out).length + " 笔"
+      + (r.reused ? "（无新成交，0 请求）" : (r.added ? "（新增 " + r.added + " 天）" : ""))
       + (r.ub ? " · 净值未公布 " + r.ub + " 笔（该只最新净值日 " + r.maxNav + "）" : ""));
   }
 
