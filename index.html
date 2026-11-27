@@ -845,22 +845,28 @@
   .yc-hd { gap: 6px; }
   /* ⚠ 必须 display:block —— 这是 <span>，默认 inline 的 height/position 都不生效，
      子元素的绝对定位全塌成 0 高度（实测：条和点都渲染了但看不见）✗ */
-  .yc-plot { display: block; position: relative; height: 13px; min-width: 40px; }
+  .yc-plot { display: block; position: relative; height: 16px; min-width: 40px; }
   .yc-plot-hd { color: var(--tx3); font-family: var(--sans); font-size: 9px;
     text-align: center; font-weight: 600; letter-spacing: .01em; }
   /* 0% 基准竖线：所有年份共用，红绿段都从它出发 ✓ */
-  .yc-zero { position: absolute; top: -1px; bottom: -1px; width: 1px;
-    background: var(--tx3); opacity: .30; }
+  /* ⚠ 零线必须压在最上层（z-index）+ 提亮 ——
+     原来 `top:-1/bottom:-1` + `opacity:.30` + 无 z-index，被红绿条整个盖住 ✗ */
+  .yc-zero { position: absolute; top: 0; bottom: 0; width: 1px;
+    background: var(--tx3); opacity: .55; z-index: 3; }
   /* 波动范围：从 dd 到 0（红）或 0 到 runup（绿）；一格覆盖一年 ✓ */
-  .yc-rng { position: absolute; top: 3px; height: 7px; border-radius: 2px; }
+  .yc-rng { position: absolute; top: 3px; height: 10px; border-radius: 2px; }
   /* ⚠ 用 --green / --red，不是 --up / --down —— 后者是 positions.css 的变量，
      tokens.css（index.html 用的这套）里没有 → var() 未定义会让整条声明失效，
      背景直接变透明（实测：条和点都渲染了但完全看不见）✗ */
-  .yc-rng.up { background: color-mix(in srgb, var(--green) 52%, transparent); }
-  .yc-rng.dn { background: color-mix(in srgb, var(--red) 52%, transparent); }
+  .yc-rng.up { background: color-mix(in srgb, var(--green) 72%, transparent); }
+  .yc-rng.dn { background: color-mix(in srgb, var(--red) 72%, transparent); }
   /* 年度结果点：实心 + 卡片底色描边，保证在任何段上都清晰 ✓ */
-  .yc-dot { position: absolute; top: 50%; width: 6px; height: 6px; border-radius: 50%;
-    transform: translate(-50%, -50%); box-shadow: 0 0 0 1.5px var(--card); z-index: 2; }
+  /* ⚠ 双层描边（2026-11-27）—— 条加粗到 10px 后，单层 1.5px 底描边不够，
+     点会「陷进」同色的条里分不清；外圈再套一层半透灰把它托出来 ✓ */
+  .yc-dot { position: absolute; top: 50%; width: 7px; height: 7px; border-radius: 50%;
+    transform: translate(-50%, -50%); z-index: 4;
+    box-shadow: 0 0 0 1.5px var(--card),
+                0 0 0 3px color-mix(in srgb, var(--tx3) 28%, transparent); }
   /* dot 的颜色由**自己的 class** 决定（不再靠 ~ 兄弟选择器）——
      现在一行里红段/绿段可能并存，兄弟选择器会匹配到第一个段、上错色 ✗ */
   .yc-dot { background: var(--tx); }
@@ -1299,7 +1305,7 @@
   <div class="yc-table">
     <div class="yc-row yc-hd">
       <span class="yc-y">年份</span>
-      <span class="yc-plot-hd">回撤 ←┃→ 最高</span>
+      <span class="yc-plot-hd" id="yc-axis-hd">回撤 ←┃→ 最高</span>
       <span class="yc-v">年度</span>
       <span class="yc-v">最高</span>
       <span class="yc-v">回撤</span>
@@ -2896,7 +2902,12 @@ renderAll();
 
   function draw() {
     const all = rowsOf(idx);
-    const shown = span === "all" ? all : all.slice(-15);
+    /* ⚠ 2026-11-27：改成**倒序**（最新年份在最上）—— 用户要求。
+       原来按年份升序（1987 → 2026），最新那一年永远压在最底下：默认 15 年要滚到卡片底部才看见，
+       切「全部」还得在 560px 的内部滚动区里拖到底 ✗
+       ⚠ 顺序：**先切片再倒序**（`slice(-15)` → `reverse()`）——
+         若先倒序再 slice(-15)，取到的是 1987~2001 那 15 年，正好取反 ✗ */
+    const shown = (span === "all" ? all : all.slice(-15)).reverse();
     const ytdYear = T ? T.y : null;
     body.innerHTML = shown.map((x) => {
       const isYtd = ytdYear && x.y === ytdYear;
@@ -2929,15 +2940,23 @@ renderAll();
     const tb = document.querySelector(".yc-table");
     if (tb) tb.classList.toggle("is-scroll", shown.length > 15);
 
+    /* 表头给出**当前轴的实际范围** —— 换个指数量程会变（SPX 最浅 −48.0%），
+       不写出来就不知道条的两端到底代表多少 ✗ */
+    const axisHd = document.getElementById("yc-axis-hd");
+    if (axisHd) axisHd.textContent = pct(AXIS.lo) + " ←┃→ " + pct(AXIS.hi);
+
     const st = (H.stats || {})[idx];
     if (!st) { foot.innerHTML = ""; return; }
     const worst = (H[idx] || []).reduce((a2, x) => (x.dd < a2.dd ? x : a2), { dd: 0, y: "-" });
     foot.innerHTML = '<div class="yc-f1">全史 <b>' + st.n + "</b> 年 · 胜率 <b>" + st.winRate
       + "%</b> · 累计 <b>" + st.cum + " 倍</b></div>"
       + '<div class="yc-f2">年化 <b>' + st.cagr + "%</b> · 平均 <b>" + pct(st.avg)
-      + "</b> · 回撤均值 <b>" + pct(st.avgDD) + "</b>"
+      + "</b> · 年内最深回撤：年均 <b>" + pct(st.avgDD) + "</b>"
+      + (Number.isFinite(st.medDD) ? "（中位 <b>" + pct(st.medDD) + "</b>）" : "")
       + '<span class="yc-fx" style="margin-left:6px" title="红段＝年内最大回撤（0 左侧）；'
       + '绿段＝年内最大涨幅（0 右侧）；●＝年度收盘结果，落在两段之间'
+      + '｜「年均」＝各年年度最大回撤的算术平均（会被 2000–2002 / 2008 这类股灾年拉深）；'
+      + '「中位」＝一半年份比它浅，才是典型年份；两个数差得多说明均值被极端年带跑 ✗'
       + '｜最深 ' + pct(worst.dd) + "（" + worst.y + "）| " + String(H.basis).replace(/"/g, "'")
       + '">口径 ⓘ</span></div>';
   }
