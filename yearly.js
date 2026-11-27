@@ -6,12 +6,12 @@
    由 scripts/build-yearly.mjs 整块重写 */
 const YEARLY_HIST = {
  "updated": "2026-11-25",
- "from": 1987,
+ "from": 1985,
  "to": 2025,
  "basis": "年度＝年末收盘 ÷ 上年末收盘 − 1；年内最大涨幅＝按时间顺序 max(P_t/前低−1)；年内最大回撤＝按时间顺序 max(1−P_t/前高)。两条都**顺序扫描**，不是「最高 ÷ 最低」（后者在最高点早于最低点时给出从未发生过的数）。均为**价格回报**，不含股息。",
  "sources": {
   "ndx": "FRED NASDAQ100",
-  "spx": "Eastmoney 100.SPX"
+  "spx": "Eastmoney 100.SPX + Tencent usINX（补 1985 / 1986 / 1987）"
  },
  "ndx": [
   {
@@ -251,6 +251,24 @@ const YEARLY_HIST = {
  ],
  "spx": [
   {
+   "y": 1985,
+   "yr": 26.33,
+   "runup": 29.53,
+   "dd": -7.66
+  },
+  {
+   "y": 1986,
+   "yr": 14.62,
+   "runup": 24.82,
+   "dd": -9.42
+  },
+  {
+   "y": 1987,
+   "yr": 2.03,
+   "runup": 36.65,
+   "dd": -33.51
+  },
+  {
    "y": 1988,
    "yr": 12.4,
    "runup": 16.91,
@@ -489,20 +507,22 @@ const YEARLY_HIST = {
    "cagr": 14.2,
    "avg": 18.6,
    "avgDD": -20.2,
+   "medDD": -14.6,
    "avgUp": 40.6,
    "worstDD": -58.7,
    "bestRun": 100
   },
   "spx": {
-   "n": 38,
-   "pos": 28,
+   "n": 41,
+   "pos": 31,
    "neg": 10,
-   "winRate": 74,
-   "cum": 27.7,
-   "cagr": 9.1,
-   "avg": 10.5,
-   "avgDD": -13.9,
-   "avgUp": 24.5,
+   "winRate": 76,
+   "cum": 40.93,
+   "cagr": 9.5,
+   "avg": 10.8,
+   "avgDD": -14.1,
+   "medDD": -9.9,
+   "avgUp": 24.9,
    "worstDD": -48,
    "bestRun": 67.9
   }

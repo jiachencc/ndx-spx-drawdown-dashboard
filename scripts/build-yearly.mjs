@@ -91,6 +91,36 @@ async function tencentSeries(sym, limit = 1000) {
   return out;
 }
 
+/* 腾讯**区间**接口（2026-11-27 加）：全量模式下的东财兜底。
+   ⚠ 与上面 tencentSeries 的区别：那个用 count 取「最近 N 根」（上限 1,000 ≈ 4 年），
+     这个用 `from,to` 指定**日期区间**、count 只当窗口内的上限 →
+     逐段取（3 年一段 ≈ 750 根，仍在上限内）就能拼出 40 年 ✓
+   ⚠ 实测（2026-11-27，本机）：usINX 给出 **1985-01-17 起 10,546 根**；
+     count 传 12,000 会返回 `{"code":-1,"msg":"limit error"}` ✗ → 必须分段，不能一把梭
+   ⚠ 它与东财在重叠年份上有 0.07pp 级差异（1991 / 1997 / 2010 的 dd）——
+     所以**只用来补缺口**，不覆盖既有年份（见下面 full 模式那段）✓ */
+async function tencentRangeSeries(sym, y0, y1) {
+  const seen = new Map();
+  for (let y = y0; y <= y1; y += 3) {
+    const from = y + "-01-01", to = Math.min(y + 2, y1) + "-12-31";
+    const u = "https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param="
+      + sym + ",day," + from + "," + to + ",1000,qfq";
+    const r = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0", Referer: "https://finance.qq.com/" },
+      signal: AbortSignal.timeout(25000) });
+    if (!r.ok) throw new Error("tencent " + sym + " " + from + " HTTP " + r.status);
+    const j = await r.json();
+    const obj = (j.data || {})[sym] || {};
+    const key = Object.keys(obj).find((k) => Array.isArray(obj[k]));
+    const arr = key ? obj[key] : [];
+    /* 某一段空 = 数据缺口，直接抛错：宁可整轮不写盘，也不要拼出一份中间缺几年的历史 ✗ */
+    if (!arr.length) throw new Error("tencent " + sym + " " + from + "~" + to + " 无数据（区间缺口）");
+    arr.forEach((x) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(x[0]) && +x[2] > 0) seen.set(x[0], +x[2]);
+    });
+  }
+  return [...seen.entries()].map(([d, c]) => ({ d, c })).sort((a, b) => (a.d < b.d ? -1 : 1));
+}
+
 async function eastmoneySeries(secid, beg) {
   const u = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + secid
     + "&fields1=f1,f2&fields2=f51,f53&klt=101&fqt=1&beg=" + beg + "&end=20500101&lmt=20000";
@@ -151,6 +181,13 @@ function summarize(list) {
   const avg = v.reduce((a, x) => a + x.yr, 0) / n;
   const avgDD = v.reduce((a, x) => a + x.dd, 0) / n;
   const avgUp = v.reduce((a, x) => a + x.runup, 0) / n;
+  /* ⚠ 2026-11-27 加 medDD（中位）：只报均值会把「典型年份跌多深」讲错 ——
+     纳指 1987–2025 的均值 −20.2% 里，2000/2001/2002/2008 四年就贡献 −213pp
+     （−53.0 / −58.7 / −52.0 / −49.6），剔掉这四年均值只有 −16.4%，
+     而**中位**是 −14.6% —— 那才是「平常年份」的深度 ✓
+     页面现在两个数并列显示（年均 + 中位），只给均值容易被读成「每年都跌两成」✗ */
+  const dds = v.map((x) => x.dd).sort((a, b) => a - b);
+  const medDD = dds.length % 2 ? dds[(dds.length - 1) / 2] : (dds[dds.length / 2 - 1] + dds[dds.length / 2]) / 2;
   return {
     n, pos, neg: n - pos,
     winRate: +((pos / n) * 100).toFixed(0),
@@ -158,6 +195,7 @@ function summarize(list) {
     cagr: +((Math.pow(cum, 1 / n) - 1) * 100).toFixed(1),
     avg: +avg.toFixed(1),
     avgDD: +avgDD.toFixed(1),
+    medDD: +medDD.toFixed(1),
     avgUp: +avgUp.toFixed(1),
     worstDD: +Math.min(...v.map((x) => x.dd)).toFixed(1),
     bestRun: +Math.max(...v.map((x) => x.runup)).toFixed(1),
@@ -241,12 +279,22 @@ if (!needFull) {
     }
   }
 } else {
-  /* 全量：必须 40 年 → 只有东财给得出。**失败就抛错、不写盘** ——
-     用 4 年（腾讯）或 10 年（FRED）覆盖 40 年历史是数据损坏，
-     比「晚几天归档」严重得多 ✗ 宁可让 CI 失败一次、保留旧 yearly.js ✓ */
-  spxRows = await eastmoneySeries("100.SPX", "19800101");
-  spxSrc = "Eastmoney 100.SPX";
-  say("SPX ← 东财 · " + spxRows.length + " 根 · " + spxRows[0].d + " ~ " + spxRows[spxRows.length - 1].d);
+  /* 全量：需要 40 年。首选东财（原始源），**不通时退腾讯区间接口**。
+     ⚠ 2026-11-27 加兜底：当日实测两个环境东财 K 线都整批不通（`fetch failed` / 空响应），
+       而 NDX 走 FRED 正常 —— 此时若照旧直接抛错，`--full` 就永远补不上缺失年份
+       （本次跑 --full 正是为了补 SPX 1987，结果卡在这里）。
+     ⚠ 兜底**只补缺口**（见下方 merge），既有年份一个数都不改 ——
+       两条源在 1991/1997/2010 的 dd 上有 ≤0.07pp 差异，拿它重算整段历史＝悄悄改数 ✗ */
+  try {
+    spxRows = await eastmoneySeries("100.SPX", "19800101");
+    spxSrc = "Eastmoney 100.SPX";
+    say("SPX ← 东财 · " + spxRows.length + " 根 · " + spxRows[0].d + " ~ " + spxRows[spxRows.length - 1].d);
+  } catch (e) {
+    spxRows = await tencentRangeSeries("usINX", 1985, thisYear);
+    spxSrc = "Tencent usINX（区间）";
+    console.warn("  ⚠ 东财不通（" + e.message + "）→ 改用腾讯区间接口 · " + spxRows.length
+      + " 根 · " + spxRows[0].d + " ~ " + spxRows[spxRows.length - 1].d + "（只补缺口 ✓）");
+  }
 }
 
 const ndxAll = yearlyStats(ndxRows);
@@ -270,7 +318,34 @@ const ytdYear = +[ndxRows[ndxRows.length - 1].d, spxRows[spxRows.length - 1].d].
 
 /* 已完结年份 → yearly.js；当年 → data.js */
 const pick = (arr) => arr.filter((x) => x.complete && x.y < ytdYear && x.yr !== null);
-const ndxHist = pick(ndxAll), spxHist = pick(spxAll);
+const ndxHist = pick(ndxAll);
+let spxHist = pick(spxAll);
+/* ⚠ 2026-11-27：全量模式若 SPX 走了**兜底源**（腾讯区间），只补缺失年份、既有年份原样沿用 ——
+   理由见上面 full 模式那段：两条源在 1991/1997/2010 的 dd 上有 ≤0.07pp 差异，
+   直接重算＝把已验证的 38 年悄悄改掉 ✗。东财通了（原始源）时照旧整段重算 ✓ */
+if (needFull && spxSrc !== "Eastmoney 100.SPX") {
+  let old = null;
+  try { old = JSON.parse(/const YEARLY_HIST = (\{[\s\S]*?\n\});/.exec(readFileSync(histFile, "utf8"))[1]); }
+  catch (e) { /* 没有旧文件 → 无可沿用，按全量结果写 ✓ */ }
+  if (old && Array.isArray(old.spx) && old.spx.length) {
+    const have = new Map(old.spx.map((x) => [x.y, x]));
+    const drift = [];
+    spxHist.forEach((r) => {
+      const o = have.get(r.y);
+      if (!o) return;
+      const d = Math.max(Math.abs(r.yr - o.yr), Math.abs(r.dd - o.dd), Math.abs(r.runup - o.runup));
+      if (d > 0.1) drift.push(r.y + " 差 " + d.toFixed(2) + "pp");
+    });
+    const added = spxHist.filter((r) => !have.has(r.y));
+    spxHist = old.spx.concat(added).sort((a, b) => a.y - b.y);
+    spxSrc = (old.sources && old.sources.spx ? old.sources.spx : "东财")
+      + " + Tencent usINX（补 " + (added.length ? added.map((r) => r.y).join(" / ") : "无") + "）";
+    say("SPX 兜底源 → 新增 " + (added.length
+      ? added.map((r) => r.y + "（年度 " + (r.yr >= 0 ? "+" : "") + r.yr.toFixed(2) + "% · 年内回撤 " + r.dd.toFixed(2) + "%）").join("、")
+      : "无（无缺口）") + "；既有 " + old.spx.length + " 年沿用原值 ✓");
+    if (drift.length) console.warn("  ⚠ 兜底源与既有年份的差异（>0.1pp；**均未改动**，仅提示）：" + drift.join("、"));
+  }
+}
 const ndxYtd = ndxAll.find((x) => x.y === ytdYear) || null;
 const spxYtd = spxAll.find((x) => x.y === ytdYear) || null;
 const asOf = [ndxYtd ? ndxYtd.lastTrade : "?", spxYtd ? spxYtd.lastTrade : "?"].sort()[1];
