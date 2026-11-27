@@ -173,13 +173,28 @@ const src = readFileSync(DATA, "utf8");
    实测 CI 里 check-data 直接报「NDX_DD: events 少于 10 次」→ 整条流水线红 ✗
    → 新事件数比旧数据少 30% 以上就**不写**，保留上一版满血数据 ✓
      （「今天没更新」远比「把 20 次的历史换成 3 次」安全） */
+/* ⚠ 数事件对象时字段名是 **peak** 不是 start（2026-11-27 修）——
+   第一版写的是 `/\{"?start"?|start:/g`，而事件对象长这样：
+     {peak: "2019-05-03", trough: ..., recover: ..., dd: -11.06, ...}
+   → 一个都数不到 → oldEvN 恒为 0 → `oldEvN >= 10` 恒为 false → **保护从未生效** ✗
+   实测后果：CI 里降级到腾讯（4 年）时把 10 次历史压成 3 次照写不误，
+   check-data 报「NDX_DD: events 少于 10 次」→ 整条流水线红 ✗（2026-11-27 03:45） */
 const oldEvN = (() => {
-  const m = /const NDX_DD = \{[\s\S]*?"?events"?:\s*\[/.exec(src) || /events:\s*\[/.exec(src);
+  const m = /const NDX_DD = \{/.exec(src);
   if (!m) return 0;
-  const seg = src.slice(m.index);
-  return (seg.match(/\{"?start"?|start:/g) || []).length;
+  const seg = src.slice(m.index, m.index + 20000);
+  const em = /events:\s*\[/.exec(seg);
+  if (!em) return 0;
+  const end = seg.indexOf("]", em.index);
+  const arr = end > em.index ? seg.slice(em.index, end) : seg.slice(em.index);
+  return (arr.match(/\{?peak:/g) || []).length;
 })();
-if (oldEvN >= 10 && ev.length < oldEvN * 0.7) {
+/* ⚠ 两道门槛（2026-11-27 补第二道）——
+   只按「比旧数据少 30%」不够：实测本地东财只给 1,921 根（2019 起）时算出 **9 次**，
+   而 9 不小于 10×0.7＝7 → 放行 ✗ 可是 `check-data` 的硬性要求是「至少 10 次」
+   （纳指 30 年应有 ~20 次 ≥10% 回撤）→ 照样红 ✓
+   → 再加一条绝对下限：少于 10 次就一律放弃写盘 ✓ */
+if (ev.length < 10 || (oldEvN >= 10 && ev.length < oldEvN * 0.7)) {
   console.log("⚠ 降级到 " + ndxRes.source + "（样本缩水）：事件 " + oldEvN + " → " + ev.length
     + " 次 → **放弃写盘**，保留旧的满血 NDX_DD ✓");
   process.exit(0);
