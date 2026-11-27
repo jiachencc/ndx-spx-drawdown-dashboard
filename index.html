@@ -7,7 +7,7 @@
 <meta name="description" content="美股指数回撤水位决策看板：NDX / SPX 回撤深度、四档加仓触发线、止盈矩阵与定投回测，个人投资决策辅助。">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式 -->
-<link rel="stylesheet" href="tokens.css?v=20261127c">
+<link rel="stylesheet" href="tokens.css?v=20261127d">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 
@@ -819,77 +819,57 @@
   .yc-sp.active { background: rgba(147,163,187,.16); color: var(--tx2); font-weight: 700; }
   /* ⚠ 限高（2026-11-26）：15 年时 15×34 ≈ 510px（不滚）；「全部」是 40 行 ≈ 1360px，
      会让整张卡变两屏 ✗ → 内部滚动（15 年不触发，全部才触发） */
-  /* ⚠ 默认**不能**是滚动容器（2026-11-27 修，用户：「手机上上下划不动」）——
-     `overflow-y: auto` 一旦写在元素上，移动端就把它当成「滚动代理」：
-     即使内容没超高（实测 15 行 = 323px，`scrollHeight === clientHeight`、根本不能滚），
-     手指在这个区域上下划时事件也会被它吃掉 → **整页滚不动** ✗
-     这是 iOS Safari / Android Chrome 的既定行为 ✓
-     → 只在「全部」40 行（确实需要内部滚动）时通过 .is-scroll 开启 ✓ */
-  .yc-table { margin: 2px 0 0; }
-  .yc-table.is-scroll { max-height: 560px; overflow-y: auto;
-    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-  /* ⚠ 从四列（年份 + 三列数字）改成三列（年份 + 图形 + 年度）——
-     图形的横轴已经承载了「年内最高 / 年内回撤」两个数（就是红绿段的两端），
-     再并排两列数字等于把同一件事说了两遍 ✗ 精确值在条形的 hover 里 */
-  /* ⚠ 5 列（2026-11-26 第三版：用户「还是想看到数字」）——
-     年份 + 图形 + 年度 + 年内最高 + 年内回撤。
-     375px 实测：34 + 185 + 3×33 + 4×4 ≈ 343px，刚好占满卡片内宽 ✓
-     数字列只给 3.2em（6 字符 @9px ≈ 33px），再宽条就没地方了 */
-  /* ⚠ 4 列数字的宽度要按**实际字形**算（2026-11-26 第四版）——
-     `+16.8%` 是 6 个等宽字符，9.5px 下约 34px；原来给 3.2em（30.4px）装不下，
-     三个数会连着排版成 `+16.8%+23.4%-11.9%`，完全黏在一起 ✗
-     → 数字列 3.6em（34.2px）、列距 6px；实测 375px 下条还剩约 186px ✓ */
-  .yc-row { display: grid; grid-template-columns: 3.2em 1fr 3.6em 3.6em 3.6em;
-    gap: 6px; align-items: center; padding: 2px 0;
-    font-family: var(--mono); font-feature-settings: "tnum"; font-size: 9.5px; }
-  .yc-hd { gap: 6px; }
-  /* ⚠ 必须 display:block —— 这是 <span>，默认 inline 的 height/position 都不生效，
-     子元素的绝对定位全塌成 0 高度（实测：条和点都渲染了但看不见）✗ */
-  .yc-plot { display: block; position: relative; height: 13px; min-width: 40px; }
-  .yc-plot-hd { color: var(--tx3); font-family: var(--sans); font-size: 9px;
-    text-align: center; font-weight: 600; letter-spacing: .01em; }
-  /* 0% 基准竖线：所有年份共用，红绿段都从它出发 ✓ */
-  .yc-zero { position: absolute; top: -1px; bottom: -1px; width: 1px;
-    background: var(--tx3); opacity: .30; }
-  /* 波动范围：从 dd 到 0（红）或 0 到 runup（绿）；一格覆盖一年 ✓ */
-  .yc-rng { position: absolute; top: 3px; height: 7px; border-radius: 2px; }
-  /* ⚠ 用 --green / --red，不是 --up / --down —— 后者是 positions.css 的变量，
-     tokens.css（index.html 用的这套）里没有 → var() 未定义会让整条声明失效，
-     背景直接变透明（实测：条和点都渲染了但完全看不见）✗ */
-  .yc-rng.up { background: color-mix(in srgb, var(--green) 52%, transparent); }
-  .yc-rng.dn { background: color-mix(in srgb, var(--red) 52%, transparent); }
-  /* 年度结果点：实心 + 卡片底色描边，保证在任何段上都清晰 ✓ */
-  .yc-dot { position: absolute; top: 50%; width: 6px; height: 6px; border-radius: 50%;
-    transform: translate(-50%, -50%); box-shadow: 0 0 0 1.5px var(--card); z-index: 2; }
-  /* dot 的颜色由**自己的 class** 决定（不再靠 ~ 兄弟选择器）——
-     现在一行里红段/绿段可能并存，兄弟选择器会匹配到第一个段、上错色 ✗ */
-  .yc-dot { background: var(--tx); }
-  .yc-dot.up { background: var(--green); }
-  .yc-dot.dn { background: var(--red); }
-  .yc-row + .yc-row { border-top: 1px solid color-mix(in srgb, var(--line-soft) 42%, transparent); }
-  .yc-hd { color: var(--tx3); font-family: var(--sans); font-size: 9px;
-    padding-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
-  .yc-hd .yc-plot-hd { color: var(--tx3); }
-  .yc-hd .yc-v { font-weight: 600; letter-spacing: .02em; }
-  .yc-y { color: var(--tx2); font-weight: 600; }
-  .yc-y > i { font-style: normal; font-size: 8px; color: var(--yellow);
-    margin-left: 3px; letter-spacing: .02em; }
-  .yc-v { text-align: right; color: var(--tx2); white-space: nowrap;
-    font-variant-numeric: tabular-nums; }
-  .yc-v.up > b { color: var(--green); font-weight: 700; }
-  .yc-v.dn > b { color: var(--red); font-weight: 700; }
-  .yc-v.up2 { color: color-mix(in srgb, var(--green) 62%, var(--tx3)); }
-  .yc-v.dn { color: color-mix(in srgb, var(--red) 78%, var(--tx3)); }
-  /* 「年内最高」用更淡的绿、「年内回撤」用更淡的红 —— 与条两端的深浅呼应：
-     极值是**过程**、年度是**结果**，结果要更亮 ✓ */
-  .yc-v.dn2 { color: color-mix(in srgb, var(--red) 62%, var(--tx3)); }
-  .yc-row.is-ytd .yc-y { color: var(--yellow); }
-  .yc-row.is-ytd .yc-v { opacity: .82; }
+  /* ⚠ 2026-11-27 改成**横向年份条**（用户：「换为年从左到右呢可以左右滑动？最新2026~到最久？」）
+     · 纵向时 40 行 ≈ 1,360px、要滑 3 屏；横向 40 列 × 58px ≈ 2,320px，但高度只有约 110px ✓
+       一屏能同时看到 5~6 年，比纵向「一屏 8 行但每行只有一根细条」信息密度更高 ✓
+     · 顺序**反过来了**：2026 在最左、1987 在最右（用户要「最新 → 最久」）✓
+     · ⚠ 横向滚动容器**不会**吃掉纵向滑动（浏览器能按方向区分手势）——
+       和之前那个 `overflow-y: auto` 卡住整页纵向滚动的问题不同 ✓
+       但仍加 `overscroll-behavior-x: contain`，避免滑到两端时把滚动带给父级 ✓ */
+  /* ⚠ `overflow-y: hidden` 必须显式写（2026-11-27）——
+     只设 `overflow-x: auto` 时，CSS 会把另一个方向**强制成 auto**（规范如此），
+     于是这个容器又变成纵向滚动代理 → 手指在这里上下划会被吃掉、
+     整页划不动 ✗（和 .yc-table 那个坑一模一样，只是这次是横轴引发的）
+     显式 hidden 后：**纵向手势冒泡给页面**、横向手势留给本容器 ✓ */
+  .yc-strip { display: flex; gap: 3px; overflow-x: auto; overflow-y: hidden;
+    padding: 2px 0 4px; overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .yc-strip::-webkit-scrollbar { height: 3px; }
+  .yc-strip::-webkit-scrollbar-thumb { background: rgba(147,163,187,.3); border-radius: 2px; }
+  .yc-col { flex: 0 0 58px; display: flex; flex-direction: column; align-items: center;
+    font-family: var(--mono); font-feature-settings: "tnum"; }
+  .yc-cy { font-size: 9.5px; color: var(--tx2); font-weight: 600; line-height: 1.3; }
+  .yc-cy > i { font-style: normal; font-size: 7px; color: var(--yellow); margin-left: 1px; }
+  /* 竖向柱：零线居中 —— 向上＝年内最高（绿）、向下＝年内回撤（红）、横杠＝年度结果 */
+  .yc-cplot { position: relative; display: block; width: 100%; height: 62px; }
+  .yc-czero { position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+    background: repeating-linear-gradient(to right, var(--tx3) 0 2px, transparent 2px 4px);
+    opacity: .55; }
+  /* ⚠ 用 --green / --red，不是 --up / --down（后者是 positions.css 的变量，
+     index.html 这套 tokens.css 里没有 → var() 未定义会让整条声明失效、背景透明 ✗）*/
+  .yc-cup, .yc-cdn { position: absolute; left: 24%; right: 24%; }
+  .yc-cup { bottom: 50%; border-radius: 1px 1px 0 0;
+    background: color-mix(in srgb, var(--green) 34%, transparent); }
+  .yc-cdn { top: 50%; border-radius: 0 0 1px 1px;
+    background: color-mix(in srgb, var(--red) 34%, transparent); }
+  /* 年度结果用**横杠**而不是圆点 —— 列只有 58px 宽，圆点在窄列里对不准零线 ✓ */
+  .yc-cdot { position: absolute; left: 8%; right: 8%; height: 2.5px; border-radius: 1px;
+    background: var(--green); box-shadow: 0 0 0 1.5px var(--card); z-index: 2; }
+  .yc-cdot.dn { background: var(--red); }
+  .yc-cyr { font-size: 10px; font-weight: 700; line-height: 1.35; white-space: nowrap; }
+  .yc-cyr.up { color: var(--green); }
+  .yc-cyr.dn { color: var(--red); }
+  .yc-cmin { font-style: normal; font-size: 8px; line-height: 1.35; white-space: nowrap;
+    color: color-mix(in srgb, var(--green) 66%, var(--tx3)); }
+  .yc-cmin.dn { color: color-mix(in srgb, var(--red) 66%, var(--tx3)); }
+  .yc-col.is-ytd .yc-cy { color: var(--yellow); }
   .yc-foot { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft);
     font-size: 9.5px; color: var(--tx2); line-height: 1.6;
     font-family: var(--mono); font-feature-settings: "tnum"; }
   .yc-foot b { color: var(--tx); font-weight: 700; }
   .yc-foot .yc-f1, .yc-foot .yc-f2 { line-height: 1.7; }
+  .yc-foot .yc-f3 { color: var(--tx3); font-family: var(--sans); font-size: 9px;
+    line-height: 1.6; letter-spacing: .01em; }
   .yc-foot .yc-f2 { color: var(--tx3); }
   .yc-foot .yc-f2 b { color: var(--tx2); }
   .yc-foot .yc-fx { color: var(--tx3); font-size: 9px; margin-left: 6px; cursor: help; }
@@ -1296,16 +1276,8 @@
       <button type="button" class="yc-sp" data-span="all">全部</button>
     </div>
   </div>
-  <div class="yc-table">
-    <div class="yc-row yc-hd">
-      <span class="yc-y">年份</span>
-      <span class="yc-plot-hd">回撤 ←┃→ 最高</span>
-      <span class="yc-v">年度</span>
-      <span class="yc-v">最高</span>
-      <span class="yc-v">回撤</span>
-    </div>
-    <div id="yc-body"></div>
-  </div>
+  <!-- ⚠ 2026-11-27 横向年份条：没有表头（列里自带年份），图例在下方「口径 ⓘ」里 -->
+  <div class="yc-strip" id="yc-body"></div>
   <div class="yc-foot" id="yc-foot"></div>
 </div>
 
@@ -1327,8 +1299,8 @@
   本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值：<a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market · 美股编年史 (historyofmarket.com)</a>（CC BY 4.0）· 期权：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · 美债：<a href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve" target="_blank" rel="noopener" style="color:inherit">U.S. Department of the Treasury</a> · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
-<script src="data.js?v=20261127c"></script>
-<script src="yearly.js?v=20261127c"></script>
+<script src="data.js?v=20261127d"></script>
+<script src="yearly.js?v=20261127d"></script>
 <script>
 "use strict";
 /* ================= 数据层 ================= */
@@ -2898,42 +2870,41 @@ renderAll();
     const all = rowsOf(idx);
     const shown = span === "all" ? all : all.slice(-15);
     const ytdYear = T ? T.y : null;
-    body.innerHTML = shown.map((x) => {
+    /* ⚠ 2026-11-27 横向布局（用户：「换为年从左到右呢可以左右滑动？最新2026~到最久？」）
+       · `shown.slice().reverse()` → 2026 在最左、最久的最右 ✓
+       · 量程 R 按**全史**取（不是当前显示的 15 年）——
+         否则切「15 年 / 全部」时同一年的柱长会变，像两套数据 ✗
+       · 柱高 = 该年极值 / R × 50%（零线在正中）；年度结果用横杠标在它的高度上
+         于是「先跌多少、再涨多少、最后收在哪」在一根柱里全看得出来 ✓ */
+    const R = Math.max(1, ...all.map((x) => Math.max(x.runup, -x.dd)));
+    body.innerHTML = shown.slice().reverse().map((x) => {
       const isYtd = ytdYear && x.y === ytdYear;
-      /* ⚠ 红绿必须**按 0% 分段**，不能按「年度正负」整条上色（2026-11-26）——
-         2020 从 −28% 涨到 +84%、收在 +47.6%，按年度正负会画成「整条绿」，
-         但左边那 28% 明明是**跌**进去的 ✗
-         → 两段：`dd → 0` 红、`0 → runup` 绿，0% 处断开 ✓ */
-      const z = xOf(0);
-      const wDn = Math.max(0, z - xOf(x.dd));
-      const wUp = Math.max(0, xOf(x.runup) - z);
-      const pos = Math.max(1.5, Math.min(98.5, xOf(x.yr)));
-      return '<div class="yc-row' + (isYtd ? " is-ytd" : "") + '">'
-        + '<span class="yc-y">' + x.y + (isYtd ? "<i>YTD</i>" : "") + "</span>"
-        + '<span class="yc-plot" title="' + x.y + "　年内最大回撤 " + pct(x.dd)
-          + "　年度 " + pct(x.yr) + "　年内最大涨幅 " + pct(x.runup) + '">'
-          + '<i class="yc-zero" style="left:' + z.toFixed(2) + '%"></i>'
-          + (wDn > 0.2 ? '<i class="yc-rng dn" style="left:' + (z - wDn).toFixed(2)
-            + "%;width:" + wDn.toFixed(2) + '%"></i>' : "")
-          + (wUp > 0.2 ? '<i class="yc-rng up" style="left:' + z.toFixed(2)
-            + "%;width:" + wUp.toFixed(2) + '%"></i>' : "")
-          + '<b class="yc-dot ' + (x.yr >= 0 ? "up" : "dn") + '" style="left:' + pos.toFixed(2) + '%"></b>'
+      const hUp = Math.max(0, x.runup) / R * 50;
+      const hDn = Math.max(0, -x.dd) / R * 50;
+      const yDot = Math.max(0, Math.min(100, 50 + (x.yr / R) * 50));
+      return '<div class="yc-col' + (isYtd ? " is-ytd" : "") + '">'
+        + '<span class="yc-cy">' + x.y + (isYtd ? "<i>YTD</i>" : "") + "</span>"
+        + '<span class="yc-cplot" title="' + x.y + "　年度 " + pct(x.yr)
+          + "　年内最高 " + pct(x.runup) + "　年内回撤 " + pct(x.dd) + '">'
+          + '<i class="yc-czero"></i>'
+          + (hUp > 0.4 ? '<i class="yc-cup" style="height:' + hUp.toFixed(1) + '%"></i>' : "")
+          + (hDn > 0.4 ? '<i class="yc-cdn" style="height:' + hDn.toFixed(1) + '%"></i>' : "")
+          + '<b class="yc-cdot' + (x.yr >= 0 ? "" : " dn") + '" style="bottom:' + yDot.toFixed(1) + '%"></b>'
         + "</span>"
-        + '<span class="yc-v ' + (x.yr >= 0 ? "up" : "dn") + '"><b>' + pct(x.yr) + "</b></span>"
-        + '<span class="yc-v up2">' + pct(x.runup) + "</span>"
-        + '<span class="yc-v dn2">' + pct(x.dd) + "</span>"
+        + '<b class="yc-cyr ' + (x.yr >= 0 ? "up" : "dn") + '">' + pct(x.yr) + "</b>"
+        + '<i class="yc-cmin">' + pct(x.runup) + "</i>"
+        + '<i class="yc-cmin dn">' + pct(x.dd) + "</i>"
         + "</div>";
     }).join("");
 
-    /* 「全部」（40 行）才开内部滚动，15 行时把滚动权交还页面（见 .yc-table 注释）*/
-    const tb = document.querySelector(".yc-table");
-    if (tb) tb.classList.toggle("is-scroll", shown.length > 15);
+    /* ⚠ 2026-11-27：横向条不需要纵向滚动开关，旧的 .yc-table toggle 已删 ✓ */
 
     const st = (H.stats || {})[idx];
     if (!st) { foot.innerHTML = ""; return; }
     const worst = (H[idx] || []).reduce((a2, x) => (x.dd < a2.dd ? x : a2), { dd: 0, y: "-" });
     foot.innerHTML = '<div class="yc-f1">全史 <b>' + st.n + "</b> 年 · 胜率 <b>" + st.winRate
       + "%</b> · 累计 <b>" + st.cum + " 倍</b></div>"
+      + '<div class="yc-f3">绿柱＝年内最高 · 红柱＝年内回撤 · 横杠＝年度结果</div>'
       + '<div class="yc-f2">年化 <b>' + st.cagr + "%</b> · 平均 <b>" + pct(st.avg)
       + "</b> · 回撤均值 <b>" + pct(st.avgDD) + "</b>"
       + '<span class="yc-fx" style="margin-left:6px" title="红段＝年内最大回撤（0 左侧）；'
