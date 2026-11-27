@@ -90,8 +90,23 @@ async function main() {
   const log = LOG(JSON.parse(JSON.stringify(ctx.P)));
   if (!log.length) { console.error("POSITIONS.log 为空，保留旧值"); process.exit(1); }
 
+  /* 旧 PREM_LOG 的 items —— 单只抓取失败时**沿用上一版**（2026-11-27 加）——
+     实测 CI：`⚠ 标普500ETF南方 净值抓取失败：fetch failed（该只跳过）`
+     → items 里少了这一只 → `data-quality` 报「PREM_LOG 缺标的：标普500ETF南方」
+     → 候选被拒、整条流水线回滚 ✗
+     而「网络偶发失败」不该让当天的 5 只新数据也一起丢 ✗
+     → 失败的那只沿用旧值（页面显示的是上一次算的溢价，不是假数据）✓ */
+  const oldPremItems = (() => {
+    try {
+      const m0 = /^const PREM_LOG = \{[\s\S]*?^\};/m.exec(src);
+      if (!m0) return {};
+      const c0 = vm.createContext({});
+      vm.runInContext(m0[0] + "\nthis.L = PREM_LOG;", c0, { timeout: 3000 });
+      return (c0.L && c0.L.items) || {};
+    } catch (e) { return {}; }
+  })();
   const items = {};
-  let hit = 0, miss = 0, unpub = 0;
+  let hit = 0, miss = 0, unpub = 0, kept = 0;
   /* 并行（2026-10-20 起）：原来串行 for，几秒变十几秒；并行后 ≈2 秒
      （各只之间无依赖，写入时也不互相覆盖）。
      ⚠ **不要再写死「N 只 × M 次」**（2026-11-26 清理）——
@@ -124,7 +139,13 @@ async function main() {
   }));
   for (const r of jobs) {
     if (!r) continue;
-    if (r.err) { console.error("  ⚠ " + r.name + " 净值抓取失败：" + r.err + "（该只跳过）"); continue; }
+    if (r.err) {
+      const old = oldPremItems[r.name];
+      console.error("  ⚠ " + r.name + " 净值抓取失败：" + r.err
+        + (old ? "（沿用上一版 " + Object.keys(old).length + " 笔）" : "（无旧值，该只跳过）"));
+      if (old) { items[r.name] = old; kept++; }
+      continue;
+    }
     hit += r.h; miss += r.m; unpub += r.ub || 0;
     if (Object.keys(r.out).length) items[r.name] = r.out;
     console.log("  " + r.name.padEnd(18) + Object.keys(r.out).length + " 笔"
