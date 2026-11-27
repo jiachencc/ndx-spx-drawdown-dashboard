@@ -114,12 +114,16 @@ for (const f of OTC.funds) {
   const newest = em[0];                        // 最新一条
   const prev = em[1] || null;                  // 前一交易日
 
-  /* ⚠ 这里**只更新 OTC.funds，不碰 SNAPSHOTS**（2026-11-26 明确）——
-     快照是「那天收盘的历史事实」，`OTC.funds` 是「当前最新读数」。
-     净值常常晚于收盘才公布（QDII 甚至 T+1/T+2），所以两者在「净值已更新、
-     但快照仍按旧净值算」时天然不同 ✓ 那是正确状态，不是不一致 ✗
-     强行同步会改写历史快照 → 总资产 / 累计收益 / 当日全变 ✗
-     cross-check ① 已相应放宽（见 data-quality.mjs：navDate >= 快照日时跳过比对）✓ */
+  /* ⚠ 2026-11-27 修正：必须**同时更新最新快照的 items**（原来这里写「不碰 SNAPSHOTS」是错的）
+     `OTC.funds[code].value` 与 `SNAPSHOTS.at(-1).items[code].val` 是「同一批读数」的两处副本，
+     `cross-check` ① 与 `check-data` 都要求逐分相等 ✓
+     只改 OTC.funds 的后果（2026-11-27 CI 实测）：
+       「① 021778 快照 items val/pl +19567.88/−3012.12 ≠ OTC.funds +19439.60/−3140.40」
+       → 审计失败 → 整条流水线红、当天数据推不上去 ✗
+     ⚠ 前一轮尝试「放宽校验」是**错的方向**：净值日（11-25）通常**早于**快照日（11-26），
+       那种情况永远判「不一致」，放宽成「净值日 ≥ 快照日才跳过」根本覆盖不到 ✗
+     ⚠ 只同步**最新那一期**（历史快照是真历史，不该被后来的净值改写）；
+       同步时 items 的 val/pl 与快照的 Σpl 一起改，否则又会「Σpl 对不上」✗ */
 
   /* ① 净值日必须有前进 */
   if (old.closeDate && newest.d <= old.closeDate) {
@@ -173,6 +177,8 @@ if (!results.length) {
 /* ── 写回：只改该只那一行的 5 个数字 + nav.close / closeDate ──────────── */
 if (WRITE) {
   const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).slice(0, 16).replace("T", " ");
+  const oldItems = (last && last.items) || {};
+  let plDelta = 0;
   for (const r of results) {
     const { f, newest, value, day, pnl, rate } = r;
     const anchor = 'code: "' + f.code + '"';
@@ -201,10 +207,42 @@ if (WRITE) {
       navSeg = navSeg.replace(/closeDate: "[^"]*"/, 'closeDate: "' + newest.d + '"');
       src = src.slice(0, n0) + navSeg + src.slice(n1);
     }
+    /* ③ 同步最新快照的 items（val / pl）—— 见上面注释，不同步会让审计每天红 ✗ */
+    /* ⚠ 快照的写法是 `{ d: "2026-11-26", cash: ...`（键**不带引号**）——
+       第一版写成 `'"d": "'` 定位不到，静默什么都没改，审计照旧报错 ✗ */
+    const sd = src.indexOf('{ d: "' + last.d + '"');
+    if (sd > 0) {
+      const ci = src.indexOf('"' + f.code + '": { name:', sd);
+      if (ci > 0) {
+        const ce = src.indexOf("}", ci);
+        if (ce > ci) {
+          let is = src.slice(ci, ce);
+          const before2 = is;
+          is = is.replace(/val: -?\d+(?:\.\d+)?/, "val: " + value.toFixed(2));
+          is = is.replace(/pl: -?\d+(?:\.\d+)?/, "pl: " + pnl.toFixed(2));
+          if (is !== before2) {
+            const oldPl = Number.isFinite(oldItems[f.code] && oldItems[f.code].pl) ? oldItems[f.code].pl : null;
+            if (oldPl !== null) plDelta += pnl - oldPl;
+            src = src.slice(0, ci) + is + src.slice(ce);
+          }
+        }
+      }
+    }
     changed++;
   }
 
-  /* ③ OTC.updated = 各只里最新的那个净值日 */
+  /* ④ 快照的 Σpl 跟着改（items 变了但 Σpl 没变 → 「Σpl ≠ 记录值」✗） */
+  if (Math.abs(plDelta) > 0.005) {
+    const re2 = new RegExp('(\\{ d: "' + last.d + '", cash: [\\d.]+, pl: )(-?[\\d.]+)');
+    if (re2.test(src)) {
+      src = src.replace(re2, (mm, p1, p2) => p1 + (Number(p2) + plDelta).toFixed(2));
+      console.log("  快照 " + last.d + " 的 Σpl " + plDelta.toFixed(2) + " → 已同步");
+    } else {
+      console.warn("  ⚠ 定位不到快照 " + last.d + " 的 pl 字段，Σpl 未同步");
+    }
+  }
+
+  /* ⑤ OTC.updated = 各只里最新的那个净值日 */
   const newestDay = results.map((r) => r.newest.d).sort().at(-1);
   const uMatch = /^  updated: "[^"]*",/m.exec(src);
   if (uMatch && newestDay) {
