@@ -7611,26 +7611,42 @@ function holdCardHtml(row, i, ctx) {
      ⚠ 2026-10-12 改：原来这里也是「核验日优先」✗（与 10.09 徽标同一处缺陷 ✓）。 */
   const quoteDate = mdOf(quoteDay(quoteKey, m.priceDate));
   const dateStr = quoteDate ? " (" + quoteDate + ")" : "（日期未核验）";
-  const athStr = m.athDate ? " (" + m.athDate.slice(5).replace("-", ".") + ")" : "";
-  /* 三档读数：按数值升序排成一条「关系链」（2026-09-23）—— 原来 高点/现价/成本 是固定顺序平铺 ＋
-     三个 chip，读者得自己把三个数比一遍才看得出关系；现在按值排序，相邻两项之间的跨度直接写在链上
-     （左→右：从这个数涨/跌多少到下一个数），方向与下方分位条一致；现价跌破成本时链条自己就翻过来。
-     原「较成本 / 距高点」两个 chip 的数值就是链上的两个跨度，故合并去掉（避免同一个数出现两次）。 */
-  const gapBetween = (a, b) => {
-    const g = b / a - 1;
-    /* 右端是成本 → 含义是「还要涨多少才回本」：琥珀，与「距成本位」同色，不用红（还没亏完）；
-       左端是成本 → 就是浮盈率（绿）；现价 ↔ 高点低于高点用琥珀，不当亏损看。 */
-    const c = (b === p.idxAtCost) ? "warn" : (a === p.idxAtCost ? (g >= 0 ? "up" : "down") : "warn");
-    const txt = fmtPct(g);   // fmtPct 自带正负号（用排版减号 −），不要再手工加 "+" → 否则会出 "++8.3%"
-    return '<span class="lad-gap ' + c + '" title="' + txt + '（' + fmtPx(a, a === p.idxAtCost ? 4 : 3) + ' → ' + fmtPx(b, b === p.idxAtCost ? 4 : 3) + '）">' + txt + '</span>';
-  };
-  const ladNodes = [
-    { v: p.idxAtCost, html: '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(4) + ' 元）"><i class="lad-dot" style="background:var(--cyan)"></i>成本 <b>' + fmtPx(p.idxAtCost, 4) + '</b></span>' },
-    /* ⚠ 2026-10-16：现价那枚点改**竖线**（class lad-bar）—— 与条上「成本＝圆 · 现价＝竖线」的新形状语言对齐 ✓
-       （原先三档读数里三个点都是圆点、只靠颜色区分 ✗，色盲/强光下与成本那枚难分） */
-    { v: m.close, html: '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '"><i class="lad-dot lad-bar" style="background:var(--tx)"></i>现价 <b>' + fmtPx(m.close, 3) + '</b></span>' },
-    { v: hi, html: '<span class="lad-item" title="52 周最高' + (m.athDate ? "（" + m.athDate + "）" : "") + '"><i class="lad-dot" style="background:var(--yellow)"></i>高点 <b>' + fmtPx(hi, 3) + '</b>' + athStr + '</span>' },
-  ].sort((x, y) => x.v - y.v);
+  /* 三点读数（2026-11-27 重做，用户选「固定三段 · 单一分母」）——
+     旧版是一条「关系链」：三个价位按数值升序排、两跳上各写一个百分比。三个毛病：
+       ① 两个百分比的**分母不同**（+1.4% 以现价为基、+11.0% 以成本为基）→ 并列时像可以相加 ✗；
+       ② 1.4% 在同一张卡里出现三次（浮盈 −1.4% ／ 距成本位 +1.4% ／ 链上 +1.4%）✗；
+       ③ 链按值排序，盈亏一变顺序就翻转，第一段有时是现价、有时是成本 ✗。
+     → 现在三段**顺序固定**（现价 · 成本 · 52周高），每段竖排「标签／价位／一行小字」；
+       百分比只保留一个、分母统一为 **52 周最高收盘**：「现价低于前高 11.2%」——
+       这句原来挂在下方「52周区间 · 买入密度」的折叠摘要里（与成本那句并列），挪上来后摘要只留成本，
+       同一个数不再出现两次 ✓ */
+  const athDay = (function (s) {
+    const a = String(s || "").split("-");
+    return a.length === 3 ? (+a[1]) + "月" + (+a[2]) + "日" : "";
+  })(m.athDate);
+  const ladThree =
+      '<span class="lad-item" title="场内现价' + dateStr + ((health.usable || srcBehind) ? "" : "，报价滞后 " + health.days + " 个交易日") + '">'
+    + '<span class="lad3-k"><i class="lad-dot lad-bar" style="background:var(--tx)"></i>现价</span>'
+    + '<b class="lad3-v">' + fmtPx(m.close, 3) + '</b>'
+    + '<span class="lad3-s">' + (quoteDate ? quoteDate + " 收盘" : "收盘日未核验") + '</span>'
+    + '</span>'
+    + '<span class="lad-item" title="持仓成本位＝累计买入成本 ÷ 份数（' + p.cost.toFixed(4) + ' 元）">'
+    + '<span class="lad3-k"><i class="lad-dot" style="background:var(--cyan)"></i>成本</span>'
+    + '<b class="lad3-v">' + fmtPx(p.idxAtCost, 4) + '</b>'
+    + '<span class="lad3-s">摊薄成本</span>'
+    + '</span>'
+    + '<span class="lad-item" title="52 周最高收盘' + (m.athDate ? "（" + m.athDate + "）" : "") + '">'
+    + '<span class="lad3-k"><i class="lad-dot" style="background:var(--yellow)"></i>52周高</span>'
+    + '<b class="lad3-v">' + fmtPx(hi, 3) + '</b>'
+    + '<span class="lad3-s">' + (athDay || "日期未核验") + '</span>'
+    + '</span>';
+  /* 唯一保留的百分比：现价 vs 52 周最高收盘（分母＝hi，与下方那条右端的「0% 回撤」是同一把尺子）
+     ⚠ 文案与三段里的标签**同名**（「52周高」）—— 原来写「前高」容易被读成历史最高（那是另一把尺，1.795）✗ */
+  const ladNote = (Number.isFinite(m.close) && hi > 0)
+    ? '<span class="lad-note" title="现价 ' + fmtPx(m.close, 3) + ' ÷ 52 周最高收盘 ' + fmtPx(hi, 3)
+      + ' − 1 ＝ ' + ((m.close / hi - 1) * 100).toFixed(1) + '%；分母就是下方那条的右端（回撤 0%）">现价'
+      + (m.close < hi ? "低于" : "高于") + '52周高 ' + Math.abs((m.close / hi - 1) * 100).toFixed(1) + '%</span>'
+    : "";
   /* DCA 回撤加仓档 chip（成本口径：现价较成本每跌破一档即提示；POSITIONS.strategy.dipTiers 可覆盖 CONFIG 默认档） */
   const dipTiers = (POSITIONS.strategy && POSITIONS.strategy.dipTiers) || CONFIG.DCA_DIP_TIERS;
   const curDd = r * 100;
@@ -7647,21 +7663,9 @@ function holdCardHtml(row, i, ctx) {
       }
     }
   }
-  /* 链条拼装必须放在 chipDip 之后：初版把这段写在上面的三档代码里，引用了尚未初始化的 chipDip →
-     ReferenceError: Cannot access 'chipDip' before initialization，整卡渲染空白。
-     门禁与回归都只跑数据层、拦不住这种运行时错误；是 scripts/dom-check.mjs 抓到的。 */
-  const ladChain = (function () {
-    /* 每一跳（跨度 → 目标项）绑成不可拆的一组：手机上链条必然折行，若松着排就会出现
-       「…+3.4% →」光标悬在行尾、箭头指向的数值跑到下一行的情况（2026-09-23 手机截图抓到）。
-       inline-flex 设成整组，折行只能发生在跳与跳之间 —— 每行开头一定是「跨度 → 数值」。 */
-    const hop = (a, b, html) => '<span class="lad-hop">' + gapBetween(a, b) +
-      '<span class="lad-arrow" aria-hidden="true">→</span>' + html + '</span>';
-    return '<span class="lad-chain">' + ladNodes[0].html +
-      hop(ladNodes[0].v, ladNodes[1].v, ladNodes[1].html) +
-      hop(ladNodes[1].v, ladNodes[2].v, ladNodes[2].html) + '</span>';
-    /* 这里原来还挂着「距 −15% 档还差 X pp」的加仓档 chip（.lad-chips），2026-09-23 挪到策略行：
-       它是"触发/档位"类信息，与「未触发 / 触发加仓观察」同族，而这一行只留「数值＋位置」。 */
-  })();
+  /* ⚠ 2026-11-27：原来这里还有一段 ladChain 的 IIFE（把三档拼成「值 +跨度→ 值 +跨度→ 值」的链条）。
+     改成固定三段后不再需要 → 一并删除；连带 `gapBetween` 与 .lad-chain/.lad-hop/.lad-gap/.lad-arrow 全部退休 ✓
+     ⚠ 「必须在 chipDip 之后拼装」那条 TDZ 教训仍适用于任何在卡片 HTML 里引用 chipDip 的新代码（见下方 strat-row）。 */
   /* 原 ladRows（水位梯三行数据）已随水位梯合并为 .lad-line 一行而移除（2026-09-23） */
   /* 场内溢价 */
   /* 区间着色带：现价↔成本之间 = 当前浮盈(绿)/浮亏(红)区间；带内箭头从成本端指向现价端 */
@@ -7864,11 +7868,11 @@ function holdCardHtml(row, i, ctx) {
           : '') + '</div></div>' +
       kpiThird +
     '</div>' +
-    /* 三档读数 ＋ 右侧分位胶囊（2026-09-23 合并）：两者讲的是同一件事的两种表达 ——
-       链上是绝对数值、胶囊是"你的成本位在 52 周区间的哪儿"，故并成一行；原独立标题行
-       「成本位置 · 分位 64%」取消（那是本次要清掉的第三处"成本"字样）。
-       加仓档 chip 也从这一行挪到下方策略行 —— 它是"触发"类信息，与「未触发」同族。 */
-    '<div class="lad-line">' + ladChain +
+    /* 三点读数 ＋ 说明行（2026-11-27 重做，见上方 ladThree 的注释）：
+       第一行 = 固定三段「现价 · 成本 · 52周高」；第二行 = 唯一保留的百分比（现价 vs 52 周高）
+       ＋ 成本位胶囊。胶囊原来和三档挤在同一行，三段占满宽度后必须另起一行 ✓ */
+    '<div class="lad-line lad3">' + ladThree + '</div>' +
+    '<div class="lad-sub">' + ladNote +
       '<span class="lad-chips"><span class="pos-tier ' + tier[0] + '" title="你的成本位（下方条上的青色点）在 52 周区间中的位置；三档按四舍五入后的整数分位判定：<35% 低 / 35–65% 中 / >65% 高">' +
         /* ⚠ 2026-11-02 改文案：这里量的是**成本价**（pctOf(p.idxAtCost)），不是现价 ——
            原来写「52周分位 67%」与下方「趋势」行的「现价 72 分位」并排，读者会当成同一个数 ✗
@@ -7883,15 +7887,14 @@ function holdCardHtml(row, i, ctx) {
        ⚠ 内容**仍照常渲染**（只是隐藏）—— 点击展开零延迟，也不会影响 SVG 的 clip-path 计算 */
     '<details class="bar-fold" open><summary>'
       + '<span class="bar-sum-t">52周区间 · 买入密度</span>'
-      + '<span class="bar-sum-x">' + (Number.isFinite(m.close) && hi > 0
+      + '<span class="bar-sum-x">' + (Number.isFinite(p.idxAtCost) && hi > 0
         /* ⚠ 2026-11-25 改说法（用户：「能否换个说法 更容易理解？」→ 选方案 1）——
            原来写「现价 −14% · 成本 −9%」：两个负数并列、又不说分母是什么，
            「成本 −9%」极易被读成「成本亏了 9%」✗（实际是「成本相当于从 52 周高点下来 9%」）
-           → 显式带上参照物「低于高点」，并去掉负号（负号在这里只增加负担）✓ */
-        ? '现价' + (m.close < hi ? '低于' : '高于') + '高点 ' + Math.abs((m.close / hi - 1) * 100).toFixed(1) + '%'
-          + (Number.isFinite(p.idxAtCost) && hi > 0
-            ? ' · 成本' + (p.idxAtCost < hi ? '低于' : '高于') + '高点 ' + Math.abs((p.idxAtCost / hi - 1) * 100).toFixed(1) + '%'
-            : '')
+           → 显式带上参照物「低于高点」，并去掉负号（负号在这里只增加负担）✓
+           ⚠ 2026-11-27：**现价那句已挪到上方三点读数的说明行**（.lad-note）——
+             两点都在说「距 52 周高多远」，同一屏放两处就是重复 ✗ → 摘要只留成本这一句 ✓ */
+        ? '成本' + (p.idxAtCost < hi ? '低于' : '高于') + '52周高 ' + Math.abs((p.idxAtCost / hi - 1) * 100).toFixed(1) + '%'
         : '') + '</span></summary>'
       + '<div class="bar-wrap">' +
       '<div class="buy-layer">' + buyMarks + sellMarks + '</div>' +

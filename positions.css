@@ -959,18 +959,25 @@
   .lad-line .lad-dot.lad-bar { width: 3px; height: 11px; border-radius: 2px; }
   .lad-name { font-size: var(--fs-xs); color: var(--tx3); flex: none; }
   .lad-val { font-family: var(--mono); font-size: var(--fs-md); font-weight: 700; font-feature-settings: "tnum"; }
-  /* 关系链（2026-09-23）：三档由「并列罗列」改为按值排序的链 —— 跨度直接写在相邻两项之间，
-     左→右阅读即「从这个数涨/跌多少到下一个数」，与下方分位条的左右方向一致。 */
-  .lad-chain { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-  .lad-hop { display: inline-flex; align-items: center; gap: 6px; }   /* 跨度＋箭头＋目标项：整组不可拆，折行只发生在跳与跳之间 */
-  .lad-gap { font-weight: 700; font-feature-settings: "tnum"; }
-  .lad-gap.up { color: var(--green); }
-  .lad-gap.down { color: var(--red); }
-  .lad-gap.warn { color: var(--yellow); }
-  .lad-arrow { color: var(--tx3); }
+  /* 三点读数（2026-11-27 重做：固定三段 · 单一分母）——
+     代替原来的「关系链」（三个价位按数值排序、两跳上各写一个不同分母的百分比，见 git 历史）。
+     现在：三段顺序**固定**（现价 · 成本 · 52周高），每段竖排「标签 / 价位 / 一行小字」；
+     百分比只留一个、挂在下面 .lad-sub 行里（分母统一为 52 周最高收盘）。
+     ⚠ 用 grid 而不是 flex：三段等宽，价位位数不同（1.571 / 1.5930 / 1.769）也能对齐 ✓ */
+  .lad-line.lad3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 12px;
+    align-items: start; padding: 4px 0 5px; line-height: 1.35; }
+  .lad-line.lad3 .lad-item { flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; white-space: normal; }
+  .lad3-k { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xxs); color: var(--tx3); font-weight: 400; }
+  .lad-line.lad3 .lad3-v { font-size: var(--fs-md); line-height: 1.3; letter-spacing: .2px; }
+  .lad3-s { max-width: 100%; font-size: var(--fs-xxs); color: var(--tx3); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  /* 说明行：唯一保留的百分比（现价 vs 52 周高）＋ 成本位胶囊 —— 与上方三段同一行高节奏 */
+  .lad-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 0 0 6px;
+    font-family: var(--mono); font-size: var(--fs-xs); font-feature-settings: "tnum"; }
+  .lad-note { color: var(--tx2); }
   /* ⚠ 2026-11-04：去掉 margin-left:auto —— 原来它被推到整行最右，浮在位置图右上角、
      与左边那串「成本 → 现价 → 高点」没有视觉联系，位置显得随意 ✗
-     改成紧跟文字流，`.lad-line` 的 gap:14px 已经够分隔 ✓ */
+     改成紧跟文字流，`.lad-sub` 的 gap 已经够分隔 ✓ */
   .lad-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .lad-chip { font-family: var(--mono); font-size: var(--fs-xxs); font-weight: 700; border-radius: var(--radius-xs); padding: 1px 6px; border: 1px solid; white-space: nowrap; font-feature-settings: "tnum"; }
   .lad-chip.up { color: var(--up); border-color: var(--up-line); background: var(--up-bg); }
@@ -2981,9 +2988,11 @@
 
 /* ---- 卡内小排版打磨（2026-11-04）----
    「成本 1.6162 +1.5% → 现价 1.640」这行原来数字和箭头几乎贴着 ✗ → 给箭头两侧留白；
-   图例与下面的「详细」入口也离得太近 → 加一点下边距 ✓ */
+   图例与下面的「详细」入口也离得太近 → 加一点下边距 ✓
+   ⚠ 2026-11-27：关系链改成「固定三段」后，`.lad-line .lad-arrow` 那半条规则随之退休
+     （箭头与跨度已不存在）；`.lad-line{line-height:1.9}` 保留给非 .lad3 的旧用法，
+     但 .lad3 自己写 1.35（网格里 1.9 会把三行撑散）✓ */
 .lad-line { line-height: 1.9; }
-.lad-line .lad-arrow { margin: 0 4px; opacity: .8; }
 .bar-wrap .bar-legend { margin-top: 7px; }
 .bar-wrap { margin-bottom: 9px; }
 /* 「今日 +1.86%…· 未触发 [chip]」这行：chip 与前文之间要有气口 ✗ */
