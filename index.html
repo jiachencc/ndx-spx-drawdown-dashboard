@@ -7,7 +7,7 @@
 <meta name="description" content="美股指数回撤水位决策看板：NDX / SPX 回撤深度、四档加仓触发线、止盈矩阵与定投回测，个人投资决策辅助。">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式 -->
-<link rel="stylesheet" href="tokens.css?v=20261127b">
+<link rel="stylesheet" href="tokens.css?v=20261127c">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 
@@ -819,8 +819,15 @@
   .yc-sp.active { background: rgba(147,163,187,.16); color: var(--tx2); font-weight: 700; }
   /* ⚠ 限高（2026-11-26）：15 年时 15×34 ≈ 510px（不滚）；「全部」是 40 行 ≈ 1360px，
      会让整张卡变两屏 ✗ → 内部滚动（15 年不触发，全部才触发） */
-  .yc-table { margin: 2px 0 0; max-height: 560px; overflow-y: auto;
-    overscroll-behavior: contain; }
+  /* ⚠ 默认**不能**是滚动容器（2026-11-27 修，用户：「手机上上下划不动」）——
+     `overflow-y: auto` 一旦写在元素上，移动端就把它当成「滚动代理」：
+     即使内容没超高（实测 15 行 = 323px，`scrollHeight === clientHeight`、根本不能滚），
+     手指在这个区域上下划时事件也会被它吃掉 → **整页滚不动** ✗
+     这是 iOS Safari / Android Chrome 的既定行为 ✓
+     → 只在「全部」40 行（确实需要内部滚动）时通过 .is-scroll 开启 ✓ */
+  .yc-table { margin: 2px 0 0; }
+  .yc-table.is-scroll { max-height: 560px; overflow-y: auto;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   /* ⚠ 从四列（年份 + 三列数字）改成三列（年份 + 图形 + 年度）——
      图形的横轴已经承载了「年内最高 / 年内回撤」两个数（就是红绿段的两端），
      再并排两列数字等于把同一件事说了两遍 ✗ 精确值在条形的 hover 里 */
@@ -1320,8 +1327,8 @@
   本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值：<a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market · 美股编年史 (historyofmarket.com)</a>（CC BY 4.0）· 期权：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · 美债：<a href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve" target="_blank" rel="noopener" style="color:inherit">U.S. Department of the Treasury</a> · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
-<script src="data.js?v=20261127b"></script>
-<script src="yearly.js?v=20261127b"></script>
+<script src="data.js?v=20261127c"></script>
+<script src="yearly.js?v=20261127c"></script>
 <script>
 "use strict";
 /* ================= 数据层 ================= */
@@ -2917,6 +2924,10 @@ renderAll();
         + '<span class="yc-v dn2">' + pct(x.dd) + "</span>"
         + "</div>";
     }).join("");
+
+    /* 「全部」（40 行）才开内部滚动，15 行时把滚动权交还页面（见 .yc-table 注释）*/
+    const tb = document.querySelector(".yc-table");
+    if (tb) tb.classList.toggle("is-scroll", shown.length > 15);
 
     const st = (H.stats || {})[idx];
     if (!st) { foot.innerHTML = ""; return; }
