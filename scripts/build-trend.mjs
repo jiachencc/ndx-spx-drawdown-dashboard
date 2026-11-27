@@ -128,15 +128,26 @@ for (const it of items) {
   const dq = (ctx.D && ctx.D[QK[it.idx] || it.idx]) || null;
   const useCard = !!(dq && Number.isFinite(dq.low52) && Number.isFinite(dq.ath) && dq.ath > dq.low52);
 
+  /* ⚠ 先把 px / 均线都归到 3 位小数，再用**归约后的值**比大小（2026-11-27 修）——
+     原来 `aboveMa200` 用全精度 `last > ma200`，而 `px` / `ma200` 都做了 toFixed(3)：
+       实测反例：last = 1.5206、ma200 = 1.5205
+         → 全精度：last > ma200 = **true**
+         → 展示值：px = 1.521、ma200 = 1.521 → `px > ma200` = **false**
+       两个字段自相矛盾 ✗ `check-data` 报「TREND.159941 aboveMa200 与 px/ma200 不一致」，
+       CI 直接判候选无效、整条流水线回滚（2026-11-27 03:38 实测）
+     这类「浮点边界」只在两个数极接近时触发，平时不会出现 —— 所以一直没被发现 ✗ */
+  const pxR = +last.toFixed(3);
+  const ma50R = ma50 === null ? null : +ma50.toFixed(3);
+  const ma200R = ma200 === null ? null : +ma200.toFixed(3);
   out[it.code] = {
     name: it.name,
     closed: !!it.closed,
-    px: +last.toFixed(3),
+    px: pxR,
     pxDate: rows[n - 1].d,
-    ma50: ma50 === null ? null : +ma50.toFixed(3),
-    ma200: ma200 === null ? null : +ma200.toFixed(3),
-    aboveMa50: ma50 === null ? null : last > ma50,
-    aboveMa200: ma200 === null ? null : last > ma200,
+    ma50: ma50R,
+    ma200: ma200R,
+    aboveMa50: ma50R === null ? null : pxR > ma50R,
+    aboveMa200: ma200R === null ? null : pxR > ma200R,
     rsi14: rsiLast(cl) === null ? null : +rsiLast(cl).toFixed(0),
     /* ⚠ 必须 clamp 到 [0,100]（2026-11-07 踩到）：收盘价跌破 52 周低点时算出来是 **−2** ✗
        （160644 港美互联网LOF：现价 1.509 而它自己的 52 周低点 1.43 是「卡片尺」的、不是收盘口径的）
