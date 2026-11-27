@@ -7,7 +7,7 @@
 <meta name="description" content="美股指数回撤水位决策看板：NDX / SPX 回撤深度、四档加仓触发线、止盈矩阵与定投回测，个人投资决策辅助。">
 <link rel="stylesheet" href="font.css">
 <!-- 跨页共享令牌（色板 / 字体栈，2026-10-12 从本页 :root 抽出一份 ✓）—— 必须先于本页样式 -->
-<link rel="stylesheet" href="tokens.css?v=20261127e">
+<link rel="stylesheet" href="tokens.css?v=20261127f">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0d13'/%3E%3Cpath d='M10 46 L24 30 L34 38 L54 16' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 16 h14 v14' stroke='%232dd4a7' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 
@@ -847,22 +847,28 @@
   .yc-cy { font-size: 9px; color: var(--tx2); font-weight: 600; line-height: 1.3;
     white-space: nowrap; }
   .yc-cy > i { font-style: normal; font-size: 7px; color: var(--yellow); margin-left: 1px; }
-  /* 竖向柱：零线居中 —— 向上＝年内最高（绿）、向下＝年内回撤（红）、横杠＝年度结果 */
-  .yc-cplot { position: relative; display: block; width: 100%; height: 96px; }
+  /* 竖向柱：0 起 —— 柱＝全年收益（绿正/红负）· 点＋细线＝年内最深跌幅
+     · 黄虚线＝全史最深跌幅中位数（每列画一小段，拼起来贯穿整条 ✓
+       条是横向滚动的，一个绝对定位的整体线不会跟着滚 ✗）*/
+  .yc-cplot { position: relative; display: block; width: 100%; height: 110px; }
   .yc-czero { position: absolute; left: 0; right: 0; top: 50%; height: 1px;
-    background: repeating-linear-gradient(to right, var(--tx3) 0 2px, transparent 2px 4px);
-    opacity: .55; }
+    background: var(--tx3); opacity: .40; }
+  /* ⚠ 用 dotted 而不是 dashed：中位数（−15.9%）离零线只差 8% 高度，
+     两条 dashed 平行线看起来像「两条基准」✗ dotted 更轻、更像参考线 ✓ */
+  .yc-cmed { position: absolute; left: 0; right: 0; height: 0;
+    border-top: 1px dotted color-mix(in srgb, var(--yellow) 38%, transparent); }
   /* ⚠ 用 --green / --red，不是 --up / --down（后者是 positions.css 的变量，
      index.html 这套 tokens.css 里没有 → var() 未定义会让整条声明失效、背景透明 ✗）*/
-  .yc-cup, .yc-cdn { position: absolute; left: 18%; right: 18%; }
-  .yc-cup { bottom: 50%; border-radius: 2px 2px 0 0;
-    background: color-mix(in srgb, var(--green) 42%, transparent); }
-  .yc-cdn { top: 50%; border-radius: 0 0 2px 2px;
-    background: color-mix(in srgb, var(--red) 42%, transparent); }
-  /* 年度结果用**横杠**而不是圆点 —— 列只有 58px 宽，圆点在窄列里对不准零线 ✓ */
-  .yc-cdot { position: absolute; left: 8%; right: 8%; height: 2.5px; border-radius: 1px;
-    background: var(--green); box-shadow: 0 0 0 1.5px var(--card); z-index: 2; }
-  .yc-cdot.dn { background: var(--red); }
+  .yc-cbar { position: absolute; left: 20%; right: 20%; z-index: 1; }
+  .yc-cbar.pos { bottom: 50%; border-radius: 2px 2px 0 0; background: var(--green); opacity: .85; }
+  .yc-cbar.neg { top: 50%; border-radius: 0 0 2px 2px; background: var(--red); opacity: .85; }
+  /* 细连线：零线 → 年内最深点，长度＝从低点爬回多少 */
+  .yc-cstem { position: absolute; left: 50%; width: 1px; margin-left: -.5px;
+    background: color-mix(in srgb, var(--red) 55%, transparent); }
+  /* 年内最深点 */
+  .yc-cdd { position: absolute; left: 50%; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--red); transform: translate(-50%, 50%);
+    box-shadow: 0 0 0 1.5px var(--card); z-index: 2; }
   .yc-cyr { font-size: 9.5px; font-weight: 700; line-height: 1.35; white-space: nowrap; }
   .yc-cyr.up { color: var(--green); }
   .yc-cyr.dn { color: var(--red); }
@@ -1306,8 +1312,8 @@
   本看板仅作个人决策辅助，不构成投资建议 · 行情由 GitHub Actions 每日自动更新 · 估值：<a href="https://historyofmarket.com" target="_blank" rel="noopener" style="color:inherit">History of Market · 美股编年史 (historyofmarket.com)</a>（CC BY 4.0）· 期权：<a href="https://www.cboe.com/markets/us/options/market-statistics/daily?mkt=cone" target="_blank" rel="noopener" style="color:inherit">CBOE</a> · 美债：<a href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve" target="_blank" rel="noopener" style="color:inherit">U.S. Department of the Treasury</a> · 最后更新于 <span id="footer-updated">--</span>
 </div>
 
-<script src="data.js?v=20261127e"></script>
-<script src="yearly.js?v=20261127e"></script>
+<script src="data.js?v=20261127f"></script>
+<script src="yearly.js?v=20261127f"></script>
 <script>
 "use strict";
 /* ================= 数据层 ================= */
@@ -2883,23 +2889,36 @@ renderAll();
          否则切「15 年 / 全部」时同一年的柱长会变，像两套数据 ✗
        · 柱高 = 该年极值 / R × 50%（零线在正中）；年度结果用横杠标在它的高度上
          于是「先跌多少、再涨多少、最后收在哪」在一根柱里全看得出来 ✓ */
-    const R = Math.max(1, ...all.map((x) => Math.max(x.runup, -x.dd)));
+    /* ⚠ 2026-11-27 第三版（参考 historyofmarket.com/embed/ndx-intrayear-dd）——
+       之前三层编码（绿柱=年内最高 / 红柱=回撤 / 横杠=年度）挤在 46px 宽的列里，
+       最重要的「年度结果」反而只是一根 2.5px 横杠 ✗
+       参考图更聚焦：**柱＝全年收益**（长度可直接横比）、**点＝年内最深跌幅**、
+       **细线**把两者连起来（长度＝从低点爬回多少）、**黄虚线**＝全史中位数 ✓
+       ⚠ 量程按 `max(|年度|, |最深|)` 取 —— 1999 的 +102% 必须装得下，
+         所以不再把「年内最高」纳入量程（它也更没参考价值：和年度同向、信息重叠）✗ */
+    const R = Math.max(1, ...all.map((x) => Math.max(Math.abs(x.yr), -x.dd)));
+    /* 全史最深跌幅的中位数 —— 「跌多少算常态」的基准线 */
+    const ddArr = all.map((x) => -x.dd).filter((v) => v > 0).sort((a2, b2) => a2 - b2);
+    const medDd = ddArr.length ? ddArr[Math.floor(ddArr.length / 2)] : 0;
+    const yMed = Math.max(0, Math.min(100, 50 - (medDd / R) * 50));
     body.innerHTML = shown.slice().reverse().map((x) => {
       const isYtd = ytdYear && x.y === ytdYear;
-      const hUp = Math.max(0, x.runup) / R * 50;
-      const hDn = Math.max(0, -x.dd) / R * 50;
-      const yDot = Math.max(0, Math.min(100, 50 + (x.yr / R) * 50));
+      const hYr = Math.max(0.6, Math.min(50, (Math.abs(x.yr) / R) * 50));
+      const hDd = Math.max(0, -x.dd) / R * 50;
+      const yDd = Math.max(0, Math.min(100, 50 - hDd));
       return '<div class="yc-col' + (isYtd ? " is-ytd" : "") + '">'
         + '<span class="yc-cy">' + x.y + (isYtd ? "<i>YTD</i>" : "") + "</span>"
-        + '<span class="yc-cplot" title="' + x.y + "　年度 " + pct(x.yr)
-          + "　年内最高 " + pct(x.runup) + "　年内回撤 " + pct(x.dd) + '">'
+        + '<span class="yc-cplot" title="' + x.y + "　全年 " + pct(x.yr)
+          + "　年内最深 " + pct(x.dd) + "　年内最高 " + pct(x.runup) + '">'
+          + '<i class="yc-cmed" style="bottom:' + yMed.toFixed(1) + '%"></i>'
           + '<i class="yc-czero"></i>'
-          + (hUp > 0.4 ? '<i class="yc-cup" style="height:' + hUp.toFixed(1) + '%"></i>' : "")
-          + (hDn > 0.4 ? '<i class="yc-cdn" style="height:' + hDn.toFixed(1) + '%"></i>' : "")
-          + '<b class="yc-cdot' + (x.yr >= 0 ? "" : " dn") + '" style="bottom:' + yDot.toFixed(1) + '%"></b>'
+          + '<i class="yc-cbar ' + (x.yr >= 0 ? "pos" : "neg") + '" style="height:'
+            + hYr.toFixed(1) + '%"></i>'
+          + (hDd > 0.5 ? '<i class="yc-cstem" style="bottom:' + yDd.toFixed(1)
+            + "%;height:" + hDd.toFixed(1) + '%"></i>' : "")
+          + (hDd > 0.5 ? '<b class="yc-cdd" style="bottom:' + yDd.toFixed(1) + '%"></b>' : "")
         + "</span>"
         + '<b class="yc-cyr ' + (x.yr >= 0 ? "up" : "dn") + '">' + pct(x.yr) + "</b>"
-        + '<i class="yc-cmin">' + pct(x.runup) + "</i>"
         + '<i class="yc-cmin dn">' + pct(x.dd) + "</i>"
         + "</div>";
     }).join("");
@@ -2911,7 +2930,8 @@ renderAll();
     const worst = (H[idx] || []).reduce((a2, x) => (x.dd < a2.dd ? x : a2), { dd: 0, y: "-" });
     foot.innerHTML = '<div class="yc-f1">全史 <b>' + st.n + "</b> 年 · 胜率 <b>" + st.winRate
       + "%</b> · 累计 <b>" + st.cum + " 倍</b></div>"
-      + '<div class="yc-f3">绿柱＝年内最高 · 红柱＝年内回撤 · 横杠＝年度结果</div>'
+      + '<div class="yc-f3">柱＝全年收益 · 点＝年内最深 · 黄虚线＝中位数'
+      + (medDd > 0 ? " " + pct(-medDd) : "") + '</div>'
       + '<div class="yc-f2">年化 <b>' + st.cagr + "%</b> · 平均 <b>" + pct(st.avg)
       + "</b> · 回撤均值 <b>" + pct(st.avgDD) + "</b>"
       + '<span class="yc-fx" style="margin-left:6px" title="红段＝年内最大回撤（0 左侧）；'
