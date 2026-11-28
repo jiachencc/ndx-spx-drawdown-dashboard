@@ -115,13 +115,13 @@ jobs:
       # positions-data.js，而下面「Commit」那步只 git add data.js，跑了也不会被提交 ✗。
       # continue-on-error：这几块都不影响「行情本身是否可用」，某一步失败（腾讯日K 限流、
       # 东财净值未公布等）不该阻断日更；各脚本都是「校验后才原子写」，失败即保留旧值 ✓。
-      - name: Derived blocks (TREND / RANGE_LOG / DDHIST / NDX_DD / PREM_SCAN / YEARLY / OTC nav)
+      - name: Derived blocks (TREND / RANGE_LOG / DDHIST / DD_HIST / PREM_SCAN / YEARLY / OTC nav)
         continue-on-error: true
         # ⚠ 2026-11-26 加 yearly（年度表现）—— 这个 step 是**白名单**（--only），
         #   只把 step 挂进 daily.mjs 的 STEPS 是不够的，必须在这里显式列出，
         #   否则永远不会在 CI 里跑 ✗
         #   yearly 平时走增量（只拉上年 12 月＋当年，约 250 行、1 秒），不碰 yearly.js ✓
-        run: node scripts/daily.mjs --only=trend,rng,dd,ndxdd,scan,yearly,otcnav
+        run: node scripts/daily.mjs --only=trend,rng,dd,ddhist,scan,yearly,otcnav
       # 2026-10-16 删：原第 ⑥ 步「OTC nowcast inputs (NOWCAST)」—— 页面上的「场外当日预估」模块整体下线、
       # 数据侧已无消费者，故 fetch-nowcast.mjs 与 NOWCAST / NOWCAST_LOG 两块一并移除 ✓（连这一步一起拔掉）。
       - name: Final audit

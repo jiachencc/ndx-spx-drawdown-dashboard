@@ -550,6 +550,14 @@
     color: var(--tx3); font-feature-settings: "tnum"; white-space: nowrap; }
   /* 窄屏：关键数换到第二行时左对齐（auto 会把它推到最右、还可能被 pad 推出可视区） */
   @media (max-width: 430px) { .hx-fold-k { margin-left: 0; } }
+  /* 三指数 tab（2026-11-27）：DD_HIST 一块覆盖 ndx/spx/n225，折叠件里用这组胶囊切换 ——
+     视觉语言照抄「日线与回撤参考」那组区间按钮（小胶囊、选中浅底实边），不新造一种切换器 ✗ */
+  .hx-dd-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 9px; }
+  .hx-dd-tab { font: inherit; font-size: 11px; font-weight: 600; color: var(--tx2);
+    background: transparent; border: 1px solid var(--line); border-radius: 999px;
+    padding: 1px 9px; cursor: pointer; line-height: 1.5; }
+  .hx-dd-tab:hover { color: var(--tx); border-color: var(--tx3); }
+  .hx-dd-tab.on { color: var(--tx); background: var(--line-soft); border-color: var(--tx3); }
   .hx-foot { margin-top: 7px; font-size: 10.5px; color: var(--tx3); line-height: 1.65; }
   .hx-foot b { color: var(--tx2); }
   .hx-th-note { display: block; font-size: 9px; color: var(--tx3); font-weight: 400; opacity: .8; }
@@ -1211,7 +1219,9 @@
       「深/浅 X pp」＝ 当前回撤与该指数自己的中位之差。</div>
 
     <!-- 这波跌多久能修复（2026-11-07 从 positions.html 搬来；2026-11-14 收进折叠件）
-         ⚠ 数据：data.js 的 NDX_DD（AUTO，scripts/build-ndx-dd.mjs 生成，纳指 1995 至今 8,000+ 个交易日）
+         ⚠ 数据：data.js 的 DD_HIST（AUTO，scripts/build-dd-hist.mjs；2026-11-27 由单指数的 NDX_DD 升级）
+           三个指数同一套算法：ndx 1995 起（FRED 8,031 根）· spx 1995 起（腾讯区间 8,030 根）·
+           n225 1985 起（FRED 10,315 根，含 1989 泡沫那段 −82%）
            DDHIST 只有 5 个近期事件、样本太小 ✗ 所以走另一份数据 ✓
          ⚠ 为什么折叠：它回答的是「还要等多久」，与主表的「这次算多深」是两个问题，
            平铺会让两者抢同一视线；summary 里已给「中位 N 日 · 还需约 M 日」，不展开也知道结论 ✓ -->
@@ -1702,96 +1712,103 @@ function renderHist(ndxDD) {
      给「峰→收复」的中位/区间/累计概率 ✓
      ⚠ 三个前提必须写在卡面上，否则会被当成预测 ✗
        ① 样本量小（−10~−15% 档只有 11 次）② 右尾厚（最快 39 / 最慢 265 日）③ 修复 ≠ 回本 */
-  (function renderHistRepair() {
+  /* 三指数「这种深度修多久」（2026-11-27：NDX_DD → DD_HIST）——
+     用户「日经的这种回撤要多久修复？」→「那纳指和标普是不是也可以加？」
+     三种口径与旧版逐字一致，只是把「单个指数」换成 tab：峰→**收复前高**的交易日数、
+     「还需约」＝ 中位 − 已过（已过取 ongoing 事件的 age，三指数同一口径），
+     本档无已完成样本时**只往更深一档借**（往浅借会系统性低估等待时间 ✗）。
+     ⚠ 每档样本量 n 必须印出来：−15~−20% 档只有 1~3 次，中位数看着像结论、其实只有几个样本 ✗ */
+  (function initHistRepair() {
     const box = $("hist-repair");
     if (!box) return;
-    const N = (typeof NDX_DD !== "undefined" && NDX_DD) ? NDX_DD : null;
-    if (!N || !Array.isArray(N.events) || !Array.isArray(N.stats)) { box.innerHTML = ""; return; }
-    const og = N.events.filter((e) => e.ongoing).sort((a, b) => (a.peak < b.peak ? 1 : -1))[0] || null;
-    const dd = og ? og.dd : ndxDD;
-    /* ⚠ 2026-11-14 修一处口径自相矛盾（排布局时发现的）：
-       原来 `past` 取 `og.toTrough`（峰→**谷**，22 日），而「峰→收复·中位 53 日」是**从高点**算起 ——
-       22 + 31 = 53 看似自洽，但主表「当前」行的「已过」用的是 `D.ndx.days`（峰→**今天**，28 日），
-       于是同一张卡里「已过 28 天」＋「还需约 31 日」＝ 59 ≠ 53 ✗；
-       positions 页那句「回到前高约还差 N 周」也是按「今天」算的 → 三处会各说各话。
-       → 统一成「峰→今天」：28 + 25 = 53 ✓（已经反弹了一段，剩余天数理应比「假设今天还在谷底」少） */
-    const past = Number.isFinite(D.ndx.days) ? D.ndx.days : (og ? og.toTrough : null);
-    const bOwn = N.stats.find((x) => {
-      if (x.k === "d10") return dd > -15;
-      if (x.k === "d15") return dd <= -15 && dd > -20;
-      if (x.k === "d20") return dd <= -20 && dd > -30;
-      return dd <= -30;
-    }) || null;
-    /* ⚠ 2026-11-22 加「本档无样本时借用相邻档」——
-       修好数据源（东财 100.NDX → 100.NDX100）后，本次 dd 从 −18.05%（错，那是纳斯达克综合）
-       变成 **−19.84%**（与「今年这几次跌」那格完全一致 ✓），落入 −15~−20% 档；
-       而这一档在 NDX 真实历史里**一个已完成样本都没有**（NDX 这十几年要么跌 10 出头、要么直接 −20% 以上）
-       → 整块只剩「没有样本」四个字，对「还要等多久」毫无帮助 ✗
-       → 无样本时借用**更深一档**（−20~−30%），并在卡面显著标明借的是哪一档、几个样本 ✓
-         只往更深的方向借：借更浅的一档会系统性低估等待时间 ✗ */
-    const bAlt = (!bOwn || !bOwn.n)
-      ? (N.stats.find((x) => x.k === "d20" && x.n > 0) || N.stats.find((x) => x.k === "d30" && x.n > 0) || null)
-      : null;
-    const b = (bOwn && bOwn.n) ? bOwn : bAlt;
-    if (!b || !b.n) { box.innerHTML = '<div class="hr-head">这波跌多久能修复</div><div class="hr-line">这一档没有已完成的历史样本（当前 ' + neg(pct(dd)) + '）</div>'; return; }
-    const left = Number.isFinite(past) && Number.isFinite(b.medianTotal) ? Math.max(0, b.medianTotal - past) : null;
-    const mo = (n) => (Math.round(n * 1.4) / 30.4).toFixed(1);
-    const prs = (b.within || []).map((w) => {
-      const p2 = w.n ? Math.round(w.k / w.n * 100) : null;
-      return "≤" + (w.days / 21).toFixed(0) + "月 <b>" + (p2 === null ? "—" : p2 + "%") + "</b>";
-    }).join(" · ");
-    /* ⚠ 2026-11-14 从**两张 4 列表**改成**一张 2 列表**（用户：「4 个模块、4 个表格排布混乱」）——
-       原结构：表 A（峰→收复中位 / 25~75% / 已过 / 还需约）＋ 表 B（≤1/2/3/6 月 × 命中笔数），
-       手机 356px 下每列只剩 80px，「1 个月」「4/11」全在折行，扫读成本极高 ✗
-       → 现在一张「指标 | 值」纵表：上面 4 行是**时间**、下面 N 行是**概率**，
-         一列标签一列数值，手机上不再挤成一团 ✓（信息一条没少）
-       ⚠ summary 里也塞了关键数（中位 N 日 · 还需约 M 日）—— 折叠状态下也能读到结论 ✓ */
-    /* 进度条：已走 / 中位（0~100，超过中位就钉在 100 并换色）*/
-    /* ⚠ 2026-11-22 重做（用户：「精简和视觉结合」）——
-       上一版是「一张 8 行表格 ＋ 一条进度条」，三处重复且密：
-       ① 「25%~75% → 75~86 日」与进度条说的是同一段区间；
-       ② 「已过 33 / 还需 48」在表里一行、条上又写一遍；
-       ③ 4 行概率在 n=2 时全是 0/2、0/2、0/2、2/2，占四行却几乎没有信息 ✗
-       → 现在：**一个大数字（还需约 48 日）＋ 一条时间尺 ＋ 一行概率**
-         时间尺把「今天 / 中位 / p25~p75 区间带」画在同一条轴上（绝对定位），
-         三个数的相对位置一眼可见，不用在表格里上下对照 ✓
-       轴长取 p75 × 1.04（而不是中位）：否则 p25~p75 那段会挤在最右端、看不出宽度；
-       中位刻度线用实色竖线，区间带用淡灰块，已走段用蓝条 —— 三层信息不抢同一个视觉通道 ✓ */
-    const canRuler = Number.isFinite(past) && Number.isFinite(b.medianTotal) && b.medianTotal > 0;
-    const axis = canRuler ? Math.max(b.p75, b.medianTotal, past) * 1.04 : 1;
-    const at = (v) => Math.max(0, Math.min(100, (Number.isFinite(v) ? v : 0) / axis * 100));
-    const tone = !canRuler ? "" : (past >= b.p75 ? " over" : (past >= b.medianTotal ? " done" : ""));
-    const probTxt = (b.within || []).map((w) =>
-      "≤" + (w.days / 21).toFixed(0) + " 月 <b>" + w.k + "/" + w.n + "</b>").join(" · ");
-    const ruler = !canRuler ? "" : '<div class="hr-rl">'
-      + '<div class="hr-rl-track ' + tone + '">'
-      + '<i class="hr-rl-band" style="left:' + at(b.p25).toFixed(1) + '%;width:'
-      + Math.max(0, at(b.p75) - at(b.p25)).toFixed(1) + '%"></i>'
-      + '<i class="hr-rl-done" style="width:' + at(past).toFixed(1) + '%"></i>'
-      + '<i class="hr-rl-med" style="left:' + at(b.medianTotal).toFixed(1) + '%"></i>'
-      + "</div>"
-      + '<div class="hr-rl-ax">'
-      + '<span class="hr-rl-t" style="left:' + at(past).toFixed(1) + '%">今天 · ' + past + " 日</span>"
-      + '<span class="hr-rl-t end" style="left:' + at(b.medianTotal).toFixed(1) + '%">中位 ' + b.medianTotal + "</span>"
-      + "</div></div>";
-    box.innerHTML = '<div class="hr-head">这波跌多久能修复'
-      + '<i>' + (bAlt
-        ? "⚠ 当前 " + pct(dd).replace("-", "−") + " 这一档（" + (bOwn ? bOwn.label : "—")
-          + "）在 NDX 历史里没有已收复的样本 → 借用更深一档 " + b.label + "（" + b.n + " 次）仅作参考"
-        : "同类跌幅 " + b.label + " · 历史 " + b.n + " 次已收复") + "</i></div>"
-      + '<div class="hr-lead">'
-      + '<b class="hr-lead-n">' + (left === null ? "—" : left) + "</b>"
-      + '<span class="hr-lead-u">日</span>'
-      + '<span class="hr-lead-lb">还需约' + (left === null ? "（样本不足）" : " · 约 " + mo(left) + " 个月") + "</span></div>"
-      + ruler
-      + '<div class="hr-prob">' + probTxt + "</div>"
-      + '<div class="hr-note">⚠ 样本只有 ' + b.n + " 次，25%~75% 落在 " + b.p25 + "~" + b.p75
-      + " 日（尺上那段灰带）、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>";
-    /* 折叠条上的关键数：不展开也能判断「要不要展开看分布」 */
-    const kEl = $("hx-repair-k");
-    /* ⚠ 2026-11-22 加样本量：−15~−20% 这一档只有 2 个历史样本，而「中位 176 日」看上去像个确定结论 ✗ ——
-       把 n 印在折叠条上，读者一眼知道该把这句信几分 ✓ */
-    if (kEl) kEl.textContent = "中位 " + b.medianTotal + " 日（n=" + b.n + "）" + (left === null ? "" : " · 还需约 " + left + " 日");
+    const H = (typeof DD_HIST !== "undefined") ? DD_HIST : null;
+    if (!H || !H.indices) { box.innerHTML = ""; return; }
+    const KEYS = [["ndx", "纳指100"], ["spx", "标普500"], ["n225", "日经225"]];
+    /* tab 状态存在容器的 dataset 上：整块会重渲染（改主题/刷新数据），存局部变量会被重置 ✗ */
+    let sel = box.dataset.k || "ndx";
+
+    const paint = () => {
+      const kEl = $("hx-repair-k");
+      const name = (KEYS.find((x) => x[0] === sel) || [sel, sel])[1];
+      const tabs = '<div class="hx-dd-tabs">' + KEYS.map(([k, nm]) =>
+        '<button type="button" class="hx-dd-tab' + (k === sel ? " on" : "") + '" data-k="' + k + '">' + nm + "</button>").join("") + "</div>";
+      const v = H.indices[sel];
+      if (!v || !Array.isArray(v.events) || !Array.isArray(v.stats)) {
+        box.innerHTML = tabs;
+        if (kEl) kEl.textContent = "无数据";
+        return;
+      }
+      const og = v.events.filter((e) => e.ongoing).sort((a, b) => (a.peak < b.peak ? 1 : -1))[0] || null;
+      const stale = v.asOf && v.asOf !== H.asOf ? "，数据至 " + v.asOf.slice(5).replace("-", ".") : "";
+      if (!og) {
+        box.innerHTML = tabs + '<div class="hr-head">' + name + " 当前没有进行中的 ≥10% 回撤"
+          + '<i>' + v.since + " 起 " + v.events.length + " 次事件" + stale + "</i></div>";
+        if (kEl) kEl.textContent = name + " · 当前无进行中回撤";
+        return;
+      }
+      const dd = og.dd;
+      const past = Number.isFinite(og.age) ? og.age : og.toTrough;
+      const bOwn = v.stats.find((x) => {
+        if (x.k === "d10") return dd > -15;
+        if (x.k === "d15") return dd <= -15 && dd > -20;
+        if (x.k === "d20") return dd <= -20 && dd > -30;
+        return dd <= -30;
+      }) || null;
+      const bAlt = (!bOwn || !bOwn.n)
+        ? (v.stats.find((x) => x.k === "d20" && x.n > 0) || v.stats.find((x) => x.k === "d30" && x.n > 0) || null)
+        : null;
+      const b = (bOwn && bOwn.n) ? bOwn : bAlt;
+      if (!b || !b.n) {
+        box.innerHTML = tabs + '<div class="hr-head">' + name + " · 这波跌多久能修复</div>"
+          + '<div class="hr-line">当前 ' + neg(pct(dd)) + " 这一档没有已完成的历史样本</div>";
+        if (kEl) kEl.textContent = name + " · 样本不足";
+        return;
+      }
+      const left = Number.isFinite(past) && Number.isFinite(b.medianTotal) ? Math.max(0, b.medianTotal - past) : null;
+      const mo = (n) => (Math.round(n * 1.4) / 30.4).toFixed(1);
+      const canRuler = Number.isFinite(past) && Number.isFinite(b.medianTotal) && b.medianTotal > 0;
+      const axis = canRuler ? Math.max(b.p75, b.medianTotal, past) * 1.04 : 1;
+      const at = (x) => Math.max(0, Math.min(100, (Number.isFinite(x) ? x : 0) / axis * 100));
+      const tone = !canRuler ? "" : (past >= b.p75 ? " over" : (past >= b.medianTotal ? " done" : ""));
+      const probTxt = (b.within || []).map((w) =>
+        "≤" + (w.days / 21).toFixed(0) + " 月 <b>" + w.k + "/" + w.n + "</b>").join(" · ");
+      const ruler = !canRuler ? "" : '<div class="hr-rl">'
+        + '<div class="hr-rl-track ' + tone + '">'
+        + '<i class="hr-rl-band" style="left:' + at(b.p25).toFixed(1) + '%;width:'
+        + Math.max(0, at(b.p75) - at(b.p25)).toFixed(1) + '%"></i>'
+        + '<i class="hr-rl-done" style="width:' + at(past).toFixed(1) + '%"></i>'
+        + '<i class="hr-rl-med" style="left:' + at(b.medianTotal).toFixed(1) + '%"></i>'
+        + "</div>"
+        + '<div class="hr-rl-ax">'
+        + '<span class="hr-rl-t" style="left:' + at(past).toFixed(1) + '%">今天 · ' + past + " 日</span>"
+        + '<span class="hr-rl-t end" style="left:' + at(b.medianTotal).toFixed(1) + '%">中位 ' + b.medianTotal + "</span>"
+        + "</div></div>";
+      box.innerHTML = tabs
+        + '<div class="hr-head">' + name + " · 这波跌多久能修复"
+        + "<i>" + (bAlt
+          ? "⚠ 当前 " + neg(pct(dd)) + " 这一档（" + (bOwn ? bOwn.label : "—")
+            + "）没有已收复的样本 → 借用更深一档 " + b.label + "（" + b.n + " 次）仅作参考"
+          : "同类跌幅 " + b.label + " · 历史 " + b.n + " 次已收复" + stale) + "</i></div>"
+        + '<div class="hr-lead">'
+        + '<b class="hr-lead-n">' + (left === null ? "—" : left) + "</b>"
+        + '<span class="hr-lead-u">日</span>'
+        + '<span class="hr-lead-lb">' + (left === null ? "样本不足" : "约 " + mo(left) + " 个月") + "</span></div>"
+        + ruler
+        + '<div class="hr-prob">' + probTxt + "</div>"
+        + '<div class="hr-note">⚠ 样本只有 ' + b.n + " 次，25%~75% 落在 " + b.p25 + "~" + b.p75
+        + " 日（尺上那段灰带）、右尾更厚 → 中位只是「常见情况」，不是预测 ✗；「修复」指指数回前高，与账户回本不是一回事</div>";
+      if (kEl) kEl.textContent = name + " 中位 " + b.medianTotal + " 日（n=" + b.n + "）" + (left === null ? "" : " · 还需约 " + left + " 日");
+    };
+
+    /* tab 切换：重渲染同一块（数据源同一份 DD_HIST，切换只换 sel）*/
+    box.addEventListener("click", (e) => {
+      const b2 = e.target.closest && e.target.closest(".hx-dd-tab");
+      if (!b2) return;
+      sel = b2.dataset.k;
+      box.dataset.k = sel;
+      paint();
+    });
+    paint();
   })();
   /* 「当前 (2026-09)」原来是硬编码，数据到 10 月仍写 9 月（2026-10-17 修） */
   $("hist-cur-month").textContent = String(D.asOf?.us || D.date || "").slice(0, 7);

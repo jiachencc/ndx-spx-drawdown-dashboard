@@ -975,6 +975,34 @@
   .lad-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 0 0 6px;
     font-family: var(--mono); font-size: var(--fs-xs); font-feature-settings: "tnum"; }
   .lad-note { color: var(--tx2); }
+  /* 同档历史修多久（2026-11-27）：折叠摘要 + 一条时间尺（与首页 .hr-rl 同一套编码，
+     这里独立命名 .pdd-* 以免两页样式互相牵制；编码含义一致：蓝条＝已走、灰带＝p25~p75、竖线＝中位）*/
+  .pdd { margin: 2px 0 6px; border-top: 1px dashed var(--line-soft); }
+  .pdd > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+    cursor: pointer; list-style: none; padding: 8px 0 6px; font-size: var(--fs-xs); color: var(--tx3); }
+  .pdd > summary::-webkit-details-marker { display: none; }
+  .pdd-t { color: var(--tx2); font-weight: 600; }
+  .pdd-k { margin-left: auto; font-family: var(--mono); color: var(--tx2); white-space: nowrap; }
+  .pdd > summary::after { content: "▾"; margin-left: 6px; font-size: 10px; color: var(--tx3); }
+  .pdd[open] > summary::after { content: "▴"; }
+  @media (max-width: 430px) { .pdd-k { margin-left: 0; } }
+  .pdd-body { padding: 0 2px 9px; }
+  .pdd-row { display: flex; align-items: baseline; gap: 5px; margin: 3px 0 8px; font-family: var(--mono); }
+  .pdd-n { font-size: 19px; font-weight: 800; color: var(--tx); line-height: 1; }
+  .pdd-u { font-size: 10.5px; color: var(--tx3); }
+  .pdd-lb { margin-left: auto; font-size: 10px; color: var(--tx3); }
+  .pdd-track { position: relative; height: 8px; border-radius: 5px; background: rgba(147,163,187,.13); }
+  .pdd-band { position: absolute; top: -3px; bottom: -3px; border-radius: 3px;
+    background: rgba(147,163,187,.22); border: 1px solid rgba(147,163,187,.45); box-sizing: border-box; }
+  .pdd-done { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--blue); }
+  .pdd-track.done .pdd-done { background: var(--warn, #d8a13a); }
+  .pdd-med { position: absolute; top: -6px; bottom: -6px; width: 2px; border-radius: 1px; background: var(--tx); }
+  .pdd-ax { position: relative; height: 14px; margin-top: 5px; }
+  .pdd-t2 { position: absolute; font-size: 10px; color: var(--tx3); white-space: nowrap;
+    font-family: var(--mono); transform: translateX(-50%); }
+  .pdd-t2.end { transform: translateX(-100%); }
+  .pdd-prob { font-family: var(--mono); font-size: 10.5px; color: var(--tx3); }
+  .pdd-note { margin-top: 5px; font-size: 10.5px; color: var(--tx3); line-height: 1.6; opacity: .92; }
   /* ⚠ 2026-11-04：去掉 margin-left:auto —— 原来它被推到整行最右，浮在位置图右上角、
      与左边那串「成本 → 现价 → 高点」没有视觉联系，位置显得随意 ✗
      改成紧跟文字流，`.lad-sub` 的 gap 已经够分隔 ✓ */

@@ -5748,10 +5748,9 @@ function prRateSec() {
     const days = cf ? cf.days : 0;
     const ann = days >= 90;                                  // 与走势 KPI 同规则
     const annT = (v) => (v === null || !ann ? v : Math.pow(1 + v, 365 / days) - 1);
-    /* 同日比较段的年化（基准末点早于组合末期时，跨度要按基准那段算，不能拿全期天数年化一段截断值 ✗） */
-    const daysSame = benchBehind ? Math.max(1, Math.round((Date.parse(bLast) - Date.parse(rPts[0].d)) / 86400000)) : days;
-    const annSame = daysSame >= 90;
-    const annTS = (v) => (v === null || !annSame ? v : Math.pow(1 + v, 365 / daysSame) - 1);
+    /* ⚠ 2026-11-27：删掉 daysSame / annSame / annTS 三个量 ——
+       它们只服务于「对比条按 ≥90 天年化」，而那条已被证明会与同行的 pp 打架（见下方 conclLine 的注释）。
+       同日比较现在**不年化**，年化只用于上面 TWR / XIRR 两格（ann / annT）✓ */
     const pc = (v) => (v === null || v === undefined ? "—" : fmtPct(v, 2));
     /* TWR 是「区间累计」（不足 90 天不年化）；XIRR 天生是年化 —— 两者跨度短时不可相减，
        否则等于拿 24 天的累计去减一个年化值（实测会造出 +14.77pp 这种假信号）。
@@ -5773,12 +5772,18 @@ function prRateSec() {
       const cmpAxis = Math.max(Math.abs(twrSame), Math.abs(bTwr)) * 1.1 || 1;
       const cmpBar = (v, c2) => '<span class="pf-cmp-bar ' + c2 + '"><i style="width:'
         + Math.max(0, Math.min(100, Math.abs(v) / cmpAxis * 100)).toFixed(1) + '%"></i></span>';
+      /* ⚠ 2026-11-27 改：两条 bar 一律用**区间累计**，不再年化 ——
+         原来 bar 走 annTS（跨度 ≥90 天就年化）、而同一行的「跑赢 pp」走累计差 beat →
+         跨过 90 天门槛那天（今天：基准窗口 08-28→11-26 正好 90 天）三个数突然互相矛盾 ✗
+         （实测同期 −39.09% / 你 −38.57% / 跑赢 0.18pp：bar 是年化值、pp 是累计差）。
+         一次 90 天的同窗比较年化到整年（−11.5% → −39%）本身也误导 ✗
+         → 现在 bar 与 pp 同为累计，和 dom-check 的「BENCH 首末比」同一口径 ✓
+         年化只留在上面的 TWR / XIRR 格（那两格本来就是年化指标）。 */
       conclLine = '<div class="pf-concl">'
-        + '<div class="pf-cmp-row"><span class="pf-cmp-lb">你</span><b class="' + cls(twrSame) + '">' + pc(annTS(twrSame)) + '</b>' + cmpBar(twrSame, "you") + '</div>'
-        + '<div class="pf-cmp-row"><span class="pf-cmp-lb">纳指</span><b>' + pc(annTS(bTwr)) + '</b>' + cmpBar(bTwr, "bench") + '</div>'
+        + '<div class="pf-cmp-row"><span class="pf-cmp-lb">你</span><b class="' + cls(twrSame) + '">' + pc(twrSame) + '</b>' + cmpBar(twrSame, "you") + '</div>'
+        + '<div class="pf-cmp-row"><span class="pf-cmp-lb">纳指</span><b>' + pc(bTwr) + '</b>' + cmpBar(bTwr, "bench") + '</div>'
         + '<div class="pf-cmp-foot"><b class="' + cls(beat) + '">' + (beat >= 0 ? "跑赢 " : "落后 ") + Math.abs(beat * 100).toFixed(2) + "pp</b>"
         + (benchBehind ? " · 均截至 " + mdOf(bLast) : "")
-        + (annSame ? "" : " · 跨 " + Math.round(daysSame) + " 天，样本太短不年化")
         + qBtn2 + "</div></div>";
     }
     /* summary 精简（2026-10-20）：原来「XIRR 暂不年化 · 跨 52 天，样本太短」把同一件事说了两遍；
@@ -5794,7 +5799,9 @@ function prRateSec() {
       + "跨度过短（<90 天）不做年化（现 " + Math.round(days) + " 天）" + (ann && gap !== null ? "，与 TWR 差 " + fmtPp(gap) : "") + "。<br>"
       + "<b>同节奏纳指</b>（基准）＝把每一期的外部净流入在当天按纳指收盘买入、其余时间随纳指涨跌，"
       + "回答「同样的钱、同样的日期全买纳指，今天是多少」—— 两条 bar 比的就是你与它的跌幅"
-      + (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") + "。</div>";
+      + (bLast && bLast !== rPts[rPts.length - 1].d ? "（纳指点位至 " + mdOf(bLast) + "）" : "") + "。"
+      + "<br><b>两条 bar 都是区间累计、不年化</b>（哪怕跨度超过 90 天）—— 这样 bar 与「跑赢 / 落后 X pp」"
+      + "是同一个口径 ✓；年化只用于上面的 TWR / XIRR 两格。</div>";
   }
   return { sec: rateSec, concl: conclLine };
 }
@@ -7396,6 +7403,59 @@ function renderAlt() {
     "</details>";
 }
 
+/* 三指数「这种深度历史上修多久」（2026-11-27 加，数据 DD_HIST）——
+   与 index 首页那个折叠件同一份数据、同一套口径（峰→**收复前高**的交易日数 · 中位 + p25~p75 + 累计概率）。
+   这里只做**摘要版**：一行结论（还需 / 中位 / n）＋ 一条时间尺 ＋ 一行概率；
+   完整版（含「借用更深一档」的原因、右尾警告、口径ⓘ）留在首页，同一件事不铺两遍长文 ✗
+   ⚠ 样本量 n 必须露出来：日经 −15~−20% 档只有 1 次、标普 3 次 —— 中位数看着像结论，其实样本极少 ✗ */
+function ddRepairCard(idx) {
+  const H = (typeof DD_HIST !== "undefined" && DD_HIST.indices) ? DD_HIST.indices[idx] : null;
+  if (!H || !Array.isArray(H.events) || !Array.isArray(H.stats)) return "";
+  const og = H.events.filter((e) => e.ongoing).sort((a, b) => (a.peak < b.peak ? 1 : -1))[0] || null;
+  if (!og) return "";
+  const dd = og.dd;
+  const bOwn = H.stats.find((x) => {
+    if (x.k === "d10") return dd > -15;
+    if (x.k === "d15") return dd <= -15 && dd > -20;
+    if (x.k === "d20") return dd <= -20 && dd > -30;
+    return dd <= -30;
+  }) || null;
+  const bAlt = (!bOwn || !bOwn.n)
+    ? (H.stats.find((x) => x.k === "d20" && x.n > 0) || H.stats.find((x) => x.k === "d30" && x.n > 0) || null)
+    : null;
+  const b = (bOwn && bOwn.n) ? bOwn : bAlt;
+  if (!b || !b.n || !Number.isFinite(b.medianTotal)) return "";
+  const pctS = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
+  const past = Number.isFinite(og.age) ? og.age : og.toTrough;
+  const over = past >= b.medianTotal;
+  const gapDays = Math.abs(b.medianTotal - past);
+  const axis = Math.max(b.p75, b.medianTotal, past) * 1.04 || 1;
+  const at = (v) => Math.max(0, Math.min(100, (Number.isFinite(v) ? v : 0) / axis * 100));
+  const prob = (b.within || []).map((w) => "≤" + (w.days / 21).toFixed(0) + "月 <b>" + w.k + "/" + w.n + "</b>").join(" · ");
+  return '<details class="pdd">'
+    + '<summary><span class="pdd-t">同档历史修多久</span>'
+    + '<span class="pdd-k">' + (over ? "已超中位 " + gapDays : "还需约 " + gapDays) + " 日"
+    + "（中位 " + b.medianTotal + " · n=" + b.n + "）</span></summary>"
+    + '<div class="pdd-body">'
+    + '<div class="pdd-row"><span class="pdd-u">' + (over ? "已超中位" : "还需") + "</span>"
+    + '<b class="pdd-n">' + gapDays + "</b>"
+    + '<span class="pdd-u">个交易日</span>'
+    + '<span class="pdd-lb">当前 ' + pctS(og.at) + " · 已过 " + past + " 日</span></div>"
+    + '<div class="pdd-track' + (over ? " done" : "") + '">'
+    + '<i class="pdd-band" style="left:' + at(b.p25).toFixed(1) + "%;width:" + Math.max(0, at(b.p75) - at(b.p25)).toFixed(1) + '%"></i>'
+    + '<i class="pdd-done" style="width:' + at(past).toFixed(1) + '%"></i>'
+    + '<i class="pdd-med" style="left:' + at(b.medianTotal).toFixed(1) + '%"></i></div>'
+    + '<div class="pdd-ax"><span class="pdd-t2" style="left:' + at(past).toFixed(1) + '%">今天 ' + past + " 日</span>"
+    + '<span class="pdd-t2 end" style="left:' + at(b.medianTotal).toFixed(1) + '%">中位 ' + b.medianTotal + "</span></div>"
+    + '<div class="pdd-prob">' + prob + "</div>"
+    + '<div class="pdd-note">'
+    + (bAlt
+      ? "⚠ 本档（" + (bOwn ? bOwn.label : "—") + "）无已收复样本 → 借用更深一档 " + b.label + "（n=" + b.n + "）仅作参考；"
+      : "同类跌幅 " + b.label + " · 历史 " + b.n + " 次已收复" + (b.n < 4 ? "（样本极少，仅作参考）" : "") + "；")
+    + "「修复」＝指数回前高（" + String(H.since).slice(0, 4) + " 起统计），不是账户回本</div>"
+    + "</div></details>";
+}
+
 function holdCardHtml(row, i, ctx) {
   const { p, m, r, nav, costAmt, valAmt } = row;
   const { asOfUs, firstDate, totalVal } = ctx;
@@ -7879,6 +7939,8 @@ function holdCardHtml(row, i, ctx) {
            （两者确实不同：成本 1.6153 vs 现价 1.643，同一把尺上 67% vs 72%）*/
         '<span aria-hidden="true">' + tier[2] + '</span> 成本位 ' + pct.toFixed(0) + '% · ' + tier[1] + '</span></span>' +
     '</div>' +
+    /* 同档历史修多久（2026-11-27）：与该只对应指数的 DD_HIST 同源，折叠摘要里直接给「还需约 N 日」*/
+    ddRepairCard(p.idx) +
     /* ⚠ 2026-11-24 整块可折叠（用户采纳建议②）——「52周区间 · 买入密度」这一整块
        （山峰 + 条 + 五档金额 + 两端价 + 图例）收进 details。
        ⚠ 默认**展开**（2026-11-24，用户：「52周 默认还是展开吧」）——
@@ -9998,14 +10060,15 @@ function ladderHtml() {
   const signedPct = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
   const pjPl = pjVal - pjCost;
   const pjPct = pjCost ? (pjPl / pjCost) * 100 : 0;
-  /* ── 历史修复速度（第三行，2026-11-12 加）────────────────────────────────
-     数据取 NDX_DD.stats 的 d10 档（−10 ~ −15%，n=11，峰→收复中位 53 个交易日）。
-     ⚠ 它与上面两行**不同源**：那是纳指指数 1995 年以来的统计，不是这三只 ETF 的价格 ——
-       所以文案必须写「同档历史」，不能写成「你大约 N 周回本」（ETF 还有溢价波动）✗
-     ⚠ 顺带说明一个已知的口径差：NDX_DD 里本次是 −11.9%（东财前复权纳指），
-       「今年这几次跌」卡显示 −14.71%（Yahoo 原始收盘）——差 2.8pp 是复权口径差，
-       两者都落在 −10~−15% 档，不改变档位判断 ✓ */
-  const st = (typeof NDX_DD !== "undefined" && NDX_DD.stats) ? NDX_DD.stats.find((s) => s.k === "d10") : null;
+  /* ── 历史修复速度（第三行，2026-11-12 加；2026-11-27 换数据源）────────────────
+     数据取 DD_HIST.indices.ndx 的 d10 档（−10 ~ −15% 档）。
+     ⚠ 它与上面两行**不同源**：那是纳指指数 1995 年以来的统计（FRED 纳指100，8,031 根），
+       不是这三只 ETF 的价格 —— 所以文案必须写「同档历史」，不能写成「你大约 N 周回本」✗
+     ⚠ 2026-11-27：NDX_DD 退役 → 这里改读 DD_HIST；顺带记一笔旧数据的坑：
+       旧 NDX_DD 标 since 1995，实际只有 1,921 根（东财 100.NDX100 只到 2019-04），
+       所以「n=11」其实是 2019 年后的样本 ✗ —— 换成 FRED 后 d10 档 n=17、中位 39 日 ✓ */
+  const ddNdx = (typeof DD_HIST !== "undefined" && DD_HIST.indices) ? DD_HIST.indices.ndx : null;
+  const st = (ddNdx && ddNdx.stats) ? ddNdx.stats.find((s) => s.k === "d10") : null;
   const ptsR = (typeof RECENT !== "undefined" && RECENT.ndx && Array.isArray(RECENT.ndx.pts)) ? RECENT.ndx.pts : null;
   const og = (typeof DDHIST !== "undefined" && DDHIST.events) ? DDHIST.events.filter((e) => e.ongoing).at(-1) : null;
   /* 峰之后已经过了几个交易日（含端点相减）：用 RECENT 的真实收盘数，不手填 */
@@ -10074,7 +10137,7 @@ function ladderHtml() {
         + "后者是「市值 − 成本」。两者之差正好等于当前浮亏。" },
       { k: "⚠ 场外", v: "前高市值按**实际市值比例**换算（items.val × hi / 净值），所以 021000 那 400 在途也一并算进去了 ✓"
         + "（原来用 qty × hi，那 400 没计入 → 整表少算 494 元，2026-11-24 修正）。" },
-      { k: "同档历史", v: "来自 NDX_DD（纳指指数 1995 以来 · 东财前复权），不是这些 ETF / 基金的价格统计 —— "
+      { k: "同档历史", v: "来自 DD_HIST.ndx（FRED 纳指100 · 1995 以来 8,000+ 根，2026-11-27 起换的成本口径），不是这些 ETF / 基金的价格统计 —— "
         + "它只回答「这个跌幅档历史上一般多久收复」，不是对你的预测（溢价与跟踪误差会让实际更快或更慢）。" },
     ].concat(st ? [{ k: "⚠ 中位", v: "样本只有 " + st.n + " 次，且都是纳指本身的历史 —— 75% 分位 "
       + st.p75 + " 个交易日（≈ " + wk(st.p75) + " 周），中位数不等于「大多数都能这么快」，别当承诺。" }] : []),

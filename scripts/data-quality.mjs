@@ -20,7 +20,7 @@ export function readModel(src) {
   const ctx = vm.createContext({});
   /* 白名单：只有列在这里的块会被校验（也才受 CI 的 schema 门约束）。
      ALT_BACKTEST 是派生块（scripts/alt-etf-backtest.mjs 写），其契约见 validateModel 尾部。 */
-  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, TREND, DDHIST, PREM_SCAN, NDX_DD };", ctx, { timeout: 1500 });
+  vm.runInContext(src + "\nthis.model = { DEFAULT, MONTHLY, RECENT, POSITIONS, DCA_META, DCA_NDX, DCA_SPX, SOURCE_META, ALT_BACKTEST, FEES, HOLD_HIST, PREM_LOG, TREND, DDHIST, PREM_SCAN, DD_HIST };", ctx, { timeout: 1500 });
   return JSON.parse(JSON.stringify(ctx.model));
 }
 export function compileHtml(html, file = "page") {
@@ -251,37 +251,50 @@ export function validateModel(m) {
     if (missing.length) errors.push("PREM_LOG 缺标的（多半是合并时被静默删掉）：" + missing.join("、"));
   }
 
-  /* ── NDX_DD（纳指回撤事件表，AUTO，scripts/build-ndx-dd.mjs 写；2026-11-07 加）──
-     页面「这波跌多久能修复」全靠它 → 结构坏了会静默显示"没有数据" ✗ 故硬校验 ✓ */
+  /* ── DD_HIST（三指数回撤事件表，AUTO，scripts/build-dd-hist.mjs 写）
+     ⚠ 2026-11-27 由单指数的 NDX_DD 升级而来（va 标普/日经后必须同口径，否则两份算法漂移）。
+     页面「这种深度历史上修多久」全靠它（index 首页三个 tab ＋ 持仓卡摘要）→
+     结构坏了会静默显示"没有数据" ✗ 故硬校验 ✓
+     ⚠ 旧 NDX_DD 的教训写在这里：它标着 since 1995、实际只有 1,921 根（东财 100.NDX100 只到 2019-04），
+       于是 10 次事件全是 2019 年后的 —— 「标签说 30 年、数据只有 7 年」这种**静默降级**必须靠
+       `days` 与 `since` 的比例来拦 ✓ */
   {
-    const nd = m.NDX_DD;
-    if (!nd) errors.push("NDX_DD: 整块缺失（跑 scripts/build-ndx-dd.mjs）");
+    const h = m.DD_HIST;
+    if (!h) errors.push("DD_HIST: 整块缺失（跑 scripts/build-dd-hist.mjs）");
     else {
-      if (!isDate(nd.asOf)) errors.push("NDX_DD: asOf 非法 " + nd.asOf);
-      if (!Array.isArray(nd.events) || nd.events.length < 10)
-        errors.push("NDX_DD: events 少于 10 次（纳指 30 年应有 ~20 次 ≥10% 回撤）");
-      else {
-        nd.events.forEach((e, i) => {
-          if (![e.dd, e.toTrough].every(Number.isFinite))
-            errors.push("NDX_DD.events[" + i + "]: dd/toTrough 非数");
-          if (e.dd > 0) errors.push("NDX_DD.events[" + i + "]: dd 应为负 " + e.dd);
-          if (e.ongoing) {
-            if (e.recover !== null || e.total !== null)
-              errors.push("NDX_DD.events[" + i + "]: 进行中的事件不该有 recover/total");
-          } else if (!(Number.isFinite(e.total) && Number.isFinite(e.toRecover)))
-            errors.push("NDX_DD.events[" + i + "]: 已完成的事件缺 total/toRecover");
+      if (!isDate(h.asOf)) errors.push("DD_HIST: asOf 非法 " + h.asOf);
+      const KEYS = ["ndx", "spx", "n225"];
+      const got = Object.keys(h.indices || {});
+      const miss = KEYS.filter((k) => !got.includes(k));
+      if (miss.length) errors.push("DD_HIST: 缺指数 " + miss.join("、"));
+      KEYS.filter((k) => h.indices && h.indices[k]).forEach((k) => {
+        const v = h.indices[k], tag = "DD_HIST." + k;
+        if (!isDate(v.since) || !isDate(v.asOf)) errors.push(tag + ": since/asOf 非法");
+        if (!Number.isFinite(v.days) || v.days < 500) errors.push(tag + ": days 异常 " + v.days);
+        /* 「标签年份 vs 实际根数」—— 每交易日按 ≤260 根/年估，低于 70% 就是在撒谎 ✗ */
+        const yrs = (Date.parse(v.asOf) - Date.parse(v.since)) / 31536000000;
+        if (yrs > 1 && v.days < yrs * 260 * 0.7)
+          errors.push(tag + ": " + Math.round(yrs) + " 年窗口只有 " + v.days + " 根（数据被截断却仍标 since " + v.since + " ✗）");
+        if (!Array.isArray(v.events) || v.events.length < 6) errors.push(tag + ": events 少于 6 次");
+        else {
+          v.events.forEach((e, i) => {
+            if (![e.dd, e.toTrough].every(Number.isFinite)) errors.push(tag + ".events[" + i + "]: dd/toTrough 非数");
+            if (e.dd > 0) errors.push(tag + ".events[" + i + "]: dd 应为负 " + e.dd);
+            if (e.ongoing) {
+              if (e.recover !== null || e.total !== null) errors.push(tag + ".events[" + i + "]: 进行中的事件不该有 recover/total");
+              if (![e.at, e.rebound].every(Number.isFinite)) errors.push(tag + ".events[" + i + "]: 进行中缺 at/rebound");
+            } else if (!(Number.isFinite(e.total) && Number.isFinite(e.toRecover))) {
+              errors.push(tag + ".events[" + i + "]: 已完成的事件缺 total/toRecover");
+            }
+          });
+          if (v.events.filter((e) => e.ongoing).length > 1) errors.push(tag + ": 进行中的事件只能有 1 个");
+        }
+        if (!Array.isArray(v.stats) || v.stats.length !== 4) errors.push(tag + ": stats 应为 4 档（−10~15 / −15~20 / −20~30 / ≤−30）");
+        else v.stats.forEach((st) => {
+          if (!Number.isFinite(st.n)) errors.push(tag + ".stats." + st.k + ": n 非数");
+          if (st.n > 0 && !Number.isFinite(st.medianTotal)) errors.push(tag + ".stats." + st.k + ": 有样本却没有 medianTotal");
+          if (Array.isArray(st.within) && st.within.some((w) => w.k > w.n)) errors.push(tag + ".stats." + st.k + ": within 的 k > n（占比不可能 >100%）");
         });
-        if (nd.events.filter((e) => e.ongoing).length > 1)
-          errors.push("NDX_DD: 进行中的事件只能有 1 个");
-      }
-      if (!Array.isArray(nd.stats) || nd.stats.length !== 4)
-        errors.push("NDX_DD: stats 应为 4 档（−10~15 / −15~20 / −20~30 / ≤−30）");
-      else nd.stats.forEach((st) => {
-        if (!Number.isFinite(st.n)) errors.push("NDX_DD.stats." + st.k + ": n 非数");
-        if (st.n > 0 && !Number.isFinite(st.medianTotal))
-          errors.push("NDX_DD.stats." + st.k + ": 有样本却没有 medianTotal");
-        if (Array.isArray(st.within) && st.within.some((w) => w.k > w.n))
-          errors.push("NDX_DD.stats." + st.k + ": within 的 k > n（占比不可能 >100%）");
       });
     }
   }
