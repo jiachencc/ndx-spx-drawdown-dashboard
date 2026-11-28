@@ -28,6 +28,7 @@
  *      那正是日经「−20% 不是终点」的尾部证据 ✓；排在后面的深度档样本极少，页面会显示 n ✓
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import vm from "node:vm";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +40,18 @@ const DRY = process.argv.includes("--dry");
 const MIN_EVENTS = 6;              // 少于这个数就判定「样本被截断」，保留旧值
 
 /* ── 取数 ─────────────────────────────────────────────────────────── */
+/* data.js 的 RECENT（252 根日线，Yahoo/腾讯）—— **只用来给 FRED 的尾巴补最新一两天**。
+   ⚠ 两段是同一指数、同一收盘口径（实测 11-23~11-25 逐日完全一致：26,746.10 / 26,214.17 / 26,046.90），
+     所以拼接不会引入口径差 ✓；只补「比 FRED 末日更新」的点，同一天冲突时保留 FRED ✓ */
+function recentCloses() {
+  try {
+    const m = /^const RECENT = [\s\S]*?^\};/m.exec(readFileSync(DATA, "utf8"));
+    if (!m) return null;
+    const ctx = vm.createContext({});
+    vm.runInContext(m[0] + "\nthis.r = RECENT;", ctx, { timeout: 1500 });
+    return ctx.r;
+  } catch (e) { return null; }
+}
 async function fredSeries(id) {
   const r = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=" + id,
     { headers: UA, signal: AbortSignal.timeout(30000) });
@@ -162,11 +175,26 @@ const DEFS = [
   {
     k: "ndx", name: "纳指100", since: "1995-01-01", prefer: "FRED NASDAQ100",
     async load() {
-      try { return { rows: await fredSeries("NASDAQ100"), source: "FRED NASDAQ100" }; }
+      let rows, source, degraded = false, err = "";
+      try { rows = await fredSeries("NASDAQ100"); source = "FRED NASDAQ100"; }
       catch (e) {
-        const rows = await tencentRecent("usNDX");
-        return { rows, source: "Tencent usNDX（仅近 1000 根 · 降级）", degraded: true, err: e.message };
+        rows = await tencentRecent("usNDX");
+        source = "Tencent usNDX（仅近 1000 根 · 降级）";
+        degraded = true; err = e.message;
       }
+      /* ⚠ 2026-11-28：FRED 的 NASDAQ100 有 1~2 天发布滞后（11-25 之后要等下周一），
+         而 data.js 的 RECENT 已经到最新收盘 → 用 RECENT 把尾巴补到当天，
+         否则页面上纳指那格会一直写「数据至 11.25」，与标普/日经错开 ✗ */
+      const R = recentCloses();
+      const last = rows[rows.length - 1].d;
+      const tail = (R && R.ndx && Array.isArray(R.ndx.pts))
+        ? R.ndx.pts.filter((p) => p && /^\d{4}-\d{2}-\d{2}$/.test(p.d) && p.d > last && Number.isFinite(p.c))
+        : [];
+      if (tail.length) {
+        rows = rows.concat(tail.map((p) => ({ d: p.d, c: p.c })));
+        source += " + RECENT 补 " + tail.length + " 根（" + tail[0].d + "~" + tail[tail.length - 1].d + "）";
+      }
+      return { rows, source, degraded, err };
     },
   },
   {

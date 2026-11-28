@@ -273,11 +273,34 @@ export async function main({ root = ROOT, now = new Date(), seriesProvider = ser
     if (n.length && n.length === s.length) next.MONTHLY = n.map((v, i) => ({ m: (i + 1) + "月", ndx: rounded(v, 4), spx: rounded(s[i], 4) }));
     rec.success("monthly", nr.date, "NDX/SPX close-to-close aggregation");
   } else rec.failure("monthly", "NDX/SPX", "Core dates not synchronized; previous monthly table retained");
+  /* ⚠ 2026-11-28 加**半日市收盘时刻**：原来只按 09:30–16:00 判 intraday，
+     于是 11-27（感恩节次日，13:00 EST 收盘）在 13:41 抓到时被标成「盘中」→
+     页面挂黄标「盘中快照 · 正式收盘数据待更新」、时间条写「交易中（美东下午 13:41）」，
+     而那一刻已经收盘 41 分钟，数据其实是**收盘数据** ✗。
+     只覆盖 NYSE 现行的三种提前收盘（13:00 ET）：
+       ① 感恩节次日（11 月第 4 个周四的次日周五）② 12/24 落在工作日 ③ 7/3 落在工作日
+     ⚠ 漏判的唯一后果是**那一天**的 intraday 标记错，价格本身不受影响 ✓
+     ⚠ 全天休市不在这里管（抓不到当天数据会自然回退到上一交易日）✓ */
+  const halfDayClose = (iso) => {
+    const dt = new Date(iso + "T00:00:00Z");
+    if (isNaN(dt)) return null;
+    const w = dt.getUTCDay(), mo = dt.getUTCMonth() + 1, dd = dt.getUTCDate();
+    if (w === 0 || w === 6) return null;                       // 周末不开盘
+    if (mo === 11) {
+      const firstDow = new Date(Date.UTC(dt.getUTCFullYear(), 10, 1)).getUTCDay();
+      const firstThu = 1 + ((4 - firstDow + 7) % 7);           // 11 月第 1 个周四
+      if (dd === firstThu + 21 + 1) return "13:00";            // 第 4 个周四＝感恩节，次日提前收盘
+    }
+    if (mo === 12 && dd === 24) return "13:00";
+    if (mo === 7 && dd === 3) return "13:00";
+    return null;
+  };
   const coreDate = rec.meta.ndx?.asOf || old.DEFAULT.date;
   d.date = coreDate;
-  d.intraday = coreDate === dayNY && clockNY >= "09:30" && clockNY < "16:00";
+  const closeHM = halfDayClose(coreDate) || "16:00";
+  d.intraday = coreDate === dayNY && clockNY >= "09:30" && clockNY < closeHM;
   const zone = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "short" }).formatToParts(now).find(p => p.type === "timeZoneName").value;
-  d.asOf = { us: coreDate, et: (d.intraday ? clockNY : "16:00") + " " + zone, local: now.toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }) };
+  d.asOf = { us: coreDate, et: (d.intraday ? clockNY : closeHM) + " " + zone, local: now.toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }) };
   d.macroAsOf = null; // Legacy compatibility only: UI reads SOURCE_META, never this global flag.
   await Promise.all([
     /* VIX：CBOE 官方 CSV 优先（当天更新、不受 429 影响），Yahoo ^VIX 兜底。
