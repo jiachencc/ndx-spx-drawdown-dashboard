@@ -818,6 +818,14 @@
     font-family: var(--mono); cursor: pointer; transition: .15s; }
   .yc-tab.active { background: var(--blue); border-color: var(--blue); color: #fff;
     box-shadow: 0 3px 12px rgba(74,158,255,.32); }
+  /* ⚠ 2026-11-28：加了第三个 tab（日经225）后，390px 下每个 tab 只剩 ~110px ——
+     「日经225 N225」在 12px 等宽下要 ~80px + 内边距，正好卡在换行边缘，
+     实测会折成两行、把整排 tab 撑高一倍 ✗
+     → 窄屏降一档字号 + 禁止换行（11px 下 11 个字符 ≈ 73px，仍在 110px 内 ✓）*/
+  @media (max-width: 430px) {
+    .yc-tab { font-size: 11px; white-space: nowrap; padding: 6px 2px; }
+    .yc-span .yc-sp { font-size: 8.5px; padding: 3px 4px; }
+  }
   .yc-tab:active { transform: scale(.98); }
   .yc-span { display: flex; gap: 2px; flex-shrink: 0; }
   .yc-sp { appearance: none; border: 0; background: none; padding: 3px 6px;
@@ -1295,7 +1303,9 @@
 </div>
 
 
-<!-- ======= Yearly performance（2026-11-26 加）========
+<!-- ======= Yearly performance（2026-11-26 加；2026-11-28 加日经）========
+     ⚠ 三个指数起点不同（数据源决定）：NDX 1987 起（FRED，1986 无去年收盘）·
+        SPX 1985 起（东财 1986-03 起 + 腾讯区间补 1985~1987）· N225 1950 起（FRED NIKKEI225）
      用户：「近10年每年涨跌幅」→「年度 年内最大涨幅 年内最大回撤」→「15年吧」
      ⚠ 「年内最大涨幅/回撤」都是**顺序扫描**（从当时的前低/前高算起），
        不是「最高 ÷ 最低」——后者在最高点早于最低点时给出从未发生过的数 ✗
@@ -1306,6 +1316,7 @@
     <div class="yc-tabs">
       <button type="button" class="yc-tab active" data-idx="ndx">纳指100 NDX</button>
       <button type="button" class="yc-tab" data-idx="spx">标普500 SPX</button>
+      <button type="button" class="yc-tab" data-idx="n225">日经225 N225</button>
     </div>
     <div class="yc-span">
       <button type="button" class="yc-sp active" data-span="15">近 15 年</button>
@@ -2901,24 +2912,25 @@ renderAll();
   const spanWrap = document.querySelector(".yc-span");
   let idx = "ndx", span = "15";
 
-  /* 轴范围：按全史两端取（dd 最负 / runup 最正），两边各留 8% 边距 */
-  const AXIS = (() => {
-    const lo = Math.min(...Object.values(H.stats).map((x) => x.worstDD).filter(Number.isFinite));
-    const hi = Math.max(
-      ...["ndx", "spx"].flatMap((k) => (H[k] || []).map((x) => x.runup)),
-      ...(T ? ["ndx", "spx"].map((k) => (T[k] ? T[k].runup : 0)) : [0])
-    );
-    const pad = (hi - lo) * 0.06;
-    return { lo: lo - pad, hi: hi + pad };
-  })();
-  const xOf = (v) => ((v - AXIS.lo) / (AXIS.hi - AXIS.lo)) * 100;
-
   function rowsOf(k) {
     return (H[k] || []).slice().concat(T && T[k] ? [T[k]] : []);
   }
 
   function draw() {
     const all = rowsOf(idx);
+    /* 轴范围：**按当前指数的全史**取（dd 最负 / runup 最正），两边各留 6% 边距。
+       ⚠ 2026-11-28 加日经时改的：原来三条共用一把尺，而日经历史上有 +125% 的年份
+         （1980 年代泡沫）、标普最高 +67% —— 共用会把纳指的柱子压成一小截 ✗
+         → 每个 tab 一条自己的轴，表头已写出实际范围（`#yc-axis-hd`），切 tab 时跟着变 ✓
+       ⚠ 仍按**全史**取、不按当前显示的年数 —— 否则切「15 年 / 全部」时同一年条长会变，
+         读起来像两套数据 ✗ */
+    const AXIS = (() => {
+      const lo = Math.min(...all.map((x) => x.dd));
+      const hi = Math.max(...all.map((x) => x.runup));
+      const pad = (hi - lo) * 0.06;
+      return { lo: lo - pad, hi: hi + pad };
+    })();
+    const xOf = (v) => ((v - AXIS.lo) / (AXIS.hi - AXIS.lo)) * 100;
     /* ⚠ 2026-11-27：改成**倒序**（最新年份在最上）—— 用户要求。
        原来按年份升序（1987 → 2026），最新那一年永远压在最底下：默认 15 年要滚到卡片底部才看见，
        切「全部」还得在 560px 的内部滚动区里拖到底 ✗

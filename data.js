@@ -9779,6 +9779,12 @@ const YEARLY_YTD = {
   "yr": 6.6,
   "runup": 23.25,
   "dd": -11.62
+ },
+ "n225": {
+  "y": 2026,
+  "yr": 16.63,
+  "runup": 41.72,
+  "dd": -22.01
  }
 };
 const DDHIST = {

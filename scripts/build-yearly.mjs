@@ -212,7 +212,7 @@ const say = (t) => console.log("  " + t);
    → 行情数据按**北京日期**落盘，判据也统一用本地年 ✓ */
 const localYear = new Date().getFullYear();
 const thisYear = localYear;
-let histTo = null, histNN = 0, histNS = 0;
+let histTo = null, histNN = 0, histNS = 0, histN3 = 0;
 try {
   const cur = readFileSync(histFile, "utf8");
   const m = /"to":\s*(\d{4})/.exec(cur);
@@ -221,8 +221,10 @@ try {
      from 取两个指数的 min，NDX 还在 1987 时 SPX 被砍掉一半也看不出来 ✗） */
   const mN = /"ndx":\s*\[([\s\S]*?)\]/.exec(cur);
   const mS = /"spx":\s*\[([\s\S]*?)\]/.exec(cur);
+  const m3 = /"n225":\s*\[([\s\S]*?)\]/.exec(cur);
   if (mN) histNN = (mN[1].match(/\{"y":/g) || []).length;
   if (mS) histNS = (mS[1].match(/\{"y":/g) || []).length;
+  if (m3) histN3 = (m3[1].match(/\{"y":/g) || []).length;
 } catch (e) { /* 文件不存在 → 需要全量 */ }
 
 /* 历史「已完整」= yearly.js 的 to 已经 ≥ 去年（即除当年外的年份都有了） */
@@ -297,8 +299,21 @@ if (!needFull) {
   }
 }
 
+/* ── N225（2026-11-28 加，用户「日经加进年度表现」）────────────────────
+   FRED `NIKKEI225` 1985 起（10,300+ 根），两个环境都通，不另设兜底：
+   缺日经时整轮不写盘，避免页面出现「只有两个 tab」的半截状态 ✓ */
+let n225Rows, n225Src;
+try {
+  n225Rows = await fredSeries("NIKKEI225", fromDay);
+  n225Src = "FRED NIKKEI225";
+  say("N225 ← FRED · " + n225Rows.length + " 根 · " + n225Rows[0].d + " ~ " + n225Rows[n225Rows.length - 1].d);
+} catch (e) {
+  throw new Error("N225 取数失败（" + e.message + "）→ 放弃写盘（年度表要三指数齐全）");
+}
+
 const ndxAll = yearlyStats(ndxRows);
 const spxAll = yearlyStats(spxRows);
+const n225All = yearlyStats(n225Rows);
 
 /* ⚠ 增量模式下只拿到了当年的数据 → 算出来的「历史」只有当年那一年，
    若照原逻辑写盘会把 yearly.js 覆盖成一行 ✗ → 历史部分**整块沿用旧文件** ✓ */
@@ -314,12 +329,45 @@ if (!needFull) {
   }
 }
 if (!needFull && !histCarry) throw new Error("增量模式但读不到历史块，放弃（避免把 yearly.js 写坏）");
-const ytdYear = +[ndxRows[ndxRows.length - 1].d, spxRows[spxRows.length - 1].d].sort()[1].slice(0, 4);
+/* ⚠ 三个序列分别取末日，再取**最大**那个的年份 —— 原来两序列用 sort()[1]（＝较大者），
+   加到三个后 sort()[1] 会变成中位数，语义就漂了 ✗ */
+const ytdYear = +[ndxRows, spxRows, n225Rows].map((a) => a[a.length - 1].d).sort().at(-1).slice(0, 4);
 
 /* 已完结年份 → yearly.js；当年 → data.js */
 const pick = (arr) => arr.filter((x) => x.complete && x.y < ytdYear && x.yr !== null);
-const ndxHist = pick(ndxAll);
+let ndxHist = pick(ndxAll);
 let spxHist = pick(spxAll);
+let n225Hist = pick(n225All);
+
+/* ── 历史合并（2026-11-28 统一成一条规则，防止「年份凭空消失」）──────────────
+   ① 兜底源（腾讯区间）：重叠年份**保留旧值** —— 两源在 1991/1997/2010 的 dd 上差 ≤0.07pp，
+      重算＝把已验证的历史悄悄改掉 ✗
+   ② 原始源（东财 / FRED）：重叠年份**用新值**（`--full` 的用途就是修历史），
+      但**旧文件里有、新源没有的年份一律补回** ——
+      2026-11-28 实测：东财这天通了，于是 SPX 按原始源整段重算 → 它的序列从 1986-03 起、
+      1986 不足 200 个交易日、1987 的年度涨跌算不出来 → **1985~1987 整段被吞**（41 行 → 38 行），
+      而页面只是「年份少了」，没有任何报错 ✗。这条规则把它补回来 ✓
+   ③ 增量模式不走这里（历史整块沿用 histCarry ✓）*/
+const oldHist = (() => {
+  try { return JSON.parse(/const YEARLY_HIST = (\{[\s\S]*?\n\});/.exec(readFileSync(histFile, "utf8"))[1]); }
+  catch (e) { return null; }
+})();
+const carryMissing = (rows, key) => {
+  const old = oldHist && Array.isArray(oldHist[key]) ? oldHist[key] : [];
+  if (!old.length) return rows;
+  const have = new Set(rows.map((r) => r.y));
+  const miss = old.filter((r) => !have.has(r.y));
+  if (!miss.length) return rows;
+  say("  " + key.toUpperCase() + " 补回 " + miss.length + " 个旧年份（新源没有）："
+    + miss.map((r) => r.y).join(" / ") + " —— 不补就是静默丢历史 ✗");
+  return rows.concat(miss).sort((a, b) => a.y - b.y);
+};
+if (needFull) {
+  /* 原始源：先补回旧年份，再让重叠年份保留「新值」*/
+  if (spxSrc === "Eastmoney 100.SPX") spxHist = carryMissing(spxHist, "spx");
+  ndxHist = carryMissing(ndxHist, "ndx");
+  n225Hist = carryMissing(n225Hist, "n225");
+}
 /* ⚠ 2026-11-27：全量模式若 SPX 走了**兜底源**（腾讯区间），只补缺失年份、既有年份原样沿用 ——
    理由见上面 full 模式那段：两条源在 1991/1997/2010 的 dd 上有 ≤0.07pp 差异，
    直接重算＝把已验证的 38 年悄悄改掉 ✗。东财通了（原始源）时照旧整段重算 ✓ */
@@ -348,7 +396,9 @@ if (needFull && spxSrc !== "Eastmoney 100.SPX") {
 }
 const ndxYtd = ndxAll.find((x) => x.y === ytdYear) || null;
 const spxYtd = spxAll.find((x) => x.y === ytdYear) || null;
-const asOf = [ndxYtd ? ndxYtd.lastTrade : "?", spxYtd ? spxYtd.lastTrade : "?"].sort()[1];
+const n225Ytd = n225All.find((x) => x.y === ytdYear) || null;
+/* asOf 取三者里**最新**的交易日（原来两序列取 sort()[1]＝较大者，三序列同样要显式取 max）*/
+const asOf = [ndxYtd, spxYtd, n225Ytd].map((x) => (x ? x.lastTrade : "")).sort().at(-1) || "?";
 
 /* ⚠ 增量模式下 ndxHist/spxHist 必然为空（只拉了当年，而 pick 会滤掉当年）——
    那不是错误，历史走 histCarry ✓ 只有「全量模式且仍为空」才是真错 ✗ */
@@ -360,15 +410,16 @@ if (!histCarry && (!ndxHist.length || !spxHist.length)) throw new Error("历史�
    「脚本最后运行日」，与语义不符 ✗ */
 const YEARLY_HIST = histCarry ? Object.assign({}, histCarry) : {
   updated: asOf,
-  from: Math.min(ndxHist[0].y, spxHist[0].y),
+  from: Math.min(ndxHist[0].y, spxHist[0].y, n225Hist[0].y),
   to: ytdYear - 1,
   basis: "年度＝年末收盘 ÷ 上年末收盘 − 1；年内最大涨幅＝按时间顺序 max(P_t/前低−1)；"
     + "年内最大回撤＝按时间顺序 max(1−P_t/前高)。两条都**顺序扫描**，不是「最高 ÷ 最低」"
     + "（后者在最高点早于最低点时给出从未发生过的数）。均为**价格回报**，不含股息。",
-  sources: { ndx: ndxSrc, spx: spxSrc },
+  sources: { ndx: ndxSrc, spx: spxSrc, n225: n225Src },
   ndx: ndxHist.map(({ y, yr, runup, dd }) => ({ y, yr, runup, dd })),
   spx: spxHist.map(({ y, yr, runup, dd }) => ({ y, yr, runup, dd })),
-  stats: { ndx: summarize(ndxHist), spx: summarize(spxHist) },
+  n225: n225Hist.map(({ y, yr, runup, dd }) => ({ y, yr, runup, dd })),
+  stats: { ndx: summarize(ndxHist), spx: summarize(spxHist), n225: summarize(n225Hist) },
 };
 
 const YEARLY_YTD = {
@@ -377,6 +428,7 @@ const YEARLY_YTD = {
   basis: "当年未走完 → 三列只代表「年初到 " + asOf + "」；已完结年份在 yearly.js",
   ndx: ndxYtd ? { y: ndxYtd.y, yr: ndxYtd.yr, runup: ndxYtd.runup, dd: ndxYtd.dd } : null,
   spx: spxYtd ? { y: spxYtd.y, yr: spxYtd.yr, runup: spxYtd.runup, dd: spxYtd.dd } : null,
+  n225: n225Ytd ? { y: n225Ytd.y, yr: n225Ytd.yr, runup: n225Ytd.runup, dd: n225Ytd.dd } : null,
 };
 
 /* ── 写 yearly.js（历史，低频）────────────────────────────────────────── */
@@ -389,9 +441,10 @@ if (!histCarry) {
   const cut = [];
   if (histNN && YEARLY_HIST.ndx.length < histNN * 0.9) cut.push("NDX " + histNN + "→" + YEARLY_HIST.ndx.length);
   if (histNS && YEARLY_HIST.spx.length < histNS * 0.9) cut.push("SPX " + histNS + "→" + YEARLY_HIST.spx.length);
+  if (histN3 && YEARLY_HIST.n225.length < histN3 * 0.9) cut.push("N225 " + histN3 + "→" + YEARLY_HIST.n225.length);
   if (cut.length) {
     throw new Error("历史被截断（" + cut.join(" / ") + "）—— 数据源降级了（"
-      + ndxSrc + " / " + spxSrc + "）→ 拒绝写盘，保留旧 yearly.js ✓");
+      + ndxSrc + " / " + spxSrc + " / " + n225Src + "）→ 拒绝写盘，保留旧 yearly.js ✓");
   }
 }
 
@@ -404,7 +457,8 @@ const histHeader = "/* AUTO（低频）：年度涨跌 · 年内最大涨幅 · 
   + "   由 scripts/build-yearly.mjs 整块重写 */\n";
 if (histCarry) {
   say("yearly.js 未改动（增量模式 · 历史沿用 " + histCarry.from + "~" + histCarry.to
-    + " · NDX " + histCarry.ndx.length + " 行 / SPX " + histCarry.spx.length + " 行）");
+    + " · NDX " + histCarry.ndx.length + " 行 / SPX " + histCarry.spx.length + " 行 / N225 "
+    + ((histCarry.n225 || []).length) + " 行）");
 } else {
   try {
     const cur = readFileSync(histFile, "utf8");
@@ -413,7 +467,8 @@ if (histCarry) {
     } else {
       atomicWrite(histFile, histHeader + histBody);
       say("yearly.js 已写入（" + YEARLY_HIST.from + "~" + YEARLY_HIST.to
-        + " · NDX " + YEARLY_HIST.ndx.length + " 行 / SPX " + YEARLY_HIST.spx.length + " 行）");
+        + " · NDX " + YEARLY_HIST.ndx.length + " 行 / SPX " + YEARLY_HIST.spx.length
+        + " 行 / N225 " + YEARLY_HIST.n225.length + " 行）");
     }
   } catch (e) {
     atomicWrite(histFile, histHeader + histBody);
@@ -452,7 +507,7 @@ if (candidate === src) {
 
 /* ── 报告 ─────────────────────────────────────────────────────────────── */
 const pct = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
-["ndx", "spx"].forEach((k) => {
+["ndx", "spx", "n225"].forEach((k) => {
   const s = YEARLY_HIST.stats[k];
   if (!s) return;
   say("  " + k.toUpperCase() + " 全史 " + s.n + " 年：涨 " + s.pos + " 跌 " + s.neg + " · 胜率 " + s.winRate
@@ -460,4 +515,5 @@ const pct = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1) + "%";
     + " · 年内回撤均值 " + pct(s.avgDD) + "（最深 " + pct(s.worstDD) + "）");
 });
 say("  当年 " + ytdYear + "：" + (YEARLY_YTD.ndx ? "NDX " + pct(YEARLY_YTD.ndx.yr) : "")
-  + " · " + (YEARLY_YTD.spx ? "SPX " + pct(YEARLY_YTD.spx.yr) : "") + "（YTD 至 " + asOf + "）");
+  + " · " + (YEARLY_YTD.spx ? "SPX " + pct(YEARLY_YTD.spx.yr) : "")
+  + " · " + (YEARLY_YTD.n225 ? "N225 " + pct(YEARLY_YTD.n225.yr) : "") + "（YTD 至 " + asOf + "）");
